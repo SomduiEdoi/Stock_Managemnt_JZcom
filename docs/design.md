@@ -21,12 +21,17 @@ Stock Management System
 - ทุกการเปลี่ยน status ต้องถูกบันทึกใน asset status history
 - Permission ต้องคุมทั้ง role และ domain เช่น Server/Network
 - SharePoint migration ต้องตรวจข้อมูลผิดพลาดและ duplicate serial no.
+- Source files are `src/data/Network.csv` and `src/data/Server.csv`
+- Importer must skip the SharePoint `ListSchema=...` first line before parsing CSV headers
+- `QTY` and `FG` from SharePoint are legacy/reference fields only, not stock balance logic
+- Viewer users have read-only access and cannot mutate records
+- Rent and borrow use the same `BORROW` status/workflow in MVP
 
 ## Recommended Tech Stack
 
 ### Frontend
 
-- Framework: Next.js หรือ React
+- Framework: Next.js
 - Language: TypeScript
 - Styling: Tailwind CSS
 - UI Components: shadcn/ui
@@ -37,26 +42,89 @@ Stock Management System
 ### Backend
 
 - Runtime: Node.js
-- Framework: Next.js API routes/server actions, Express หรือ NestJS
+- Framework: Next.js full-stack with API routes/server actions
 - Language: TypeScript
 - Validation: Zod
-- Authentication: cookie-based session หรือ JWT
+- Authentication: cookie-based session
 - Password Hashing: bcrypt หรือ argon2
 
 ### Database
 
 - Database: PostgreSQL
-- ORM: Prisma หรือ Drizzle
+- ORM: Prisma
 - Migration: ORM migration tool
 
 ### Import Tools
 
 - CSV parser สำหรับ SharePoint export แบบ CSV
-- Excel parser เช่น xlsx หากต้องรองรับ `.xlsx`
+- Excel parser สำหรับกรณีที่ export เป็น `.xlsx` ในอนาคต
+
+## SharePoint Source Data
+
+### Source Files
+
+```text
+D:\Internship\Stock_Management\src\data\Network.csv
+D:\Internship\Stock_Management\src\data\Server.csv
+```
+
+### CSV Format Rule
+
+ไฟล์ export มีบรรทัดแรกเป็น SharePoint schema metadata:
+
+```text
+ListSchema={...}
+```
+
+ดังนั้น importer ต้องข้ามบรรทัดแรก และใช้บรรทัดที่สองเป็น CSV header จริง
+
+### src/data/Network.csv Profile
+
+```text
+Rows: 594
+Blank serial no.: 0
+Duplicate serial no.: 0
+Columns: Image, Category, Types, Brand, Model, Comment, Part No., Serial No., Stock Code, QTY, FG, Status, Location, Remark
+Statuses: Ready 371, Sold 171, Borrow 25, Using 12, Need Check 8, Fail 4, Lost 2, Wait 1
+Categories: Connector, Network, Accessory
+Types: Module, AccessPoint, Switch, Cable, Firewall, Power Supply Swtich, Injector, SparePart, Router
+```
+
+### src/data/Server.csv Profile
+
+```text
+Rows: 551
+Blank serial no.: 0
+Duplicate serial no.: 0
+Columns: Image, Category, Types, Brand, Model, Part No., Serial No., Description, Stock Code, QTY, FG, Status, Location, Remark, Comment
+Statuses: Ready 473, Sold 38, Borrow 18, Using 8, Fail 7, Wait 5, Lost 1, Need Check 1
+Categories: Accessories, HDD&SSD, Connector, HPE, Storage, Dell, Fujitsu, Nutanix, Cisco, IBM, SuperMicro
+Types: SAS, Card, Memory, Server, SATA, Module, Power Supply Server, Sparepart
+```
+
+### Field Mapping
+
+```text
+Source file name     -> asset domain
+Category             -> asset_categories.name
+Types                -> asset_models.type or subtype field
+Brand                -> asset_models.brand
+Model                -> asset_models.name
+Part No.             -> asset_models.part_no
+Description          -> asset_models.description
+Serial No.           -> assets.serial_no
+Stock Code           -> assets.stock_code
+Status               -> assets.status
+Location             -> locations.name or assets.location_text
+Remark + Comment     -> assets.note and initial history note
+Image                -> assets.image_ref
+QTY                  -> assets.legacy_qty
+FG                   -> assets.legacy_fg
+```
 
 ## Suggested Architecture
 
-สำหรับ MVP แนะนำเป็น full-stack monolith เพื่อให้พัฒนาเร็วและดูแลง่าย
+สำหรับ MVP ใช้ Next.js full-stack monolith เพื่อให้พัฒนาเร็วและดูแลง่าย
 
 ```text
 Browser
@@ -328,6 +396,8 @@ category_id     uuid references asset_categories(id)
 name            varchar not null
 brand           varchar
 model_no        varchar
+part_no         varchar
+type_name       varchar
 description     text
 is_active       boolean not null default true
 created_at      timestamp not null
@@ -365,8 +435,13 @@ domain_id             uuid not null references asset_domains(id)
 location_id           uuid references locations(id)
 serial_no             varchar not null
 asset_no              varchar
+stock_code            varchar
 status                varchar not null
 note                  text
+image_ref             text
+legacy_qty            integer
+legacy_fg             integer
+location_text         text
 source_system         varchar
 source_record_id      varchar
 migration_batch_id    uuid references migration_batches(id)
@@ -383,6 +458,8 @@ Rules:
 - `domain_id` ต้องตรงกับ domain ของ asset model
 - `status` ต้องเป็นค่าที่ระบบรองรับ
 - `note` ใช้เก็บ note ล่าสุดหรือรายละเอียดทั่วไปของ asset
+- `legacy_qty` และ `legacy_fg` ใช้เก็บข้อมูลเดิมจาก SharePoint เท่านั้น ห้ามใช้เป็น stock balance
+- `location_text` ใช้เก็บ location เดิม หากยังไม่ map เป็น `locations` record
 
 Indexes:
 
@@ -393,6 +470,7 @@ index assets_status_idx on assets(status)
 index assets_location_id_idx on assets(location_id)
 index assets_asset_model_id_idx on assets(asset_model_id)
 index assets_source_record_id_idx on assets(source_record_id)
+index assets_stock_code_idx on assets(stock_code)
 ```
 
 ### asset_status_histories
@@ -578,16 +656,19 @@ Transaction:
 Responsibilities:
 
 1. Create migration batch
-2. Parse CSV/Excel
-3. Map fields to internal schema
-4. Validate required fields
-5. Validate domain and status mapping
-6. Validate duplicate serial no.
-7. Create asset models if allowed
-8. Create asset records
-9. Create initial status histories
-10. Create migration rows for success/failure
-11. Complete migration batch
+2. Detect and skip SharePoint `ListSchema=...` first line for CSV files
+3. Parse CSV/Excel
+4. Map source file name to domain
+5. Map fields to internal schema
+6. Validate required fields
+7. Validate status mapping
+8. Validate duplicate serial no.
+9. Store `QTY` and `FG` as legacy/reference fields only
+10. Create asset models if allowed
+11. Create asset records
+12. Create initial status histories
+13. Create migration rows for success/failure
+14. Complete migration batch
 
 ## Concurrency Control
 
@@ -822,20 +903,23 @@ GET /api/reports/status-history
 ### Migration
 
 - source file required
+- CSV files may include first-line SharePoint `ListSchema=...`; parser must skip it
 - serial no. column required
 - model/product name column required
-- domain must be mapped to SERVER or NETWORK
+- domain is inferred from source file: `src/data/Network.csv` -> NETWORK, `src/data/Server.csv` -> SERVER
 - unknown status must be mapped or marked NEEDS_REVIEW
 - duplicate serial no. must fail or be skipped
+- blank serial no. must fail
+- QTY and FG must not affect asset count or status logic
 
 ## Authorization Matrix
 
 ```text
 Feature                     Admin   Server Owner   Network Owner   Viewer
-Dashboard all domains       yes     no             no              no
-Dashboard own domain        yes     yes            yes             view
-View Server assets          yes     yes            optional        view
-View Network assets         yes     optional       yes             view
+Dashboard all domains       yes     no             no              read
+Dashboard own domain        yes     yes            yes             read
+View Server assets          yes     yes            read            read
+View Network assets         yes     read           yes             read
 Manage Server assets        yes     yes            no              no
 Manage Network assets       yes     no             yes             no
 Change Server status        yes     yes            no              no
@@ -843,11 +927,11 @@ Change Network status       yes     no             yes             no
 Import SharePoint data      yes     no             no              no
 Manage users                yes     no             no              no
 Manage domain permissions   yes     no             no              no
-Reports all domains         yes     no             no              no
-Reports own domain          yes     yes            yes             view
+Reports all domains         yes     no             no              read
+Reports own domain          yes     yes            yes             read
 ```
 
-หมายเหตุ: Viewer จะเห็นข้อมูลได้มากแค่ไหนขึ้นกับ policy ที่กำหนดในระบบจริง แต่ต้องแก้ไขไม่ได้
+หมายเหตุ: Viewer เห็นข้อมูลแบบ read-only ได้ แต่ต้องแก้ไขไม่ได้ทั้ง UI และ API
 
 ## UI Pages
 
@@ -1022,7 +1106,6 @@ viewer@example.com
 DATABASE_URL=
 APP_URL=
 AUTH_SECRET=
-JWT_SECRET=
 NODE_ENV=
 MAX_IMPORT_FILE_SIZE=
 ```
@@ -1085,23 +1168,22 @@ MAX_IMPORT_FILE_SIZE=
 13. Reports
 14. Tests and polish
 
-## Open Technical Decisions
+## Remaining Open Technical Decisions
 
-- จะใช้ Next.js full-stack หรือแยก frontend/backend
-- จะใช้ Prisma หรือ Drizzle
-- จะใช้ cookie session หรือ JWT
-- SharePoint export format จริงเป็น CSV หรือ Excel
-- SharePoint field names จริงมีอะไรบ้าง
-- Viewer ควรเห็นข้อมูลทุก domain หรือเฉพาะบางส่วน
-- จะให้ asset ที่ไม่มี serial no. ใช้ generated internal serial ได้หรือไม่
+- ต้องมี `asset_no` แยกจาก `stock_code` หรือใช้ `stock_code` เป็น asset reference พอ
+- จะเก็บ `Image` จาก SharePoint เป็น reference string เท่านั้น หรือ migrate รูปจริงในอนาคต
 
-## Recommended Decisions for MVP
+## Final Decisions for MVP
 
 - ใช้ PostgreSQL
 - ใช้ TypeScript
-- ใช้ Next.js full-stack หรือ monolith backend/frontend เพื่อความเร็ว
+- ใช้ Next.js full-stack monolith เพื่อความเร็ว
 - ใช้ `assets.status` เป็น current state
 - ใช้ `asset_status_histories` เป็น audit trail
 - ใช้ domain permission แยก Server/Network
 - ใช้ CSV/Excel import จาก SharePoint แบบ manual upload
 - เก็บเอกสารกระดาษเป็น note/reference ก่อน ยังไม่ upload file ใน MVP
+- Source data files are `src/data/Network.csv` and `src/data/Server.csv`
+- Viewer is read-only
+- All MVP assets must have serial no.
+- Rent and borrow use the same `BORROW` workflow
