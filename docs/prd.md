@@ -1,615 +1,763 @@
 # Product Requirements Document (PRD)
 
----
-
 ## Project Name
 
-Stock Management System ระบบจัดการคลังสินค้า
-
----
+Stock Management System
 
 ## Document Purpose
 
-เอกสารนี้ใช้เป็นแหล่งอ้างอิงหลักของโปรเจกต์ เพื่ออธิบายว่าเรากำลังสร้างระบบอะไร ทำไมต้องสร้าง ใครเป็นผู้ใช้งานหลัก ระบบต้องแก้ปัญหาอะไร และฟีเจอร์ใดบ้างที่ต้องมีในขอบเขต MVP
+เอกสารนี้อธิบายว่าเรากำลังสร้างระบบอะไร ทำไมต้องสร้าง ใครเป็นผู้ใช้งานหลัก ระบบต้องแก้ปัญหาอะไร และฟีเจอร์ใดบ้างที่ต้องมีในขอบเขต MVP
 
-เอกสารนี้ควรถูกอ่านก่อนเริ่มเขียนโค้ดทุกครั้ง และควรถูกอัปเดตเมื่อ requirement หรือขอบเขตของระบบเปลี่ยนแปลง
-
----
+ระบบนี้ไม่ใช่ stock management แบบนับจำนวนสินค้า แต่เป็นระบบจัดการทรัพย์สินหรืออะไหล่แบบแยกรายชิ้น โดยของ 1 ชิ้นจะถูกระบุด้วย serial no. และมีสถานะของตัวเอง
 
 ## Product Overview
 
-Stock Management System คือเว็บแอปสำหรับจัดการสินค้าคงคลัง ช่วยให้ธุรกิจสามารถติดตามสินค้า รับสินค้าเข้า เบิกหรือขายสินค้าออก ปรับยอด โอนสินค้าระหว่างคลัง และตรวจสอบยอดคงเหลือได้อย่างเป็นระบบ
+Stock Management System คือเว็บแอปสำหรับจัดการอุปกรณ์และอะไหล่ของบริษัทที่ปัจจุบันจัดการอยู่บน SharePoint ระบบใหม่จะช่วยให้ผู้ดูแล stock สามารถค้นหา ตรวจสอบ เพิ่มข้อมูล และเปลี่ยนสถานะของ item แต่ละชิ้นได้ง่ายขึ้น
 
-ระบบนี้จะใช้แนวคิด stock movement เป็นแกนหลัก กล่าวคือยอดคงเหลือของสินค้าไม่ควรถูกแก้ไขโดยตรง แต่ควรคำนวณจากประวัติการเคลื่อนไหวของสินค้า เช่น รับเข้า เบิกออก ปรับยอด และโอนคลัง เพื่อให้ตรวจสอบย้อนหลังได้และลดความผิดพลาดของข้อมูล
+สินค้าหรืออุปกรณ์ที่เหมือนกันหลายชิ้นจะไม่ถูกบันทึกเป็นจำนวนรวม เช่น ไม่เขียนว่า "HPE Fan For DL380 DL388 Gen9 มี 5 ตัว" แต่จะสร้าง asset แยก 5 records ตาม serial no. ของแต่ละชิ้นแทน เพื่อให้ติดตามประวัติของชิ้นนั้นได้ตลอดอายุการใช้งาน
 
----
+เอกสารการเบิก ยืม คืน เช่า หรือขาย ยังคงเป็นเอกสารกระดาษที่เซ็นลายมือเหมือน workflow ปัจจุบัน ระบบจะเก็บเฉพาะ note หรือ reference ที่เกี่ยวข้องกับเอกสารนั้น ไม่ได้แทนที่เอกสารลายเซ็นใน MVP
+
+## Current Situation
+
+บริษัทใช้ SharePoint ในการจัดการข้อมูลคลังสินค้าและอุปกรณ์อยู่แล้ว โดยมีผู้ดูแลหลักดังนี้:
+
+- P' Oak เป็น admin
+- P' Arm ดูแล stock ที่เกี่ยวกับ Server
+- P' Mek ดูแล stock ที่เกี่ยวกับ Network
+- พนักงานคนอื่นเป็นผู้ใช้ทั่วไปหรือผู้ขอใช้อุปกรณ์
+
+ข้อมูลเดิมจาก SharePoint ต้องถูก migrate เข้าระบบใหม่ เพื่อให้ระบบใหม่เริ่มต้นจากข้อมูลจริง ไม่ใช่เริ่มกรอกใหม่ทั้งหมด
 
 ## Problem Statement
 
-ธุรกิจที่จัดการสต็อกด้วยกระดาษ Excel หรือการจดบันทึกแบบ manual มักเจอปัญหาต่อไปนี้:
+การจัดการข้อมูลบน SharePoint มีข้อจำกัดเมื่อข้อมูลเริ่มเยอะและต้องติดตามสถานะของ item รายชิ้น:
 
-- ไม่รู้ยอดสินค้าคงเหลือแบบ real-time
-- ข้อมูลรับเข้าและเบิกออกไม่เป็นระบบ
-- ตรวจสอบย้อนหลังได้ยากว่าใครแก้ไขสต็อก เมื่อไหร่ และเพราะอะไร
-- สินค้าหมดโดยไม่รู้ตัว เพราะไม่มีการแจ้งเตือน stock ต่ำ
-- SKU หรือชื่อสินค้าซ้ำ ทำให้ข้อมูลคลังสับสน
-- การปรับยอดสินค้าไม่มีเหตุผลหรือหลักฐานประกอบ
-- มีความเสี่ยงที่ยอดคงเหลือผิดพลาดเมื่อมีหลายคนทำรายการพร้อมกัน
-
----
+- ค้นหาด้วย serial no. หรือสถานะได้ไม่สะดวกพอ
+- ตรวจสอบประวัติของอุปกรณ์แต่ละชิ้นย้อนหลังได้ยาก
+- เสี่ยงแก้ข้อมูลผิดหมวด เช่น Server กับ Network ปนกัน
+- สถานะของ item อาจไม่เป็นมาตรฐานเดียวกัน
+- การขาย ยืม คืน หรือใช้งานภายในต้องเก็บร่องรอยให้ชัดเจน
+- ของที่ขายแล้วต้องยังอยู่ในระบบเพื่อ audit แต่ไม่ควรถูกนำกลับมาใช้ซ้ำ
+- ข้อมูลเดิมใน SharePoint ต้องถูกย้ายมาโดยไม่ทำให้ข้อมูลสูญหาย
 
 ## Goals
 
-- สร้างระบบจัดการสินค้าคงคลังที่ใช้งานง่ายและตรวจสอบย้อนหลังได้
-- ทำให้ผู้ใช้เห็นยอดคงเหลือของสินค้าได้อย่างถูกต้อง
-- รองรับการรับเข้า เบิกออก ปรับยอด และโอนคลัง
-- ลดความผิดพลาดจากการจัดการ stock แบบ manual
-- แจ้งเตือนเมื่อสินค้าใกล้หมดหรือต่ำกว่าจุดสั่งซื้อ
-- วางโครงสร้างระบบให้ต่อยอดเป็นระบบจัดซื้อ รายงานขั้นสูง หรือ barcode ได้ในอนาคต
+- สร้างเว็บแอปสำหรับจัดการ asset แบบแยกราย serial no.
+- ทำให้ P' Arm และ P' Mek จัดการ stock เฉพาะหมวดที่ตัวเองรับผิดชอบได้
+- ทำให้ P' Oak เห็นและจัดการข้อมูลทั้งหมดได้
+- รองรับการเพิ่ม item ใหม่เมื่อของเข้าบริษัท
+- รองรับการเปลี่ยนสถานะ เช่น Ready, Borrow, Using, Sold, Fail, Lost, Need Check และ Wait
+- เก็บประวัติการเปลี่ยนสถานะของ item แต่ละชิ้น
+- เก็บ note หรือ reference ของเอกสารกระดาษที่เกี่ยวข้อง
+- Migrate ข้อมูลจาก SharePoint เดิมเข้าระบบใหม่
+- ลดความสับสนจากข้อมูลซ้ำหรือสถานะไม่มาตรฐาน
 
 ## Non-Goals
 
-สิ่งต่อไปนี้ยังไม่อยู่ในขอบเขต MVP เว้นแต่มีการตัดสินใจเพิ่มในภายหลัง:
+สิ่งต่อไปนี้ยังไม่อยู่ในขอบเขต MVP:
 
-- ระบบบัญชีเต็มรูปแบบ
-- ระบบขายหน้าร้าน POS
+- ระบบนับจำนวน stock แบบ quantity
+- ระบบ digital signature
+- การ upload ไฟล์เอกสารลายเซ็น
+- ระบบ purchase order
+- ระบบบัญชีหรือ invoice
+- ระบบจองของล่วงหน้าแบบ approval workflow
 - ระบบ barcode scanner
-- ระบบ purchase order เต็มรูปแบบ
-- ระบบ multi-company
-- ระบบ forecast ความต้องการสินค้า
-- ระบบ integration กับ marketplace หรือ accounting software ภายนอก
+- ระบบเชื่อมต่อ SharePoint แบบ sync real-time หลัง migration
+- ระบบคิดต้นทุน FIFO หรือ average cost
 
----
+## Key Concepts
+
+### Asset
+
+Asset คือของจริง 1 ชิ้นที่บริษัทต้องการติดตาม เช่น fan, RAM, module, switch, router, server part หรืออุปกรณ์ network
+
+### Serial No.
+
+Serial no. คือรหัสเฉพาะของ asset แต่ละชิ้น ใช้ระบุตัวตนของ asset แทนการนับจำนวน
+
+### Product / Model
+
+Product หรือ model คือชื่อรุ่นหรือชนิดของของ เช่น `HPE Fan For DL380 DL388 Gen9` ซึ่ง asset หลายชิ้นสามารถเป็น model เดียวกันได้ แต่แต่ละ asset ต้องมี serial no. ของตัวเอง
+
+### Domain
+
+Domain คือกลุ่มความรับผิดชอบหลักของ stock:
+
+- Server
+- Network
+
+Domain ใช้ควบคุมสิทธิ์ว่าใครแก้ไขข้อมูลของ item หมวดใดได้
+
+### Status
+
+Status คือสถานะปัจจุบันของ asset แต่ละชิ้น เป็นหัวใจหลักของระบบนี้
+
+## Asset Statuses
+
+### Ready
+
+พร้อมใช้งาน สามารถนำไปยืม ใช้ภายใน เช่า หรือขายได้
+
+### Borrow
+
+ลูกค้าหรือผู้เกี่ยวข้องยืมใช้งานอยู่ โดยมีเอกสารกระดาษที่เซ็นลายมือแล้ว ระบบเก็บ note/reference ของเอกสารนั้น
+
+### Using
+
+บริษัทนำ asset ไปใช้งานภายใน
+
+### Sold
+
+ขายออกไปแล้ว ของยังคงอยู่ในระบบเพื่อเก็บประวัติ แต่ไม่ควรถูกเลือกไปใช้งาน ยืม หรือขายซ้ำอีก
+
+### Fail
+
+เสียหายหรือพัง
+
+### Lost
+
+หาย และยังไม่สามารถนำกลับมาใช้ได้
+
+### Need Check
+
+ต้องตรวจสอบเพิ่มเติม เช่น ตอน check stock เคยมีของอยู่ แต่ตอนนี้พัง หาไม่เจอ หรือข้อมูลไม่แน่ชัด
+
+### Wait
+
+รอดำเนินการบางอย่าง เช่น รอตรวจเช็ค รอข้อมูลเพิ่มเติม หรือรอสรุปสถานะ ต้องใส่ note เพื่ออธิบายเสมอ
 
 ## Target Users
 
-### 1. Business Owner / Manager
+### P' Oak: Admin
 
-ผู้ดูแลภาพรวมของธุรกิจ ต้องการเห็นยอดสินค้าคงเหลือ รายงานความเคลื่อนไหว และรายการสินค้าที่ใกล้หมด
+ผู้ดูแลระบบและข้อมูลทั้งหมด
 
-ความต้องการหลัก:
+Needs:
 
-- ดูภาพรวมสินค้าคงเหลือ
-- ตรวจสอบสินค้าใกล้หมด
-- ดูประวัติการเคลื่อนไหวของสินค้า
-- ดูรายงานเบื้องต้น
+- ดู asset ทุกหมวด
+- เพิ่ม แก้ไข และเปลี่ยนสถานะ asset ได้ทุกหมวด
+- จัดการผู้ใช้และสิทธิ์
+- ตรวจสอบประวัติย้อนหลัง
+- ดูรายงานภาพรวม Server และ Network
+- ดูผล migration จาก SharePoint
 
-### 2. Warehouse Staff
+### P' Arm: Server Stock Owner
 
-พนักงานคลังที่ทำรายการรับเข้า เบิกออก โอนสินค้า และตรวจนับสินค้า
+ผู้ดูแล stock ที่เกี่ยวกับ Server
 
-ความต้องการหลัก:
+Needs:
 
-- รับสินค้าเข้าคลัง
-- เบิกสินค้าออก
-- โอนสินค้าระหว่างคลัง
-- ปรับยอดจากการตรวจนับ
-- ค้นหาสินค้าได้รวดเร็ว
+- ดูและแก้ไข asset ใน domain Server
+- เพิ่ม item ใหม่ของ Server เมื่อของเข้า
+- เปลี่ยน status ตามเอกสารกระดาษ เช่น Borrow, Using, Sold
+- ตรวจสอบ history ของ serial no. ในหมวด Server
+- ไม่สามารถแก้ไข asset หมวด Network
 
-### 3. Admin
+### P' Mek: Network Stock Owner
 
-ผู้ดูแลระบบที่จัดการผู้ใช้ สิทธิ์การเข้าถึง ข้อมูลสินค้า หมวดหมู่ และคลังสินค้า
+ผู้ดูแล stock ที่เกี่ยวกับ Network
 
-ความต้องการหลัก:
+Needs:
 
-- จัดการบัญชีผู้ใช้
-- กำหนดสิทธิ์ผู้ใช้
-- จัดการสินค้า หมวดหมู่ และคลัง
-- ตรวจสอบ activity สำคัญของระบบ
+- ดูและแก้ไข asset ใน domain Network
+- เพิ่ม item ใหม่ของ Network เมื่อของเข้า
+- เปลี่ยน status ตามเอกสารกระดาษ เช่น Borrow, Using, Sold
+- ตรวจสอบ history ของ serial no. ในหมวด Network
+- ไม่สามารถแก้ไข asset หมวด Server
 
----
+### Employee / Viewer
 
-## User Roles
+พนักงานทั่วไปที่ต้องการดูข้อมูลหรือสอบถามของ
+
+Needs:
+
+- ค้นหา asset ตาม serial no., model หรือสถานะได้ตามสิทธิ์
+- ดูสถานะของ item ได้
+- ไม่สามารถเปลี่ยนสถานะหรือแก้ไขข้อมูลหลักได้
+
+## User Roles and Permissions
 
 ### Admin
 
-- จัดการผู้ใช้ได้
-- จัดการสินค้าได้
-- จัดการหมวดหมู่สินค้าได้
-- จัดการคลังหรือ location ได้
-- ทำ stock transaction ได้
-- ดูรายงานได้
-- เข้าถึงการตั้งค่าระบบได้
+- จัดการ users และ roles ได้
+- ดู asset ทุก domain ได้
+- เพิ่ม แก้ไข และเปลี่ยนสถานะ asset ทุก domain ได้
+- import ข้อมูลจาก SharePoint ได้
+- ดู reports และ history ทุกอย่างได้
 
-### Manager
+### Server Stock Owner
 
-- ดู dashboard และรายงานได้
-- ดูรายการสินค้าและยอดคงเหลือได้
-- ทำรายการ stock transaction ได้
-- อนุมัติหรือ review การปรับยอดได้ หากระบบเพิ่ม approval flow ในอนาคต
+- ดู asset domain Server ได้
+- เพิ่ม แก้ไข และเปลี่ยนสถานะ asset domain Server ได้
+- ดู history ของ asset domain Server ได้
+- ไม่สามารถแก้ไข asset domain Network
 
-### Staff
+### Network Stock Owner
 
-- ดูรายการสินค้าได้
-- รับสินค้าเข้าได้
-- เบิกสินค้าออกได้
-- โอนสินค้าได้
-- ส่งคำขอปรับยอดได้ หรือปรับยอดได้ตามสิทธิ์ที่กำหนด
+- ดู asset domain Network ได้
+- เพิ่ม แก้ไข และเปลี่ยนสถานะ asset domain Network ได้
+- ดู history ของ asset domain Network ได้
+- ไม่สามารถแก้ไข asset domain Server
 
 ### Viewer
 
-- ดูข้อมูลสินค้าและยอดคงเหลือได้
-- ดูรายงานได้
-- ไม่สามารถสร้าง แก้ไข หรือลบข้อมูลสำคัญได้
-
----
+- ดู asset ตามสิทธิ์ที่ระบบกำหนด
+- ค้นหาและกรองข้อมูลได้
+- ไม่สามารถเพิ่ม แก้ไข เปลี่ยนสถานะ หรือ import ข้อมูลได้
 
 ## MVP Scope
 
-MVP คือเวอร์ชันแรกที่ใช้งานได้จริงและครอบคลุม workflow สำคัญของการจัดการ stock
-
 ### Included in MVP
 
-- Authentication พื้นฐาน
-- Role-based access control พื้นฐาน
-- Dashboard แสดงภาพรวม stock
-- Product management
-- Category management
-- Location / warehouse management
-- Stock in
-- Stock out
-- Stock adjustment
-- Stock transfer
-- Inventory balance view
-- Low stock alert
-- Stock movement history
+- Login/logout
+- Role-based access control
+- Domain-based permission สำหรับ Server และ Network
+- Import/migration ข้อมูลจาก SharePoint
+- Asset list
+- Asset detail
+- Register new asset
+- Edit asset information
+- Change asset status
+- Status history
+- Search by serial no., model, domain, status และ location
+- Dashboard summary
 - Basic reports
+- Note/reference สำหรับเอกสารกระดาษ
 
 ### Excluded from MVP
 
+- Quantity-based stock balance
+- Digital signature
+- Document upload
+- Real-time SharePoint sync
+- Purchase order
 - Barcode scanner
-- Purchase order workflow
-- Supplier portal
-- Advanced approval workflow
-- Accounting integration
-- Mobile app แยกต่างหาก
-- Multi-language interface
-
----
+- Costing/accounting
 
 ## Core Features
 
 ### 1. Authentication
 
-ผู้ใช้ต้องเข้าสู่ระบบก่อนใช้งานเว็บแอป
+Requirements:
+
+- ผู้ใช้ login ได้
+- ผู้ใช้ logout ได้
+- ระบบโหลด role และ domain permission หลัง login
+- route ภายในระบบต้องป้องกันผู้ใช้ที่ยังไม่ login
+
+Acceptance Criteria:
+
+- ผู้ใช้ที่ login สำเร็จเข้าสู่ dashboard
+- ผู้ใช้ที่ยังไม่ login เข้าหน้าภายในไม่ได้
+- ผู้ใช้เห็นเมนูตาม role และ domain permission
+
+### 2. SharePoint Data Migration
 
 Requirements:
 
-- ผู้ใช้สามารถ login ได้
-- ผู้ใช้สามารถ logout ได้
-- ระบบต้องรู้ role ของผู้ใช้หลัง login
-- route ที่ต้องการสิทธิ์ต้องป้องกันผู้ใช้ที่ยังไม่ login
+- Admin สามารถ import ข้อมูลเดิมจาก SharePoint ได้
+- รองรับไฟล์ export เช่น CSV หรือ Excel
+- ระบบต้อง map field เดิมเข้ากับ field ใหม่
+- ระบบต้อง validate serial no. ซ้ำ
+- records ที่ข้อมูลไม่ครบต้องถูกแยกเป็นรายการที่ต้อง review
+- ต้องเก็บ migration batch เพื่อ audit ได้
 
 Acceptance Criteria:
 
-- ผู้ใช้ที่ login สำเร็จจะเข้าสู่ dashboard
-- ผู้ใช้ที่ยังไม่ login ไม่สามารถเข้าหน้าภายในระบบได้
-- ผู้ใช้เห็นเมนูตาม role ของตัวเอง
+- Admin import ข้อมูล SharePoint ได้
+- ข้อมูลที่ import แล้วกลายเป็น asset records
+- duplicate serial no. ถูกแจ้งเตือน
+- row ที่ผิดพลาดไม่ทำให้ import ทั้งหมดพังโดยไม่มี report
 
-### 2. Product Management
+### 3. Asset Registration
 
-ผู้ใช้ที่มีสิทธิ์สามารถเพิ่ม แก้ไข และดูรายการสินค้าได้
-
-Product fields:
-
-- SKU
-- Product name
-- Category
-- Unit
-- Description
-- Reorder point
-- Active status
+ใช้เมื่อของเข้าใหม่ และ P' Arm หรือ P' Mek ตรวจเช็คของเรียบร้อยแล้ว
 
 Requirements:
 
-- SKU ต้องไม่ซ้ำ
-- Product name ต้องไม่ว่าง
-- สินค้าสามารถปิดใช้งานได้แทนการลบทิ้ง
-- สินค้าควรค้นหาได้จาก SKU หรือชื่อสินค้า
+- เพิ่ม asset ใหม่ได้ทีละ serial no.
+- serial no. ต้องไม่ซ้ำ
+- ต้องเลือก domain เป็น Server หรือ Network
+- ต้องระบุ product/model name
+- ต้องระบุ status เริ่มต้น เช่น Ready หรือ Wait
+- สามารถใส่ note ได้
 
 Acceptance Criteria:
 
-- สร้างสินค้าใหม่ได้เมื่อข้อมูลถูกต้อง
-- ระบบปฏิเสธ SKU ที่ซ้ำ
-- แก้ไขข้อมูลสินค้าได้
-- ปิดใช้งานสินค้าได้โดยไม่ลบประวัติ movement เดิม
+- ของเหมือนกัน 5 ชิ้นต้องถูกสร้างเป็น 5 asset records
+- serial no. ซ้ำต้องถูกปฏิเสธ
+- ผู้ดูแล domain เพิ่ม asset ได้เฉพาะ domain ของตัวเอง
 
-### 3. Category Management
-
-ใช้จัดกลุ่มสินค้าเพื่อให้ค้นหาและรายงานได้ง่ายขึ้น
+### 4. Asset Search and List
 
 Requirements:
 
-- เพิ่มหมวดหมู่ได้
-- แก้ไขชื่อหมวดหมู่ได้
-- ปิดใช้งานหมวดหมู่ได้
-- หมวดหมู่ที่มีสินค้าอยู่ไม่ควรถูกลบแบบถาวร
+- ค้นหาด้วย serial no.
+- ค้นหาด้วย product/model name
+- กรองตาม domain
+- กรองตาม status
+- กรองตาม location หากมี
+- แสดงผลแบบ pagination
 
 Acceptance Criteria:
 
-- สินค้าสามารถผูกกับหมวดหมู่ได้
-- ผู้ใช้สามารถกรองสินค้าตามหมวดหมู่ได้
+- ผู้ใช้หา asset จาก serial no. ได้เร็ว
+- P' Arm เห็นและแก้ได้เฉพาะ Server
+- P' Mek เห็นและแก้ได้เฉพาะ Network
+- Admin เห็นทั้งหมด
 
-### 4. Location / Warehouse Management
-
-ใช้จัดการคลังหรือพื้นที่เก็บสินค้า
+### 5. Asset Detail
 
 Requirements:
 
-- เพิ่ม location ได้
-- แก้ไข location ได้
-- ปิดใช้งาน location ได้
-- stock balance ต้องแยกตาม product และ location
+- แสดงข้อมูล asset ปัจจุบัน
+- แสดง status ปัจจุบัน
+- แสดง note ล่าสุด
+- แสดง status history ทั้งหมด
+- แสดงข้อมูลจาก SharePoint เดิมหาก asset มาจาก migration
 
 Acceptance Criteria:
 
-- ระบบแสดงยอดคงเหลือของสินค้าแยกตาม location ได้
-- location ที่มีประวัติ movement ไม่ควรถูกลบแบบถาวร
+- ผู้ใช้เห็นประวัติของ serial no. แต่ละตัว
+- เห็นได้ว่าใครเปลี่ยนสถานะ เมื่อไหร่ และ note คืออะไร
 
-### 5. Stock In
-
-ใช้บันทึกการรับสินค้าเข้าคลัง
+### 6. Change Asset Status
 
 Requirements:
 
-- เลือกสินค้าได้
-- เลือก location ได้
-- ระบุจำนวนรับเข้าได้
-- ระบุ note หรือ reference ได้
-- จำนวนต้องมากกว่า 0
-- รายการรับเข้าต้องสร้าง stock movement ประเภท IN
+- ผู้ใช้ที่มีสิทธิ์สามารถเปลี่ยน status ได้
+- ทุกการเปลี่ยน status ต้องสร้าง status history
+- status บางประเภทต้องใส่ note เช่น Borrow, Using, Sold, Fail, Lost, Need Check และ Wait
+- ระบบต้องบันทึก from status, to status, changed by, changed at และ note
 
 Acceptance Criteria:
 
-- เมื่อรับสินค้าเข้า ยอดคงเหลือเพิ่มขึ้น
-- ประวัติ movement แสดงรายการรับเข้า
-- ระบบบันทึกผู้ทำรายการและเวลาที่ทำรายการ
+- เปลี่ยน status แล้ว asset ปัจจุบันเปลี่ยนตาม
+- history ถูกสร้างทุกครั้ง
+- note ไม่หาย
+- ผู้ใช้ไม่สามารถเปลี่ยน status ของ asset นอก domain ตัวเองได้
 
-### 6. Stock Out
-
-ใช้บันทึกการเบิกหรือขายสินค้าออกจากคลัง
+### 7. Borrow Asset
 
 Requirements:
 
-- เลือกสินค้าได้
-- เลือก location ได้
-- ระบุจำนวนจ่ายออกได้
-- จำนวนต้องมากกว่า 0
-- ห้ามจ่ายออกเกินยอดคงเหลือ
-- รายการจ่ายออกต้องสร้าง stock movement ประเภท OUT
+- ใช้เมื่อมีเอกสารกระดาษยืมของและเซ็นลายมือแล้ว
+- เลือก asset ที่มี status เหมาะสม เช่น Ready
+- เปลี่ยน status เป็น Borrow
+- ใส่ note เช่น ชื่อลูกค้า เลขที่เอกสาร วันที่ยืม หรือรายละเอียดอื่น
 
 Acceptance Criteria:
 
-- เมื่อจ่ายสินค้าออก ยอดคงเหลือลดลง
-- ระบบปฏิเสธรายการที่ทำให้ stock ติดลบ
-- ประวัติ movement แสดงรายการจ่ายออก
+- Ready asset ถูกเปลี่ยนเป็น Borrow ได้
+- Sold asset ไม่สามารถถูกยืมได้
+- history ระบุว่าใครเปลี่ยนเป็น Borrow
 
-### 7. Stock Adjustment
-
-ใช้ปรับยอดสินค้าเมื่อมีการตรวจนับจริงหรือพบความคลาดเคลื่อน
+### 8. Return Borrowed Asset
 
 Requirements:
 
-- เลือกสินค้าได้
-- เลือก location ได้
-- ระบุจำนวนที่ต้องการปรับได้
-- ต้องระบุเหตุผลในการปรับยอด
-- การปรับยอดต้องสร้าง movement ประเภท ADJUSTMENT
-- ระบบต้องบันทึกผู้ทำรายการและเวลาที่ทำรายการ
+- ใช้เมื่อมีการคืนของและเซ็นคืนในเอกสารใบเดิม
+- ค้นหา asset ที่ status Borrow
+- ตรวจสภาพของหลังคืน
+- เปลี่ยน status เป็น Ready, Fail หรือ Need Check ตามสภาพจริง
+- ใส่ note อ้างอิงเอกสารเดิม
 
 Acceptance Criteria:
 
-- ปรับยอดได้เมื่อมีเหตุผลประกอบ
-- ระบบแสดงประวัติการปรับยอดย้อนหลังได้
-- การปรับยอดไม่ทำลายประวัติ movement เดิม
+- Borrow asset ถูกคืนเป็น Ready ได้
+- หากเสีย เปลี่ยนเป็น Fail ได้
+- หากยังไม่แน่ชัด เปลี่ยนเป็น Need Check ได้
+- history แสดงการคืนพร้อม note
 
-### 8. Stock Transfer
-
-ใช้โอนสินค้าจาก location หนึ่งไปยังอีก location หนึ่ง
+### 9. Use Asset Internally
 
 Requirements:
 
-- เลือกสินค้าได้
-- เลือก location ต้นทางได้
-- เลือก location ปลายทางได้
-- location ต้นทางและปลายทางต้องไม่เหมือนกัน
-- จำนวนต้องมากกว่า 0
-- ห้ามโอนเกินยอดคงเหลือของ location ต้นทาง
-- การโอนควรสร้าง movement แบบ TRANSFER_OUT และ TRANSFER_IN หรือ movement pair ที่ตรวจสอบย้อนหลังได้
+- ใช้เมื่อบริษัทนำของไปใช้งานภายใน
+- เปลี่ยน status เป็น Using
+- ใส่ note เช่น ผู้ใช้ภายใน แผนก งาน หรือ project
 
 Acceptance Criteria:
 
-- โอนสินค้าแล้วต้นทางลดลง
-- โอนสินค้าแล้วปลายทางเพิ่มขึ้น
-- ประวัติ movement แสดงความเชื่อมโยงของรายการโอน
+- Ready asset เปลี่ยนเป็น Using ได้
+- history ระบุผู้เปลี่ยนและ note
 
-### 9. Inventory Balance
-
-ใช้ดูยอดคงเหลือปัจจุบันของสินค้า
+### 10. Sell Asset
 
 Requirements:
 
-- แสดงยอดคงเหลือตามสินค้า
-- แสดงยอดคงเหลือตาม location
-- ค้นหาได้จาก SKU หรือชื่อสินค้า
-- กรองตาม category และ location ได้
-- แสดงสถานะ low stock เมื่อยอดต่ำกว่าหรือเท่ากับ reorder point
+- ใช้เมื่อขาย asset ออกไป
+- เปลี่ยน status เป็น Sold
+- ใส่ note เช่น ขายให้ใคร เลขที่เอกสาร หรือรายละเอียดการขาย
+- ของที่ Sold ต้องยังคงอยู่ในระบบ
 
 Acceptance Criteria:
 
-- ยอดคงเหลือสะท้อน stock movement ล่าสุด
-- ผู้ใช้สามารถค้นหาและกรองข้อมูลได้
-- สินค้าที่ต่ำกว่า reorder point ถูกแสดงเป็น low stock
+- Sold asset ไม่ถูกลบ
+- Sold asset ไม่สามารถถูกเลือกไป borrow/use/sell ซ้ำใน workflow ปกติ
+- history ระบุรายละเอียดการขายเท่าที่บันทึกใน note
 
-### 10. Stock Movement History
-
-ใช้ตรวจสอบประวัติการเคลื่อนไหวทั้งหมดของสินค้า
+### 11. Mark Asset as Fail, Lost, Need Check, Wait
 
 Requirements:
 
-- แสดงรายการ movement ทั้งหมด
-- กรองตามสินค้า location ประเภท movement และช่วงวันที่ได้
-- แสดงผู้ทำรายการ
-- แสดง note หรือ reference
+- เปลี่ยน status เป็น Fail เมื่อเสียหรือพัง
+- เปลี่ยน status เป็น Lost เมื่อหาย
+- เปลี่ยน status เป็น Need Check เมื่อต้องตรวจสอบเพิ่มเติม
+- เปลี่ยน status เป็น Wait เมื่อรอดำเนินการ
+- ต้องใส่ note ทุกครั้ง
 
 Acceptance Criteria:
 
-- ผู้ใช้สามารถตรวจสอบย้อนหลังได้ว่าสต็อกเปลี่ยนเพราะรายการใด
-- movement แต่ละรายการมีข้อมูลเพียงพอสำหรับ audit
+- status ปัญหาทุกประเภทต้องมี note
+- history แสดงเหตุผลและผู้เปลี่ยน
 
-### 11. Dashboard
-
-หน้าแรกหลัง login แสดงภาพรวมสำคัญของระบบ
+### 12. Stock Check
 
 Requirements:
 
-- แสดงจำนวนสินค้าทั้งหมด
-- แสดงจำนวนสินค้า low stock
-- แสดง movement ล่าสุด
-- แสดง summary ของ stock in และ stock out ในช่วงเวลาล่าสุด
+- ผู้ดูแลสามารถตรวจของจริงเทียบกับข้อมูลในระบบ
+- ค้นหาตาม domain, status หรือ location
+- เมื่อพบปัญหา สามารถเปลี่ยน status เป็น Need Check, Fail หรือ Lost
+- ใส่ note รอบการตรวจ
 
 Acceptance Criteria:
 
-- ผู้ใช้เห็นสถานะ stock สำคัญได้ทันทีหลัง login
-- dashboard โหลดข้อมูลที่จำเป็นโดยไม่ทำให้ระบบช้าเกินไป
+- ตรวจสอบ serial no. รายชิ้นได้
+- item ที่มีปัญหาถูก flag ด้วย status ที่ถูกต้อง
+- history ของ asset ระบุว่าถูกเปลี่ยนสถานะจากการตรวจ stock
 
-### 12. Basic Reports
+### 13. Dashboard and Reports
 
-ใช้ดูรายงานพื้นฐานเพื่อช่วยตัดสินใจ
+Requirements:
 
-Reports in MVP:
-
-- Current inventory report
-- Low stock report
-- Stock movement report
+- แสดงจำนวน asset แยกตาม status
+- แสดงจำนวน asset แยกตาม domain
+- แสดงรายการ Need Check, Fail, Lost
+- แสดงรายการ Borrow และ Using
+- แสดงรายการ Sold
+- แสดง status changes ล่าสุด
 
 Acceptance Criteria:
 
-- ผู้ใช้สามารถดูรายงาน inventory ปัจจุบันได้
-- ผู้ใช้สามารถดูรายการสินค้า low stock ได้
-- ผู้ใช้สามารถดู movement ตามช่วงวันที่ได้
+- P' Oak เห็นภาพรวมทั้งหมด
+- P' Arm เห็นภาพรวม Server
+- P' Mek เห็นภาพรวม Network
+- รายงานกรองตาม status และ domain ได้
 
----
+## Use Cases
 
-## User Flows
+| ID | Use Case | Actor | Goal |
+|---|---|---|---|
+| UC-01 | Login | All users | เข้าระบบตามสิทธิ์ |
+| UC-02 | Import Data from SharePoint | Admin | ย้ายข้อมูลเดิมเข้าระบบใหม่ |
+| UC-03 | Register New Asset | Admin, Stock Owner | เพิ่มของเข้าใหม่แบบแยก serial no. |
+| UC-04 | Edit Asset Information | Admin, Stock Owner | แก้ข้อมูล asset |
+| UC-05 | Change Asset Status | Admin, Stock Owner | เปลี่ยนสถานะของ item |
+| UC-06 | Borrow Asset to Customer | Stock Owner | บันทึกการยืมหลังมีเอกสารกระดาษ |
+| UC-07 | Return Borrowed Asset | Stock Owner | บันทึกการคืนและสถานะหลังตรวจสภาพ |
+| UC-08 | Use Asset Internally | Stock Owner | บันทึกของที่ใช้ภายในบริษัท |
+| UC-09 | Sell Asset | Stock Owner | บันทึกของที่ขายแล้วโดยไม่ลบออกจากระบบ |
+| UC-10 | Mark Asset as Failed | Stock Owner | ระบุว่า asset เสียหรือพัง |
+| UC-11 | Mark Asset as Lost | Stock Owner | ระบุว่า asset หาย |
+| UC-12 | Mark Asset as Need Check | Stock Owner | ระบุว่า asset ต้องตรวจสอบเพิ่มเติม |
+| UC-13 | Stock Check | Admin, Stock Owner | ตรวจของจริงเทียบกับระบบ |
+| UC-14 | View Asset History | Authorized users | ดูประวัติของ serial no. |
+| UC-15 | Search Asset | Authorized users | ค้นหา asset ด้วย serial no./model/status |
+| UC-16 | Manage Users and Permissions | Admin | จัดการ role และ domain permission |
 
-### Flow 1: Add New Product
+## Workflows
 
-1. Admin หรือผู้ใช้ที่มีสิทธิ์เข้าสู่ระบบ
-2. ไปที่หน้า Products
-3. คลิกสร้างสินค้าใหม่
-4. กรอก SKU ชื่อสินค้า หมวดหมู่ หน่วยนับ และ reorder point
-5. กดบันทึก
-6. ระบบตรวจสอบ SKU ซ้ำ
-7. ระบบสร้างสินค้าใหม่
-8. ผู้ใช้เห็นสินค้าในรายการสินค้า
+### WF-01: Login
 
-### Flow 2: Receive Stock
+1. ผู้ใช้เปิดเว็บ
+2. ระบบแสดงหน้า login
+3. ผู้ใช้กรอก email และ password
+4. ระบบตรวจสอบบัญชี
+5. ระบบโหลด role และ domain permission
+6. ระบบพาไป dashboard
+7. ผู้ใช้เห็นข้อมูลและเมนูตามสิทธิ์
 
-1. Staff เข้าสู่ระบบ
-2. ไปที่หน้า Stock In
-3. เลือกสินค้าและ location
-4. กรอกจำนวนรับเข้า
-5. กรอก reference หรือ note หากมี
-6. กดบันทึก
-7. ระบบสร้าง stock movement ประเภท IN
-8. ยอดคงเหลือของสินค้าเพิ่มขึ้น
+Exceptions:
 
-### Flow 3: Issue Stock
+- email/password ผิด แสดง error
+- user inactive ไม่ให้เข้าสู่ระบบ
+- ไม่มี permission ให้ซ่อนเมนูและ block API
 
-1. Staff เข้าสู่ระบบ
-2. ไปที่หน้า Stock Out
-3. เลือกสินค้าและ location
-4. ระบบแสดงยอดคงเหลือปัจจุบัน
-5. กรอกจำนวนจ่ายออก
-6. กดบันทึก
-7. ระบบตรวจสอบว่ายอดพอหรือไม่
-8. ถ้ายอดพอ ระบบสร้าง movement ประเภท OUT
-9. ยอดคงเหลือลดลง
+### WF-02: Migrate Data from SharePoint
 
-### Flow 4: Transfer Stock
+1. Admin export ข้อมูลจาก SharePoint เป็น CSV หรือ Excel
+2. Admin เข้าเมนู Import
+3. Upload ไฟล์เข้าสู่ระบบ
+4. ระบบ preview ข้อมูลและ field mapping
+5. Admin ยืนยัน mapping เช่น serial no., model, domain, status, note
+6. ระบบ validate duplicate serial no. และ required fields
+7. ระบบ import records ที่ถูกต้อง
+8. ระบบแยก rows ที่มีปัญหาไว้ให้ review
+9. ระบบสร้าง migration batch และ log ผลการ import
 
-1. Staff เข้าสู่ระบบ
-2. ไปที่หน้า Stock Transfer
-3. เลือกสินค้า
-4. เลือก location ต้นทางและปลายทาง
-5. กรอกจำนวนโอน
-6. กดบันทึก
-7. ระบบตรวจสอบยอดคงเหลือของต้นทาง
-8. ระบบสร้างรายการ movement ที่สัมพันธ์กัน
-9. ยอดต้นทางลดลงและยอดปลายทางเพิ่มขึ้น
+Exceptions:
 
-### Flow 5: Check Low Stock
+- serial no. ซ้ำ ให้ reject row นั้น
+- status จาก SharePoint ไม่ตรงกับ status ใหม่ ให้ map เป็น Wait หรือ Need Check เพื่อ review
+- domain ไม่ชัดเจน ให้ส่งไป review ก่อน import เป็นข้อมูลใช้งานจริง
 
-1. Manager เข้าสู่ระบบ
-2. ไปที่ Dashboard หรือ Low Stock Report
-3. ระบบแสดงรายการสินค้าที่ต่ำกว่าหรือเท่ากับ reorder point
-4. Manager ใช้ข้อมูลนี้เพื่อตัดสินใจเติมสินค้า
+### WF-03: New Asset Arrival
 
----
+1. ของเข้าบริษัท
+2. P' Arm หรือ P' Mek รับทราบว่าของเข้าวันไหน
+3. เมื่อของมาถึง ผู้ดูแลตรวจเช็คความเรียบร้อย
+4. ผู้ดูแลแยกของตาม serial no.
+5. เปิดหน้า Register Asset
+6. กรอก model/product name
+7. กรอก serial no.
+8. เลือก domain Server หรือ Network
+9. เลือก status เริ่มต้น เช่น Ready หรือ Wait
+10. ใส่ note ถ้ามี
+11. ระบบสร้าง asset record
+12. ระบบสร้าง history แรกของ asset
+
+Example:
+
+```text
+HPE Fan For DL380 DL388 Gen9 / SN001 / Ready
+HPE Fan For DL380 DL388 Gen9 / SN002 / Ready
+HPE Fan For DL380 DL388 Gen9 / SN003 / Ready
+HPE Fan For DL380 DL388 Gen9 / SN004 / Ready
+HPE Fan For DL380 DL388 Gen9 / SN005 / Ready
+```
+
+### WF-04: Borrow Asset
+
+1. ลูกค้าหรือผู้เกี่ยวข้องต้องการยืมของ
+2. เขียนเอกสารกระดาษ
+3. เซ็นลายมือ
+4. P' Arm หรือ P' Mek ตรวจ serial no. ของ item ที่จะให้ยืม
+5. เปิด asset ในระบบ
+6. ตรวจว่า status ปัจจุบันสามารถให้ยืมได้
+7. เปลี่ยน status เป็น Borrow
+8. ใส่ note เช่น ชื่อลูกค้า เลขที่เอกสาร วันที่ยืม
+9. ระบบบันทึก status history
+
+Exceptions:
+
+- asset เป็น Sold ไม่ให้ยืม
+- asset เป็น Fail, Lost หรือ Need Check ต้องไม่ให้ยืมจนกว่าจะเปลี่ยนกลับเป็น Ready
+- ผู้ใช้ไม่มีสิทธิ์ domain นั้น ให้ block action
+
+### WF-05: Return Borrowed Asset
+
+1. ลูกค้านำของมาคืน
+2. เซ็นคืนในเอกสารใบเดิม
+3. P' Arm หรือ P' Mek ตรวจ serial no. และสภาพของ
+4. เปิด asset ในระบบ
+5. หากของปกติ เปลี่ยน status เป็น Ready
+6. หากของเสีย เปลี่ยน status เป็น Fail
+7. หากยังไม่แน่ชัด เปลี่ยน status เป็น Need Check
+8. ใส่ note อ้างอิงเอกสารเดิมและผลการตรวจ
+9. ระบบบันทึก status history
+
+### WF-06: Use Asset Internally
+
+1. พนักงานหรือทีมภายในต้องการใช้อุปกรณ์
+2. เขียนเอกสารกระดาษและเซ็นตาม process เดิม
+3. P' Arm หรือ P' Mek เลือก asset ตาม serial no.
+4. ตรวจว่า asset พร้อมใช้งาน
+5. เปลี่ยน status เป็น Using
+6. ใส่ note เช่น ผู้ใช้ แผนก งาน หรือ project
+7. ระบบบันทึก history
+
+### WF-07: Sell Asset
+
+1. มีการขาย asset ออกไป
+2. P' Arm หรือ P' Mek เปิด asset ตาม serial no.
+3. ตรวจว่า asset ไม่ได้ Sold อยู่แล้ว
+4. เปลี่ยน status เป็น Sold
+5. ใส่ note เช่น ขายให้ใคร เลขที่เอกสาร หรือรายละเอียดการขาย
+6. ระบบบันทึก history
+7. asset ยังอยู่ในระบบ แต่ไม่ถูกใช้ใน workflow ปกติอีก
+
+### WF-08: Mark Problem Status
+
+1. ผู้ดูแลพบว่า asset เสีย หาย หรือข้อมูลไม่แน่ชัด
+2. เปิด asset ในระบบ
+3. เลือก status เป็น Fail, Lost, Need Check หรือ Wait
+4. ใส่ note ระบุเหตุผล
+5. ระบบบันทึก status history
+
+### WF-09: Stock Check
+
+1. P' Oak, P' Arm หรือ P' Mek เริ่มรอบตรวจ stock
+2. ระบบแสดงรายการ asset ที่ควรตรวจตาม domain
+3. ผู้ดูแลตรวจของจริงตาม serial no.
+4. ถ้าเจอและปกติ คง status เดิมหรือเปลี่ยนเป็น Ready
+5. ถ้าเจอแต่พัง เปลี่ยนเป็น Fail
+6. ถ้าหาไม่เจอ เปลี่ยนเป็น Need Check หรือ Lost
+7. ใส่ note รอบการตรวจ
+8. ระบบเก็บ history ทุกครั้งที่ status เปลี่ยน
+
+### WF-10: View Asset History
+
+1. ผู้ใช้ค้นหา asset ด้วย serial no. หรือ model
+2. เปิดหน้า Asset Detail
+3. ระบบแสดงข้อมูลปัจจุบันของ asset
+4. ระบบแสดง timeline การเปลี่ยน status ทั้งหมด
+5. ผู้ใช้ดูได้ว่าใครเปลี่ยน status เมื่อไหร่ จากอะไรเป็นอะไร และ note คืออะไร
 
 ## Business Rules
 
-- SKU ต้องไม่ซ้ำกันในระบบ
-- Product name ต้องไม่ว่าง
-- จำนวน stock transaction ต้องมากกว่า 0
-- ห้าม stock out เกินยอดคงเหลือ
-- ห้าม stock transfer เกินยอดคงเหลือของ location ต้นทาง
-- location ต้นทางและปลายทางของการโอนต้องไม่เหมือนกัน
-- การปรับยอด stock ต้องมีเหตุผลเสมอ
-- ยอดคงเหลือควรคำนวณจาก stock movements
-- ห้ามลบสินค้า location หรือ category ที่มีประวัติ movement แบบถาวร
-- ควรใช้ active/inactive status แทนการลบข้อมูลสำคัญ
-- ทุก stock transaction ต้องบันทึกผู้ทำรายการและเวลาที่ทำรายการ
-- ทุก stock transaction ควรถูกจัดการด้วย database transaction เพื่อป้องกัน race condition
-- ระบบต้องป้องกันไม่ให้ stock balance ติดลบ
-- Low stock คือสินค้าที่มียอดคงเหลือน้อยกว่าหรือเท่ากับ reorder point
-
----
+- 1 asset record เท่ากับของจริง 1 ชิ้น
+- Asset ที่มี serial no. ต้องมี serial no. ไม่ซ้ำ
+- ระบบ MVP ไม่มี quantity field สำหรับ serialized asset
+- ของเหมือนกันหลายชิ้นต้องสร้างหลาย records ตาม serial no.
+- Asset ต้องมี domain เป็น Server หรือ Network
+- P' Arm แก้ไขได้เฉพาะ asset domain Server
+- P' Mek แก้ไขได้เฉพาะ asset domain Network
+- P' Oak แก้ไขได้ทุก domain
+- พนักงานทั่วไปไม่สามารถเปลี่ยน status ได้
+- ทุกการเปลี่ยน status ต้องสร้าง status history
+- Status Borrow, Using, Sold, Fail, Lost, Need Check และ Wait ต้องมี note
+- เอกสารลายเซ็นยังเป็นกระดาษ ระบบเก็บเฉพาะ note/reference
+- Asset ที่ Sold แล้วต้องไม่ถูกลบออกจากระบบ
+- Asset ที่ Sold แล้วไม่ควรถูกเลือกไปยืม ใช้งาน หรือขายซ้ำใน workflow ปกติ
+- Asset ที่ Fail, Lost หรือ Need Check ไม่ควรถูกยืม ใช้งาน หรือขาย จนกว่าจะถูก review
+- ข้อมูลที่ migrate จาก SharePoint ต้องเก็บ source reference หรือ migration batch
+- ห้ามแก้ไข asset นอก domain ของผู้ใช้ แม้จะเรียก API โดยตรง
+- การเปลี่ยน status ต้องบันทึก changed by และ changed at เสมอ
 
 ## Data Entities
 
-รายละเอียด schema เชิงเทคนิคจะอยู่ใน `design.md` แต่ PRD ระบุ entity หลักที่ระบบต้องมีดังนี้:
+รายละเอียด schema เชิงเทคนิคอยู่ใน `design.md` แต่ PRD ระบุ entity หลักดังนี้:
 
 - User
 - Role
-- Product
-- Category
+- Domain Permission
+- Asset Domain
+- Asset Category
+- Asset Model
+- Asset
+- Asset Status History
 - Location
-- Stock Movement
-- Inventory Balance
-- Supplier
-
-หมายเหตุ: Supplier อาจเป็น optional ใน MVP หากยังไม่ทำ purchase workflow เต็มรูปแบบ
-
----
+- Migration Batch
+- Migration Row
 
 ## Page Requirements
 
 ### Dashboard
 
-- แสดงภาพรวม stock
-- แสดงสินค้า low stock
-- แสดง movement ล่าสุด
+- Summary แยกตาม status
+- Summary แยกตาม Server/Network
+- รายการ Need Check
+- รายการ Fail และ Lost
+- Status changes ล่าสุด
 
-### Products
+### Assets
 
-- รายการสินค้า
-- ค้นหาและกรองสินค้า
-- เพิ่มและแก้ไขสินค้า
-- เปิดหรือปิดใช้งานสินค้า
+- รายการ asset ทั้งหมดตามสิทธิ์
+- ค้นหาด้วย serial no. และ model
+- กรองตาม domain, status, location
+- pagination
 
-### Categories
+### Asset Detail
 
-- รายการหมวดหมู่
-- เพิ่มและแก้ไขหมวดหมู่
-- เปิดหรือปิดใช้งานหมวดหมู่
+- ข้อมูล asset ปัจจุบัน
+- status ปัจจุบัน
+- note ล่าสุด
+- status history timeline
+- source SharePoint/migration info ถ้ามี
 
-### Locations
+### Register Asset
 
-- รายการคลังหรือพื้นที่เก็บ
-- เพิ่มและแก้ไข location
-- เปิดหรือปิดใช้งาน location
+- ฟอร์มเพิ่ม asset ราย serial no.
+- เลือก domain
+- เลือกหรือกรอก model
+- เลือก status เริ่มต้น
+- note
 
-### Stock In
+### Change Status
 
-- ฟอร์มรับสินค้าเข้า
-- แสดงรายการรับเข้าล่าสุด
+- เปลี่ยน status ของ asset
+- บังคับ note ตาม business rules
+- แสดง status ปัจจุบันก่อนเปลี่ยน
 
-### Stock Out
+### Import
 
-- ฟอร์มจ่ายสินค้าออก
-- แสดงยอดคงเหลือก่อนทำรายการ
-
-### Stock Transfer
-
-- ฟอร์มโอนสินค้า
-- แสดงต้นทาง ปลายทาง และจำนวน
-
-### Stock Adjustment
-
-- ฟอร์มปรับยอด
-- บังคับระบุเหตุผล
-
-### Inventory
-
-- ดูยอดคงเหลือปัจจุบัน
-- กรองตามสินค้า category และ location
-- แสดงสถานะ low stock
-
-### Movements
-
-- ดูประวัติ stock movement
-- กรองตามสินค้า location ประเภท movement และช่วงวันที่
+- upload CSV/Excel จาก SharePoint
+- preview data
+- field mapping
+- validation result
+- import summary
 
 ### Reports
 
-- Current inventory report
-- Low stock report
-- Stock movement report
+- Assets by status
+- Assets by domain
+- Borrowed assets
+- Using assets
+- Sold assets
+- Fail/Lost/Need Check assets
+- Status history report
 
-### Settings
+### Users and Settings
 
 - จัดการผู้ใช้
-- จัดการ role และ permission
-- ตั้งค่าพื้นฐานของระบบ
-
----
+- จัดการ role
+- จัดการ domain permission
+- จัดการ category/model/location
 
 ## Success Metrics
 
-- ผู้ใช้สามารถเพิ่มสินค้าและทำ stock transaction หลักได้ครบ
-- ยอดคงเหลือถูกต้องหลังทำ stock in, stock out, adjustment และ transfer
-- ระบบป้องกัน stock ติดลบได้
-- ผู้ใช้สามารถดูประวัติ movement ย้อนหลังได้
-- ผู้ใช้สามารถเห็นสินค้า low stock ได้ชัดเจน
-- ระบบสามารถใช้งาน workflow หลักได้โดยไม่ต้องพึ่ง Excel
-
----
+- ข้อมูลจาก SharePoint ถูก migrate เข้าระบบใหม่ได้
+- ผู้ใช้ค้นหา asset ด้วย serial no. ได้
+- P' Arm แก้ไขได้เฉพาะ Server
+- P' Mek แก้ไขได้เฉพาะ Network
+- P' Oak จัดการได้ทั้งหมด
+- ทุก asset มีสถานะปัจจุบันที่ชัดเจน
+- ทุก status change มี history พร้อม user/time/note
+- Sold asset ยังอยู่ในระบบและไม่ถูกนำกลับมาใช้ซ้ำ
+- ผู้ดูแลสามารถดูรายงาน Borrow, Using, Sold, Fail, Lost และ Need Check ได้
 
 ## Acceptance Criteria for MVP
 
-MVP จะถือว่าเสร็จเมื่อ:
+MVP ถือว่าเสร็จเมื่อ:
 
-- ผู้ใช้ login และ logout ได้
-- ระบบรองรับ role พื้นฐานอย่างน้อย Admin และ Staff
-- Admin สามารถสร้างและแก้ไขสินค้าได้
-- Admin สามารถสร้าง category และ location ได้
-- Staff สามารถรับสินค้าเข้าได้
-- Staff สามารถจ่ายสินค้าออกได้
-- Staff สามารถโอนสินค้าระหว่าง location ได้
-- ผู้ใช้ที่มีสิทธิ์สามารถปรับยอดสินค้าโดยระบุเหตุผลได้
-- ระบบป้องกันการจ่ายออกหรือโอนเกินยอดคงเหลือได้
-- ระบบแสดง inventory balance ปัจจุบันได้
-- ระบบแสดง low stock ได้
-- ระบบแสดง stock movement history ได้
-- ข้อมูลสำคัญไม่ถูกลบถาวรเมื่อมีประวัติ movement
-
----
+- ผู้ใช้ login/logout ได้
+- ระบบรองรับ Admin, Server Stock Owner, Network Stock Owner และ Viewer
+- Admin import ข้อมูลจาก SharePoint ได้
+- Admin เห็น asset ทุก domain
+- Server Stock Owner จัดการได้เฉพาะ Server
+- Network Stock Owner จัดการได้เฉพาะ Network
+- เพิ่ม asset ใหม่แบบแยก serial no. ได้
+- serial no. ซ้ำถูกปฏิเสธ
+- เปลี่ยน status asset ได้ตามสิทธิ์
+- ทุก status change สร้าง history
+- note ถูกบังคับสำหรับ status สำคัญ
+- ค้นหา asset ด้วย serial no. ได้
+- ดู asset detail และ history ได้
+- dashboard แสดง summary ตาม status/domain ได้
 
 ## Open Questions
 
-- จะใช้ระบบนี้สำหรับธุรกิจประเภทใดเป็นหลัก
-- ต้องมี supplier ตั้งแต่ MVP หรือไม่
-- ต้องมีการ export report เป็น Excel หรือ PDF ตั้งแต่ MVP หรือไม่
-- ต้องมี approval flow สำหรับ stock adjustment หรือไม่
-- ต้องรองรับหลายสาขาหรือหลายคลังตั้งแต่แรกหรือไม่
-- ต้องรองรับหน่วยนับหลายแบบต่อสินค้าเดียวกันหรือไม่
-- ต้องคิดต้นทุนสินค้า เช่น FIFO หรือ average cost หรือไม่
-
----
+- `Wait` ควรแยกย่อยเป็นรออะไรบ้าง เช่น รอตรวจ, รอเอกสาร, รอซ่อม หรือรอส่งมอบ
+- พนักงานทั่วไปควรเห็น asset ทุกตัวหรือเห็นเฉพาะบางข้อมูล
+- ต้องมี field `asset no.` เพิ่มจาก serial no. หรือไม่
+- ต้องเก็บ location ละเอียดแค่ไหน เช่น ห้อง ชั้น rack หรือกล่อง
+- มี asset ที่ไม่มี serial no. หรือไม่ และถ้ามีจะใช้รหัสอะไรแทน
+- กรณี Sold ต้องเก็บข้อมูลผู้ซื้อเป็น structured fields หรือ note อย่างเดียวพอ
+- ต้อง export report เป็น Excel ตั้งแต่ MVP หรือไม่
+- ต้องมี workflow การเช่าแยกจาก Borrow หรือใช้ Borrow พร้อม note ไปก่อน
 
 ## Future Enhancements
 
-- Purchase order
-- Supplier management เต็มรูปแบบ
-- Barcode scanner
-- Stock counting workflow
-- Approval workflow สำหรับ adjustment
-- Import/export Excel
-- Advanced reports
-- Costing method เช่น FIFO หรือ weighted average
-- Audit log แบบละเอียด
-- Notification ผ่าน email หรือ LINE
-- Mobile responsive workflow สำหรับพนักงานคลัง
-- Integration กับ POS หรือ accounting software
+- Upload เอกสารกระดาษเป็นรูปหรือ PDF
+- Digital signature
+- Barcode/QR code scanner
+- Rental workflow แยกจาก Borrow
+- Request workflow สำหรับพนักงานก่อนทำเอกสาร
+- Approval workflow
+- Export reports เป็น Excel
+- SharePoint sync หลัง migration
+- Notification สำหรับ Need Check หรือของที่ยืมนาน
+- Mobile-friendly stock check

@@ -6,29 +6,30 @@ Stock Management System
 
 ## Document Purpose
 
-เอกสารนี้อธิบายว่าเราจะสร้างระบบ Stock Management System อย่างไรในเชิงเทคนิค ครอบคลุม architecture, tech stack, database schema, API design, authentication, authorization, stock transaction rules และแนวทาง implementation สำคัญ
+เอกสารนี้อธิบายแนวทางสร้างระบบ Stock Management System ในเชิงเทคนิค โดยอิงจาก requirement ล่าสุดที่ระบบเป็น serialized asset management ไม่ใช่ระบบ stock quantity
 
-เอกสารนี้ใช้คู่กับ `prd.md` โดย `prd.md` ตอบว่าเราจะสร้างอะไรและทำไม ส่วน `design.md` ตอบว่าเราจะสร้างอย่างไร
+เป้าหมายหลักคือสร้างเว็บแอปที่จัดการ asset รายชิ้นด้วย serial no., status, domain permission และ status history พร้อมรองรับ migration จาก SharePoint เดิม
 
-## Design Principles
+## Technical Direction
 
-- Stock balance ต้องมาจาก stock movements เป็นหลัก
-- ห้ามแก้ยอดคงเหลือโดยตรงโดยไม่มี transaction record
-- ทุก stock transaction ต้องทำใน database transaction
-- ระบบต้องป้องกัน stock ติดลบ
-- ข้อมูลสำคัญควรใช้ soft delete หรือ active status แทนการลบถาวร
-- API ต้อง validate input ทั้งฝั่ง client และ server
-- Business logic สำคัญต้องอยู่ฝั่ง server
-- โครงสร้างโค้ดต้องอ่านง่าย แยก responsibility ชัดเจน และพร้อมต่อยอด
+ระบบนี้ควรออกแบบด้วยแนวคิด:
+
+- 1 physical item = 1 asset record
+- Serial no. เป็นตัวระบุ item รายชิ้น
+- ไม่มี quantity field สำหรับ serialized asset ใน MVP
+- Status ปัจจุบันอยู่บน asset record
+- ทุกการเปลี่ยน status ต้องถูกบันทึกใน asset status history
+- Permission ต้องคุมทั้ง role และ domain เช่น Server/Network
+- SharePoint migration ต้องตรวจข้อมูลผิดพลาดและ duplicate serial no.
 
 ## Recommended Tech Stack
 
 ### Frontend
 
-- Framework: React หรือ Next.js
+- Framework: Next.js หรือ React
 - Language: TypeScript
 - Styling: Tailwind CSS
-- UI Components: shadcn/ui หรือ component library ที่เข้ากับ Tailwind
+- UI Components: shadcn/ui
 - Form Handling: React Hook Form
 - Validation: Zod
 - Data Fetching: TanStack Query หรือ server actions หากใช้ Next.js
@@ -36,10 +37,10 @@ Stock Management System
 ### Backend
 
 - Runtime: Node.js
-- Framework: Express, NestJS หรือ Next.js API routes/server actions
+- Framework: Next.js API routes/server actions, Express หรือ NestJS
 - Language: TypeScript
 - Validation: Zod
-- Authentication: JWT session หรือ cookie-based session
+- Authentication: cookie-based session หรือ JWT
 - Password Hashing: bcrypt หรือ argon2
 
 ### Database
@@ -48,35 +49,32 @@ Stock Management System
 - ORM: Prisma หรือ Drizzle
 - Migration: ORM migration tool
 
-### Development Tools
+### Import Tools
 
-- Package Manager: npm, pnpm หรือ yarn
-- Formatting: Prettier
-- Linting: ESLint
-- Testing: Vitest หรือ Jest
-- API Testing: Bruno, Postman หรือ HTTP files
+- CSV parser สำหรับ SharePoint export แบบ CSV
+- Excel parser เช่น xlsx หากต้องรองรับ `.xlsx`
 
 ## Suggested Architecture
 
-ระบบควรเริ่มจาก monolith web application เพื่อให้พัฒนาเร็วและดูแลง่ายใน MVP
+สำหรับ MVP แนะนำเป็น full-stack monolith เพื่อให้พัฒนาเร็วและดูแลง่าย
 
 ```text
-Client Browser
+Browser
   |
   v
-Frontend UI
+Frontend Pages / Components
   |
   v
-Backend API / Server Actions
+API Routes / Server Actions
   |
   v
 Service Layer
   |
   v
-Repository / ORM Layer
+Repository / ORM
   |
   v
-PostgreSQL Database
+PostgreSQL
 ```
 
 ## Application Layers
@@ -85,84 +83,87 @@ PostgreSQL Database
 
 รับผิดชอบ:
 
-- แสดงหน้าจอ
-- รับ input จากผู้ใช้
-- validate เบื้องต้น
-- เรียก API
-- แสดง loading, error และ success state
+- แสดงรายการ asset
+- ค้นหาและกรองข้อมูล
+- แสดง asset detail และ history
+- รับ input จาก forms
+- แสดง validation, loading, empty และ error states
 
 ไม่ควรรับผิดชอบ:
 
-- คำนวณ stock balance ที่เชื่อถือได้
-- ตัดสิน permission สำคัญ
-- ทำ business rule หลักเพียงฝั่ง client
+- ตัดสินสิทธิ์สำคัญเพียงฝั่ง client
+- เปลี่ยน status โดยไม่ผ่าน API/service
+- map migration data เข้าฐานข้อมูลโดยตรง
 
 ### API Layer
 
 รับผิดชอบ:
 
-- รับ request
-- ตรวจ authentication
-- ตรวจ authorization
-- validate request body และ query params
-- เรียก service layer
-- ส่ง response ที่มีรูปแบบสม่ำเสมอ
+- authentication
+- authorization
+- validate request
+- call service layer
+- return response format ที่สม่ำเสมอ
 
 ### Service Layer
 
 รับผิดชอบ:
 
-- business rules
-- stock transaction workflow
-- database transaction
-- ตรวจ stock เพียงพอก่อน stock out หรือ transfer
-- สร้าง stock movement records
+- asset business rules
+- domain permission checks
+- status transition validation
+- database transaction สำหรับ status update
+- migration validation และ import
+- สร้าง status history ทุกครั้งที่ status เปลี่ยน
 
-### Repository / ORM Layer
+### Repository Layer
 
 รับผิดชอบ:
 
-- query database
+- database queries
 - create/update records
-- map database result ให้ service layer
+- pagination/filter/search queries
 
 ## Folder Structure
 
-ตัวอย่างโครงสร้างหากใช้ Next.js:
+ตัวอย่างหากใช้ Next.js:
 
 ```text
 src/
   app/
     dashboard/
-    products/
-    inventory/
-    movements/
+    assets/
+      [id]/
+      new/
+    imports/
     reports/
     settings/
     api/
   components/
     ui/
     layout/
+    assets/
     forms/
     tables/
   lib/
     auth.ts
     db.ts
     permissions.ts
+    response.ts
     validators/
   modules/
-    products/
-      product.repository.ts
-      product.service.ts
-      product.schema.ts
-    inventory/
-      inventory.repository.ts
-      inventory.service.ts
-      inventory.schema.ts
-    stock-movements/
-      stock-movement.repository.ts
-      stock-movement.service.ts
-      stock-movement.schema.ts
+    assets/
+      asset.repository.ts
+      asset.service.ts
+      asset.schema.ts
+      asset-status.ts
+    asset-models/
+    categories/
+    locations/
+    imports/
+      import.repository.ts
+      import.service.ts
+      sharepoint-mapper.ts
     users/
   types/
   tests/
@@ -171,35 +172,52 @@ prisma/
   migrations/
 ```
 
-ตัวอย่างโครงสร้างหากแยก frontend/backend:
+## Data Model Overview
 
-```text
-apps/
-  web/
-  api/
-packages/
-  shared/
-```
-
-สำหรับ MVP แนะนำเริ่มจากโครงสร้างเดียวก่อน เพื่อลด overhead
-
-## Database Design
-
-### Core Tables
+Core tables:
 
 ```text
 users
 roles
 user_roles
-categories
-products
+asset_domains
+user_domain_permissions
+asset_categories
+asset_models
 locations
-stock_movements
-stock_transfer_groups
-inventory_balances
+assets
+asset_status_histories
+migration_batches
+migration_rows
 ```
 
-หมายเหตุ: `inventory_balances` เป็น table/cache สำหรับอ่านยอดเร็วได้ แต่ source of truth ยังควรเป็น `stock_movements`
+## Status Enum
+
+Allowed asset statuses:
+
+```text
+READY
+BORROW
+USING
+SOLD
+FAIL
+LOST
+NEED_CHECK
+WAIT
+```
+
+Display labels:
+
+```text
+READY       = Ready
+BORROW      = Borrow
+USING       = Using
+SOLD        = Sold
+FAIL        = Fail
+LOST        = Lost
+NEED_CHECK  = Need Check
+WAIT        = Wait
+```
 
 ## Database Schema
 
@@ -219,7 +237,8 @@ updated_at      timestamp not null
 
 ```text
 id              uuid primary key
-name            varchar not null unique
+code            varchar not null unique
+name            varchar not null
 description     text
 created_at      timestamp not null
 updated_at      timestamp not null
@@ -227,10 +246,11 @@ updated_at      timestamp not null
 
 Default roles:
 
-- admin
-- manager
-- staff
-- viewer
+```text
+ADMIN
+STOCK_OWNER
+VIEWER
+```
 
 ### user_roles
 
@@ -241,27 +261,74 @@ created_at      timestamp not null
 primary key (user_id, role_id)
 ```
 
-### categories
+### asset_domains
 
 ```text
 id              uuid primary key
-name            varchar not null unique
+code            varchar not null unique
+name            varchar not null
 description     text
 is_active       boolean not null default true
 created_at      timestamp not null
 updated_at      timestamp not null
 ```
 
-### products
+Default domains:
+
+```text
+SERVER
+NETWORK
+```
+
+### user_domain_permissions
+
+ใช้คุมว่า user แต่ละคนดูหรือจัดการ domain ไหนได้
 
 ```text
 id              uuid primary key
-sku             varchar not null unique
+user_id         uuid not null references users(id)
+domain_id       uuid not null references asset_domains(id)
+can_view        boolean not null default true
+can_manage      boolean not null default false
+created_at      timestamp not null
+updated_at      timestamp not null
+unique(user_id, domain_id)
+```
+
+ตัวอย่าง:
+
+```text
+P' Oak  -> SERVER can_manage, NETWORK can_manage
+P' Arm  -> SERVER can_manage
+P' Mek  -> NETWORK can_manage
+Viewer  -> can_view only
+```
+
+### asset_categories
+
+```text
+id              uuid primary key
+domain_id       uuid not null references asset_domains(id)
 name            varchar not null
-category_id     uuid references categories(id)
-unit            varchar not null
 description     text
-reorder_point   integer not null default 0
+is_active       boolean not null default true
+created_at      timestamp not null
+updated_at      timestamp not null
+unique(domain_id, name)
+```
+
+### asset_models
+
+ใช้เก็บชื่อรุ่นหรือชนิดของของ เช่น `HPE Fan For DL380 DL388 Gen9`
+
+```text
+id              uuid primary key
+domain_id       uuid not null references asset_domains(id)
+category_id     uuid references asset_categories(id)
+name            varchar not null
+brand           varchar
+model_no        varchar
+description     text
 is_active       boolean not null default true
 created_at      timestamp not null
 updated_at      timestamp not null
@@ -270,9 +337,9 @@ updated_at      timestamp not null
 Indexes:
 
 ```text
-unique index products_sku_unique on products(sku)
-index products_name_idx on products(name)
-index products_category_id_idx on products(category_id)
+index asset_models_domain_id_idx on asset_models(domain_id)
+index asset_models_category_id_idx on asset_models(category_id)
+index asset_models_name_idx on asset_models(name)
 ```
 
 ### locations
@@ -287,191 +354,250 @@ created_at      timestamp not null
 updated_at      timestamp not null
 ```
 
-### stock_transfer_groups
+### assets
 
-ใช้เชื่อม movement คู่กันในกรณี transfer ระหว่าง location
-
-```text
-id              uuid primary key
-reference_no    varchar unique
-note            text
-created_by      uuid not null references users(id)
-created_at      timestamp not null
-```
-
-### stock_movements
+ใช้เก็บของจริง 1 ชิ้นต่อ 1 record
 
 ```text
-id                  uuid primary key
-product_id          uuid not null references products(id)
-location_id         uuid not null references locations(id)
-type                varchar not null
-quantity            integer not null
-direction           varchar not null
-reference_no        varchar
-reason              text
-transfer_group_id   uuid references stock_transfer_groups(id)
-created_by          uuid not null references users(id)
-created_at          timestamp not null
-```
-
-Allowed `type` values:
-
-```text
-IN
-OUT
-ADJUSTMENT
-TRANSFER_IN
-TRANSFER_OUT
-```
-
-Allowed `direction` values:
-
-```text
-INCREASE
-DECREASE
+id                    uuid primary key
+asset_model_id        uuid not null references asset_models(id)
+domain_id             uuid not null references asset_domains(id)
+location_id           uuid references locations(id)
+serial_no             varchar not null
+asset_no              varchar
+status                varchar not null
+note                  text
+source_system         varchar
+source_record_id      varchar
+migration_batch_id    uuid references migration_batches(id)
+is_active             boolean not null default true
+created_by            uuid references users(id)
+updated_by            uuid references users(id)
+created_at            timestamp not null
+updated_at            timestamp not null
 ```
 
 Rules:
 
-- quantity ต้องมากกว่า 0
-- `IN` และ `TRANSFER_IN` ต้องเป็น `INCREASE`
-- `OUT` และ `TRANSFER_OUT` ต้องเป็น `DECREASE`
-- `ADJUSTMENT` เป็นได้ทั้ง `INCREASE` หรือ `DECREASE`
-- `ADJUSTMENT` ต้องมี reason
-- `TRANSFER_IN` และ `TRANSFER_OUT` ควรมี `transfer_group_id`
+- `serial_no` ต้องไม่ซ้ำในระบบสำหรับ asset ที่ active
+- `domain_id` ต้องตรงกับ domain ของ asset model
+- `status` ต้องเป็นค่าที่ระบบรองรับ
+- `note` ใช้เก็บ note ล่าสุดหรือรายละเอียดทั่วไปของ asset
 
 Indexes:
 
 ```text
-index stock_movements_product_id_idx on stock_movements(product_id)
-index stock_movements_location_id_idx on stock_movements(location_id)
-index stock_movements_type_idx on stock_movements(type)
-index stock_movements_created_at_idx on stock_movements(created_at)
-index stock_movements_transfer_group_id_idx on stock_movements(transfer_group_id)
+unique index assets_serial_no_unique on assets(serial_no)
+index assets_domain_id_idx on assets(domain_id)
+index assets_status_idx on assets(status)
+index assets_location_id_idx on assets(location_id)
+index assets_asset_model_id_idx on assets(asset_model_id)
+index assets_source_record_id_idx on assets(source_record_id)
 ```
 
-### inventory_balances
+### asset_status_histories
 
-ใช้เก็บยอดคงเหลือปัจจุบันเพื่ออ่านข้อมูลเร็วขึ้น
+ใช้เก็บ audit trail ทุกครั้งที่ asset เปลี่ยน status
 
 ```text
 id              uuid primary key
-product_id      uuid not null references products(id)
-location_id     uuid not null references locations(id)
-quantity        integer not null default 0
-updated_at      timestamp not null
-unique(product_id, location_id)
+asset_id        uuid not null references assets(id)
+from_status     varchar
+to_status       varchar not null
+action_type     varchar not null
+note            text
+changed_by      uuid not null references users(id)
+changed_at      timestamp not null
 ```
 
-Rules:
+Allowed `action_type` values:
 
-- quantity ต้องไม่ติดลบ
-- update table นี้ได้เฉพาะผ่าน stock transaction service
-- หากข้อมูลไม่ตรงกับ movements ต้องสามารถ rebuild จาก `stock_movements` ได้
+```text
+CREATE
+STATUS_CHANGE
+BORROW
+RETURN
+USE_INTERNAL
+SELL
+MARK_FAIL
+MARK_LOST
+MARK_NEED_CHECK
+MARK_WAIT
+STOCK_CHECK
+IMPORT
+```
 
-## Stock Balance Strategy
+Indexes:
 
-มี 2 แนวทางที่ใช้ได้:
+```text
+index asset_status_histories_asset_id_idx on asset_status_histories(asset_id)
+index asset_status_histories_to_status_idx on asset_status_histories(to_status)
+index asset_status_histories_changed_at_idx on asset_status_histories(changed_at)
+index asset_status_histories_changed_by_idx on asset_status_histories(changed_by)
+```
 
-### Option A: Calculate from Movements Every Time
+### migration_batches
 
-ข้อดี:
+```text
+id              uuid primary key
+source_system   varchar not null default 'SharePoint'
+file_name       varchar
+status          varchar not null
+total_rows      integer not null default 0
+success_rows    integer not null default 0
+failed_rows     integer not null default 0
+created_by      uuid not null references users(id)
+created_at      timestamp not null
+completed_at    timestamp
+```
 
-- source of truth ชัดเจน
-- ลดความเสี่ยงจาก balance table ผิด
+Allowed `status` values:
 
-ข้อเสีย:
+```text
+PENDING
+PROCESSING
+COMPLETED
+COMPLETED_WITH_ERRORS
+FAILED
+```
 
-- query ช้าลงเมื่อ movement เยอะมาก
+### migration_rows
 
-เหมาะกับ:
+```text
+id                  uuid primary key
+migration_batch_id  uuid not null references migration_batches(id)
+row_number          integer not null
+raw_data            jsonb not null
+mapped_data         jsonb
+status              varchar not null
+error_message       text
+asset_id            uuid references assets(id)
+created_at          timestamp not null
+```
 
-- MVP ขนาดเล็ก
-- ระบบที่ movement ยังไม่เยอะ
+Allowed `status` values:
 
-### Option B: Movement Ledger + Balance Cache
+```text
+PENDING
+IMPORTED
+FAILED
+SKIPPED
+NEEDS_REVIEW
+```
 
-ข้อดี:
+## Status Transition Rules
 
-- อ่านยอดเร็ว
-- รองรับ dashboard และ report ได้ดีขึ้น
+Normal allowed transitions:
 
-ข้อเสีย:
+```text
+WAIT        -> READY, NEED_CHECK, FAIL
+READY       -> BORROW, USING, SOLD, FAIL, LOST, NEED_CHECK, WAIT
+BORROW      -> READY, FAIL, LOST, NEED_CHECK, SOLD
+USING       -> READY, FAIL, LOST, NEED_CHECK, SOLD
+FAIL        -> READY, NEED_CHECK, LOST, SOLD
+NEED_CHECK  -> READY, FAIL, LOST, WAIT
+LOST        -> NEED_CHECK, READY
+SOLD        -> no normal transition
+```
 
-- ต้องคุม transaction ให้ดี
-- ต้องมีวิธี rebuild balance
+Notes:
 
-เหมาะกับ:
+- `SOLD` เป็น terminal status ใน workflow ปกติ
+- Admin อาจ override status ได้ในอนาคต แต่ต้องมี audit log และ note
+- `WAIT` ต้องมี note เพื่ออธิบายว่ารออะไร
 
-- ระบบที่ต้องใช้งานจริง
-- มี stock transaction หลายรายการ
+Statuses that require note:
 
-Recommendation:
+```text
+BORROW
+USING
+SOLD
+FAIL
+LOST
+NEED_CHECK
+WAIT
+```
 
-ใช้ Option B โดยให้ `stock_movements` เป็น source of truth และ `inventory_balances` เป็น cache ที่ update ภายใน database transaction เดียวกัน
+Returning from `BORROW` to `READY` should also require note because it refers to the original signed paper document.
 
-## Stock Transaction Rules
+## Service Design
 
-### Stock In
+### createAsset
 
-ภายใน transaction:
+Responsibilities:
 
-1. Validate product และ location
-2. Create stock movement type `IN`
-3. Upsert inventory balance
-4. Increase balance quantity
-5. Commit transaction
+1. Validate user can manage domain
+2. Validate serial no. uniqueness
+3. Validate asset model and domain match
+4. Create asset
+5. Create initial asset status history
 
-### Stock Out
+Transaction:
 
-ภายใน transaction:
+- Create asset and history in the same database transaction
 
-1. Validate product และ location
-2. Lock inventory balance row
-3. Check current quantity
-4. Reject หาก quantity ไม่พอ
-5. Create stock movement type `OUT`
-6. Decrease balance quantity
-7. Commit transaction
+### updateAsset
 
-### Stock Adjustment
+Responsibilities:
 
-ภายใน transaction:
+1. Load asset
+2. Validate user can manage asset domain
+3. Prevent changing serial no. to duplicate value
+4. Update editable fields
 
-1. Validate product และ location
-2. Validate reason
-3. Lock inventory balance row
-4. หากเป็น decrease ต้องตรวจไม่ให้ติดลบ
-5. Create stock movement type `ADJUSTMENT`
-6. Update balance quantity
-7. Commit transaction
+Editable fields:
 
-### Stock Transfer
+- asset model
+- serial no.
+- asset no.
+- location
+- note
+- active status
 
-ภายใน transaction:
+### changeAssetStatus
 
-1. Validate product
-2. Validate source location และ destination location
-3. Reject หาก source และ destination เหมือนกัน
-4. Lock source balance row
-5. Check source quantity
-6. Create transfer group
-7. Create `TRANSFER_OUT` movement ที่ source
-8. Create `TRANSFER_IN` movement ที่ destination
-9. Decrease source balance
-10. Increase destination balance
-11. Commit transaction
+Responsibilities:
+
+1. Load asset with row lock
+2. Validate user can manage asset domain
+3. Validate target status
+4. Validate transition
+5. Validate note requirement
+6. Update current asset status
+7. Create asset status history
+
+Transaction:
+
+- Lock asset row
+- Update asset
+- Insert history
+- Commit
+
+### importSharePointData
+
+Responsibilities:
+
+1. Create migration batch
+2. Parse CSV/Excel
+3. Map fields to internal schema
+4. Validate required fields
+5. Validate domain and status mapping
+6. Validate duplicate serial no.
+7. Create asset models if allowed
+8. Create asset records
+9. Create initial status histories
+10. Create migration rows for success/failure
+11. Complete migration batch
 
 ## Concurrency Control
 
-เพื่อป้องกัน race condition:
+ถึงระบบนี้ไม่มี quantity แต่ยังต้องกันการแก้สถานะซ้อนกัน:
 
-- ทุก stock transaction ต้องใช้ database transaction
-- ตอนลด stock ต้อง lock row ของ `inventory_balances`
-- ใน PostgreSQL ใช้ `SELECT ... FOR UPDATE` หรือ ORM transaction mechanism ที่ equivalent
-- ห้ามอ่าน balance แล้ว update แยกกันนอก transaction
-- หาก balance row ยังไม่มี ต้องสร้าง row ด้วย quantity 0 ก่อนแล้ว lock ภายใน transaction
+- ทุก status update ต้องอยู่ใน database transaction
+- ต้อง lock asset row ก่อนเปลี่ยน status
+- ใช้ `SELECT ... FOR UPDATE` หรือ ORM transaction mechanism ที่ equivalent
+- ห้าม update asset status และ insert history แยก transaction
+- หาก status ถูกเปลี่ยนโดยคนอื่นก่อน submit ต้องแจ้ง conflict หรือ reload ข้อมูลล่าสุด
 
 ## API Design
 
@@ -513,7 +639,7 @@ POST /api/auth/logout
 GET  /api/auth/me
 ```
 
-### Users
+### Users and Permissions
 
 ```text
 GET    /api/users
@@ -521,26 +647,13 @@ POST   /api/users
 GET    /api/users/:id
 PATCH  /api/users/:id
 PATCH  /api/users/:id/status
+PATCH  /api/users/:id/domain-permissions
 ```
 
-### Products
+### Domains
 
 ```text
-GET    /api/products
-POST   /api/products
-GET    /api/products/:id
-PATCH  /api/products/:id
-PATCH  /api/products/:id/status
-```
-
-Query params:
-
-```text
-search
-categoryId
-isActive
-page
-limit
+GET /api/domains
 ```
 
 ### Categories
@@ -552,168 +665,189 @@ PATCH  /api/categories/:id
 PATCH  /api/categories/:id/status
 ```
 
-### Locations
+Query params:
 
 ```text
-GET    /api/locations
-POST   /api/locations
-PATCH  /api/locations/:id
-PATCH  /api/locations/:id/status
+domainId
+isActive
 ```
 
-### Inventory
+### Asset Models
 
 ```text
-GET /api/inventory/balances
-GET /api/inventory/low-stock
-GET /api/inventory/products/:productId/balances
+GET    /api/asset-models
+POST   /api/asset-models
+GET    /api/asset-models/:id
+PATCH  /api/asset-models/:id
+PATCH  /api/asset-models/:id/status
 ```
 
 Query params:
 
 ```text
 search
+domainId
 categoryId
-locationId
-lowStockOnly
+isActive
 page
 limit
 ```
 
-### Stock Movements
+### Assets
 
 ```text
-GET  /api/stock-movements
-POST /api/stock-movements/in
-POST /api/stock-movements/out
-POST /api/stock-movements/adjustment
-POST /api/stock-movements/transfer
-GET  /api/stock-movements/:id
+GET    /api/assets
+POST   /api/assets
+GET    /api/assets/:id
+PATCH  /api/assets/:id
+PATCH  /api/assets/:id/status
+GET    /api/assets/:id/history
 ```
 
 Query params:
 
 ```text
-productId
+search
+serialNo
+domainId
+modelId
+categoryId
 locationId
-type
-dateFrom
-dateTo
-createdBy
+status
 page
 limit
+```
+
+### Asset Status Actions
+
+Optional action-specific endpoints if the UI wants clearer workflows:
+
+```text
+POST /api/assets/:id/borrow
+POST /api/assets/:id/return
+POST /api/assets/:id/use-internal
+POST /api/assets/:id/sell
+POST /api/assets/:id/mark-fail
+POST /api/assets/:id/mark-lost
+POST /api/assets/:id/mark-need-check
+POST /api/assets/:id/mark-wait
+```
+
+### Imports
+
+```text
+POST /api/imports/sharepoint/preview
+POST /api/imports/sharepoint/commit
+GET  /api/imports
+GET  /api/imports/:id
+GET  /api/imports/:id/rows
 ```
 
 ### Reports
 
 ```text
-GET /api/reports/current-inventory
-GET /api/reports/low-stock
-GET /api/reports/stock-movements
+GET /api/reports/assets-by-status
+GET /api/reports/assets-by-domain
+GET /api/reports/borrowed-assets
+GET /api/reports/using-assets
+GET /api/reports/sold-assets
+GET /api/reports/problem-assets
+GET /api/reports/status-history
 ```
 
 ## Request Examples
 
-### Create Product
+### Create Asset
 
 ```json
 {
-  "sku": "SKU-001",
-  "name": "Sample Product",
-  "categoryId": "uuid",
-  "unit": "pcs",
-  "description": "Optional description",
-  "reorderPoint": 10
-}
-```
-
-### Stock In
-
-```json
-{
-  "productId": "uuid",
+  "assetModelId": "uuid",
+  "domainId": "uuid",
   "locationId": "uuid",
-  "quantity": 50,
-  "referenceNo": "PO-0001",
-  "note": "Initial stock"
+  "serialNo": "SN001",
+  "assetNo": "ASSET-001",
+  "status": "READY",
+  "note": "Initial registration"
 }
 ```
 
-### Stock Out
+### Change Asset Status
 
 ```json
 {
-  "productId": "uuid",
-  "locationId": "uuid",
-  "quantity": 5,
-  "referenceNo": "SO-0001",
-  "note": "Customer order"
+  "status": "BORROW",
+  "note": "Borrowed by Customer A, paper document REF-001"
 }
 ```
 
-### Stock Adjustment
+### Return Borrowed Asset
 
 ```json
 {
-  "productId": "uuid",
-  "locationId": "uuid",
-  "quantity": 3,
-  "direction": "DECREASE",
-  "reason": "Physical count mismatch"
+  "status": "READY",
+  "note": "Returned with original signed document REF-001, checked and usable"
 }
 ```
 
-### Stock Transfer
+### Mark Need Check
 
 ```json
 {
-  "productId": "uuid",
-  "sourceLocationId": "uuid",
-  "destinationLocationId": "uuid",
-  "quantity": 10,
-  "referenceNo": "TR-0001",
-  "note": "Move to front warehouse"
+  "status": "NEED_CHECK",
+  "note": "Stock check 2026-06 found item missing from expected shelf"
 }
 ```
 
 ## Validation Rules
 
-### Product
+### Asset
 
-- sku required
-- sku unique
-- name required
-- unit required
-- reorderPoint must be integer >= 0
+- assetModelId required
+- domainId required
+- serialNo required
+- serialNo unique
+- status required
+- status must be allowed enum
+- asset model domain must match asset domain
 
-### Stock Transaction
+### Status Change
 
-- productId required
-- locationId required
-- quantity must be integer > 0
-- stock out cannot exceed current balance
-- transfer source and destination must be different
-- adjustment reason required
+- target status required
+- target status must be allowed enum
+- user must have manage permission for asset domain
+- note required for BORROW, USING, SOLD, FAIL, LOST, NEED_CHECK, WAIT
+- note required when returning BORROW to READY
+- SOLD asset cannot be changed in normal workflow
+
+### Migration
+
+- source file required
+- serial no. column required
+- model/product name column required
+- domain must be mapped to SERVER or NETWORK
+- unknown status must be mapped or marked NEEDS_REVIEW
+- duplicate serial no. must fail or be skipped
 
 ## Authorization Matrix
 
 ```text
-Feature              Admin   Manager   Staff   Viewer
-Dashboard            yes     yes       yes     yes
-Products view        yes     yes       yes     yes
-Products manage      yes     no        no      no
-Categories manage    yes     no        no      no
-Locations manage     yes     no        no      no
-Stock in             yes     yes       yes     no
-Stock out            yes     yes       yes     no
-Stock transfer       yes     yes       yes     no
-Stock adjustment     yes     yes       optional no
-Reports              yes     yes       no      yes
-Users manage         yes     no        no      no
-Settings             yes     no        no      no
+Feature                     Admin   Server Owner   Network Owner   Viewer
+Dashboard all domains       yes     no             no              no
+Dashboard own domain        yes     yes            yes             view
+View Server assets          yes     yes            optional        view
+View Network assets         yes     optional       yes             view
+Manage Server assets        yes     yes            no              no
+Manage Network assets       yes     no             yes             no
+Change Server status        yes     yes            no              no
+Change Network status       yes     no             yes             no
+Import SharePoint data      yes     no             no              no
+Manage users                yes     no             no              no
+Manage domain permissions   yes     no             no              no
+Reports all domains         yes     no             no              no
+Reports own domain          yes     yes            yes             view
 ```
 
-หมายเหตุ: สิทธิ์ของ Staff สำหรับ stock adjustment อาจเปิดหรือปิดได้ภายหลังตาม policy ของระบบ
+หมายเหตุ: Viewer จะเห็นข้อมูลได้มากแค่ไหนขึ้นกับ policy ที่กำหนดในระบบจริง แต่ต้องแก้ไขไม่ได้
 
 ## UI Pages
 
@@ -721,94 +855,83 @@ Settings             yes     no        no      no
 
 Components:
 
-- Total products summary
-- Low stock count
-- Recent movements table
-- Stock in/out summary
+- Status summary cards
+- Domain summary
+- Recent status changes
+- Need Check list
+- Fail/Lost list
+- Borrow/Using list
 
-### Products
-
-Components:
-
-- Search input
-- Category filter
-- Product table
-- Create/edit product dialog or page
-- Active/inactive status control
-
-### Inventory
+### Assets
 
 Components:
 
-- Balance table
-- Product search
+- Search by serial no. or model
+- Domain filter
+- Status filter
 - Category filter
 - Location filter
-- Low stock indicator
+- Asset table
+- Status badge
+- Row action menu based on permission
 
-### Stock In
+### Asset Detail
 
 Components:
 
-- Product selector
+- Asset information panel
+- Current status badge
+- Latest note
+- Change status action
+- Status history timeline
+- Migration/source info
+
+### Register Asset
+
+Components:
+
+- Asset model selector
+- Create model shortcut if allowed
+- Serial no. input
+- Asset no. input
+- Domain selector
 - Location selector
-- Quantity input
-- Reference input
-- Note input
-- Recent stock in list
-
-### Stock Out
-
-Components:
-
-- Product selector
-- Location selector
-- Current balance display
-- Quantity input
-- Reference input
-- Note input
-
-### Stock Transfer
-
-Components:
-
-- Product selector
-- Source location selector
-- Destination location selector
-- Source balance display
-- Quantity input
-- Reference input
+- Initial status selector
 - Note input
 
-### Stock Adjustment
+### Import SharePoint
 
 Components:
 
-- Product selector
-- Location selector
-- Current balance display
-- Direction selector
-- Quantity input
-- Reason input
-
-### Movements
-
-Components:
-
-- Movement table
-- Product filter
-- Location filter
-- Type filter
-- Date range filter
+- File upload
+- Field mapping table
+- Preview table
+- Validation result
+- Import summary
+- Failed rows table
 
 ### Reports
 
 Components:
 
-- Current inventory report
-- Low stock report
-- Stock movement report
-- Date filters where needed
+- Assets by status
+- Assets by domain
+- Borrowed report
+- Using report
+- Sold report
+- Problem assets report
+- Status history report
+
+### Settings
+
+Components:
+
+- User management
+- Role assignment
+- Domain permission assignment
+- Category management
+- Asset model management
+- Location management
 
 ## Error Codes
 
@@ -817,12 +940,16 @@ VALIDATION_ERROR
 UNAUTHORIZED
 FORBIDDEN
 NOT_FOUND
-DUPLICATE_SKU
-INSUFFICIENT_STOCK
-INVALID_TRANSFER_LOCATION
-ADJUSTMENT_REASON_REQUIRED
-INACTIVE_PRODUCT
-INACTIVE_LOCATION
+DUPLICATE_SERIAL_NO
+INVALID_ASSET_STATUS
+INVALID_STATUS_TRANSITION
+STATUS_NOTE_REQUIRED
+SOLD_ASSET_LOCKED
+DOMAIN_PERMISSION_DENIED
+ASSET_MODEL_DOMAIN_MISMATCH
+IMPORT_FILE_INVALID
+IMPORT_MAPPING_INVALID
+IMPORT_ROW_FAILED
 INTERNAL_SERVER_ERROR
 ```
 
@@ -832,54 +959,60 @@ INTERNAL_SERVER_ERROR
 
 ควรทดสอบ:
 
-- stock in service
-- stock out service
-- stock adjustment service
-- stock transfer service
 - permission checker
-- validation schemas
+- status transition validation
+- note requirement validation
+- serial no. uniqueness logic
+- SharePoint field mapper
+- import row validator
 
 ### Integration Tests
 
 ควรทดสอบ:
 
-- create product
-- duplicate SKU rejection
-- stock in increases balance
-- stock out decreases balance
-- stock out rejects insufficient stock
-- transfer updates both locations
-- adjustment requires reason
-- movement history is created correctly
+- create asset
+- reject duplicate serial no.
+- P' Arm cannot edit Network asset
+- P' Mek cannot edit Server asset
+- Admin can edit all assets
+- change status creates history
+- Sold asset cannot be reused in normal workflow
+- SharePoint import creates assets and migration rows
+- invalid import rows are marked failed or needs review
 
 ### UI Tests
 
 ควรทดสอบ:
 
 - login flow
-- product creation flow
-- stock in flow
-- stock out flow
-- inventory balance display
-- low stock display
+- asset search by serial no.
+- register asset flow
+- change status flow
+- view asset history
+- import preview flow
+- domain-specific UI action visibility
 
 ## Seed Data
 
-ควรมี seed data สำหรับ development:
+Development seed should include:
 
-- Admin user
-- Staff user
+- P' Oak admin user
+- P' Arm server stock owner
+- P' Mek network stock owner
 - Viewer user
-- Default categories
-- Default locations
-- Sample products
-- Sample stock movements
+- Server domain
+- Network domain
+- Sample categories
+- Sample locations
+- Sample asset models
+- Sample assets with different statuses
 
 Example users:
 
 ```text
-admin@example.com
-staff@example.com
+oak@example.com
+arm@example.com
+mek@example.com
 viewer@example.com
 ```
 
@@ -891,6 +1024,7 @@ APP_URL=
 AUTH_SECRET=
 JWT_SECRET=
 NODE_ENV=
+MAX_IMPORT_FILE_SIZE=
 ```
 
 ห้าม commit secret จริงลง repository ให้ใช้ `.env.example` สำหรับบอกชื่อ variables เท่านั้น
@@ -898,68 +1032,76 @@ NODE_ENV=
 ## Security Considerations
 
 - hash password ด้วย bcrypt หรือ argon2
-- ห้ามส่ง password hash กลับไปที่ client
-- ตรวจ role ทุก API ที่เกี่ยวข้อง
+- ห้ามส่ง password hash กลับ client
 - validate input ทุก endpoint
+- ตรวจ role และ domain permission ทุก API ที่แก้ข้อมูล
+- การซ่อนปุ่มใน UI ไม่พอ ต้อง block ที่ API ด้วย
 - sanitize search params
-- ใช้ httpOnly cookie หากใช้ session cookie
-- ตั้งค่า CORS ให้เหมาะสมหาก frontend/backend แยกกัน
-- log error โดยไม่เปิดเผย secret
+- limit import file size
+- validate file type ก่อน parse import
+- log import errors โดยไม่เปิดเผย sensitive data เกินจำเป็น
 
 ## Audit Requirements
 
-ทุก stock movement ต้องเก็บ:
+ทุก status history ต้องเก็บ:
 
-- product
-- location
-- movement type
-- quantity
-- direction
-- created by
-- created at
-- reference number หากมี
-- reason หากเป็น adjustment
-- transfer group หากเป็น transfer
+- asset id
+- from status
+- to status
+- action type
+- note
+- changed by
+- changed at
+
+ทุก asset ที่มาจาก migration ควรเก็บ:
+
+- source system
+- source record id หากมี
+- migration batch id
+- raw row ใน migration row
 
 ## Performance Considerations
 
-- ใส่ index ที่ product, location, movement type และ created_at
-- ใช้ pagination สำหรับ product list, movement history และ report
-- dashboard ควร query เฉพาะข้อมูลจำเป็น
-- inventory balance ควรอ่านจาก `inventory_balances` เพื่อความเร็ว
-- movement history ควร filter ได้และไม่โหลดทั้งหมดในครั้งเดียว
+- ใส่ index ที่ serial no., status, domain, model และ location
+- ใช้ pagination สำหรับ asset list และ history
+- dashboard ควร query เฉพาะ summary ที่จำเป็น
+- import file ใหญ่ควร process เป็น batch
+- search serial no. ควรเร็วและตรงที่สุด
 
 ## Implementation Order
 
 1. Project setup
 2. Database setup and migrations
 3. Auth and roles
-4. Product, category, location CRUD
-5. Inventory balance model
-6. Stock in
-7. Stock out
-8. Stock adjustment
-9. Stock transfer
-10. Movement history
-11. Dashboard
-12. Reports
-13. Tests and polish
+4. Domain permissions
+5. Asset domains, categories, models, locations
+6. Asset CRUD
+7. Status change service and history
+8. Asset list/search/filter
+9. Asset detail page
+10. SharePoint import preview
+11. SharePoint import commit
+12. Dashboard
+13. Reports
+14. Tests and polish
 
 ## Open Technical Decisions
 
 - จะใช้ Next.js full-stack หรือแยก frontend/backend
 - จะใช้ Prisma หรือ Drizzle
-- จะใช้ JWT หรือ cookie-based session
-- จะให้ Staff ปรับยอดได้เองหรือไม่
-- จะใช้ `inventory_balances` ตั้งแต่ MVP หรือเริ่มจาก calculate from movements ก่อน
-- ต้อง export report เป็น CSV/Excel ตั้งแต่ MVP หรือไม่
+- จะใช้ cookie session หรือ JWT
+- SharePoint export format จริงเป็น CSV หรือ Excel
+- SharePoint field names จริงมีอะไรบ้าง
+- Viewer ควรเห็นข้อมูลทุก domain หรือเฉพาะบางส่วน
+- จะให้ asset ที่ไม่มี serial no. ใช้ generated internal serial ได้หรือไม่
 
 ## Recommended Decisions for MVP
 
 - ใช้ PostgreSQL
-- ใช้ TypeScript ทั้ง frontend และ backend
-- ใช้ movement ledger + balance cache
-- ใช้ soft delete หรือ active status
-- ใช้ database transaction ทุก stock transaction
-- เริ่มจาก role ง่าย ๆ ได้แก่ admin, manager, staff, viewer
-- ยังไม่ทำ barcode และ purchase order ใน MVP
+- ใช้ TypeScript
+- ใช้ Next.js full-stack หรือ monolith backend/frontend เพื่อความเร็ว
+- ใช้ `assets.status` เป็น current state
+- ใช้ `asset_status_histories` เป็น audit trail
+- ใช้ domain permission แยก Server/Network
+- ใช้ CSV/Excel import จาก SharePoint แบบ manual upload
+- เก็บเอกสารกระดาษเป็น note/reference ก่อน ยังไม่ upload file ใน MVP
