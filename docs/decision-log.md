@@ -31,9 +31,9 @@ Status: Accepted
 
 Decisions:
 
-- Use `D:\Internship\Stock_Management\src\data\Network.csv` and `D:\Internship\Stock_Management\src\data\Server.csv` as the source data files for migration.
-- `src/data/Network.csv` maps to the Network domain.
-- `src/data/Server.csv` maps to the Server domain.
+- Use `D:\Internship\Stock_Management\data\Network.csv` and `D:\Internship\Stock_Management\data\Server.csv` as the source data files for migration.
+- `data/Network.csv` maps to the Network domain.
+- `data/Server.csv` maps to the Server domain.
 - All MVP assets must have serial no.; do not support serial-less assets in MVP.
 - Current source files have no blank serial no. and no duplicate serial no.
 - Viewer users can view data read-only but cannot create, edit, import, or change status.
@@ -46,8 +46,8 @@ Decisions:
 
 Source data profile:
 
-- `src/data/Network.csv`: 594 rows, columns are Image, Category, Types, Brand, Model, Comment, Part No., Serial No., Stock Code, QTY, FG, Status, Location, Remark.
-- `src/data/Server.csv`: 551 rows, columns are Image, Category, Types, Brand, Model, Part No., Serial No., Description, Stock Code, QTY, FG, Status, Location, Remark, Comment.
+- `data/Network.csv`: 594 rows, columns are Image, Category, Types, Brand, Model, Comment, Part No., Serial No., Stock Code, QTY, FG, Status, Location, Remark.
+- `data/Server.csv`: 551 rows, columns are Image, Category, Types, Brand, Model, Part No., Serial No., Description, Stock Code, QTY, FG, Status, Location, Remark, Comment.
 - Both CSV files include a first-line SharePoint `ListSchema=...` record before the actual CSV header.
 
 Rationale:

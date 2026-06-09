@@ -23,7 +23,7 @@ Stock Management System
 
 ```text
 Phase 0: Project foundation
-Next task: Initialize Next.js full-stack TypeScript project
+Next task: Configure real DATABASE_URL, run Prisma migration, then run seed
 ```
 
 ## Locked MVP Decisions
@@ -36,7 +36,7 @@ Next task: Initialize Next.js full-stack TypeScript project
 - [x] Use domain permission for Server/Network
 - [x] Use manual CSV/Excel import from SharePoint
 - [x] Store paper document references as note/reference only in MVP
-- [x] Use `src/data/Network.csv` and `src/data/Server.csv` as source migration files
+- [x] Use `data/Network.csv` and `data/Server.csv` as source migration files
 - [x] Require serial no. for every MVP asset
 - [x] Give Viewer read-only access
 - [x] Treat rent and borrow as the same `BORROW` workflow
@@ -59,14 +59,14 @@ Next task: Initialize Next.js full-stack TypeScript project
 
 ## Phase 0: Project Foundation
 
-- [ ] Create Next.js full-stack TypeScript project
-- [ ] Install and configure Tailwind CSS
+- [x] Create Next.js full-stack TypeScript project
+- [x] Install and configure Tailwind CSS
 - [ ] Install and configure shadcn/ui
-- [ ] Configure ESLint and Prettier
-- [ ] Configure basic test tooling
-- [ ] Create `.env.example`
-- [ ] Update `README.md` with install/dev/build/test commands
-- [ ] Confirm document links in README
+- [x] Configure ESLint and Prettier
+- [x] Configure basic test tooling
+- [x] Create `.env.example`
+- [x] Update `README.md` with install/dev/build/test commands
+- [x] Confirm document links in README
 
 Acceptance checks:
 
@@ -79,22 +79,22 @@ Acceptance checks:
 ## Phase 1: Database Foundation
 
 - [ ] Configure PostgreSQL connection
-- [ ] Configure ORM and migrations
-- [ ] Create `users` table
-- [ ] Create `roles` table
-- [ ] Create `user_roles` table
-- [ ] Create `asset_domains` table
-- [ ] Create `user_domain_permissions` table
-- [ ] Create `asset_categories` table
-- [ ] Create `asset_models` table
-- [ ] Create `locations` table
-- [ ] Create `assets` table
-- [ ] Create `asset_status_histories` table
-- [ ] Create `migration_batches` table
-- [ ] Create `migration_rows` table
-- [ ] Add legacy/reference fields for `stock_code`, `image_ref`, `legacy_qty`, `legacy_fg`, and `location_text`
-- [ ] Add indexes for serial no., status, domain, model, and location
-- [ ] Add seed data for P' Oak, P' Arm, P' Mek, and Viewer
+- [x] Configure ORM and migrations
+- [x] Create `users` table
+- [x] Create `roles` table
+- [x] Create `user_roles` table
+- [x] Create `asset_domains` table
+- [x] Create `user_domain_permissions` table
+- [x] Create `asset_categories` table
+- [x] Create `asset_models` table
+- [x] Create `locations` table
+- [x] Create `assets` table
+- [x] Create `asset_status_histories` table
+- [x] Create `migration_batches` table
+- [x] Create `migration_rows` table
+- [x] Add legacy/reference fields for `stock_code`, `image_ref`, `legacy_qty`, `legacy_fg`, and `location_text`
+- [x] Add indexes for serial no., status, domain, model, and location
+- [x] Add seed data for P' Oak, P' Arm, P' Mek, and Viewer
 
 Acceptance checks:
 
@@ -210,15 +210,15 @@ Acceptance checks:
 ## Phase 6: SharePoint Migration
 
 - [x] Define expected SharePoint export fields
-- [x] Confirm `src/data/Network.csv` has 594 rows, no blank serial no., no duplicate serial no.
-- [x] Confirm `src/data/Server.csv` has 551 rows, no blank serial no., no duplicate serial no.
+- [x] Confirm `data/Network.csv` has 594 rows, no blank serial no., no duplicate serial no.
+- [x] Confirm `data/Server.csv` has 551 rows, no blank serial no., no duplicate serial no.
 - [ ] Build CSV parser
 - [ ] Skip SharePoint `ListSchema=...` first line before parsing CSV header
 - [ ] Build Excel parser
 - [ ] Build field mapping preview
 - [ ] Validate required fields
 - [ ] Validate status mapping
-- [ ] Infer domain from file name: `src/data/Network.csv` -> Network, `src/data/Server.csv` -> Server
+- [ ] Infer domain from file name: `data/Network.csv` -> Network, `data/Server.csv` -> Server
 - [ ] Validate duplicate serial no.
 - [ ] Reject blank serial no.
 - [ ] Store `QTY` and `FG` as legacy/reference fields only

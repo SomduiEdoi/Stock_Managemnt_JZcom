@@ -21,7 +21,7 @@ Stock Management System
 - ทุกการเปลี่ยน status ต้องถูกบันทึกใน asset status history
 - Permission ต้องคุมทั้ง role และ domain เช่น Server/Network
 - SharePoint migration ต้องตรวจข้อมูลผิดพลาดและ duplicate serial no.
-- Source files are `src/data/Network.csv` and `src/data/Server.csv`
+- Source files are `data/Network.csv` and `data/Server.csv`
 - Importer must skip the SharePoint `ListSchema=...` first line before parsing CSV headers
 - `QTY` and `FG` from SharePoint are legacy/reference fields only, not stock balance logic
 - Viewer users have read-only access and cannot mutate records
@@ -64,8 +64,8 @@ Stock Management System
 ### Source Files
 
 ```text
-D:\Internship\Stock_Management\src\data\Network.csv
-D:\Internship\Stock_Management\src\data\Server.csv
+D:\Internship\Stock_Management\data\Network.csv
+D:\Internship\Stock_Management\data\Server.csv
 ```
 
 ### CSV Format Rule
@@ -78,7 +78,7 @@ ListSchema={...}
 
 ดังนั้น importer ต้องข้ามบรรทัดแรก และใช้บรรทัดที่สองเป็น CSV header จริง
 
-### src/data/Network.csv Profile
+### data/Network.csv Profile
 
 ```text
 Rows: 594
@@ -90,7 +90,7 @@ Categories: Connector, Network, Accessory
 Types: Module, AccessPoint, Switch, Cable, Firewall, Power Supply Swtich, Injector, SparePart, Router
 ```
 
-### src/data/Server.csv Profile
+### data/Server.csv Profile
 
 ```text
 Rows: 551
@@ -906,7 +906,7 @@ GET /api/reports/status-history
 - CSV files may include first-line SharePoint `ListSchema=...`; parser must skip it
 - serial no. column required
 - model/product name column required
-- domain is inferred from source file: `src/data/Network.csv` -> NETWORK, `src/data/Server.csv` -> SERVER
+- domain is inferred from source file: `data/Network.csv` -> NETWORK, `data/Server.csv` -> SERVER
 - unknown status must be mapped or marked NEEDS_REVIEW
 - duplicate serial no. must fail or be skipped
 - blank serial no. must fail
@@ -1183,7 +1183,7 @@ MAX_IMPORT_FILE_SIZE=
 - ใช้ domain permission แยก Server/Network
 - ใช้ CSV/Excel import จาก SharePoint แบบ manual upload
 - เก็บเอกสารกระดาษเป็น note/reference ก่อน ยังไม่ upload file ใน MVP
-- Source data files are `src/data/Network.csv` and `src/data/Server.csv`
+- Source data files are `data/Network.csv` and `data/Server.csv`
 - Viewer is read-only
 - All MVP assets must have serial no.
 - Rent and borrow use the same `BORROW` workflow

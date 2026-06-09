@@ -30,9 +30,9 @@
 
 ## Import Rules
 
-- Source files are `src/data/Network.csv` and `src/data/Server.csv`.
-- `src/data/Network.csv` maps to the Network domain.
-- `src/data/Server.csv` maps to the Server domain.
+- Source files are `data/Network.csv` and `data/Server.csv`.
+- `data/Network.csv` maps to the Network domain.
+- `data/Server.csv` maps to the Server domain.
 - CSV importer must skip the first SharePoint schema line beginning with `ListSchema=`.
 - Import must reject blank serial no. and duplicate serial no.
 - Import must preserve raw source rows in `migration_rows`.
