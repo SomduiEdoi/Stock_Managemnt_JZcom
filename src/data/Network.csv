@@ -1,0 +1,727 @@
+﻿ListSchema={"schemaXmlList":["<Field ID=\"{fa564e0f-0c70-4ab9-b863-0177e6ddd247}\" Type=\"Text\" Name=\"Title\" DisplayName=\"Title\" Required=\"FALSE\" SourceID=\"http://schemas.microsoft.com/sharepoint/v3\" StaticName=\"Title\" FromBaseType=\"TRUE\" MaxLength=\"255\" />","<Field ClientSideComponentId=\"00000000-0000-0000-0000-000000000000\" DisplayName=\"Serial No.\" EnforceUniqueValues=\"TRUE\" Format=\"Dropdown\" Indexed=\"TRUE\" MaxLength=\"255\" Name=\"S_x002f_N\" Required=\"TRUE\" Title=\"Serial No.\" Type=\"Text\" ID=\"{27dd5e0f-ced9-4eb2-9ef6-d4f5122b4c35}\" StaticName=\"S_x002f_N\" Hidden=\"FALSE\" PITarget=\"\" PrimaryPITarget=\"\" PIAttribute=\"\" PrimaryPIAttribute=\"\" Aggregation=\"\" Node=\"\" />","<Field ClientSideComponentId=\"00000000-0000-0000-0000-000000000000\" DisplayName=\"Stock Code\" Format=\"Dropdown\" MaxLength=\"255\" Name=\"StockCode\" Title=\"Stock Code\" Type=\"Text\" ID=\"{ddc77b56-ea21-4e40-9746-b1e990ae3601}\" StaticName=\"StockCode\" PITarget=\"\" PrimaryPITarget=\"\" PIAttribute=\"\" PrimaryPIAttribute=\"\" Aggregation=\"\" Node=\"\" />","<Field ClientSideComponentId=\"00000000-0000-0000-0000-000000000000\" DisplayName=\"Brand\" EnforceUniqueValues=\"FALSE\" Indexed=\"FALSE\" InternalName=\"Brand\" MaxLength=\"255\" Name=\"Brand\" Required=\"FALSE\" StaticName=\"Brand\" Title=\"Brand\" Type=\"Text\" ID=\"{e7b49de0-9d00-402a-9097-450199d1ade7}\" PITarget=\"\" PrimaryPITarget=\"\" PIAttribute=\"\" PrimaryPIAttribute=\"\" Aggregation=\"\" Node=\"\" />","<Field ClientSideComponentId=\"00000000-0000-0000-0000-000000000000\" DisplayName=\"Model\" Format=\"Dropdown\" MaxLength=\"255\" Name=\"Model\" Required=\"TRUE\" Title=\"Model\" Type=\"Text\" ID=\"{ca437812-70db-49f0-8e05-84bc3f0ca9d2}\" StaticName=\"Model\" Hidden=\"FALSE\" PITarget=\"\" PrimaryPITarget=\"\" PIAttribute=\"\" PrimaryPIAttribute=\"\" Aggregation=\"\" Node=\"\" />","<Field AppendOnly=\"FALSE\" DisplayName=\"Location\" Format=\"Dropdown\" IsModern=\"TRUE\" IsolateStyles=\"FALSE\" Name=\"Location\" RichText=\"FALSE\" RichTextMode=\"Compatible\" Title=\"Location\" Type=\"Note\" ID=\"{34a7c10e-aa36-4aa2-a7d6-4489ae290835}\" StaticName=\"Location\" Required=\"FALSE\" Hidden=\"FALSE\" Customization=\"\" ReadOnly=\"FALSE\" PITarget=\"\" PrimaryPITarget=\"\" PIAttribute=\"\" PrimaryPIAttribute=\"\" Aggregation=\"\" Node=\"\" />","<Field ClientSideComponentId=\"00000000-0000-0000-0000-000000000000\" CommaSeparator=\"TRUE\" CustomUnitOnRight=\"TRUE\" DisplayName=\"QTY\" EnforceUniqueValues=\"FALSE\" Indexed=\"FALSE\" InternalName=\"Total\" Max=\"1.7976931348623157e+308\" Min=\"-1.7976931348623157e+308\" Name=\"Total\" Percentage=\"FALSE\" Required=\"TRUE\" StaticName=\"Total\" Title=\"QTY\" Type=\"Number\" Unit=\"None\" ID=\"{40813833-5f77-4c9f-9f73-9fa710c10767}\" PITarget=\"\" PrimaryPITarget=\"\" PIAttribute=\"\" PrimaryPIAttribute=\"\" Aggregation=\"\" Node=\"\" />","<Field ClientSideComponentId=\"00000000-0000-0000-0000-000000000000\" CustomFormatter=\"{&quot;elmType&quot;:&quot;div&quot;,&quot;style&quot;:{&quot;flex-wrap&quot;:&quot;wrap&quot;,&quot;display&quot;:&quot;flex&quot;},&quot;children&quot;:[{&quot;elmType&quot;:&quot;div&quot;,&quot;style&quot;:{&quot;box-sizing&quot;:&quot;border-box&quot;,&quot;padding&quot;:&quot;4px 8px 5px 8px&quot;,&quot;overflow&quot;:&quot;hidden&quot;,&quot;text-overflow&quot;:&quot;ellipsis&quot;,&quot;display&quot;:&quot;flex&quot;,&quot;border-radius&quot;:&quot;16px&quot;,&quot;height&quot;:&quot;24px&quot;,&quot;align-items&quot;:&quot;center&quot;,&quot;white-space&quot;:&quot;nowrap&quot;,&quot;margin&quot;:&quot;4px 4px 4px 4px&quot;},&quot;attributes&quot;:{&quot;class&quot;:{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Borrow&quot;]},&quot;sp-css-backgroundColor-BgGold sp-css-borderColor-GoldFont sp-css-color-GoldFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Fail&quot;]},&quot;sp-css-backgroundColor-BgRed sp-css-borderColor-WhiteFont sp-css-color-WhiteFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Using&quot;]},&quot;sp-css-backgroundColor-BgCyan sp-css-borderColor-CyanFont sp-css-color-CyanFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;&quot;]},&quot;&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Lost&quot;]},&quot;sp-css-backgroundColor-BgGray sp-css-borderColor-WhiteFont sp-css-color-WhiteFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Ready&quot;]},&quot;sp-css-backgroundColor-BgGreen sp-css-borderColor-WhiteFont sp-css-color-WhiteFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Sold&quot;]},&quot;sp-css-backgroundColor-BgDarkRed sp-css-borderColor-WhiteFont sp-css-color-WhiteFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Wait&quot;]},&quot;sp-css-backgroundColor-BgLavender sp-css-borderColor-WhiteFont sp-css-color-WhiteFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Need Check&quot;]},&quot;sp-css-backgroundColor-BgDarkPink sp-css-borderColor-WhiteFont sp-css-color-WhiteFont&quot;,&quot;sp-field-borderAllRegular sp-field-borderAllSolid sp-css-borderColor-neutralSecondary&quot;]}]}]}]}]}]}]}]}]}},&quot;children&quot;:[{&quot;elmType&quot;:&quot;span&quot;,&quot;style&quot;:{&quot;overflow&quot;:&quot;hidden&quot;,&quot;text-overflow&quot;:&quot;ellipsis&quot;,&quot;padding&quot;:&quot;0 3px&quot;},&quot;txtContent&quot;:&quot;[$Status]&quot;,&quot;attributes&quot;:{&quot;class&quot;:{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Borrow&quot;]},&quot;sp-css-color-GoldFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Fail&quot;]},&quot;sp-css-color-WhiteFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Using&quot;]},&quot;sp-css-color-CyanFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;&quot;]},&quot;&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Lost&quot;]},&quot;sp-css-color-WhiteFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Ready&quot;]},&quot;sp-css-color-WhiteFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Sold&quot;]},&quot;sp-css-color-WhiteFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Wait&quot;]},&quot;sp-css-color-WhiteFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Need Check&quot;]},&quot;sp-css-color-WhiteFont&quot;,&quot;&quot;]}]}]}]}]}]}]}]}]}}}]}],&quot;templateId&quot;:&quot;BgColorChoicePill&quot;}\" DisplayName=\"Status\" EnforceUniqueValues=\"FALSE\" FillInChoice=\"FALSE\" Format=\"Dropdown\" Indexed=\"FALSE\" InternalName=\"Status\" Name=\"Status\" Required=\"TRUE\" StaticName=\"Status\" Title=\"Status\" Type=\"Choice\" UnlimitedLengthInDocumentLibrary=\"FALSE\" ID=\"{dc6a7cee-382b-4f36-a654-c4f1df84e10f}\" PITarget=\"\" PrimaryPITarget=\"\" PIAttribute=\"\" PrimaryPIAttribute=\"\" Aggregation=\"\" Node=\"\"><CHOICES><CHOICE>Borrow</CHOICE><CHOICE>Fail</CHOICE><CHOICE>Using</CHOICE><CHOICE>Lost</CHOICE><CHOICE>Ready</CHOICE><CHOICE>Sold</CHOICE><CHOICE>Wait</CHOICE><CHOICE>Need Check</CHOICE></CHOICES></Field>","<Field AppendOnly=\"FALSE\" ClientSideComponentId=\"00000000-0000-0000-0000-000000000000\" DisplayName=\"Remark\" Format=\"Dropdown\" IsolateStyles=\"FALSE\" Name=\"Remark\" RichText=\"FALSE\" RichTextMode=\"Compatible\" Title=\"Remark\" Type=\"Note\" ID=\"{efe3d7a5-8565-454b-b98b-b52e5ba90e38}\" StaticName=\"Remark\" PITarget=\"\" PrimaryPITarget=\"\" PIAttribute=\"\" PrimaryPIAttribute=\"\" Aggregation=\"\" Node=\"\" />","<Field DisplayName=\"Part No.\" Format=\"Dropdown\" IsModern=\"TRUE\" MaxLength=\"255\" Name=\"PartNo_x002e_\" Title=\"Part No.\" Type=\"Text\" ID=\"{f06c99b3-66b2-42ab-bfd3-73012478fc9b}\" StaticName=\"PartNo_x002e_\" Required=\"FALSE\" Hidden=\"FALSE\" Customization=\"\" ReadOnly=\"FALSE\" PITarget=\"\" PrimaryPITarget=\"\" PIAttribute=\"\" PrimaryPIAttribute=\"\" Aggregation=\"\" Node=\"\" />","<Field AppendOnly=\"FALSE\" ClientSideComponentId=\"00000000-0000-0000-0000-000000000000\" DisplayName=\"Image\" EnforceUniqueValues=\"FALSE\" Indexed=\"FALSE\" InternalName=\"Image\" Name=\"Image\" Required=\"FALSE\" RichText=\"FALSE\" StaticName=\"Image\" Title=\"Image\" Type=\"Thumbnail\" UnlimitedLengthInDocumentLibrary=\"FALSE\" ID=\"{1a8d3179-c62d-49e9-b388-293769df426e}\" PITarget=\"\" PrimaryPITarget=\"\" PIAttribute=\"\" PrimaryPIAttribute=\"\" Aggregation=\"\" Node=\"\" />","<Field ClientSideComponentId=\"00000000-0000-0000-0000-000000000000\" CustomFormatter=\"{&quot;elmType&quot;:&quot;div&quot;,&quot;style&quot;:{&quot;flex-wrap&quot;:&quot;wrap&quot;,&quot;display&quot;:&quot;flex&quot;},&quot;children&quot;:[{&quot;elmType&quot;:&quot;div&quot;,&quot;style&quot;:{&quot;box-sizing&quot;:&quot;border-box&quot;,&quot;padding&quot;:&quot;4px 8px 5px 8px&quot;,&quot;overflow&quot;:&quot;hidden&quot;,&quot;text-overflow&quot;:&quot;ellipsis&quot;,&quot;display&quot;:&quot;flex&quot;,&quot;border-radius&quot;:&quot;16px&quot;,&quot;height&quot;:&quot;24px&quot;,&quot;align-items&quot;:&quot;center&quot;,&quot;white-space&quot;:&quot;nowrap&quot;,&quot;margin&quot;:&quot;4px 4px 4px 4px&quot;},&quot;attributes&quot;:{&quot;class&quot;:{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Category]&quot;,&quot;Network&quot;]},&quot;sp-css-backgroundColor-BgCornflowerBlue sp-css-color-CornflowerBlueFont sp-css-color-CornflowerBlueFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Category]&quot;,&quot;Connector&quot;]},&quot;sp-css-backgroundColor-BgGold sp-css-borderColor-GoldFont sp-css-color-GoldFont sp-css-color-GoldFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Category]&quot;,&quot;&quot;]},&quot;&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Category]&quot;,&quot;Accessory&quot;]},&quot;sp-css-backgroundColor-BgLilac sp-css-borderColor-LilacFont sp-css-color-LilacFont sp-css-color-LilacFont&quot;,&quot;sp-field-borderAllRegular sp-field-borderAllSolid sp-css-borderColor-neutralSecondary&quot;]}]}]}]}},&quot;children&quot;:[{&quot;elmType&quot;:&quot;span&quot;,&quot;style&quot;:{&quot;overflow&quot;:&quot;hidden&quot;,&quot;text-overflow&quot;:&quot;ellipsis&quot;,&quot;padding&quot;:&quot;0 3px&quot;},&quot;txtContent&quot;:&quot;[$Category]&quot;,&quot;attributes&quot;:{&quot;class&quot;:{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Category]&quot;,&quot;Network&quot;]},&quot;sp-css-color-CornflowerBlueFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Category]&quot;,&quot;Connector&quot;]},&quot;sp-css-color-GoldFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Category]&quot;,&quot;&quot;]},&quot;&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Category]&quot;,&quot;Accessory&quot;]},&quot;sp-css-color-LilacFont&quot;,&quot;&quot;]}]}]}]}}}]}],&quot;templateId&quot;:&quot;BgColorChoicePill&quot;}\" DisplayName=\"Category\" EnforceUniqueValues=\"FALSE\" FillInChoice=\"FALSE\" Format=\"Dropdown\" Indexed=\"FALSE\" InternalName=\"Category\" Name=\"Category\" Required=\"FALSE\" StaticName=\"Category\" Title=\"Category\" Type=\"Choice\" UnlimitedLengthInDocumentLibrary=\"FALSE\" ID=\"{6b3c983f-873f-4d37-b8f6-cf3c9cf8a895}\"><CHOICES><CHOICE>Network</CHOICE><CHOICE>Connector</CHOICE><CHOICE>Accessory</CHOICE></CHOICES></Field>","<Field ClientSideComponentId=\"00000000-0000-0000-0000-000000000000\" CustomFormatter=\"{&quot;elmType&quot;:&quot;div&quot;,&quot;style&quot;:{&quot;flex-wrap&quot;:&quot;wrap&quot;,&quot;display&quot;:&quot;flex&quot;},&quot;children&quot;:[{&quot;elmType&quot;:&quot;div&quot;,&quot;style&quot;:{&quot;box-sizing&quot;:&quot;border-box&quot;,&quot;padding&quot;:&quot;4px 8px 5px 8px&quot;,&quot;overflow&quot;:&quot;hidden&quot;,&quot;text-overflow&quot;:&quot;ellipsis&quot;,&quot;display&quot;:&quot;flex&quot;,&quot;border-radius&quot;:&quot;16px&quot;,&quot;height&quot;:&quot;24px&quot;,&quot;align-items&quot;:&quot;center&quot;,&quot;white-space&quot;:&quot;nowrap&quot;,&quot;margin&quot;:&quot;4px 4px 4px 4px&quot;},&quot;attributes&quot;:{&quot;class&quot;:{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Cable&quot;]},&quot;sp-css-backgroundColor-BgLightBlue sp-css-borderColor-LightBlueFont sp-css-color-LightBlueFont sp-css-color-LightBlueFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Injector&quot;]},&quot;sp-css-backgroundColor-BgMintGreen sp-css-borderColor-MintGreenFont sp-css-color-MintGreenFont sp-css-color-MintGreenFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Power Supply Swtich&quot;]},&quot;sp-css-backgroundColor-BgGold sp-css-color-GoldFont sp-css-color-GoldFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;&quot;]},&quot;&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Module&quot;]},&quot;sp-css-backgroundColor-BgPeach sp-css-borderColor-PeachFont sp-css-color-PeachFont sp-css-color-PeachFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Firewall&quot;]},&quot;sp-css-backgroundColor-BgCyan sp-css-borderColor-CyanFont sp-css-color-CyanFont sp-css-color-CyanFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Switch&quot;]},&quot;sp-css-backgroundColor-BgBlue sp-css-borderColor-WhiteFont sp-css-color-WhiteFont sp-css-color-WhiteFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;AccessPoint&quot;]},&quot;sp-css-backgroundColor-BgViolet sp-css-borderColor-VioletFont sp-css-color-VioletFont sp-css-color-VioletFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;SparePart&quot;]},&quot;sp-css-backgroundColor-BgSage sp-css-color-SageFont sp-css-color-SageFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Router&quot;]},&quot;sp-css-backgroundColor-BgGreen sp-css-borderColor-WhiteFont sp-css-color-WhiteFont sp-css-color-WhiteFont&quot;,&quot;sp-field-borderAllRegular sp-field-borderAllSolid sp-css-borderColor-neutralSecondary&quot;]}]}]}]}]}]}]}]}]}]}},&quot;children&quot;:[{&quot;elmType&quot;:&quot;span&quot;,&quot;style&quot;:{&quot;overflow&quot;:&quot;hidden&quot;,&quot;text-overflow&quot;:&quot;ellipsis&quot;,&quot;padding&quot;:&quot;0 3px&quot;},&quot;txtContent&quot;:&quot;[$Types]&quot;,&quot;attributes&quot;:{&quot;class&quot;:{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Cable&quot;]},&quot;sp-css-color-LightBlueFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Injector&quot;]},&quot;sp-css-color-MintGreenFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Power Supply Swtich&quot;]},&quot;sp-css-color-GoldFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;&quot;]},&quot;&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Module&quot;]},&quot;sp-css-color-PeachFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Firewall&quot;]},&quot;sp-css-color-CyanFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Switch&quot;]},&quot;sp-css-color-WhiteFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;AccessPoint&quot;]},&quot;sp-css-color-VioletFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;SparePart&quot;]},&quot;sp-css-color-SageFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Router&quot;]},&quot;sp-css-color-WhiteFont&quot;,&quot;&quot;]}]}]}]}]}]}]}]}]}]}}}]}],&quot;templateId&quot;:&quot;BgColorChoicePill&quot;}\" DisplayName=\"Types\" EnforceUniqueValues=\"FALSE\" FillInChoice=\"FALSE\" Format=\"Dropdown\" Indexed=\"FALSE\" InternalName=\"Types\" Name=\"Types\" Required=\"FALSE\" StaticName=\"Types\" Title=\"Types\" Type=\"Choice\" UnlimitedLengthInDocumentLibrary=\"FALSE\" ID=\"{b074bd76-1fb4-4666-a603-1be176a1cfb8}\"><CHOICES><CHOICE>Cable</CHOICE><CHOICE>Injector</CHOICE><CHOICE>Power Supply Swtich</CHOICE><CHOICE>Module</CHOICE><CHOICE>Firewall</CHOICE><CHOICE>Switch</CHOICE><CHOICE>AccessPoint</CHOICE><CHOICE>SparePart</CHOICE><CHOICE>Router</CHOICE></CHOICES></Field>","<Field CommaSeparator=\"TRUE\" CustomUnitOnRight=\"TRUE\" Decimals=\"0\" DisplayName=\"FG\" Format=\"Dropdown\" IsModern=\"TRUE\" Name=\"FG\" Percentage=\"FALSE\" Title=\"FG\" Type=\"Number\" Unit=\"None\" ID=\"{3edfda42-8f10-4e5c-9358-a24f38ca8375}\" StaticName=\"FG\" />","<Field ClientSideComponentId=\"00000000-0000-0000-0000-000000000000\" DisplayName=\"Comment\" Format=\"Dropdown\" MaxLength=\"255\" Name=\"Comment\" Title=\"Comment\" Type=\"Text\" ID=\"{ca9ecf48-1ae9-47f8-9109-e6cd96cca953}\" StaticName=\"Comment\" />","<Field ID=\"{82642ec8-ef9b-478f-acf9-31f7d45fbc31}\" ReadOnly=\"TRUE\" Type=\"Computed\" Name=\"LinkTitle\" DisplayName=\"Title\" DisplayNameSrcField=\"Title\" ClassInfo=\"Menu\" AuthoringInfo=\"(linked to item with edit menu)\" ListItemMenuAllowed=\"Required\" LinkToItemAllowed=\"Prohibited\" SourceID=\"http://schemas.microsoft.com/sharepoint/v3\" StaticName=\"LinkTitle\" FromBaseType=\"TRUE\"><FieldRefs><FieldRef Name=\"Title\" /><FieldRef Name=\"LinkTitleNoMenu\" /><FieldRef Name=\"_EditMenuTableStart2\" /><FieldRef Name=\"_EditMenuTableEnd\" /></FieldRefs><DisplayPattern><FieldSwitch><Expr><GetVar Name=\"FreeForm\" /></Expr><Case Value=\"TRUE\"><Field Name=\"LinkTitleNoMenu\" /></Case><Default><HTML><![CDATA[<div class=\"ms-vb itx\" onmouseover=\"OnItem(this)\" CTXName=\"ctx]]></HTML><Field Name=\"_EditMenuTableStart2\" /><HTML><![CDATA[\">]]></HTML><Field Name=\"LinkTitleNoMenu\" /><HTML><![CDATA[</div>]]></HTML><HTML><![CDATA[<div class=\"s4-ctx\" onmouseover=\"OnChildItem(this.parentNode); return false;\">]]></HTML><HTML><![CDATA[<span>&nbsp;</span>]]></HTML><HTML><![CDATA[<a onfocus=\"OnChildItem(this.parentNode.parentNode); return false;\" onclick=\"PopMenuFromChevron(event); return false;\" href=\"javascript:;\" title=\"Open Menu\"></a>]]></HTML><HTML><![CDATA[<span>&nbsp;</span>]]></HTML><HTML><![CDATA[</div>]]></HTML></Default></FieldSwitch></DisplayPattern></Field>"]}
+"Image","Category","Types","Brand","Model","Comment","Part No.","Serial No.","Stock Code","QTY","FG","Status","Location","Remark"
+,"Accessory","Cable","Cisco","Stack Data Cable",,,"Stackdata01",,"1","0","Sold",,"ขาย Project PRT-CH"
+,"Accessory","Cable","Cisco","Stack Data Cable",,,"Stackdata02",,"1","0","Sold",,"ขาย Project PRT-CH"
+,"Accessory","Cable","Cisco","Stack Data Cable",,,"Stackdata03",,"1","0","Sold",,"Project Thai Nippon"
+,"Accessory","Cable","Cisco","Stack Data Cable",,"STACK-T1-50CM","MOC2031AA6D",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","Cisco","Stack Data Cable",,"STACK-T1-50CM","MOC2031AB0K",,"1","0","Sold","A3","Sold Project : SLI 05/09/2025"
+,"Accessory","Cable","Cisco","Stack Data Cable",,"STACK-T1-50CM","Stackcable7",,"1","1","Need Check","A3",
+,"Accessory","Cable","Cisco","Stack Data Cable",,"STACK-T1-50CM","Stackcable8",,"1","1","Need Check","A3",
+,"Accessory","Cable","Cisco","Stack Data Cable",,"STACK-T1-50CM","MOC2529A5US",,"1","1","Ready","Rack A3","Check Stock 17/02/2026
+
+Return: Project Clicxbank 27/05/2026"
+,"Accessory","Cable","Cisco","Stack Power Cable",,,"Stackpower1",,"1","0","Sold",,"ขาย Project PRT-CH"
+,"Accessory","Cable","Cisco","Stack Power Cable",,,"Stackpower2",,"1","0","Sold",,"ขาย Project PRT-CH"
+,"Accessory","Cable","Cisco","Stack Power Cable",,"37-1122-01","Stackpower3",,"1","0","Sold","A3","Sold Project : SLI 05/09/2025"
+,"Accessory","Cable","Cisco","Stack Power Cable",,"37-1122-01","Stackpower4",,"1","0","Sold","A3","Sold Project : SLI 05/09/2025"
+,"Accessory","Cable","Cisco","Stack Power Cable",,"37-1122-01","Stackpower05",,"1","1","Lost","A3",
+,"Accessory","Cable","Cisco","Stack Power Cable",,"37-1122-01","Stackpower001",,"1","1","Ready","Rack A3","Check Stock 17/02/2026
+
+Return: Project Clickbank 27/05/2026"
+,"Accessory","Cable","Cisco","Stack Power Cable",,"37-1122-01","Stackpower002",,"1","1","Ready","Rack A3","Check Stock 17/02/2026
+
+Return: Project Clicxbank 27/05/2026"
+,"Accessory","Cable","Cisco","Stack Power Cable",,"37-1122-01","Stackpower003",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","Cisco","Stack Power Cable",,"37-1122-01","Stackpower004",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Injector","RoHs","Injector",,,"Injecter001",,"1","0","Sold",,
+,"Accessory","Injector","RoHs","Injector",,,"Injecter002",,"1","1","Ready","StockRoom",
+,"Accessory","Injector","RoHs","Injector",,,"Injecter003",,"1","1","Ready","StockRoom",
+,"Accessory","Injector","RoHs","Injector",,,"Injecter004",,"1","1","Ready","StockRoom",
+,"Accessory","Injector","TP-Link","Injector",,"???","4244145003353",,"1","0","Sold",,"ขาย Project PRT-BKK"
+,"Accessory","Injector","TP-Link","Injector",,"???","4244145000180",,"1","0","Sold",,"ขาย Project PRT-BKK"
+,"Accessory","Injector","TP-Link","Injector",,"???","4244145000169",,"1","0","Sold",,"ขาย Project PRT-BKK"
+,"Accessory","Injector","TP-Link","Injector",,"???","4244145000176",,"1","0","Sold",,"ขาย Project PRT-CH"
+,"Accessory","Injector","Cisco","Injector",,,"SER1628ZU7G",,"1","1","Ready","StockRoom",
+,"Accessory","Power Supply Swtich","Cisco","Cisco 3560x - EDPS-1100AB/B",,,"DTN2132V0X02",,"1","1","Need Check",,
+,"Accessory","Power Supply Swtich","Cisco","EDPS-3SOCB A",,"341-0394-01","DTN1640L16G",,"1","1","Ready","Rack B4","Check Stock 04/02/2026"
+,"Accessory","Power Supply Swtich","Cisco","EDPS-350CB A",,"341-0394-01","DTN1640L15W",,"1","1","Ready","Rack B4","Check Stock 04/02/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[b47031f5f03946ad9d875398bb95261f][1]_[2].jpg","Accessory","Power Supply Swtich","HPE","X361 160W AC",,"JD362B","GHL69480192702880",,"1","1","Ready","Rack B4","Check Stock 04/02/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[a9501207a77b4907966013e4861c5126][1]_[2].jpg","Accessory","Power Supply Swtich","HPE"," X361 160W AC",,"JD362B","GHL76856203210853",,"1","1","Ready","Rack B4","Check Stock 04/02/2026"
+,"Accessory","Power Supply Swtich","LiteOn","PA-1112-1-LF REV:05",,"341-0354-02","LIT15350Z49",,"1","1","Ready","Rack B4","Check Stock 04/02/2026"
+,"Accessory","Power Supply Swtich","Cisco","PWR-C1-1100WAC",,,"LIT22353K6T",,"1","1","Need Check",,
+,"Accessory","Power Supply Swtich","Cisco","PWR-C1-1100WAC",,"PWR-C1-1100WAC","LIT22353KC9",,"1","0","Sold","ขาย ติดตั้ง IDC",
+,"Accessory","Power Supply Swtich","Cisco","PWR-C1-1100WAC",,"PWR-C1-1100WAC","DTN2021V3Q5",,"1","0","Sold","ขาย ติดตั้ง IDC",
+,"Accessory","Cable","Cisco","Stack Cable 2960X",,"37-0891-01","M190100193623",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","RoHs","Stack Cable 2960X",,"37-0891-01","M190100193085",,"1",,"Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","Cisco","Stack Cable 3750, 3650",,"72-2632-01","Stackcable1",,"1",,"Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","Cisco","Stack Cable 3750, 3650",,"72-2632-01","Stackcable2",,"1",,"Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","Cisco","Stack Cable 3750, 3650",,"72-2632-01","Stackcable3",,"1",,"Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","Cisco","Stack Cable 3750, 3650",,"72-2632-01","Stackcable4",,"1",,"Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","Crealights","10G 850nm SFP+ AOC 7M",,,"AOC1",,"1",,"Sold","a2","Sold - PRT(CH) 14/2/25 Few"
+,"Accessory","Cable","Crealights","10G 850nm SFP+ AOC 7M",,"CLAOC-10G-7M","CUAC00720515225",,"1",,"Ready","Rack A2","Check Stock 17/02/2026"
+,"Accessory","Cable","Cisco","40G QSFP To 4x10G 2M",,,"AOC3",,"1",,"Using",,"IDC - First"
+,"Accessory","Cable","Cisco","40G QSFP To 4x10G 2M",,"10-2931-02","HL210611005",,"1",,"Ready","Rack A2","Check Stock 17/02/2026
+"
+,"Accessory","Cable","RoHs","DAG Cable SFP-H10GB-CU2M",,"SFP-H10GB-CU2M","HL210308014",,"1",,"Ready","Rack A2","Check Stock 17/02/2026"
+,"Accessory","Cable","RoHs","DAG Cable SFP-H10GB-CU2M",,"SFP-H10GB-CU2M","HL210308019",,"1",,"Ready","Rack A2","Check Stock 17/02/2026"
+,"Accessory","Cable","RoHs","DAG Cable SFP-H10GB-CU2M",,"SFP-H10GB-CU2M","HL201009016",,"1",,"Ready","Rack A2","Check Stock 17/02/2026"
+,"Accessory","Cable","RoHs","DAG Cable SFP-H10GB-CU2M",,"SFP-H10GB-CU2M","HL210308018",,"1",,"Ready","Rack A2","Check Stock 17/02/2026"
+,"Accessory","Cable","Cisco","DAG Cable QSFP-H40G-CU3M",,"37-1317-03","TED2514K11R",,"1",,"Ready","Rack A2","Check Stock 17/02/2026"
+,"Accessory","Cable","Cisco","DAG Cable QSFP-H40G-CU3M",,"37-1317-03","APF2536111N",,"1",,"Ready","Rack A2","Check Stock 17/02/2026"
+,"Accessory","Cable","Amphenol","12G HD Mini-SAS to HD Mini-SAS",,"038-004-379-01","APF372116927J1",,"1",,"Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Power Supply Swtich","Cisco","Power Supply 3850 ",,"PWR-C1-350WAC","DTN2132V0XZ",,"1","1","Need Check","B4",
+"Reserved_ImageAttachment_[5]_[Image][32]_[9f04845192c645c29a273b0e6b309758][1]_[3].jpg","Accessory","Power Supply Swtich","Cisco","Sparepart For Switch Cisco 2960",,"341-0328-02","LIT15270M63",,"1","1","Ready","Rack B4","Check Stock 04/02/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[4719b569690b4b6cbd8a5d2eb278e6f6][1]_[3].jpg","Accessory","SparePart","Cisco","Cisco Module: C3KX-NM-1G",,"73-12298-04","FD0190612VM",,"1","1","Ready","Rack B4","Check Stock 04/02/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[a6a43585126c41a58124c00cd1d3346a][1]_[3].jpg","Accessory","SparePart","Cisco","Cisco3850-NM-2-10G Expension Module",,"73-12734-06","F0C20087UJ7",,"1","1","Ready","Rack B4","Check Stock 04/02/2026
+
+Return: Project Clicxbank 27/05/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[fc6d85aecbcd4e20b010c41641b18945][1]_[3].jpg","Accessory","SparePart","Cisco","Cisco3850-NM-4-1G Expension Module",,"73-12735-07","F0C191159YE",,"1","1","Ready","Rack B4","Check Stock 04/02/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[0bef5bba61a246a6b1fa8afcc30d53d8][1]_[4].jpg","Accessory","SparePart","Cisco","Cisco3850-NM-4-1G Expension Module",,"73-12735-07","F0C191727H0",,"1","1","Ready","Rack B4","Check Stock 04/02/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[5d408b8b9ed24c298c2910263b774aae][1]_[3].jpg","Accessory","SparePart","Cisco","Module Stack Cisco For 2960",,"C2960X-STACK","F0G18526H7G",,"1","1","Ready","Rack B4","Check Stock 04/02/2026"
+,"Accessory","Cable","Amphenol","12G HD Mini-SAS to HD Mini-SAS",,"038-004-379-01","APF37211190VAC
+
+",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","Mellanox","DAC Cable 10G SFP+","In Stock : 09/04/2025","MCP2104-X001B","MT1411VS02242",,"1","0","Sold",,"Sold - Project ITTC"
+,"Accessory","Cable","Mellanox","DAC Cable 10G SFP+","In Stock : 09/04/2025","MCP2104-X001B","MT1403VS00779",,"1","0","Sold",,
+,"Accessory","Cable","Mellanox","DAC Cable 10G SFP+","In Stock : 09/04/2025","MCP2104-X001B","MT1403VS00768",,"1","1","Ready","Rack A2","Check Stock 17/02/2026"
+,"Accessory","Cable","Mellanox","DAC Cable 10G SFP+","In Stock : 09/04/2025","MCP2104-X001B","MT1403VS00804",,"1","1","Ready","Rack A2","Check Stock 17/02/2026"
+,"Accessory","Cable","Mellanox","DAC Cable 10G SFP+","In Stock : 09/04/2025","MCP2104-X001B","MT1411VS02184",,"1","1","Ready","Rack A2","Check Stock 17/02/2026"
+,"Accessory","Cable","Mellanox","DAC Cable 10G SFP+","In Stock : 09/04/2025","MCP2104-X001B","MT1404VS04806",,"1","1","Ready","Rack A2","Check Stock 17/02/2026"
+,"Accessory","Cable","Mellanox","DAC Cable 10G SFP+","In Stock : 09/04/2025","MCP2104-X001B","MT1404VS16349",,"1","1","Ready","Rack A2","Check Stock 17/02/2026"
+,"Accessory","Cable","Mellanox","DAC Cable 10G SFP+","In Stock : 09/04/2025","MCP2104-X001B","MT1403VS00805",,"1","1","Ready","Rack A2","Check Stock 17/02/2026"
+,"Accessory","Power Supply Swtich","RoHS","Power Supply Cisco 9200",,"PWR-C5-1KWAC 
+","DCI25251589
+",,"1","0","Sold",,
+,"Accessory","Power Supply Swtich","RoHS","Power Supply Cisco 9200",,"PWR-C5-1KWAC 
+","ART2641D399",,"1","0","Sold",,
+,"Accessory","Power Supply Swtich","RoHS","Power Supply Cisco 9200",,"PWR-C5-1KWAC 
+","DCI2525156C
+",,"1","0","Sold",,
+,"Accessory","Power Supply Swtich","RoHS","Power Supply Cisco 9200",,"PWR-C5-1KWAC 
+","DCI252514X1
+",,"1","0","Sold",,
+,"Accessory","Power Supply Swtich","RoHS","Power Supply Cisco 9200",,"PWR-C5-1KWAC 
+","DCI252012BK",,"1","0","Sold",,
+,"Accessory","Power Supply Swtich","RoHS","Power Supply Cisco 9200",,"PWR-C5-1KWAC 
+","DCI252514V0
+",,"1","0","Sold",,
+,"Accessory","Power Supply Swtich","RoHS","Power Supply Cisco 9200",,"PWR-C5-1KWAC 
+","ART2543D0KY
+",,"1","0","Sold",,
+,"Accessory","Power Supply Swtich","RoHS","Power Supply Cisco 9200",,"PWR-C5-1KWAC 
+","DCI251710KJ
+",,"1","1","Ready","Rack B4","Check Stock 04/02/2026"
+,"Accessory","Power Supply Swtich","RoHS","Power Supply Cisco 9200",,"PWR-C5-1KWAC 
+","ART2510D21Q
+",,"1","1","Ready","Rack B4","Check Stock 04/02/2026"
+,"Accessory","Power Supply Swtich","RoHS","Power Supply Cisco 9200",,"PWR-C5-1KWAC 
+","ART2542D4K1",,"1","0","Sold",,
+,"Accessory","Power Supply Swtich","RoHS","Power Supply Cisco 9200",,"PWR-C5-1KWAC 
+","DCI26441544
+",,"1","0","Sold",,
+,"Accessory","Power Supply Swtich","RoHS","Power Supply Cisco 9200",,"PWR-C5-1KWAC 
+","ART2542D1R4",,"1","0","Sold",,
+,"Accessory","Module","Cisco","Cisco Catalyst 9300 Series",,"C9300-NM-8X ","FOC24141KFK",,"1","0","Sold",,
+,"Accessory","Module","Cisco","Cisco Catalyst 9300 Series",,"C9300-NM-8X ","FJZ240916W3
+",,"1","0","Sold",,
+,"Accessory","Module","Cisco","Cisco Catalyst 9300 Series",,"C9300-NM-8X ","FOC24135AD4",,"1","0","Sold",,
+,"Accessory","Module","Cisco","Cisco Catalyst 9300 Series",,"C9300-NM-8X ","FJZ23461GKD
+",,"1","0","Sold",,
+"Reserved_ImageAttachment_[5]_[Image][32]_[a9ede090c8494fc1beebda3189167e5b][1]_[2].jpg","Accessory","SparePart","Cisco","C9300-NM-8X V03 Expension Module",,"73-16295-07","FOC25381FUM",,"1","1","Ready","Rack B4","Check Stock 04/02/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[2eb03b706e264514aa1be48dd2171dda][1]_[2].jpg","Accessory","SparePart","Cisco","C9300-NM-8X V03 Expension Module",,"73-16295-07","FOC253818EJ",,"1","1","Ready","Rack B4","Check Stock 04/02/2026"
+,"Accessory","Cable","RoHS","40G QSFP To 4x10G 2M",,,"AVE2047200U",,"1","1","Ready","Rack A2","Check Stock 17/02/2026"
+,"Accessory","Cable","Cisco","STACK-T1-1M",,"800-40404-01","LCC2222GR0K",,"1","1","Ready","Rack A3","Check Stock 17/02/2026
+
+Return: Project Clicxbank 27/05/2026"
+,"Accessory","Cable","AMPHENOL","SAS Cable, MINI SAS Cable 3M",,"038-000-208-00","APF20220882RCK",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","AMPHENOL","SAS Cable, MINI SAS Cable 3M",,"038-000-208-00","APF20220882NVN",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","Super Micro","SAS Cable, MINI SAS Cable",,"CBL-SAST-0573","4489113I321B",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","Super Micro","SAS Cable, MINI SAS Cable",,"CBL-SAST-0573","4489113I30E2",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","Cisco","Stack Cable 2960X",,"37-0891-01","M180802154376
+",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","Cisco","Stack Cable 2960X",,,"LSC2204G571",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","AMPHENOL","SAS Cable, MINI SAS Cable",,,"APF19506772LD8",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","AMPHENOL","SAS Cable, MINI SAS Cable",,,"APF19506772LCT",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","Molex","MINI SAS Cable P/N: 430066-001",,,"MINISAS01",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","Molex","MINI SAS Cable P/N: 430066-001",,,"MINISAS02",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","AMPHENOL","MINI SAS Cable P/N: 95P4494
+",,,"MINISAS03
+",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","Foxconn","Mini-SAS HD to Mini-SAS HD",,,"2GFPGGJA01JDF",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","Foxconn","Mini-SAS HD to Mini-SAS HD",,,"78091615005K",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","Foxconn","Mini-SAS HD to Mini-SAS HD",,,"742103CN013F",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","Foxconn","Mini-SAS HD to Mini-SAS HD",,,"742103CN013H",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","HPE","Internal Mini-SAS Cable P/N :407344-001",,,"SASCOPPER01",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","HPE","Internal Mini-SAS Cable P/N :407344-001
+",,,"SASCOPPER02",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","HPE","Internal Mini-SAS Cable P/N :407344-002",,,"SASCOPPER03",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","HPE","Internal Mini-SAS Cable P/N :407344-002",,,"SASCOPPER04",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","HPE","Internal Mini-SAS Cable P/N :407344-002",,,"SASCOPPER05",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","HPE","Internal Mini-SAS Cable P/N :407344-002",,,"SASCOPPER06",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+,"Accessory","Cable","HPE","Mini SAS to Mini SAS",,,"YL10AK71E852",,"1","1","Ready","Rack A3","Check Stock 17/02/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[8bf28ca34a214cb1ace0157a6d4979a3][1]_[1].png","Accessory","Router","TP-Link","NX510v",,"1756500073","225A623000253",,"1","1","Ready","E",
+"Reserved_ImageAttachment_[5]_[Image][32]_[634347a87f6b407384a57dc71fc1743b][1]_[1].png","Accessory","Router","HUAWEI","HG8145V",,"-","485754430FE40B9B",,"1","1","Ready","E","No Adapter"
+,"Accessory","Switch","Cisco","Catalyst 4948E Switch WS-C4948E-E",,,"CAT1723S2L7",,"1","1","Ready","E","Return: Project Clicxbank 27/05/2026"
+,"Connector","Module","3COM","3Com 1000Base-SX Class1","Multimode (MMF)","3CSFP91","M1RQ9T0000463",,"1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","3COM","3Com 100 Base-FX","Multimode (MMF)","3CSFP81","LRZP050006046",,"1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","3COM","3Com 1000Base-SX Class1","Multimode (MMF)","3CSFP91","M1RQ8T0003214",,"1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","3COM","3Com 1000Base-SX Class1","Multimode (MMF)","3CSFP91","M1RQ7G0006216",,"1","1","Ready","Rack A1","Check Stock 27/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[9cfff46a4763434bab57356dedca27fb][1]_[3].jpg","Connector","Module","Bismon ","Bismon 1.25G 850nm BSFP-MM850 SFP 550M","Multimode (MMF)","BSFP-MM850","SG85M1400013",,"1","1","Ready","Rack A1","Check Stock 27/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[5d72a105812340338df34695a9b148fc][1]_[3].jpg","Connector","Module","Bellcomms","BELLCOMMS сTм-LC0500-MM","Multimode (MMF)","CTM-LC0500-MM","1205140163",,"1","1","Ready","Rack A1","Check Stock 27/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[619a3ad6c0a94d8daed5c98bf0da936f][1]_[3].png","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","FNS2516064K",,"1","0","Sold",,"ขาย Project ITTC 10G"
+"Reserved_ImageAttachment_[5]_[Image][32]_[c62c3ce3808b4f2cb5fa2ed7f057cb89][1]_[3].png","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD243591AZ",,"1","0","Sold",,"ขาย Project ITTC 10G"
+"Reserved_ImageAttachment_[5]_[Image][32]_[c5a903dc1c204914ba3dc1be241a5124][1]_[3].png","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","ACW23460CCF",,"1","0","Sold",,"ขาย Project ITTC 10G"
+"Reserved_ImageAttachment_[5]_[Image][32]_[57e4fce7d18543d4a5558c946c707549][1]_[3].png","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","FNS25160AGQ",,"1","0","Sold",,"ขาย Project ITTC 10G"
+"Reserved_ImageAttachment_[5]_[Image][32]_[e32afd02a0f942b98d016aea2c13545b][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","FNS251602GD",,"1","0","Sold",,"ขาย Project ITTC 10G"
+"Reserved_ImageAttachment_[5]_[Image][32]_[6af9e9847fb84cce8082efb5a40f2257][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD243591D9",,"1","0","Sold",,"ขาย Project ITTC 10G"
+"Reserved_ImageAttachment_[5]_[Image][32]_[010202d257a44a39b88d547ab318857f][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","FNS251602CL",,"1","0","Sold",,"ขาย Project ITTC 10G"
+"Reserved_ImageAttachment_[5]_[Image][32]_[dea59d7aa0ab4c97b870436439bcec3a][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD2148QN7L",,"1","1","Ready",,
+"Reserved_ImageAttachment_[5]_[Image][32]_[e9928841a8b8403c9dd44985fed0ed9e][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD2119R1U7",,"1","1","Borrow","Rack A1","Check Stock 28/01/2026
+Project : Clicxbank
+Note 26/05/2026 by ICE"
+"Reserved_ImageAttachment_[5]_[Image][32]_[c59167c9b6a34efcb65c9bb2226b3a12][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD2123R2XZ",,"1","1","Ready",,
+"Reserved_ImageAttachment_[5]_[Image][32]_[04be95397607428ab54b0f74458ad416][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD2117QQF4",,"1","1","Ready",,
+"Reserved_ImageAttachment_[5]_[Image][32]_[48649b57ce2f45c395d8a662ff0b115b][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD2138R73L",,"1","1","Ready",,
+"Reserved_ImageAttachment_[5]_[Image][32]_[b9420f337bf14d82a6f44a5dadd48d86][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD2146R9B4",,"1","1","Using",,"JZcom - 25.04.2025 - JZ Office"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","ECL1419008Y",,"1","0","Sold",,"ขาย Project ITTC 10G"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","SPC144701SD",,"1","0","Sold",,"ขาย Project ITTC 10G"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","SPC144609FB",,"1","0","Sold",,"ขาย Project ITTC 10G"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","FNS24310FY3",,"1","0","Sold",,"ขาย Project ITTC 10G"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD2142HL1D",,"1","0","Sold",,"ขาย Project ITTC 10G"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD2139HPCP",,"1","0","Sold",,"ขาย Project ITTC 10G"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD2145HPXK",,"1","0","Sold",,"ขาย Project ITTC 10G"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD2136HZXF",,"1","0","Sold",,"ขาย Project ITTC 10G"
+"Reserved_ImageAttachment_[5]_[Image][32]_[8c572247202c4f33a3572d70dcde3639][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD2133TDHU",,"1","1","Ready",,
+"Reserved_ImageAttachment_[5]_[Image][32]_[b1314e951638428a96e1520825a62789][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD2118RCCZ",,"1","1","Ready",,
+"Reserved_ImageAttachment_[5]_[Image][32]_[1e82751372de4800857eaf5a75ad90cb][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD2119RCNE",,"1","1","Ready",,
+"Reserved_ImageAttachment_[5]_[Image][32]_[16745b7a63814f82af32e7d1d75c1387][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD2144TGKP",,"1","1","Ready",,
+"Reserved_ImageAttachment_[5]_[Image][32]_[c9c2c46965f14c7f93f83d8636ca22d1][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD2131TPT5",,"1","1","Ready",,
+"Reserved_ImageAttachment_[5]_[Image][32]_[228f061d32644ca9a9d449a9bd574787][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD2150RAEW",,"1","1","Borrow","Rack A1","Check Stock 28/01/2026
+Project : Clicxbank
+Note 26/05/2026 by ICE"
+"Reserved_ImageAttachment_[5]_[Image][32]_[cbca09330a5846e9a527b95b5528a001][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD2114RN3E",,"1","1","Using",,"JZcom - 25.04.2025 - JZ Office"
+"Reserved_ImageAttachment_[5]_[Image][32]_[a3d64e90cb824c6eaded6ddf02428321][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD2146TH4K",,"1","1","Ready",,
+"Reserved_ImageAttachment_[5]_[Image][32]_[77526fc400494896b0ce7bc770df7ea7][1]_[3].jpg","Connector","Module","Cisco","GLC-LH-SMD 1G","Single Mode (SMF)","10-2625-01","FNS26220CP0",,"1","0","Sold",,"ขาย Project Tokumi"
+"Reserved_ImageAttachment_[5]_[Image][32]_[ca64c0a7dcff4e20a5a3a83b8da69af6][1]_[4].jpg","Connector","Module","Cisco","GLC-LH-SMD 1G","Single Mode (SMF)","10-2625-01","FNS192405Z4",,"1","1","Fail","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[dbefbcbc6005404c84231c8a650237e3][1]_[3].jpg","Connector","Module","Cisco","GLC-LH-SMD 1G","Single Mode (SMF)","10-2625-01","FNS26220CL9",,"1","1","Sold","Project ID : 250869  Hino Aruba","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[12f94be1c9794eabbc055521076bad52][1]_[3].jpg","Connector","Module","Cisco","GLC-LH-SMD 1G","Single Mode (SMF)","10-2625-01","FNS26220CP3",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[d92d5c822d9d4516b3594bf1aa9bba2c][1]_[3].jpg","Connector","Module","Cisco","GLC-LH-SMD 1G","Single Mode (SMF)","10-2625-01","FNS26220CP4",,"1","1","Sold","Project ID : 250869  Hino Aruba
+","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[acdb418618014c1db4834931e6e6f4fa][1]_[3].jpg","Connector","Module","Cisco","GLC-LH-SMD 1G","Single Mode (SMF)","10-2625-01","FNS26220CP8",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[fe7a7f81b520474db12f950cf197bb86][1]_[3].jpg","Connector","Module","Cisco","GLC-LH-SMD 1G","Single Mode (SMF)","10-2625-01","FNS26220CN0",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[d16c6e1e5ecc457992c421c5f5cc067f][1]_[3].jpg","Connector","Module","Cisco","GLC-LH-SMD 1G","Single Mode (SMF)","10-2625-01","FNS26220CQ2",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[11cecede1a0242f79167c7e7c510e1a7][1]_[3].jpg","Connector","Module","Cisco","GLC-LH-SMD 1G","Single Mode (SMF)","10-2625-01","FNS26220CN6",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[2413ea4a798640069c6922c315ac8f5e][1]_[3].jpg","Connector","Module","Cisco","GLC-LH-SMD 1G","Single Mode (SMF)","10-2625-01","FNS26220CQ5",,"1","0","Sold",,"ขาย Project Tokumi"
+"Reserved_ImageAttachment_[5]_[Image][32]_[d3641eb76e4244c9ae97d70f464737c3][1]_[3].jpg","Connector","Module","Cisco","GLC-LH-SMD 1G","Single Mode (SMF)","10-2625-01","FNS190501RZ",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[b8ff2ba125954f0fb7cdbb4b88293648][1]_[3].jpg","Connector","Module","Cisco","GLC-LH-SMD 1G","Single Mode (SMF)","10-2625-01","FN219250RNC",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[2533e914865d4b12b26c4b28792037b3][1]_[3].jpg","Connector","Module","Cisco","GLC-LH-SMD 1G","Single Mode (SMF)","10-2625-01","FNS20180E22",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","GLC-LH-SM 1.25G","Single Mode (SMF)","30-1299-01","JUT1104501W",,"1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","Cisco","GLC-LH-SM 1.25G","Single Mode (SMF)","30-1299-01","JUT1104501V",,"1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","Cisco","GLC-SX-MM ","Multimode (MMF)","30-1301-03","FNS1051039Q",,"1","0","Sold",,"ขาย Project ITTC 10G"
+,"Connector","Module","Cisco","GLC-SX-MM ","Multimode (MMF)","30-1301-03","FNS0947J0D7",,"1","0","Sold",,"ขาย Project ITTC 10G"
+,"Connector","Module","Cisco","GLC-SX-MM ","Multimode (MMF)","30-1301-03","FNS13490CHQ",,"1","0","Sold",,"ขาย Project ITTC 10G"
+,"Connector","Module","Cisco","GLC-SX-MM ","Multimode (MMF)","30-1301-03","FNS13490BFK",,"1","0","Sold",,"ขาย Project ITTC 10G"
+,"Connector","Module","Cisco","GLC-SX-MM ","Multimode (MMF)","30-1301-03","FNS1438138X",,"1","0","Sold",,"ขาย Project ITTC 10G"
+,"Connector","Module","Cisco","GLC-SX-MM ","Multimode (MMF)","30-1301-03","FNS14380P5B",,"1","0","Sold",,"ขาย Project ITTC 10G"
+,"Connector","Module","Cisco","GLC-SX-MM ","Multimode (MMF)","30-1301-03","FNS14231F2Z",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","GLC-SX-MM ","Multimode (MMF)","30-1301-03","FNS143810ZP",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","GLC-SX-MM ","Multimode (MMF)","30-1301-03","FNS141208UV",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","GLC-SX-MM ","Multimode (MMF)","30-1301-02","FNS12280Y75",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","GLC-SX-MM ","Multimode (MMF)","30-1301-02","FNS0946K0AM",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","GLC-SX-MM ","Multimode (MMF)","30-1301-03","FNS13490B3M",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","GLC-SX-MM ","Multimode (MMF)","30-1301-03","FNS13490BCL",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","GLC-SX-MM ","Multimode (MMF)","30-1301-03","FNS14440JY9",,"1","0","Sold",,"Project KW"
+,"Connector","Module","Cisco","GLC-SX-MM ","Multimode (MMF)","30-1301-03","FNS14380S9T",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","GLC-SX-MM ","Multimode (MMF)","30-1301-03","FNS141118AA",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","GLC-SX-MM ","Multimode (MMF)","30-1301-03","FNS14121B5B",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","GLC-SX-MMD","Multimode (MMF)","10-2626-01","FNS211009SE",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","GLC-TE","Copper SFP (RJ-45)","30-1475-01","MTC22080H51",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","GLC-TE","Copper SFP (RJ-45)","30-1475-01","MTC212701UW",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","GLC-TE","Copper SFP (RJ-45)","30-1475-01","AVC195320XH",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[cb1b8523b3fc4b219c70358873dbe822][1]_[3].jpg","Connector","Module","Cisco","GLC-LH-SMD 1G","Single Mode (SMF)","10-2625-01","FNS1906112E",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[6c6e8f25ba3144d58458bd0f395f8ac4][1]_[3].jpg","Connector","Module","Cisco","GLC-LH-SMD 1G","Single Mode (SMF)","10-2625-01","FNS19250Z0Z",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[b59d8cc175f343798bc6fef1d5de60f3][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD2121R2D3",,"1","1","Ready",,
+"Reserved_ImageAttachment_[5]_[Image][32]_[aed8662c22a848a39ead90998becce58][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD2147R9LK",,"1","1","Ready",,
+"Reserved_ImageAttachment_[5]_[Image][32]_[fe4d308cea4047d483d3e56fbe36f2c4][1]_[3].jpg","Connector","Module","Cisco","GLC-LH-SMD 1G","Single Mode (SMF)","10-2625-01","SFNS19251X5H",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[fe93be30b9324e50adf565fc92a22276][1]_[3].jpg","Connector","Module","Cisco","GLC-LH-SMD 1G","Single Mode (SMF)","10-2625-01","SFNS20180E47",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[12dd4538ac174a22be8dd9e3f0f33a57][1]_[3].jpg","Connector","Module","Cisco","GLC-LH-SMD 1G","Single Mode (SMF)","10-2625-01","SFNS19251W7N",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[1a95cd7e4ad7435394200bc51a423243][1]_[3].jpg","Connector","Module","Cisco","GLC-LH-SMD 1G","Single Mode (SMF)","10-2625-01","SAGA1744U6BK",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[e5f84284020740efb9467ad1ba1dd85d][1]_[3].jpg","Connector","Module","Cisco","GLC-LH-SMD 1G","Single Mode (SMF)","10-2625-01","SFNS20180E55",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[4b1ef7e8d2aa4c5a809e7f54761a64c2][1]_[3].jpg","Connector","Module","Cisco","GLC-LH-SMD 1G","Single Mode (SMF)","10-2625-01","SFNS19251VNG",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[2a0800df7a6f48f78d440a48e0b34392][1]_[3].jpg","Connector","Module","Cisco","GLC-LH-SMD 1G","Single Mode (SMF)","10-2625-01","SFNS26220CN4",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[40f60e3d78b240a5938f884af94a6285][1]_[3].jpg","Connector","Module","Cisco","GLC-LH-SMD 1G","Single Mode (SMF)","10-2625-01","SFNS20180E20",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","GLC-SX-MMD","Multimode (MMF)","10-2626-01","SFNS22271U1Z",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","GLC-SX-MMD","Multimode (MMF)","10-2626-01","SFNS22271U42",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","GLC-SX-MMD","Multimode (MMF)","10-2626-01","SFNS22271U1M",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","GLC-SX-MMD","Multimode (MMF)","10-2626-01","SFNS22271U3S",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","GLC-SX-MMD","Multimode (MMF)","10-2626-01","SFNS22271U4E",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","GLC-SX-MMD","Multimode (MMF)","10-2626-01","SFNS22271U3Z",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","GLC-SX-MMD","Multimode (MMF)","10-2626-01","SFNS22271U90",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","GLC-SX-MMD","Multimode (MMF)",,"SFNS22271U3F",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","GLC-SX-MMD","Multimode (MMF)","10-2626-01","SFNS22271U2H",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","GLC-SX-MMD","Multimode (MMF)","10-2626-01","SFNS22271U2P",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[b2fc932e1a6344a789b0fcae5ed4801a][1]_[4].png","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1806J7V3",,"1","0","Sold",,"By.P'Tor Sold Project : ITTC "
+"Reserved_ImageAttachment_[5]_[Image][32]_[8393b35d4a474d4089d1806353100f2b][1]_[5].png","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS18389LG4",,"1","0","Sold",,"Sold - Project ITTC"
+"Reserved_ImageAttachment_[5]_[Image][32]_[81ce26e0e2e549b8b4849581ec7efe27][1]_[5].png","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS18176PDT",,"1","0","Sold",,"Sold - Project ITTC"
+"Reserved_ImageAttachment_[5]_[Image][32]_[6065e3aacfce4976af397dcfd5ef051b][1]_[4].png","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1824ZV3Q",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1927A70P",,"1","0","Sold",,"ขาย Project Sumsung"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1927AGR5",,"1","0","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD182290AW",,"1","0","Sold",,"ขาย Project Sumsung"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1930A2KU",,"1","0","Sold",,"ขาย Project Sumsung"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1822758R",,"1","0","Sold",,"ขาย Project Sumsung"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1850ABS8",,"1","0","Sold",,"ขาย Project Sumsung"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1743AB3B",,"1","0","Sold",,"ขาย Project Sumsung"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1928A20G",,"1","0","Sold",,"ขาย Project Sumsung"
+"Reserved_ImageAttachment_[5]_[Image][32]_[fb0025d526fd481584348bb3472c4ddf][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1838A234",,"1","1","Ready",,
+"Reserved_ImageAttachment_[5]_[Image][32]_[bef6807e89e7452f921dad7aef9d751e][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1928A1M2",,"1","1","Ready",,
+"Reserved_ImageAttachment_[5]_[Image][32]_[47bb81a9ef044e438a5be9bb473bbf25][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1927A5W3",,"1","1","Ready",,
+"Reserved_ImageAttachment_[5]_[Image][32]_[c207e4fa3b3b41c68d4cc6902902f00c][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1743A3KU",,"1","1","Ready",,
+"Reserved_ImageAttachment_[5]_[Image][32]_[9ca2e96275ca444c9cd9a466d0adb6a1][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1928A0C6",,"1","1","Ready",,
+"Reserved_ImageAttachment_[5]_[Image][32]_[3d40bd5e780b4b87a6ed57d86dbdca9c][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1927AFCH",,"1","1","Ready",,
+"Reserved_ImageAttachment_[5]_[Image][32]_[ede689a737ba4a7fa1aed2f9c137456f][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD2020A2TR",,"1","1","Ready",,
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1850A62T",,"1","-1","Fail","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1824A0VF",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1916A0C0",,"1","1","Borrow","Rack A1","Check Stock 28/01/2026
+Project : Clicxbank
+Note 26/05/2026 by ICE"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD2027A2H3",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1927AGCU",,"1","0","Sold",,"ขาย Project Sumsung"
+"Reserved_ImageAttachment_[5]_[Image][32]_[3d837afbb2d64794a38ebc8cf728641e][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1838A23F",,"1","1","Borrow","Rack A1","Check Stock 28/01/2026 
+Not Support SW9300
+Project : Clicxbank
+Note 26/05/2026 by ICE"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1850ACF2",,"1","1","Borrow","Rack A1","Return 26/11/2025 ไม่ทราบว่าใครนำมาคืน?
+
+Check Stock 28/01/2026
+
+Project : Clicxbank
+Note 26/05/2026 by ICE"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1927A3VY",,"1","0","Sold",,"ขาย Project Sumsung"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1838A224",,"1","0","Sold",,"ขาย Project Sumsung"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1902A3UW",,"1","0","Sold",,"ขาย Project Sumsung"
+"Reserved_ImageAttachment_[5]_[Image][32]_[81dfe1464e58444baf904833463b4630][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1902A3SZ",,"1","1","Borrow","Rack A1","Check Stock 28/01/2026 
+Not Support SW9300
+
+Project : Clicxbank
+Note 26/05/2026 by ICE"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1852A4V2",,"1","0","Sold",,"ขาย Project Sumsung"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1852A1LH",,"1","0","Sold",,"ขาย Project Sumsung"
+"Reserved_ImageAttachment_[5]_[Image][32]_[dd1b5478d2514749844253bc6aa9f02b][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1923A3D4",,"1","1","Ready",,
+"Reserved_ImageAttachment_[5]_[Image][32]_[678e90e07be947a8bbecdc656d2507a9][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1838A23E",,"1","1","Borrow","Rack A1","Check Stock 28/01/2026
+
+Project : Clicxbank
+Note 26/05/2026 by ICE"
+"Reserved_ImageAttachment_[5]_[Image][32]_[fb5d1674088f484f8a6e04a4a6220fbb][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1848A5CR",,"1","1","Borrow","Rack A1","Check Stock 28/01/2026
+
+Project : Clicxbank
+Note 26/05/2026 by ICE"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1838A23R",,"1","1","Borrow","Rack A1","Check Stock 28/01/2026
+
+Project : Clicxbank
+Note 26/05/2026 by ICE"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1927A3WR",,"1","0","Sold",,"ขาย Project Gistda"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1849A6LM",,"1","0","Sold",,"ขาย Project Gistda"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1927A2PZ",,"1","0","Sold",,"ขาย Project Gistda"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1930A0D0",,"1","0","Sold",,"ขาย Project Gistda"
+"Reserved_ImageAttachment_[5]_[Image][32]_[3be4ffabfe9e494a839dc3da820f50cb][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD2027A1V4",,"1","1","Ready",,
+"Reserved_ImageAttachment_[5]_[Image][32]_[12542073cfbc49e0ae6c7b11a5d88ea0][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1944A0PR",,"1","1","Borrow","Rack A1","Check Stock 28/01/2026
+
+Project : Clicxbank
+Note 26/05/2026 by ICE"
+"Reserved_ImageAttachment_[5]_[Image][32]_[4d14bbf94f4a4b3fa2ef2ae37da049ad][1]_[3].jpg","Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1839ACHL",,"1","1","Borrow","Rack A1","Check Stock 28/01/2026
+
+Project : Clicxbank
+Note 26/05/2026 by ICE"
+,"Connector","Module","Cisco","SFP-10G-SR","Multimode (MMF)","10-2415-03","AVD1904A13L",,"1","1","Borrow","Rack A1","Check Stock 28/01/2026
+
+Project : Clicxbank
+Note 26/05/2026 by ICE"
+"Reserved_ImageAttachment_[5]_[Image][32]_[bf7bca6f0bb8478e840ba23ce498ca13][1]_[4].png","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1840PSDA",,"1","0","Sold",,"Sold - Project ITTC"
+"Reserved_ImageAttachment_[5]_[Image][32]_[f58e5fc85508432687c842d1e752305f][1]_[4].png","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1838BP20",,"1","0","Sold",,"Sold - Project ITTC"
+"Reserved_ImageAttachment_[5]_[Image][32]_[86a68ff41fba49f0b7c1440f6f63a142][1]_[4].png","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1840MRUE",,"1","0","Sold",,"Sold - Project ITTC"
+"Reserved_ImageAttachment_[5]_[Image][32]_[6a4fec0f2da2466296912c8c0870d71b][1]_[4].png","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1830H1YN",,"1","0","Sold",,"Sold - Project ITTC"
+"Reserved_ImageAttachment_[5]_[Image][32]_[5bef8a6860154a6aaf7eebe72c0556fa][1]_[4].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS18361L9L",,"1","0","Sold",,"Sold - Project ITTC"
+"Reserved_ImageAttachment_[5]_[Image][32]_[40891a7f7f7c481195faf33d50749041][1]_[4].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1840NS3V",,"1","0","Sold",,"Sold - Project ITTC"
+"Reserved_ImageAttachment_[5]_[Image][32]_[b3613ea35e2046dc8a3746df5e965ca3][1]_[4].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1825M4XE",,"1","0","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[e603193b69de48949c6dd2f823393974][1]_[4].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1838ANSK",,"1","0","Sold",,"Sold - Project ITTC"
+,"Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1822NS1V",,"1","0","Sold",,"Sold - Project ITTC"
+,"Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1819FRWS",,"1","0","Sold",,"Sold - Project ITTC"
+"Reserved_ImageAttachment_[5]_[Image][32]_[c829549be3a04e30a0b3afe3213ee125][1]_[4].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1822A1VK",,"1","0","Sold",,"Sold - Project ITTC"
+"Reserved_ImageAttachment_[5]_[Image][32]_[1ca62c66b13e4b9ab286bedec16401e7][1]_[4].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1825E12B",,"1","0","Sold",,"Sold - Project ITTC"
+,"Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS18184M1X",,"1","0","Sold",,"Sold - Project ITTC"
+,"Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS18248ZDP",,"1","0","Sold",,"Sold - Project ITTC"
+,"Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1847M19E",,"1","0","Sold",,"ขาย Project ITTC 10G"
+,"Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1823RSW6",,"1","0","Sold",,"ขาย Project ITTC 10G"
+"Reserved_ImageAttachment_[5]_[Image][32]_[f674953d496d441a84c559b7bc1c79ee][1]_[4].jpg","Connector","Module","Cisco","GLC-SX-MM","Multimode (MMF)","30-1301-04","FNS16431H2W",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[bc53d7b6941f4dcca3b698498452854f][1]_[4].jpg","Connector","Module","Cisco","GLC-SX-MM","Multimode (MMF)","30-1301-04","FNS15311RGH",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[f1516a6e0d7e46e594c22a3c232604db][1]_[4].jpg","Connector","Module","Cisco","GLC-SX-MM","Multimode (MMF)","30-1301-04","FNS16380ACQ",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[01193b7f1f094c46a1588ef91b1ce468][1]_[4].jpg","Connector","Module","Cisco","GLC-SX-MM","Multimode (MMF)","30-1301-04","FNS16420GXL",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[24cc43562ea14736bd0f32a99c1d1446][1]_[4].jpg","Connector","Module","Cisco","GLC-SX-MM","Multimode (MMF)","30-1301-04","FNS15530KX7",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[01da10bef6144b0c9ff33af358a0d0e1][1]_[4].jpg","Connector","Module","Cisco","GLC-SX-MM","Multimode (MMF)","30-1301-04","FNS16241QFS",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[7ebfd464bb6f4ec69a23f88d9da29a90][1]_[4].jpg","Connector","Module","Cisco","GLC-SX-MM","Multimode (MMF)","30-1301-04","FNS15181L2F",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[63f19791b85648dc9f3eb3bcba270710][1]_[4].jpg","Connector","Module","Cisco","GLC-SX-MM","Multimode (MMF)","30-1301-04","FNS15431XQU",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[fb1f834f1dd04a51a991604672dcd84e][1]_[4].jpg","Connector","Module","Cisco","GLC-SX-MM","Multimode (MMF)","30-1301-04","FNS161003X3",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[014790b489984f25ae1ecabfd2b217a5][1]_[4].jpg","Connector","Module","Cisco","GLC-SX-MM","Multimode (MMF)","30-1301-04","FNS16120N2L",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[9e2d6380df6640a3a83a17d936bb9991][1]_[3].jpg","Connector","Module","Cisco","GLC-SX-MM","Multimode (MMF)","30-1301-04","FNS151901AN",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[134d7cac09ee46cba7787b01e276dbba][1]_[4].jpg","Connector","Module","Cisco","GLC-SX-MM","Multimode (MMF)","30-1301-04","FNS16241QYW",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[5a351e1657ef432dad675994064c6dc4][1]_[4].jpg","Connector","Module","Cisco","GLC-SX-MM","Multimode (MMF)","30-1301-04","FNS15311Z36",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[b6a752bfffaf4d4e8958c65cd14ac41f][1]_[3].jpg","Connector","Module","Cisco","GLC-SX-MM","Multimode (MMF)","30-1301-04","FNS15431Y6M",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[702cdb2cf3d04dbb950ba46bdc934526][1]_[3].jpg","Connector","Module","Cisco","GLC-SX-MM","Multimode (MMF)","30-1301-04","FNS16190C77",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[bc5c73cba3ba430cb3bbd7dfac3e432a][1]_[3].jpg","Connector","Module","Cisco","GLC-SX-MM","Multimode (MMF)","30-1301-04","FNS163610KZ",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[5024180cd5314bbf944735964b4acaeb][1]_[3].jpg","Connector","Module","Cisco","GLC-SX-MM","Multimode (MMF)","30-1301-04","FNS162721X2",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[dd8a451560754c4f8ea02f1857a3ae64][1]_[3].jpg","Connector","Module","Cisco","GLC-SX-MM","Multimode (MMF)","30-1301-04","FNS16441TSJ",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[a543e71eeba445358c9a2e4c060237cb][1]_[4].jpg","Connector","Module","Cisco","GLC-SX-MM","Multimode (MMF)","30-1301-04","FNS16290DYY",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[49470634329b4d54b23bfa30439500be][1]_[4].jpg","Connector","Module","Cisco","GLC-SX-MM","Multimode (MMF)","30-1301-04","FNS1519018K",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+,"Connector","Module","FINISAR","Finisar 10GBASE-SR/SW","Multimode (MMF)","FTLX8574D3BCL","A2BA5DE","MDN-FIS-002","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","FINISAR","Finisar 10GBASE-SR/SW","Multimode (MMF)","FTLX8574D3BCL","A2BABHW","MDN-FIS-002","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","FINISAR","Finisar 1000BASE-SX","Multimode (MMF)","FTLF8519P3BNL","N1HAHFR","MDN-FIS-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","FINISAR","Finisar 1000BASE-SX","Multimode (MMF)","FTLF8519P3BNL","N1HAGUP","MDN-FIS-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","FINISAR","Finisar 1000BASE-SX","Multimode (MMF)","FTLF8519P3BNL","N17ATH5","MDN-FIS-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","FINISAR","Finisar 1000BASE-SX","Multimode (MMF)","FTLF8519P3BNL","N17B0N5","MDN-FIS-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","FINISAR","Finisar 1000BASE-SX","Multimode (MMF)","FTLF8519P3BNL","N14AJUU","MDN-FIS-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","FINISAR","Finisar 1000BASE-SX","Multimode (MMF)","FTLF8519P3BNL","N14AJV1","MDN-FIS-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","FINISAR","Finisar 1000BASE-SX","Multimode (MMF)","FTLF8519P3BNL","N14AWTK","MDN-FIS-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","FINISAR","Finisar 1000BASE-SX","Multimode (MMF)","FTLF8519P3BNL","N14B2PH","MDN-FIS-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","Aruba","Aruba 10G SFP+ LR 10KM SMF XCVR","Single Mode (SMF)","1990-3883","CN17KCCDJ2","MDN-ARB-003","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","Aruba","Aruba 10G SFP+ LR 10KM SMF XCVR","Single Mode (SMF)","1990-3883","CN17KCCF3G","MDN-ARB-003","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","Link","SFP/LC(SM) 1.25G 10KM","Single Mode (SMF)","UT-9125D-10","S2306252476","MDN-LIK-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","Link","SFP/LC(SM) 1.25G 10KM","Single Mode (SMF)","UT-9125D-10","S2306252347","MDN-LIK-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","Link","SFP/LC(SM) 1.25G 10KM","Single Mode (SMF)","UT-9125D-10","S2306252477","MDN-LIK-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","FINISAR","Finisar 1000BASE-SX","Multimode (MMF)","FTLF8519P3BNL","NZ81TQG","MDN-FIS-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","FINISAR","Finisar 1000BASE-SX","Multimode (MMF)","FTLF8519P3BNL","NZ90FHM","MDN-FIS-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","FINISAR","Finisar 1000BASE-SX","Multimode (MMF)","FTLF8519P3BNL","N14A6Z7","MDN-FIS-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","FINISAR","Finisar 1000BASE-SX","Multimode (MMF)","FTLF8519P3BNL","N14AXZV","MDN-FIS-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","Fortinet","FN-TRAN-SX 1000Base-SX SFP","Multimode (MMF)","FTLF8519P3BNLFTN ","N4DC39F","MDN-FTN-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","Fortinet","FN-TRAN-SX 1000Base-SX SFP","Multimode (MMF)","FTLF8519P3BNLFTN ","N4KAA55","MDN-FTN-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","Fortinet","FN-TRAN-SX 1000Base-SX SFP","Multimode (MMF)","FTLF8519P3BNLFTN ","N4DAF3X","MDN-FTN-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","Fortinet","FN-TRAN-SX 1000Base-SX SFP","Multimode (MMF)","FTLF8519P3BNLFTN ","N4JAK3G","MDN-FTN-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","Fortinet","FN-TRAN-SX 1000Base-SX SFP","Multimode (MMF)","FTLF8519P3BNLFTN ","N4DB2ZZ","MDN-FTN-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","Fortinet","FN-TRAN-SX 1000Base-SX SFP","Multimode (MMF)","FTLF8519P3BNLFTN ","N4DAW9P","MDN-FTN-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","Fortinet","FN-TRAN-SX 1000Base-SX SFP","Multimode (MMF)","FTLF8519P3BNLFTN ","N4KA9JB","MDN-FTN-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","Fortinet","FN-TRAN-SX 1000Base-SX SFP","Multimode (MMF)","FTLF8519P3BNLFTN ","N4DAF8J","MDN-FTN-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[f10e9810c3074f53b868e02ee44bf683][1]_[3].jpg","Connector","Module","Bellcomms","CTM-LCHP50-MM 1000-Base-SX/550m","Multimode (MMF)","CTM-LC02KM-MM","81015083","MDN-BEL-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","Aruba ","Aruba 1G SFP LC LX 10KM SME XCVR ","Single Mode (SMF)","1990-3656","CN97KC69TK","MDN-ARB-002","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","Aruba ","Aruba 1G SFP LC LX 10KM SME XCVR ","Single Mode (SMF)","1990-3656","CN97KC69TJ","MDN-ARB-002","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","Aruba ","Aruba 1G SFP LC LX 10KM SME XCVR ","Single Mode (SMF)","1990-3656","CN97KC69X8","MDN-ARB-002","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","Aruba ","Aruba 1G SFP LC SX 500M MMF XCVR","Multimode (MMF)","1990-4415","CN7BKC5B02","MDN-ARB-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[ff8c01cd419342f59316bd02cb07e2b0][1]_[7].png","Connector","Module","Aruba ","Aruba 1G SFP LC SX 500M MMF XCVR","Multimode (MMF)","1990-4415","CN85KGY2X4","MDN-ARB-001","1","1","Sold","Rack A1"," [S26041924]  GS - Yuasa - AP Offline  Replace Aruba Instant On 1930 24p   
+
+"
+,"Connector","Module","Linksys","Gigabit Ethernet 1000 SX 1GB","Multimode (MMF)","MGBSX1","FFX20GB01236","MUN-LIS-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","Linksys","Gigabit Ethernet 1000 SX 1GB","Multimode (MMF)","MGBSX1","FFX20GB01240","MUN-LIS-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","Linksys","Gigabit Ethernet 1000 SX 1GB","Multimode (MMF)","MGBSX1","FFX20G800286","MUN-LIS-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","Linksys","Gigabit Ethernet 1000 SX 1GB","Multimode (MMF)","MGBSX1","FFX20GB00667","MUN-LIS-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","WT","FortiGate WT-10G-SFP+-T-FN","Copper SFP (RJ-45)","WT-10G-SFP+-T-FN","FN210312021","MUN-WT-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","WT","FortiGate WT-10G-SFP+-T-FN","Copper SFP (RJ-45)","WT-10G-SFP+-T-FN","FN210312022","MUN-WT-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","WT","FortiGate WT-10G-SFP+-T-FN","Copper SFP (RJ-45)","WT-10G-SFP+-T-FN","FN210312023","MUN-WT-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","WT","FortiGate WT-10G-SFP+-T-FN","Copper SFP (RJ-45)","WT-10G-SFP+-T-FN","FN210312026","MUN-WT-001","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","ZyXEL"," SFP-SX-D 1000BaseSX","Multimode (MMF)","SFP-SX-D","S071136000306",,"1",,"Ready",,
+,"Connector","Module","Aruba","Aruba 10G SFP+ LR 10KM SMF XCVR","Single Mode (SMF)","1990-3883","CN94KCCKFC","MDN-ARB-002","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","Aruba","Aruba 10G SFP+ LR 10KM SMF XCVR","Single Mode (SMF)","1990-3883","CN94KCCKBC","MDN-ARB-002","1","1","Ready","Rack A1","Check Stock 27/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[399554b81d1c4c5d998a46f41eaa1227][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1839WLBD",,"0","1","Sold",,"Sold Project: ITTC By.na.pong"
+"Reserved_ImageAttachment_[5]_[Image][32]_[b519ea8d9d33402c93cfcb189e43bda7][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1837MHUE",,"0","1","Sold",,"Sold Project: ITTC By.na.pong"
+"Reserved_ImageAttachment_[5]_[Image][32]_[166b5c1076824e4ba4bc58b1ed33647b][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1843DR1W",,"0","1","Sold",,"Sold Project: ITTC By.na.pong"
+"Reserved_ImageAttachment_[5]_[Image][32]_[b12dc233e7af4fdf90b32b784d13409c][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS18413N9G",,"0","1","Sold",,"Sold Project: ITTC By.na.pong"
+"Reserved_ImageAttachment_[5]_[Image][32]_[e709eddf8fd04623af5e1312408270c0][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS18415NUC",,"1","1","Sold",,"In Stock : 09/04/2025
+Project ITTC : 04/08/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[83f3fd0771fe4e9192daec1695ea5c18][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1840YLW9",,"1","1","Sold",,"In Stock : 09/04/2025
+Project ITTC : 04/08/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[f8d1639a3d504e40bb31c1dc9c121a25][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1838NJ3V",,"1","1","Sold",,"In Stock : 09/04/2025
+Project ITTC : 04/08/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[8e33aadcfea44c32bc69c983edbea746][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1820YUG9",,"1","1","Sold",,"In Stock : 09/04/2025
+Project ITTC : 04/08/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[d0dd5563e26548e28e3b08e28245c0dd][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS18168RMP",,"1","1","Sold",,"In Stock : 09/04/2025
+Project ITTC : 04/08/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[e718a0b4c97244599b6b4fc33b490a03][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1843GRW7",,"1","1","Sold",,"In Stock : 09/04/2025
+Project ITTC : 04/08/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[6ebe3f1ca6194e2c9efd3da2b4da4b84][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1842BQH0",,"1","1","Sold",,"In Stock : 09/04/2025
+Project ITTC : 04/08/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[1ca8c3389b6a4f06874a7ff8008b3818][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1843HS5N",,"1","1","Sold",,"In Stock : 09/04/2025
+Project ITTC : 04/08/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[231e03cb9abf4564bead8ddf518baa38][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS18414NJX",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[d35d6726278545c48e409acdf2537134][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS18086BTT",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[7c039c89543f4c2f9956324f28dc2b13][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1836EFWB",,"0","1","Sold",,"Sold Project: ITTC By.na.pong"
+"Reserved_ImageAttachment_[5]_[Image][32]_[2d5c4a96a40c41bbbf92cd1a0d511819][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1808AB0K",,"0","1","Sold",,"Sold Project: ITTC By.na.pong"
+"Reserved_ImageAttachment_[5]_[Image][32]_[f777a543d3ae4d528a980c2137de855c][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1836DFLW",,"0","1","Sold",,"Sold Project: ITTC By.na.pong"
+"Reserved_ImageAttachment_[5]_[Image][32]_[cf95779224584e8bba174a5d586a77f1][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1836GGF7",,"0","1","Sold",,"Sold Project: ITTC By.na.pong"
+"Reserved_ImageAttachment_[5]_[Image][32]_[39bfceb291d847859dd352559865509c][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1843FRLS",,"0","1","Sold",,"Sold Project: ITTC By.na.pong"
+"Reserved_ImageAttachment_[5]_[Image][32]_[85681d8a46d14b1d935eb8629040e402][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1839VL1Y",,"0","1","Sold",,"Sold Project: ITTC By.na.pong"
+"Reserved_ImageAttachment_[5]_[Image][32]_[3ab666df30584e7b9e1309c8389ff8c3][1]_[7].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS173824XH",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[6b87bf83d59b458d94fcbaef1df5ad30][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS17381Y72",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[5d9629418af440aca52b1baa1df63ffc][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS173824YK",,"1","0","Borrow","Rack A1","Check Stock 28/01/2026
+
+Project : Clicxbank
+Note 26/05/2026 by ICE"
+"Reserved_ImageAttachment_[5]_[Image][32]_[9b77265244b0422c8f64d6f333740e7d][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","ACW243601LL",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[b43d06a6108b4890a0e65737f1b9b4bc][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","ACW24420810",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[08d6bdf8abad46e69726fb9284957e96][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1738242P",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[5f66daad6af045268c7f9365f95c7135][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS17351PZ1",,"1","0","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[0abbe0120f4e42f6904ca09bb10b844e][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS17361VHY",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[e256c9614d244f26a2df1ec747bde9b3][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","ACW243601LM",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[3b8a4cf528a84788be232aec8cf8ad02][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS173820LZ",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[1e46b1d8381b4dd5a7ea93faffc97343][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","ACW243601KV",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[3000bee0dcee4e73836da90906a069fd][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS17381XUF",,"1","1","Borrow","Rack A1","Check Stock 28/01/2026
+
+Project : Clicxbank
+Note 26/05/2026 by ICE"
+"Reserved_ImageAttachment_[5]_[Image][32]_[12a03bb551234395b958d1d67a54e8ca][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS17361V63",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[ed992abe88f2415ba7ed655df4c63acf][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS17381Z65",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[6d3129d775fc4a73bd77ae25414b6cd1][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS17370W0Q",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[995d48833adc428491131621be569b22][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","ACW2442081U",,"1","1","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[941304162bf643958f505fecea768980][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","ACW2442080Z",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[dc6c9db041c1494ab4e5dcc163caad81][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","ACW243601KU",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[9b1ecc4dc8c6432c955dddda73936b44][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","ACW2442080Y",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[53825cbddcf048d089446219406e6bb5][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","ACW243601L9",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[65dc03817db743fab5a69a1dc1818516][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS17361T5N",,"1","1","Borrow","Rack A1","Check Stock 28/01/2026
+
+Project : Clicxbank
+Note 26/05/2026 by ICE"
+"Reserved_ImageAttachment_[5]_[Image][32]_[e91750bb05ee4f799b7ce50a3b1d4cd9][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS17361V9J",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[503b040f7f6d472cbf88c1ebedcf743e][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS173824ZT",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[7065ac0ec6414a5eaa0c27580f1efac0][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","ACW24420813",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[872ccffce8f7492e980e2bf0ac8f333f][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS173823Q6",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[46a1df34f4174a7aa4be88b45b08fb0c][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS173820J5",,"0","1","Sold","A1","Sold Project: ITTC By.na.pong"
+"Reserved_ImageAttachment_[5]_[Image][32]_[5f382434f90f4be2b6d9637d740fa952][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS1738240V",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[12bded4e2d1d417382b94f094714998f][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS173824XV",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[d2619261cb00495cb98486543a7823b3][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS17361UNH",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[160099aea9ab496d982940796c0434e4][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","ACW24420817",,"1","0","Borrow","Rack A1","Check Stock 28/01/2026
+
+Project : Clicxbank
+Note 26/05/2026 by ICE"
+"Reserved_ImageAttachment_[5]_[Image][32]_[9b5c123d0baf428aa2f63cb35516b2bf][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS173824CD",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[a62413563a5648febd64b142091a1a24][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS173824DN",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[8603a287b9a94f92859acc8b48cc40eb][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","ACW24420815",,"1","0","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[1cf8a6f7d2a24c5c9fced9ca5f02fe7c][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS17070D3L",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[0505592f42da4a80a1c1f778f6260e90][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","ACW243601LQ",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[bf5f4c94576e4c43a2ddb2e1b5d6bdca][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS17370VKM",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[19e1c6a825da460b9d219801340496e3][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","ACW243601KW",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[76098725d3d94eed817dc477dcf31206][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","ACW2442081S",,"1","0","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[0a9ee82ab82b460dbfdddc67ce33711a][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","ACW2442081T",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[96959775544943d3be176847d8d534e3][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS173824UZ",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[4752a904e4934221a3b5f1e5add16f14][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","ACW2442081Q",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[520308db170d4a6ebb4694bdfb9bf02f][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","ACW243601L4",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[c58d4eb4eb5a4238ad0302c104a6d93b][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","ACW24420816",,"1","0","Ready","Rack A1","Check Stock 28/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[ec2077f484894e91ba7d9d6d16ab4cf3][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","FNS17361VH8",,"1","0","Sold","A1","Sold Project : SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[8442e484ea2c4a4abbdbf4e5c1618aa5][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","ACW2442081N",,"1","0","Borrow","A1","Borrow - Project SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[ceb27f5a4f0f40ce876d639d8f1013ef][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","ACW24420818",,"1","0","Borrow","A1","Borrow - Project SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[e8576d6a3f4a463f85a6d763fd14b04b][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","ACW2442080S",,"0","1","Sold","A1","Sold Project: ITTC By.na.pong"
+"Reserved_ImageAttachment_[5]_[Image][32]_[3be2bee9901741fbaff5dc882ce0326c][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","ACW2442081V",,"1","0","Borrow","A1","Borrow - Project SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[5f16150608de4f4b965a3065939331c1][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","ACW243601KY",,"1","0","Borrow","A1","Borrow - Project SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[532f0ca973a24fb585c2a7b36f320e6e][1]_[1].jpg","Connector","Module","Cisco","SFP-10G-LR","Single Mode (SMF)","10-2457-02","ACW243601LP",,"1","0","Borrow","A1","Borrow - Project SLI 05/09/2025"
+"Reserved_ImageAttachment_[5]_[Image][32]_[b7a1bffb403147148e476f173160ce6f][1]_[5].jpg","Connector","Module","DELL","SFP-10G-SR","Multimode (MMF)","0C5RNH","CN0791918860269",,"1","1","Ready",,"Check Stock 27/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[b38b8bc623cf47778b1cac10276e8932][1]_[1].jpg","Connector","Module","DELL","SFP-10G-SR","Multimode (MMF)","0C5RNH","CN079191886026R",,"1","1","Ready",,"Check Stock 27/01/2026"
+,"Connector","Module","Hisense","SFP-10G-SR",,"019-078-041","UK6EAH02648",,"1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Connector","Module","Hisense","SFP-10G-SR",,"019-078-041","UK6EAH02627",,"1","1","Ready","Rack A1","Check Stock 27/01/2026"
+,"Network","Switch","Cisco","SG300-10SFP-K9 8xSFP + 2xcombo Gigabit SFP",,"SG300-10SFP-K9","PSZ21101JJJ",,"1","1","Ready","Rack D4","Check Stock 04/02/2026"
+,"Network","Switch","Cisco","Catalyst 2960-X 24x10/100/1000 + 2xSFP",,"WS-C2960X-24TS-L","FCW203B686",,"1","0","Borrow",,
+,"Network","Switch","Cisco","Catalyst WS-C2960X-24TS-L 24 x10/100/1000 + 4xSFP",,"WS-C2960X-24TS-L","FOC2342V2NV",,"1","0","Sold","HMT(CH) 05.01.22","HMT(CH) 05.01.22"
+,"Network","Switch","Cisco","Catalyst 2960S-24TS-S 24 x 10/100/1000 + 2 x SFP",,"WS-C2960S-24TS-S","FOC1539Y2FR",,"1","1","Need Check","ใช้งานที่ Rack Fl.1",
+,"Network","Switch","Cisco","Cisco Catalyst 2960S-24TS-S",,"WS-C2960S-24TS-S","FOC1647Z1RS",,"1","-1","Ready","Rack C3","Check Stock 04/02/2026
+Port 1 Fail"
+,"Network","Switch","Cisco","SG300 28xSFP + 2xcombo Gigabit SFP",,"SG300-28S-K9","DNI180506VP",,"1","0","Ready","Rack C2","Check Stock 04/02/2026"
+,"Network","Switch","Cisco","Catalyst WS-C2960X-48TD-L 48x10/100/1000 + 2x10SFP",,"WS-C2960X-48TD-L","FCW1837A19B",,"1","1","Ready","RACK C2",
+,"Network","Switch","Cisco","SG200-50P 48x10/100/1000+2SFP",,"SLM2048PT-NA","DNI154501V7",,"1","0","Need Check","Rent : Nine Network","Wait Check"
+"Reserved_ImageAttachment_[5]_[Image][32]_[f9f910ca5f764b86999b8e8d145ab979][1]_[4].jpg","Network","Switch","Cisco","Nexus 3064-X, 48 SFP+ and 4 QSFP+ ports, with enhanced scale, low latency",,"N3K-C3064X-48T-E","FOC1930R3HU",,"1","1","Ready","Rack C2","Check Stock 04/02/2026"
+,"Network","Switch","Cisco","Cisco Catalyst 3750G-12S-E Switch",,"WS-C3750G-12S-E V06","FCZ1212X0CE",,"1","0","Sold",,"Sold - PRT 20/03/25"
+,"Network","Switch","Cisco","Cisco Catalyst 3750G-12S-E Switch ",,"WS-C3750G-12S-E","FCZ122844SC",,"1","1","Ready","Rack D2","Check Stock 04/02/2026"
+,"Network","Switch","Cisco","Cisco SG200-26P POE",,"SG200-26P","DNI221201TZ",,"1","0","Sold",,"Sold Anucha - Home"
+,"Network","Switch","Cisco","Cisco C2960X-48TS-L",,,"F0C2039Y1LH",,"1","1","Sold",,"Sold - PRT(CH) /14/2/25 Few"
+,"Network","Switch","Cisco","Cisco C3750-24PS-E",,"WS-C3750-24PS-E","FD01351Y0E7",,"1","1","Ready","Rack D2","Check Stock 04/02/2026"
+,"Network","Switch","Cisco","Cisco C2960X-48TS-L",,"WS-C2960X-48TS-L","FCW2224B5U9",,"1","1","Ready","RACK C2","Return: Project Clicxbank 27/05/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[c623ed5db4034f70ae4cfa781f6746ae][1]_[3].jpg","Network","Switch","Cisco","Cisco C2960X-48TS-L",,"WS-C2960X-48TS-L","FCW2224B5UE",,"1","0","Using","Server Room Rack2","Check Stock 04/02/2026"
+,"Network","Switch","Cisco","Cisco C3850-24T-L",,"WS-C3850-24T-L","FCW1921C0C1",,"1","1","Ready","Rack D2","Check Stock 04/02/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[c358666933724993a40c622305d0411c][1]_[4].jpg","Network","Switch","Cisco","Catalyst 4948E switch WS-C4948E-E",,"WS-C4948E-E","CAT1723S2H1",,"1","1","Ready","Rack D4","Check Stock 04/02/2026
+
+Return: Project Clicxbank 27/05/2026"
+,"Network","Switch","Cisco","Catalyst 2960-CX 8 Port 2960-8TC-L",,"WS-C2960C-8TC-L","F0C1123U22F",,"1","1","Wait",,
+,"Network","Switch","Cisco","Cisco Catalyst C3850-12X48U-L Switch",,"WS-C3850-12X48U-L","FCW2140C0MU",,"1","0","Fail",,"Writeoff 24/12/2025"
+,"Network","Switch","Cisco","SG200-50 50P",,"SLM2048PT-NA","DNI154601V7",,"1","1","Ready","Rack C2","Check Stock 04/02/2026"
+,"Network","Switch","Cisco","Catalyst 2960-S",,"WS-C2960S-24TS-L","F0C1539Y2FR",,"1","1","Ready","Rack C3","Check Stock 04/02/2026"
+,"Network","Switch","Cisco","Catalyst 3750 POE-48",,"WS-C3750-48PS-S","CAT1015R214",,"1","1","Ready","Rack D3","Check Stock 04/02/2026"
+,"Network","Switch","Cisco","Catalyst 3750 POE-48",,"WS-C3750-48PS-S","CAT1015R223",,"1","1","Ready","Rack D3","Check Stock 04/02/2026"
+,"Network","Switch","Cisco","Catalyst 3750 POE-48",,"WS-C3750-48PS-S","CAT1015R20Y",,"1","1","Ready","Rack D3","Check Stock 04/02/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[8f6b328f5faf4705b4c49809a94e8e72][1]_[4].jpg","Network","Switch","Cisco","Catalyst 2960-S",,"WS-C2960S-24TS-L","F0C1603X3XY",,"1","1","Ready","Rack C3","Check Stock 04/02/2026"
+,"Network","Switch","Cisco","Cisco Catalyst 2960-24TT-L 24 x10/100 + 2x10/100/1000",,"WS-C2960-24TT-L","F0C1402W53K",,"1","1","Ready","Rack D3","Check Stock 04/02/2026"
+,"Network","Switch","Cisco","Cisco Catalyst 2960-24TC-S 24 x10|100 * 2xSFP",,"WS-C2960-24TC-S","F0C1830Z0QB",,"1","1","Ready","Rack C3","Check Stock 04/02/2026"
+,"Network","Switch","Cisco","Cisco SF200-24 24 x10h100 * 2xSFP Mini GBIc",,"SLM224GT-UK","DNI70401RZ",,"1","1","Ready","Rack C2","Check Stock 04/02/2026"
+,"Network","Switch","Cisco","Cisco Catalyst 2960-24TC-S 24 x10/100 + 2xSFP",,"WS-C2960-24TC-S","FCQ1623Y3Q8",,"1","1","Ready","Rack C3","Check Stock 04/02/2026"
+,"Network","Switch","Cisco","Cisco Catalyst 2960-24TC-S 24 x10/100 + 2xSFP",,"WS-C2960-24TC-S","FCQ1548Y14K",,"1","1","Ready","Rack C3","Check Stock 04/02/2026"
+,"Network","Switch","Cisco","Cisco Catalyst C3850-12X48 UPOE",,,"FOC2245X0E8",,"1","0","Sold",,"ขาย ติดตั้ง PRT-CH (IDC)"
+,"Network","Switch","Cisco","Cisco Catalyst C3850-12X48 UPOE",,,"FOC2035U1W2",,"1","0","Sold",,"ขาย ติดตั้ง PRT-CH (IDC)"
+"Reserved_ImageAttachment_[5]_[Image][32]_[ae55628836f243a6b29f2d63194b0709][1]_[7].png","Network","Switch","Cisco","Cisco Catalyst C3850-12X48 UPOE",,"WS-C3850-12X48U","FCW2245D0EB",,"1","1","Ready","Rack D3","Check Stock 04/02/2026
+
+Return: Project Clicxbank 27/05/2026"
+,"Network","Switch","Cisco","Catalyst 9300 NM-8X 24X UPOE",,"C9300-24U-E","FOC2540Y2HA",,"1","1","Using","D-3","Install Rack CW Tower By.P'Ae"
+,"Network","Switch","Cisco","Catalyst 9300 NM-8X 24X UPOE",,"C9300-24U-E","FOC2540y2G5",,"1","0","Using","D-3","Install Rack CW Tower By.P'Ae"
+,"Network","Switch","Cisco","C2960S-24TS-L",,"WS-C2960S-24TS-L","FOC1603X3L7",,"1","0","Sold",,"Sold - KW"
+"Reserved_ImageAttachment_[5]_[Image][32]_[438969b1f67e45d6993465afb9e6a45b][1]_[5].jpg","Network","Switch","Cisco","Cisco WS-C2960X-48LPD-L",,"WS-C2960X-48LPD-L","FOC1919Y04W",,"1","0","Using","Server Room Rack1-U29","Check Stock 04/02/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[7e9354175e6c47968e20e559cde78c6b][1]_[4].jpg","Network","Switch","Cisco","Cisco WS-C2960X-48LPD-L",,"WS-C2960X-48LPD-L","FOC1816S6UW",,"1","1","Ready","Rack C2","Check Stock 04/02/2026"
+,"Network","Switch","Cisco","Cisco WS-C2960X-48LPD-L",,"WS-C2960X-48LPD-L","FCW1916A3JQ",,"1","1","Ready","Rack D3","Check Stock 04/02/2026
+
+Return: Project Clicxbank 27/05/2026"
+,"Network","Switch","Cisco","Cisco WS-C2960X-48LPD-L",,"WS-C2960X-48LPD-L","FCW1917A2RL",,"1","1","Ready","Rack D3","Check Stock 04/02/2026
+
+Return: Project Clicxbank 27/05/2026"
+,"Network","Switch","Aruba","Aruba Instant On 1930 24G Class4 PoE 4SFP/SFP+ 370W",,,"CN15KPG29Q",,"1","0","Sold",,"ขาย Project Unicharm"
+,"Network","Switch","Aruba","Aruba Instant On 1930 24G Class4 PoE 4SFP/SFP+ 370W",,,"CN36LB30WS",,"1","0","Sold",,"ขาย Project Unicharm"
+,"Network","Switch","Aruba","Aruba Instant On 1830 24G 2SFP/SFP",,,"VN32KYCBB0",,"1","0","Sold",,
+,"Network","Switch","Aruba","Aruba Instant On 1830 24G 2SFP/SFP",,,"VN32KYCBNG",,"1","0","Sold",,
+,"Network","Switch","3Com","4800G 24 x10/100/1000 + 4xSFP",,"3CRS48G-24-91","9S4FAFN6B4580",,"1","1","Ready","Rack C3","Check Stock 04/02/2026"
+,"Network","Switch","3Com","4800G 24 x10/100/1000 + 4xSFP",,"3CRS48G-24-91","9S4FA2MDCB480",,"1","1","Ready","Rack C4","Check Stock 04/02/2026"
+,"Network","Switch","3Com","4800G 24 x10/100/1000 + 4xSFP",,"3CRS48G-24-91","9S4FAFN6B4980",,"1","1","Ready","Rack C4","Check Stock 04/02/2026"
+,"Network","Switch","3Com","4800G 24 x10/100/1000 + 4xSFP",,,"9S4FA2MDCA780",,"1","0","Sold",,"Sold : FPRI"
+,"Network","Switch","3Com","SG5500G-EI 24 x10/100/1000(PoE) + 4xSFP",,"H3C S5500G-EI","9KAFA9MFF7200",,"1","1","Ready","Rack D4","Check Stock 04/02/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[83f33c3176824b90b4af223e60055013][1]_[3].jpg","Network","Switch","3Com","5 port",,,"CN00BT838V",,"1","0","Using",,"ใต้โต๊ะ BSD"
+,"Network","Switch","3com","3Com baseline Switch 2024",,"3C16471BS","BA/9N3QBP0213652",,"1","1","Need Check",,
+,"Network","Switch","HP","HP Procurve switch 2848",,"J4904A","SG816SK23Z",,"1","1","Ready","Rack D4","Check Stock 04/02/2026"
+,"Network","AccessPoint","TP-Link","TP-Link TL-SF1016D",,"TL-SF1016D","2174131004909",,"1","1","Ready","Rack E1","Check Stock 04/02/2026"
+,"Network","Firewall","Fortinet","Fortigate 60C","7x 10/100/1000 Ports /1x WAN Port/ 2x USB","FG-60C","FGT60C3G12010134",,"1","1","Ready","Rack B2","Check List 22/01/2026"
+,"Network","Firewall","Fortinet","Fortigate 60D","• 7x GE RJ45 (LAN) • 2x GE RJ45 (WAN) • 1x GE RJ45 DMZ • 1x Console Port • 2x USB Ports","FG-60D","FGT60D4613015071",,"1","0","Ready","Rack B2","Check List 22/01/2026"
+,"Network","Firewall","Fortinet","Fortigate 40F","• 5x GE RJ45 (LAN) • 1x GE RJ45 (WAN) • 1x GE RJ45 (DMZ)","FG-40F","FGT40FTK23037321",,"1","1","Ready","Rack B1","Check List 22/01/2026"
+,"Network","Firewall","Fortinet","Fortigate 40F","• 5x GE RJ45 (LAN) • 1x GE RJ45 (WAN) • 1x GE RJ45 (DMZ)","FG-40F","FGT40FTK23099WS5",,"1","1","Ready","Rack B1","Check List 22/01/2026"
+,"Network","Firewall","Fortinet","Fortigate 40F","• 5x GE RJ45 (LAN) • 1x GE RJ45 (WAN) • 1x GE RJ45 (DMZ)","FG-40F","FGT40FTK23099Y0R",,"1","0","Sold",,"Sold - Project KW"
+,"Network","Firewall","Fortinet","FortiGate 50E+Adapter 12V 2.0A","• 5x GE RJ45 (LAN) • 2x GE RJ45 (WAN) • 1x GE RJ45 DMZ","FG-50E","FGT50E3U17026717",,"1","1","Ready","Rack B2",
+,"Network","Firewall","Fortinet","FortiGate 50E+Adapter 12V 2.0A","• 7x GE RJ45 (LAN) • 2x GE RJ45 (WAN) • 1x GE RJ45 DMZ","FG-50E","FGT50E3U16009911",,"1","0","Sold","Sold ABT 26/01/2023",
+,"Network","Firewall","Fortinet","FortiGate 50E+Adapter 12V 2.0A","• 7x GE RJ45 (LAN) • 2x GE RJ45 (WAN) • 1x GE RJ45 DMZ","FG-50E","FGT50E3U17007757",,"1","1","Borrow","Rack B2","Check List 22/01/2026"
+,"Network","Firewall","Fortinet","Fortigate FG-200B","• 12x GE RJ45 • 2x GE SFP • 2x USB • 1x Console","FG-200B","FG200B3912606927",,"1","1","Ready","Rack B2","Check List 22/01/2026"
+,"Network","Firewall","Juniper","SRX 240","firewall with 16 10/100/1000 Ethernet LAN ports and 4 Mini-PIM slots.","SRX240H","AG3811AA0072",,"1","1","Ready","Rack B3","Check List 22/01/2026"
+,"Network","Firewall","Juniper","SRX 240","• 16x GE RJ45 Ports • 2x Mini-PIM Slots • 1x Console • 1x AUX, USB","SRX240H2","BU4215AK0059",,"1","1","Ready","Rack B3","Check List 22/01/2026"
+,"Network","Firewall","Juniper","SRX 650","• Modular (ใส่ I/O card ได้) • รองรับ 5 slots (Mini-PIM / GPIM / XPIM)",,"AJ3210AA0001",,"1","1","Ready","Rack B3","Check List 22/01/2026"
+,"Network","Firewall","Juniper","SRX300 Gateway includes hardware","• 6x GE RJ45 Ports (0–5) • 2x GE SFP (port 6–7, shared with 2x Combo RJ45)","SRX300-SYS-JB","CV2920AF0609",,"1","1","Ready","Rack B1","Check List 22/01/2026"
+,"Network","Firewall","Astaro","Firewall Security gateway  ASG110/120","6x GE RJ45","Astaro ASG 120","A00003069546D53",,"1","1","Ready","Rack B3","Check List 22/01/2026"
+,"Network","Firewall","Cisco","Cisco PIX 501 Firewall Appliance",,"PIX 501","88808282272",,"1","1","Ready","Rack B3","Check List 22/01/2026"
+,"Network","Firewall","Fortinet","Fortigate 300D",,"FG-300D","FGT3HD3915809259",,"1","1","Ready","Rack B2","Check List 22/01/2026"
+,"Network","Firewall","Fortinet","Fortigate 300D",,"FG-300D","FGT3HD3917800839",,"1","1","Ready","Rack B2","Check List 22/01/2026"
+,"Network","Firewall","Fortinet","Fortiwifi 60D",,"FWF-60D","FWF60D4Q16004453",,"1","1","Ready","Rack B2","Check List 22/01/2026"
+,"Network","Firewall","Fortinet","Fortigate 300C",,"FG-300C","FG300C3913603599",,"1","1","Ready","Rack B2","Check List 22/01/2026"
+,"Network","Firewall","Fortinet","Fortigate 200D",,"FG-200D","FG200D3916813611",,"1","0","Sold"," IDC",
+,"Network","Firewall","Fortinet","Fortigate 60C",,"FG-60C","FGT60C3G10008001",,"1","1","Ready","Rack B2","Check List 22/01/2026"
+,"Network","Firewall","Fortinet","Fortigate 300C",,"FG-300C","FG300C3914600330",,"1","1","Ready","Rack B2","Check List 22/01/2026"
+,"Network","Firewall","Fortigate","Fortigate 200E",,"FG-200E","FG200E4Q17902342",,"1","1","Borrow",,"Waiting for the process summary.
+"
+,"Network","Firewall","Fortinet","FortiGate 50E+Adapter 12V 2.0A",,"FG-50E","FGT50E5618043601",,"1","0","Sold",,"Project : BKG"
+,"Network","Firewall","Fortinet","FortiGate 50E+Adapter 12V 2.0A",,"FG-50E","FGT50E5618051528",,"1","1","Borrow","Rack B2","Check List 22/01/2026
+
+Fluke Lab Test : JZ Com"
+,"Network","Firewall","Fortinet","FortiGate 50E+Adapter 12V 2.0A",,"FG-50E","FGT50E5618041041",,"1","1","Ready","Rack B2","Check List 22/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[a631cd00db63414d84d739739c4f271d][1]_[5].jpg","Network","Firewall","Fortinet","FortiGate 50E+Adapter 12V 2.0A",,"FG-50E","FGT50E5618038054",,"1","1","Ready","RACK B2",
+,"Network","Firewall","Fortinet","Fortigate 100D",,"FG-100D","FG100D3G17809607",,"1","1","Ready",,
+,"Network","Firewall","Fortigate","FG-60C",,"FG-60C","FGT60C3G11000824",,"1","1","Ready","Rack B2","Check List 22/01/2026"
+,"Network","AccessPoint","TP-LINK","AC1200 Wireless Dual Band Gigabit VoIP VDSL/ADSL Modem router / Archer VR1200V",,,"3192052003991",,"1","0","Sold",,"Sold - Customer KW"
+,"Network","AccessPoint","Cisco","Cisco 1040 Series / AIR-LAP1041N-E-K9",,"AIR-LAP1041N-E-K9","FCZ1634W2QU",,"1","1","Ready","E2","Check list"
+,"Network","AccessPoint","Cisco","Cisco Air-LAP 1141N-E-K9",,"AIR-LAP1141N-E-K9","FGL1541S1HF",,"1","1","Ready","E2","Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco Aironet 1142 Controller / AIR-LAP1142N-E-K9",,"AIR-LAP1142N-A-K9","FGL1453S09N","E2","1","1","Ready",,"Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco Aironet 1142 Controller / AIR-LAP1142N-E-K9",,"AIR-LAP1142N-A-K9","FGL1453S09T","E2","1","1","Ready",,"Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco Aironet 1142 Controller / AIR-LAP1142N-E-K9",,"AIR-LAP1142N-A-K9","FGL1518S07Z","E2","1","1","Ready",,"Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco Aironet 1142 Controller / AIR-LAP1142N-A-K9",,"AIR-LAP1142N-A-K9","FTX1616K3R2","E2","1","1","Ready",,"Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco Aironet 1600 Series Dual Band / AIR-CAP1602I-E-K9",,"AIR-CAP1602I-E-K9","FCW1836J0PY","E2","1","1","Ready",,"Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco Aironet 1600 Series Dual Band / AIR-CAP1602I-E-K9",,"AIR-CAP1602I-E-K9","FCW1836J0ST","E2","1","1","Ready",,"Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco Small Business WAP321",,"WAP321-E-K9","SER174602TK",,"1","1","Ready","E2","Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco Small Business WAP321",,"WAP321-E-K9","SER174602T8",,"1","1","Ready","E2","Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco small business WR-N / WAP150",,"WAP150-E-K9","DNI2121A0N9",,"1","1","Ready","E2","Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco small business WR-N / WAP121",,"WAP121-E-K9","SER172803FR",,"1","1","Fail",,
+,"Network","AccessPoint","Cisco","Cisco 3500e AIR-CAP3502E-E-K9",,"AIR-CAP3502E-E-K9","FTX1532EDPE",,"1","1","Ready","E2","Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco 3500e AIR-CAP3502E-E-K9",,"AIR-CAP3502E-E-K9","FCZ1604W1FT",,"1","1","Ready","E2","Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco Aironet 3502i AIR-CAP3502I-A-K9",,"AIR-CAP3502I-A-K9","FTX1517E1LC",,"1","1","Ready","E2","Check List 22/01/2026"
+,"Network","AccessPoint","Ubiquit","UBI NanoStation M5 Indoor/Outdoor 5GHz, 16 dBi airmax",,"NanoStation M5","788A209EAC4F",,"1","1","Ready","E1","Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco Meraki MR18 / MR18-HW",,"MR18-HW","Q2GD-FHSB-PL4D",,"1","1","Ready","E2","Check List 22/01/2026"
+,"Network","AccessPoint","TP-LINK","300Mbps Wireless N USB VDSL/ADSL Modem router / TD-W9970(EU)",,,"2173186002023",,"1","1","Ready","E1
+","Check List 22/01/2026"
+,"Network","AccessPoint","TP-LINK","300Mbps Wireless N USB VDSL/ADSL Modem router / TD-W9970(EU)",,,"3181040000676",,"1","1","Ready","E1","Check List 22/01/2026"
+,"Network","AccessPoint","TRUE","ADSL 4Port",,,"30003521506512461
+",,"1","1","Ready",,"Check List 22/01/2026"
+,"Network","AccessPoint","Aruba","Aruba APINH205 Wireless Access Point",,,"CN5AHHZ166",,"0","0","Sold",,
+,"Network","AccessPoint","Cisco","Cisco Catalyst 1600 Series",,"AIR-SAP1602I-E-K9","FGL1947X212",,"1","1","Ready","E2","Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco Aironet 1850 Series / AIR-AP1852I-S-K9",,,"KWC225000M7",,"1","0","Sold",,
+,"Network","AccessPoint","Cisco","Cisco Aironet 1850 Series / AIR-AP1852I-S-K9",,,"KWC254308AW",,"1","0","Sold",,
+,"Network","AccessPoint","Aruba","AP Aruba 207 Series",,"APIN0207","CNFZJST3FB",,"1","1","Ready","E1","Check List 22/01/2026"
+,"Network","AccessPoint","Aruba","AP Aruba 207 Series",,"APIN0207","CNFRJSTF6R",,"1","1","Ready","E1","Check List 22/01/2026"
+,"Network","AccessPoint","Aruba","AP Aruba 207 Series",,"APIN0207","CNHMJST049",,"1","1","Ready","E1","Check List 22/01/2026"
+,"Network","AccessPoint","Aruba","AP Aruba 207 Series",,"APIN0207","CNHMJST052",,"1","1","Ready","E1","Check List 22/01/2026"
+,"Network","AccessPoint","Aruba","AP Aruba 207 Series",,"APIN0207","CNHMJST04R",,"1","1","Ready","E1","Check List 22/01/2026"
+,"Network","AccessPoint","Aruba","AP Aruba 207 Series",,"APIN0207","CNGHJSTCHH",,"1","1","Ready","E1","Check List 22/01/2026"
+,"Network","AccessPoint","Aruba","AP Aruba 207 Series",,"APIN0207","CNDPJST0W0",,"1","1","Ready","E1","Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco Aironet 1702i Controller-Based Access Point",,"AIR-CAP1702I-E-K9","FGL2027X2TE","E2","1","1","Ready",,"Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco Aironet 2702i Universal AP",,"AIR-AP2702I-UX-K9","FCW2024N9L6",,"1","1","Ready","Shelf CMS","Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco Aironet 2702i Universal AP",,"AIR-AP2702I-UX-K9","FCW2024N9LF",,"1","1","Ready","Shelf CMS","Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco Aironet 1815W Series Access Point",,"AIR-AP1815W-B-K9","FGL2333L6Z2","E2","1","1","Ready",,"Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco Aironet 1815W Series Access Point",,"AIR-AP1815W-B-K9","FGL2333L4AT","E2","1","1","Ready",,"Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco Aironet 1815W Series Access Point",,"AIR-AP1815W-B-K9","FGL2333L4TG","E2","1","1","Ready",,"Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco Aironet 1815W Series Access Point",,"AIR-AP1815W-B-K9","FGL2333L6ZG","E2","1","1","Ready",,"Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco Aironet 1815W Series Access Point",,"AIR-AP1815W-B-K9","FGL2333LECA",,"1","1","Lost",,
+,"Network","AccessPoint","Cisco","Cisco Aironet 1815W Series Access Point",,"AIR-AP1815W-B-K9","FGL2333L6J3",,"1","1","Ready","E2","Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco Aironet 1815W Series Access Point",,"AIR-AP1815W-B-K9","FGL2333L4DJ",,"1","0","Sold",,
+,"Network","AccessPoint","Cisco","Cisco Aironet 1815W Series Access Point",,"AIR-AP1815W-B-K9","FGL2333L71U",,"1","0","Sold",,
+,"Network","AccessPoint","Cisco","Cisco Aironet 1815W Series Access Point",,"AIR-AP1815W-B-K9","FGL2333L4W2",,"1","1","Ready","E2","Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco Aironet 1815W Series Access Point",,"AIR-AP1815W-B-K9","FGL2333L6ZB",,"1","1","Ready","E2","Check List 22/01/2026"
+,"Network","AccessPoint","Buffalo","AirStation HighPower",,,"44072001108324",,"1","1","Ready","E1","Check List 22/01/2026"
+,"Network","AccessPoint",,"WG1602",,,"202205120001",,"1","1","Ready","E1","Check List 22/01/2026"
+,"Network","AccessPoint","Zyxel","Zyxel VMG1302-T10G",,"VMG1302-T10G","300105515110005068",,"1","1","Ready","E1","Check List 22/01/2026"
+,"Network","AccessPoint","D-link","Dir-842",,,"SY6K1H6002887",,"1","1","Ready","E1","Check List 22/01/2026"
+,"Network","AccessPoint","Zyxel","Zyxel P-660HW-T1 v2 Wireless ADSL2+ Gateway Router",,"P-660HW-T1","S080Y47015109",,"1","1","Ready","E1","Check List 22/01/2026"
+,"Network","AccessPoint","Peplink","Peplink Balance 30",,"BPL-031","1824-39A0-44E0",,"1","1","Ready","E1","Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco RV042",,"RV042-K9-NA","NKS17180974",,"1","1","Ready","E2","Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","cisco RV042G",,"RV042-K9-NA","NKS18430865",,"1","1","Ready","E2","Check List 22/01/2026"
+,"Network","AccessPoint","Ruijie","Ruijie RG-AP110-L",,"RG-AP110-L","CAN603V016636",,"1","1","Ready","E1","Check List 22/01/2026"
+,"Network","AccessPoint","Kuwfi","HGZ-9531",,,"21110800013",,"1","1","Ready","E1","Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco Aironet 1815W Series Access Point",,"AIR-AP1815W-B-K9","FGL2224B3Z2",,"1","1","Ready","E2","Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","Cisco Catalyst 9115AX Series Access Point",,"C9115AXI-S","FGL2611L0A9",,"1","1","Ready","E2","Check List 22/01/2026"
+,"Network","Firewall","SANGFOR","NGAF M5100-Q-I",,"M5100-Q","5015000277",,"1","1","Ready","Rack B1","Check List 22/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[d65205848cfd4eb88f4d8a9c44f8e2b0][1]_[5].jpg","Network","Firewall","Fortinet","Fortigate200E",,"FG-200E","FG200E4Q17902297",,"1","1","Using","Server Room Rack1-U35",
+,"Network","Firewall","Fortinet","Fortigate 100D",,"FG-100D","FG100D3G15812322",,"1","1","Ready","Rack B2","Check List 22/01/2026"
+,"Network","Firewall","SANGFOR","NGAF M5100-Q-I",,"M5100-Q","5053000084",,"1","1","Ready","Rack B1","Check List 22/01/2026"
+,"Network","Firewall","FortiGate","FortiGate 200E",," FG-200E","FG200ETK19915136",,"1","1","Ready","Rack B2","Check List 22/01/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[9ebc00240e9c45c1b09d365be961664d][1]_[1].jpg","Network","Switch","Cisco","Catalyst 3850 24P",,,"FCW2151C07U",,"1","1","Ready","Rack D2","Check Stock 04/02/2026"
+"Reserved_ImageAttachment_[5]_[Image][32]_[b2d581d4421045349e004e36893fc479][1]_[1].png","Network","Switch","3Com","BaseLine Switch 2920 SFP+",,,"925FDHS54C561",,"1","1","Using","Server Room Rack3-U29
+","Check Stock 04/02/2026"
+,"Network","AccessPoint","Aruba","APIN0503","HPE ANW AP-503-RW","R8M98A","VNTXLGQ139",,"1","1","Ready","Rack D1","Check List 22/01/2026
+
+Return: Project Clicxbank 27/05/2026"
+,"Network","AccessPoint","Aruba","APIN0503","HPE ANW AP-503-RW","R8M98A","CNTFLGQ222",,"0","1","Ready",,"Sold Anucha - Home"
+,"Network","AccessPoint","Aruba","APIN0503","HPE ANW AP-503-RW","R8M98A","VNTXLGQ0KW",,"0","1","Sold",,"Sold Anucha - Home"
+,"Network","AccessPoint","Aruba","APIN0503","HPE ANW AP-503-RW","R8M98A","CNTFLGQ27N",,"1","1","Ready","Rack D1","Check List 22/01/2026
+
+Return: Project Clicxbank 27/05/2026"
+,"Network","AccessPoint","Aruba","APIN0503","HPE ANW AP-503-RW","R8M98A","VNTXLGQ12G",,"1","1","Ready","Rack D1","Check List 22/01/2026
+
+Return: Project Clicxbank 27/05/2026"
+,"Network","AccessPoint","Aruba","APIN0503","HPE ANW AP-503-RW","R8M98A","CNTFLGQ21K",,"1","1","Ready","Rack D1","Check List 22/01/2026
+
+Return: Project Clicxbank 27/05/2026"
+,"Network","AccessPoint","Aruba","APIN0503","HPE ANW AP-503-RW","R8M98A","CNTKLGQ02C",,"1","1","Ready","Rack D1","Check List 22/01/2026
+
+Return: Project Clicxbank 27/05/2026"
+,"Network","AccessPoint","Aruba","APIN0503","HPE ANW AP-503-RW","R8M98A","CNTKLGQ0CJ",,"1","1","Ready","Rack D1","Check List 22/01/2026
+
+Return: Project Clicxbank 27/05/2026"
+,"Network","AccessPoint","Aruba","APIN0503","HPE ANW AP-503-RW","R8M98A","CNTKLGQ0F1",,"1","1","Ready","Rack D1","Check List 22/01/2026
+
+Return: Project Clicxbank 27/05/2026"
+,"Network","AccessPoint","Aruba","APIN0503","HPE ANW AP-503-RW","R8M98A","CNTKLGQ0DV",,"0","1","Ready",,"Sold Anucha - Home"
+,"Network","Switch","3Com","4800G 24 x10/100/1000 + 4xSFP",,,"9S4F9XMBE2E00",,"1","1","Ready","Rack Floor 1","Check Stock 04/02/2026"
+,"Network","Switch","Cisco","WS-C2960S-24TS-L",,,"FOC1618W059",,"1","1","Ready","Rack C4","Check Stock 04/02/2026"
+,"Network","Firewall","Fortinet","FortiGate 200E",,,"FG200ETK18904843",,"1","1","Ready","Rack B2","Check List 22/01/2026"
+,"Network","Firewall","Fortinet","Fortigate 100D",,,"FG100D3G15809313",,"1","1","Ready","Rack B2","Check List 22/01/2026"
+,"Network","Switch","Cisco","Cisco 2500 series Wireless Controller",,,"PSZ19281MSP",,"1","1","Ready","Rack B3","Check Stock 04/02/2026"
+,"Network","Switch","3com","Baseline Switch 2916-SFP Plus",,,"2TEG993M014B80",,"1","1","Ready","Rack C4","Check Stock 04/02/2026"
+,"Network","Switch","Cisco","WS-C3850-12X48U-L",,,"FCW2134D15P",,"0","1","Using","Server Room Rack1-U31
+","Check Stock 04/02/2026"
+,"Network","Switch","Cisco","WS-C3850-12X48U-L",,,"FCW2133D0AX",,"0","1","Using","Server Room Rack1-U33
+","Check Stock 04/02/2026"
+,"Network","Switch","Cisco","catalyst 3560-X POE",,,"FDO1650X22P",,"1","1","Ready","Rack C2","Check Stock 04/02/2026"
+,"Network","Switch","Cisco","catalyst WS-C2960X-48TS-L",,,"F0C2230S0MP",,"1","1","Ready","Rack C1","Check Stock 04/02/2026"
+,"Network","Switch","Cisco","catalyst WS-C2960X-48TS-L",,,"F0C2324T1L3",,"1","1","Ready","Rack C1","Check Stock 04/02/2026"
+,"Network","Switch","Cisco","Cisco C3850-24T-S",,,"F0C2432LB0R",,"1","1","Ready","Rack C1","Check Stock 04/02/2026"
+,"Network","AccessPoint","Cisco","AIR-AP1142N-E-K9",,,"FGL1518S085",,"1","1","Ready","E2","Check List 22/01/2026"
+,"Network","Switch","IBM","249824E -24Port SFP",,,"10317HW",,"1","1","Ready","Rack D4","Check Stock 04/02/2026"
+,"Network","Switch","Cisco","Catalyst 3560G POE-48",,,"F0C0909U00B",,"1","1","Ready","Rack D3","Check Stock 04/02/2026"
+,"Network","AccessPoint","Cisco","AIR-AP1142N-E-K9",,,"FGL1446S09W",,"1","1","Ready","E2","Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","AIR-AP1142N-E-K9",,,"FGL1518S07L",,"1","1","Ready","E2","Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","AIR-CAP3502I-A-K9",,,"FTX1517K1DZ",,"1","1","Ready","E2","Check List 22/01/2026"
+,"Network","Switch","Cisco","Cisco WS-C2960C-8PC-L",,"WS-C2960C-8PC-L","FOC1840Y24F",,"1","1","Ready","Rack Floor 1","Check Stock 04/02/2026"
+,"Network","AccessPoint","Cisco","AIR-AP11221G-A-K9",,,"FHK0827V11C",,"1","1","Ready","E2","Check List 22/01/2026"
+,"Network","AccessPoint","Cisco","AIR-AP1815I-S-K9",,,"FGL2516L6TG",,"1","1","Ready","E2","Check List 22/01/2026"
+,"Network","Switch","Cisco","Catalyst 3850 24P",,,"FCW2151FC4U",,"1","1","Ready","Rack D2","Check Stock 04/02/2026"
+,"Network","AccessPoint","RUCKUS","R320 Access Point",,"5912A-R320","381909000362",,"1","1","Ready","E2",
+,"Network","AccessPoint","RUCKUS","R320 Access Point",,"5912A-R320","381909000154",,"1","1","Ready","E2",
+,"Network","AccessPoint","RUCKUS","R320 Access Point",,"5912A-R320","491909004354",,"1","1","Ready","E2",
+,"Network","AccessPoint","Aruba","APIN0503","HPE ANW AP-503-RW","R8M98A","CNW2LGQ0HW",,"1","1","Ready",,"Return: Project Clicxbank 27/05/2026"
+,"Network","AccessPoint","Aruba","APIN0503","HPE ANW AP-503-RW","R8M98A","CNW2LGQ0K0",,"1","1","Ready",,"Return: Project Clicxbank 27/05/2026"
+,"Network","AccessPoint","Aruba","APIN0503","HPE ANW AP-503-RW","R8M98A","CNW2LGQ0K4",,"1","1","Ready",,"Return: Project Clicxbank 27/05/2026"
+,"Network","AccessPoint","RUCKUS","R510 Access Point",,"5912A-R510","252072013584",,"1","1","Ready","E2",
+,"Network","AccessPoint","RUCKUS","R510 Access Point",,"5912A-R510","252072013603",,"1","1","Ready","E2",
+,"Network","AccessPoint","RUCKUS","R510 Access Point",,"5912A-R510","252072012675",,"1","1","Ready","E2",
+,"Network","AccessPoint","RUCKUS","R510 Access Point",,"5912A-R510","252072013559",,"1","1","Ready","E2",
+,"Network","Switch","Cisco","Cisco Catalyst C3850-12X48 UPOE",,"WS-C3850-12X48U","FCW2313C0DL",,"1","1","Ready","Rack D3","Check Stock 04/02/2026
+
+Return: Project Clicxbank 27/05/2026"
