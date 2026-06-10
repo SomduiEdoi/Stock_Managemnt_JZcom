@@ -23,7 +23,7 @@ Stock Management System
 
 ```text
 Phase 4: Asset CRUD
-Next task: Build read-only asset list using authenticated user domain permissions
+Next task: Build asset detail page and status history timeline
 ```
 
 ## Locked MVP Decisions
@@ -177,13 +177,13 @@ Acceptance checks:
 - [ ] Create asset detail API
 - [ ] Create asset create API
 - [ ] Create asset update API
-- [ ] Create asset list page
+- [x] Create asset list page
 - [ ] Create asset detail page
 - [ ] Create register asset form
-- [ ] Add search by serial no.
-- [ ] Add search by model name
-- [ ] Add filters for domain, status, category, and location
-- [ ] Add pagination
+- [x] Add search by serial no.
+- [x] Add search by model name
+- [~] Add filters for domain, status, category, and location
+- [x] Add pagination
 - [ ] Add duplicate serial no. validation
 
 Acceptance checks:
@@ -193,6 +193,15 @@ Acceptance checks:
 - Duplicate serial no. is rejected
 - P' Arm cannot create or edit Network assets
 - P' Mek cannot create or edit Server assets
+
+Implementation notes:
+
+- `/dashboard/assets` is a read-only server-rendered list backed by PostgreSQL
+- Asset query is scoped to the signed-in user's visible domains
+- Domain and status filters are implemented
+- Search covers serial no., stock code, location, note, model, brand, part no., type, category, and location name
+- Category/location dedicated dropdown filters are still pending
+- Rows show whether the signed-in user has Manage or Read-only access for that asset domain
 
 ## Phase 5: Asset Status and History
 
