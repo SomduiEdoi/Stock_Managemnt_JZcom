@@ -22,8 +22,8 @@ Stock Management System
 ## Current Focus
 
 ```text
-Phase 0: Project foundation
-Next task: Configure real DATABASE_URL, run Prisma migration, then run seed
+Phase 4: Asset CRUD
+Next task: Build read-only asset list using authenticated user domain permissions
 ```
 
 ## Locked MVP Decisions
@@ -106,16 +106,16 @@ Acceptance checks:
 
 ## Phase 2: Authentication and Authorization
 
-- [ ] Implement password hashing
-- [ ] Implement cookie-based login
-- [ ] Implement logout
-- [ ] Implement current user helper/API
-- [ ] Implement protected routes
-- [ ] Implement role loading
-- [ ] Implement domain permission loading
-- [ ] Implement permission checker
-- [ ] Add API guard for manage Server
-- [ ] Add API guard for manage Network
+- [x] Implement password hashing
+- [x] Implement cookie-based login
+- [x] Implement logout
+- [x] Implement current user helper/API
+- [x] Implement protected routes
+- [x] Implement role loading
+- [x] Implement domain permission loading
+- [x] Implement permission checker
+- [~] Add API guard for manage Server
+- [~] Add API guard for manage Network
 
 Acceptance checks:
 
@@ -125,6 +125,14 @@ Acceptance checks:
 - P' Mek can manage Network only
 - Viewer cannot mutate asset data
 - API blocks forbidden actions even if UI is bypassed
+
+Implementation notes:
+
+- MVP auth uses seeded email/password accounts through `/api/auth/login`
+- Session cookie stores a signed user id and loads roles/permissions from database on each request
+- `/dashboard` is protected and shows the signed-in user's Server/Network permissions
+- `assertCanManageDomain` and `assertCanViewDomain` exist for future asset mutation/read APIs
+- Actual Server/Network mutation endpoints are not built yet, so API guards must be applied when Phase 4/5 APIs are implemented
 
 ## Phase 3: Master Data
 

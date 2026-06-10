@@ -12,7 +12,11 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
-    "db:studio": "prisma studio"
+    "db:import": "tsx prisma/import-data.ts",
+    "db:setup": "prisma migrate dev && prisma db seed && tsx prisma/import-data.ts",
+    "db:studio": "prisma studio",
+    "docker:up": "docker compose up -d db",
+    "docker:down": "docker compose down"
   },
   "dependencies": {
     "@prisma/client": "^6.0.0",
