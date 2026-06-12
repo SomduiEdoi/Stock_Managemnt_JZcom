@@ -549,7 +549,7 @@ Import endpoints are for controlled migration/admin operations only. Normal appl
 
 ### Server / Network Pages
 
-- dashboard of server/network equipment .
+- dashboard of server/network equipment
 - scoped asset table
 - search + filter
 - status badge including `REQUEST`
