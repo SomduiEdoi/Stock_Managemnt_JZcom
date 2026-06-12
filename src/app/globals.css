@@ -3,13 +3,25 @@
 @tailwind utilities;
 
 :root {
-  --background: 48 33% 97%;
-  --foreground: 100 4% 11%;
+  --brand-accent: 14 99% 63%;
+  --surface: 60 13% 92%;
+  --navy: 202 34% 23%;
+  --ink: 0 0% 0%;
+  --background: var(--surface);
+  --foreground: var(--ink);
   --border: 210 7% 78%;
-  --muted: 45 14% 93%;
+  --muted: var(--surface);
   --muted-foreground: 210 7% 28%;
-  --primary: 202 58% 14%;
+  --primary: var(--navy);
   --primary-foreground: 0 0% 100%;
+  --status-ready: 142 76% 36%;
+  --status-borrow: 188 95% 43%;
+  --status-sold: 262 83% 58%;
+  --status-lost: 215 15% 34%;
+  --status-need-check: 25 95% 53%;
+  --status-request: 45 93% 47%;
+  --status-fail: 0 73% 51%;
+  --status-using: 221 83% 53%;
 }
 
 * {

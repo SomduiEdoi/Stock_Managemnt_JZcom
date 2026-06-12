@@ -23,6 +23,36 @@ Stock Management System
 - permission ต้องตรวจทั้ง role และ domain
 - CSV/SharePoint ใช้สำหรับ one-time migration เท่านั้น หลัง import แล้ว PostgreSQL เป็น source of truth เดียวของ runtime
 
+## UI Color Tokens
+
+System palette:
+
+```text
+Accent  = #FE7743
+Surface = #EFEEEA
+Navy    = #273F4F
+Ink     = #000000
+```
+
+Asset status colors:
+
+```text
+READY       = #16A34A
+BORROW      = #06B6D4
+SOLD        = #7C3AED
+LOST        = #4B5563
+NEED_CHECK  = #F97316
+REQUEST     = #EAB308
+FAIL        = #DC2626
+USING       = #2563EB
+```
+
+Rules:
+
+- All app UI must use the system palette above as the base palette.
+- All asset status badges, filters, charts, and legends must use the exact status colors above.
+- Do not introduce alternate status colors without updating this section and `src/lib/status-style.ts`.
+
 ## Recommended Tech Stack
 
 ### Frontend

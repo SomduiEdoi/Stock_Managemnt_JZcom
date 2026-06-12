@@ -6,6 +6,10 @@ import {
   normalizeAssetListFilters,
   type AssetDomainAccess,
 } from "@/lib/assets";
+import {
+  assetStatusBadgeClasses,
+  assetStatusLabels,
+} from "@/lib/status-style";
 
 type AssetsPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -15,17 +19,6 @@ const accessLabels: Record<AssetDomainAccess, string> = {
   MANAGE: "Manage",
   NONE: "No access",
   READ_ONLY: "Read-only",
-};
-
-const statusLabels = {
-  BORROW: "Borrow",
-  FAIL: "Fail",
-  LOST: "Lost",
-  NEED_CHECK: "Need Check",
-  READY: "Ready",
-  REQUEST: "Request",
-  SOLD: "Sold",
-  USING: "Using",
 };
 
 function buildPageHref(page: number, filters: URLSearchParams) {
@@ -115,7 +108,7 @@ export default async function AssetsPage({ searchParams }: AssetsPageProps) {
           <option value="ALL">All status</option>
           {assetStatusOptions.map((status) => (
             <option key={status} value={status}>
-              {statusLabels[status]}
+              {assetStatusLabels[status]}
             </option>
           ))}
         </select>
@@ -168,8 +161,10 @@ export default async function AssetsPage({ searchParams }: AssetsPageProps) {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="rounded-md bg-muted px-2 py-1 text-xs font-semibold">
-                      {statusLabels[asset.status]}
+                    <span
+                      className={`inline-flex min-w-[88px] justify-center rounded-full px-3 py-1 text-xs font-semibold ${assetStatusBadgeClasses[asset.status]}`}
+                    >
+                      {assetStatusLabels[asset.status]}
                     </span>
                   </td>
                   <td className="px-4 py-3">
