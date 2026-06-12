@@ -1,5 +1,5 @@
 export type DomainCode = "SERVER" | "NETWORK";
-export type RoleCode = "ADMIN" | "STOCK_OWNER" | "VIEWER";
+export type RoleCode = "ADMIN" | "SERVER_OWNER" | "NETWORK_OWNER" | "STAFF";
 
 export type DomainPermission = {
   domainCode: DomainCode;

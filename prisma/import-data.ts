@@ -55,7 +55,7 @@ const statusMap = new Map<string, AssetStatus>([
   ["ready", AssetStatus.READY],
   ["sold", AssetStatus.SOLD],
   ["using", AssetStatus.USING],
-  ["wait", AssetStatus.WAIT],
+  ["wait", AssetStatus.NEED_CHECK],
 ]);
 
 function clean(value: string | undefined) {

@@ -23,9 +23,9 @@ const statusLabels = {
   LOST: "Lost",
   NEED_CHECK: "Need Check",
   READY: "Ready",
+  REQUEST: "Request",
   SOLD: "Sold",
   USING: "Using",
-  WAIT: "Wait",
 };
 
 function buildPageHref(page: number, filters: URLSearchParams) {

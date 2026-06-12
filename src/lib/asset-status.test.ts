@@ -11,10 +11,15 @@ describe("asset status rules", () => {
     expect(ASSET_STATUSES).not.toContain("RENT");
   });
 
+  it("uses request as the temporary asset lock status", () => {
+    expect(ASSET_STATUSES).toContain("REQUEST");
+    expect(ASSET_STATUSES).not.toContain("WAIT");
+  });
+
   it("requires notes for operational status changes", () => {
     expect(NOTE_REQUIRED_STATUSES.has("BORROW")).toBe(true);
     expect(NOTE_REQUIRED_STATUSES.has("SOLD")).toBe(true);
-    expect(NOTE_REQUIRED_STATUSES.has("WAIT")).toBe(true);
+    expect(NOTE_REQUIRED_STATUSES.has("NEED_CHECK")).toBe(true);
     expect(NOTE_REQUIRED_STATUSES.has("READY")).toBe(false);
   });
 
@@ -24,4 +29,3 @@ describe("asset status rules", () => {
     expect(isAssetStatus("RENT")).toBe(false);
   });
 });
-

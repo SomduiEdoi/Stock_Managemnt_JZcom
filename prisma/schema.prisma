@@ -9,8 +9,9 @@ datasource db {
 
 enum RoleCode {
   ADMIN
-  STOCK_OWNER
-  VIEWER
+  SERVER_OWNER
+  NETWORK_OWNER
+  STAFF
 }
 
 enum AssetDomainCode {
@@ -20,28 +21,39 @@ enum AssetDomainCode {
 
 enum AssetStatus {
   READY
+  REQUEST
   BORROW
   USING
   SOLD
   FAIL
   LOST
   NEED_CHECK
-  WAIT
 }
 
 enum AssetActionType {
   CREATE
+  REQUEST_HOLD
+  REQUEST_SUBMIT
   STATUS_CHANGE
-  BORROW
   RETURN
-  USE_INTERNAL
-  SELL
   MARK_FAIL
   MARK_LOST
   MARK_NEED_CHECK
-  MARK_WAIT
-  STOCK_CHECK
   IMPORT
+}
+
+enum TransactionType {
+  BORROW
+  USING
+  SOLD
+}
+
+enum TransactionStatus {
+  BORROWED
+  RETURNED
+  OVERDUE
+  ACTIVE
+  COMPLETED
 }
 
 enum MigrationStatus {
@@ -61,19 +73,26 @@ enum MigrationRowStatus {
 }
 
 model User {
-  id                String                 @id @default(uuid()) @db.Uuid
-  name              String
-  email             String                 @unique
-  passwordHash      String                 @map("password_hash")
-  isActive          Boolean                @default(true) @map("is_active")
-  createdAt         DateTime               @default(now()) @map("created_at")
-  updatedAt         DateTime               @updatedAt @map("updated_at")
-  roles             UserRole[]
-  domainPermissions UserDomainPermission[]
-  createdAssets     Asset[]                @relation("AssetCreatedBy")
-  updatedAssets     Asset[]                @relation("AssetUpdatedBy")
-  statusHistories   AssetStatusHistory[]
-  migrationBatches  MigrationBatch[]
+  id                       String                 @id @default(uuid()) @db.Uuid
+  name                     String
+  email                    String                 @unique
+  passwordHash             String?                @map("password_hash")
+  azureAdObjectId          String?                @unique @map("azure_ad_object_id")
+  position                 String?
+  lastLoginAt              DateTime?              @map("last_login_at")
+  isActive                 Boolean                @default(true) @map("is_active")
+  createdAt                DateTime               @default(now()) @map("created_at")
+  updatedAt                DateTime               @updatedAt @map("updated_at")
+  roles                    UserRole[]
+  domainPermissions        UserDomainPermission[]
+  requestLockedAssets      Asset[]                @relation("AssetRequestLockedBy")
+  createdAssets            Asset[]                @relation("AssetCreatedBy")
+  updatedAssets            Asset[]                @relation("AssetUpdatedBy")
+  statusHistories          AssetStatusHistory[]
+  requestedTransactions    Transaction[]          @relation("TransactionRequestedBy")
+  createdTransactions      Transaction[]          @relation("TransactionCreatedBy")
+  returnedTransactionItems TransactionItem[]      @relation("TransactionItemReturnedBy")
+  migrationBatches         MigrationBatch[]
 
   @@map("users")
 }
@@ -102,17 +121,17 @@ model UserRole {
 }
 
 model AssetDomain {
-  id              String                 @id @default(uuid()) @db.Uuid
-  code            AssetDomainCode        @unique
-  name            String
-  description     String?
-  isActive        Boolean                @default(true) @map("is_active")
-  createdAt       DateTime               @default(now()) @map("created_at")
-  updatedAt       DateTime               @updatedAt @map("updated_at")
-  permissions     UserDomainPermission[]
-  categories      AssetCategory[]
-  models          AssetModel[]
-  assets          Asset[]
+  id          String                 @id @default(uuid()) @db.Uuid
+  code        AssetDomainCode        @unique
+  name        String
+  description String?
+  isActive    Boolean                @default(true) @map("is_active")
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
+  permissions UserDomainPermission[]
+  categories  AssetCategory[]
+  models      AssetModel[]
+  assets      Asset[]
 
   @@map("asset_domains")
 }
@@ -134,14 +153,14 @@ model UserDomainPermission {
 }
 
 model AssetCategory {
-  id          String      @id @default(uuid()) @db.Uuid
-  domainId    String      @map("domain_id") @db.Uuid
+  id          String       @id @default(uuid()) @db.Uuid
+  domainId    String       @map("domain_id") @db.Uuid
   name        String
   description String?
-  isActive    Boolean     @default(true) @map("is_active")
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
-  domain      AssetDomain @relation(fields: [domainId], references: [id])
+  isActive    Boolean      @default(true) @map("is_active")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  domain      AssetDomain  @relation(fields: [domainId], references: [id])
   models      AssetModel[]
 
   @@unique([domainId, name])
@@ -186,35 +205,39 @@ model Location {
 }
 
 model Asset {
-  id               String                 @id @default(uuid()) @db.Uuid
-  assetModelId     String                 @map("asset_model_id") @db.Uuid
-  domainId         String                 @map("domain_id") @db.Uuid
-  locationId       String?                @map("location_id") @db.Uuid
-  serialNo         String                 @unique @map("serial_no")
-  assetNo          String?                @map("asset_no")
-  stockCode        String?                @map("stock_code")
-  status           AssetStatus
-  note             String?
-  imageRef         String?                @map("image_ref")
-  legacyQty        Int?                   @map("legacy_qty")
-  legacyFg         Int?                   @map("legacy_fg")
-  locationText     String?                @map("location_text")
-  sourceSystem     String?                @map("source_system")
-  sourceRecordId   String?                @map("source_record_id")
-  migrationBatchId String?                @map("migration_batch_id") @db.Uuid
-  isActive         Boolean                @default(true) @map("is_active")
-  createdById      String?                @map("created_by") @db.Uuid
-  updatedById      String?                @map("updated_by") @db.Uuid
-  createdAt        DateTime               @default(now()) @map("created_at")
-  updatedAt        DateTime               @updatedAt @map("updated_at")
-  assetModel       AssetModel             @relation(fields: [assetModelId], references: [id])
-  domain           AssetDomain            @relation(fields: [domainId], references: [id])
-  location         Location?              @relation(fields: [locationId], references: [id])
-  migrationBatch   MigrationBatch?        @relation(fields: [migrationBatchId], references: [id])
-  createdBy        User?                  @relation("AssetCreatedBy", fields: [createdById], references: [id])
-  updatedBy        User?                  @relation("AssetUpdatedBy", fields: [updatedById], references: [id])
-  statusHistories  AssetStatusHistory[]
-  migrationRows    MigrationRow[]
+  id                String               @id @default(uuid()) @db.Uuid
+  assetModelId      String               @map("asset_model_id") @db.Uuid
+  domainId          String               @map("domain_id") @db.Uuid
+  locationId        String?              @map("location_id") @db.Uuid
+  serialNo          String               @unique @map("serial_no")
+  assetNo           String?              @map("asset_no")
+  stockCode         String?              @map("stock_code")
+  status            AssetStatus
+  note              String?
+  imageRef          String?              @map("image_ref")
+  legacyQty         Int?                 @map("legacy_qty")
+  legacyFg          Int?                 @map("legacy_fg")
+  locationText      String?              @map("location_text")
+  sourceSystem      String?              @map("source_system")
+  sourceRecordId    String?              @map("source_record_id")
+  migrationBatchId  String?              @map("migration_batch_id") @db.Uuid
+  requestLockedById String?              @map("request_locked_by") @db.Uuid
+  requestLockedAt   DateTime?            @map("request_locked_at")
+  isActive          Boolean              @default(true) @map("is_active")
+  createdById       String?              @map("created_by") @db.Uuid
+  updatedById       String?              @map("updated_by") @db.Uuid
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
+  assetModel        AssetModel           @relation(fields: [assetModelId], references: [id])
+  domain            AssetDomain          @relation(fields: [domainId], references: [id])
+  location          Location?            @relation(fields: [locationId], references: [id])
+  migrationBatch    MigrationBatch?      @relation(fields: [migrationBatchId], references: [id])
+  requestLockedBy   User?                @relation("AssetRequestLockedBy", fields: [requestLockedById], references: [id], onDelete: SetNull)
+  createdBy         User?                @relation("AssetCreatedBy", fields: [createdById], references: [id])
+  updatedBy         User?                @relation("AssetUpdatedBy", fields: [updatedById], references: [id])
+  statusHistories   AssetStatusHistory[]
+  transactionItems  TransactionItem[]
+  migrationRows     MigrationRow[]
 
   @@index([domainId])
   @@index([status])
@@ -222,26 +245,80 @@ model Asset {
   @@index([assetModelId])
   @@index([sourceRecordId])
   @@index([stockCode])
+  @@index([requestLockedById])
   @@map("assets")
 }
 
 model AssetStatusHistory {
-  id          String          @id @default(uuid()) @db.Uuid
-  assetId     String          @map("asset_id") @db.Uuid
-  fromStatus  AssetStatus?    @map("from_status")
-  toStatus    AssetStatus     @map("to_status")
-  actionType  AssetActionType @map("action_type")
-  note        String?
-  changedById String          @map("changed_by") @db.Uuid
-  changedAt   DateTime        @default(now()) @map("changed_at")
-  asset       Asset           @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  changedBy   User            @relation(fields: [changedById], references: [id])
+  id            String          @id @default(uuid()) @db.Uuid
+  assetId       String          @map("asset_id") @db.Uuid
+  transactionId String?         @map("transaction_id") @db.Uuid
+  fromStatus    AssetStatus?    @map("from_status")
+  toStatus      AssetStatus     @map("to_status")
+  actionType    AssetActionType @map("action_type")
+  note          String?
+  changedById   String          @map("changed_by") @db.Uuid
+  changedAt     DateTime        @default(now()) @map("changed_at")
+  asset         Asset           @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  transaction   Transaction?    @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  changedBy     User            @relation(fields: [changedById], references: [id])
 
   @@index([assetId])
+  @@index([transactionId])
   @@index([toStatus])
   @@index([changedAt])
   @@index([changedById])
   @@map("asset_status_histories")
+}
+
+model Transaction {
+  id              String               @id @default(uuid()) @db.Uuid
+  transactionNo   String?              @unique @map("transaction_no")
+  type            TransactionType
+  status          TransactionStatus
+  purpose         String
+  note            String?
+  documentRef     String?              @map("document_ref")
+  dueDate         DateTime?            @map("due_date")
+  requestedById   String               @map("requested_by") @db.Uuid
+  createdById     String               @map("created_by") @db.Uuid
+  returnedAt      DateTime?            @map("returned_at")
+  completedAt     DateTime?            @map("completed_at")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+  requestedBy     User                 @relation("TransactionRequestedBy", fields: [requestedById], references: [id])
+  createdBy       User                 @relation("TransactionCreatedBy", fields: [createdById], references: [id])
+  items           TransactionItem[]
+  statusHistories AssetStatusHistory[]
+
+  @@index([type])
+  @@index([status])
+  @@index([requestedById])
+  @@index([createdById])
+  @@index([dueDate])
+  @@map("transactions")
+}
+
+model TransactionItem {
+  id            String       @id @default(uuid()) @db.Uuid
+  transactionId String       @map("transaction_id") @db.Uuid
+  assetId       String       @map("asset_id") @db.Uuid
+  fromStatus    AssetStatus? @map("from_status")
+  toStatus      AssetStatus  @map("to_status")
+  note          String?
+  returnedAt    DateTime?    @map("returned_at")
+  returnedById  String?      @map("returned_by") @db.Uuid
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+  transaction   Transaction  @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  asset         Asset        @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  returnedBy    User?        @relation("TransactionItemReturnedBy", fields: [returnedById], references: [id], onDelete: SetNull)
+
+  @@unique([transactionId, assetId])
+  @@index([assetId])
+  @@index([transactionId])
+  @@index([returnedById])
+  @@map("transaction_items")
 }
 
 model MigrationBatch {
@@ -279,4 +356,3 @@ model MigrationRow {
   @@index([assetId])
   @@map("migration_rows")
 }
-

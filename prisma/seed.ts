@@ -4,7 +4,7 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 const defaultPassword = "ChangeMe123!";
 
-type RoleCode = "ADMIN" | "STOCK_OWNER" | "VIEWER";
+type RoleCode = "ADMIN" | "SERVER_OWNER" | "NETWORK_OWNER" | "STAFF";
 type AssetDomainCode = "SERVER" | "NETWORK";
 
 type SeedUser = {
@@ -31,7 +31,7 @@ const seedUsers: SeedUser[] = [
   {
     name: "P' Arm",
     email: "arm@example.com",
-    roleCode: "STOCK_OWNER",
+    roleCode: "SERVER_OWNER",
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: true },
       { domainCode: "NETWORK", canView: true, canManage: false },
@@ -40,16 +40,16 @@ const seedUsers: SeedUser[] = [
   {
     name: "P' Mek",
     email: "mek@example.com",
-    roleCode: "STOCK_OWNER",
+    roleCode: "NETWORK_OWNER",
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: false },
       { domainCode: "NETWORK", canView: true, canManage: true },
     ],
   },
   {
-    name: "Viewer",
+    name: "Staff User",
     email: "viewer@example.com",
-    roleCode: "VIEWER",
+    roleCode: "STAFF",
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: false },
       { domainCode: "NETWORK", canView: true, canManage: false },
@@ -58,44 +58,45 @@ const seedUsers: SeedUser[] = [
 ];
 
 async function upsertRoles() {
-  return Promise.all([
-    prisma.role.upsert({
-      where: { code: "ADMIN" },
-      update: {
-        name: "Admin",
-        description: "Can manage all domains, users, imports, and settings.",
-      },
-      create: {
-        code: "ADMIN",
-        name: "Admin",
-        description: "Can manage all domains, users, imports, and settings.",
-      },
-    }),
-    prisma.role.upsert({
-      where: { code: "STOCK_OWNER" },
-      update: {
-        name: "Stock Owner",
-        description: "Can manage assets in assigned domains.",
-      },
-      create: {
-        code: "STOCK_OWNER",
-        name: "Stock Owner",
-        description: "Can manage assets in assigned domains.",
-      },
-    }),
-    prisma.role.upsert({
-      where: { code: "VIEWER" },
-      update: {
-        name: "Viewer",
-        description: "Read-only access to asset data.",
-      },
-      create: {
-        code: "VIEWER",
-        name: "Viewer",
-        description: "Read-only access to asset data.",
-      },
-    }),
-  ]);
+  const roles: Array<{
+    code: RoleCode;
+    name: string;
+    description: string;
+  }> = [
+    {
+      code: "ADMIN",
+      name: "Admin",
+      description: "Can manage all domains, users, imports, and settings.",
+    },
+    {
+      code: "SERVER_OWNER",
+      name: "Server Owner",
+      description: "Can manage Server assets and view assigned domains.",
+    },
+    {
+      code: "NETWORK_OWNER",
+      name: "Network Owner",
+      description: "Can manage Network assets and view assigned domains.",
+    },
+    {
+      code: "STAFF",
+      name: "Staff",
+      description: "Can view assets and submit asset requests.",
+    },
+  ];
+
+  return Promise.all(
+    roles.map((role) =>
+      prisma.role.upsert({
+        where: { code: role.code },
+        update: {
+          name: role.name,
+          description: role.description,
+        },
+        create: role,
+      }),
+    ),
+  );
 }
 
 async function upsertDomains() {
@@ -164,6 +165,13 @@ async function upsertSeedUser(
     create: {
       userId: createdUser.id,
       roleId,
+    },
+  });
+
+  await prisma.userRole.deleteMany({
+    where: {
+      roleId: { not: roleId },
+      userId: createdUser.id,
     },
   });
 

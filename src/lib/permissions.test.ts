@@ -36,22 +36,22 @@ describe("domain permissions", () => {
     expect(canManageDomainForUser(admin, "NETWORK")).toBe(true);
   });
 
-  it("keeps viewer read-only", () => {
-    const viewer: PermissionUser = {
-      roles: ["VIEWER"],
+  it("keeps staff read-only", () => {
+    const staff: PermissionUser = {
+      roles: ["STAFF"],
       permissions: [
         { domainCode: "SERVER", canView: true, canManage: false },
         { domainCode: "NETWORK", canView: true, canManage: false },
       ],
     };
 
-    expect(canViewDomainForUser(viewer, "SERVER")).toBe(true);
-    expect(canManageDomainForUser(viewer, "SERVER")).toBe(false);
+    expect(canViewDomainForUser(staff, "SERVER")).toBe(true);
+    expect(canManageDomainForUser(staff, "SERVER")).toBe(false);
   });
 
   it("throws for forbidden manage actions", () => {
     const arm: PermissionUser = {
-      roles: ["STOCK_OWNER"],
+      roles: ["SERVER_OWNER"],
       permissions,
     };
 

@@ -11,13 +11,13 @@ import {
 export const assetDomainOptions = ["SERVER", "NETWORK"] as const;
 export const assetStatusOptions = [
   "READY",
+  "REQUEST",
   "BORROW",
   "USING",
   "SOLD",
   "FAIL",
   "LOST",
   "NEED_CHECK",
-  "WAIT",
 ] as const satisfies readonly AssetStatus[];
 
 export type AssetDomainFilter = DomainCode | "ALL";

@@ -8,7 +8,7 @@ import {
 import type { PermissionUser } from "./permissions";
 
 const arm: PermissionUser = {
-  roles: ["STOCK_OWNER"],
+  roles: ["SERVER_OWNER"],
   permissions: [
     { domainCode: "SERVER", canView: true, canManage: true },
     { domainCode: "NETWORK", canView: true, canManage: false },
@@ -29,7 +29,7 @@ describe("asset list permissions", () => {
 
   it("does not select a hidden filtered domain", () => {
     const serverOnly: PermissionUser = {
-      roles: ["STOCK_OWNER"],
+      roles: ["SERVER_OWNER"],
       permissions: [{ domainCode: "SERVER", canView: true, canManage: true }],
     };
 

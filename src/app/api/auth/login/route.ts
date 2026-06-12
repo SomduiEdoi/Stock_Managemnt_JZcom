@@ -36,8 +36,9 @@ export async function POST(request: Request) {
   });
 
   const passwordMatches =
-    user?.isActive &&
-    (await bcrypt.compare(parsed.data.password, user.passwordHash));
+    user?.isActive && user.passwordHash
+      ? await bcrypt.compare(parsed.data.password, user.passwordHash)
+      : false;
 
   if (!user || !passwordMatches) {
     return NextResponse.json(
