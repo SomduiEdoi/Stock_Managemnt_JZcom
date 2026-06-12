@@ -3,12 +3,12 @@
 @tailwind utilities;
 
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222 47% 11%;
-  --border: 214 32% 91%;
-  --muted: 210 40% 96%;
-  --muted-foreground: 215 16% 47%;
-  --primary: 215 75% 35%;
+  --background: 48 33% 97%;
+  --foreground: 100 4% 11%;
+  --border: 210 7% 78%;
+  --muted: 45 14% 93%;
+  --muted-foreground: 210 7% 28%;
+  --primary: 202 58% 14%;
   --primary-foreground: 0 0% 100%;
 }
 
@@ -21,6 +21,7 @@ body {
   background: hsl(var(--background));
   color: hsl(var(--foreground));
   font-family:
+    Inter,
     Arial,
     Helvetica,
     sans-serif;
@@ -30,4 +31,3 @@ a {
   color: inherit;
   text-decoration: none;
 }
-
