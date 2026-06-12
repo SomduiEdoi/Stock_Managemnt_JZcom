@@ -1,5 +1,21 @@
-export type DomainCode = "SERVER" | "NETWORK";
-export type RoleCode = "ADMIN" | "SERVER_OWNER" | "NETWORK_OWNER" | "STAFF";
+import type {
+  AssetDomainCode,
+  RoleCode as PrismaRoleCode,
+} from "@prisma/client";
+
+export type DomainCode = AssetDomainCode;
+export type RoleCode = PrismaRoleCode;
+
+export const domainCodes = [
+  "SERVER",
+  "NETWORK",
+] as const satisfies readonly DomainCode[];
+export const requestRoleCodes = [
+  "ADMIN",
+  "SERVER_OWNER",
+  "NETWORK_OWNER",
+  "STAFF",
+] as const satisfies readonly RoleCode[];
 
 export type DomainPermission = {
   domainCode: DomainCode;
@@ -23,6 +39,13 @@ export class PermissionError extends Error {
 
 export function hasRole(user: PermissionUser, roleCode: RoleCode) {
   return user.roles.includes(roleCode);
+}
+
+export function hasAnyRole(
+  user: PermissionUser,
+  roleCodes: readonly RoleCode[],
+) {
+  return user.roles.some((roleCode) => roleCodes.includes(roleCode));
 }
 
 export function canManageDomain(
@@ -49,6 +72,22 @@ export function canViewDomainForUser(
   return hasRole(user, "ADMIN") || canViewDomain(user.permissions, domainCode);
 }
 
+export function canRequestDomainForUser(
+  user: PermissionUser,
+  domainCode: DomainCode,
+) {
+  return (
+    hasAnyRole(user, requestRoleCodes) &&
+    canViewDomainForUser(user, domainCode)
+  );
+}
+
+export function canRequestAssetsForUser(user: PermissionUser) {
+  return domainCodes.some((domainCode) =>
+    canRequestDomainForUser(user, domainCode),
+  );
+}
+
 export function assertCanManageDomain(
   user: PermissionUser,
   domainCode: DomainCode,
@@ -61,6 +100,15 @@ export function assertCanManageDomain(
 export function assertCanViewDomain(user: PermissionUser, domainCode: DomainCode) {
   if (!canViewDomainForUser(user, domainCode)) {
     throw new PermissionError(`Cannot view ${domainCode} assets.`);
+  }
+}
+
+export function assertCanRequestDomain(
+  user: PermissionUser,
+  domainCode: DomainCode,
+) {
+  if (!canRequestDomainForUser(user, domainCode)) {
+    throw new PermissionError(`Cannot request ${domainCode} assets.`);
   }
 }
 

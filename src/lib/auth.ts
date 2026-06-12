@@ -5,9 +5,12 @@ import type { DomainPermission, RoleCode } from "@/lib/permissions";
 import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 export type CurrentUser = {
+  azureAdObjectId: string | null;
   id: string;
-  name: string;
   email: string;
+  lastLoginAt: Date | null;
+  name: string;
+  position: string | null;
   roles: RoleCode[];
   permissions: DomainPermission[];
 };
@@ -19,9 +22,12 @@ async function findActiveUser(userId: string) {
       isActive: true,
     },
     select: {
+      azureAdObjectId: true,
       id: true,
-      name: true,
       email: true,
+      lastLoginAt: true,
+      name: true,
+      position: true,
       roles: {
         select: {
           role: {
@@ -50,9 +56,12 @@ function toCurrentUser(
   user: NonNullable<Awaited<ReturnType<typeof findActiveUser>>>,
 ): CurrentUser {
   return {
+    azureAdObjectId: user.azureAdObjectId,
     id: user.id,
-    name: user.name,
     email: user.email,
+    lastLoginAt: user.lastLoginAt,
+    name: user.name,
+    position: user.position,
     roles: user.roles.map(({ role }) => role.code as RoleCode),
     permissions: user.domainPermissions.map((permission) => ({
       canManage: permission.canManage,

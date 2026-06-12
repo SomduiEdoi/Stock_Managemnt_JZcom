@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   PermissionError,
+  assertCanRequestDomain,
+  canRequestAssetsForUser,
+  canRequestDomainForUser,
   assertCanManageDomain,
   canManageDomain,
   canManageDomainForUser,
@@ -46,6 +49,7 @@ describe("domain permissions", () => {
     };
 
     expect(canViewDomainForUser(staff, "SERVER")).toBe(true);
+    expect(canRequestDomainForUser(staff, "SERVER")).toBe(true);
     expect(canManageDomainForUser(staff, "SERVER")).toBe(false);
   });
 
@@ -58,5 +62,29 @@ describe("domain permissions", () => {
     expect(() => assertCanManageDomain(arm, "NETWORK")).toThrow(
       PermissionError,
     );
+  });
+
+  it("lets domain owners request visible cross-domain assets without manage access", () => {
+    const arm: PermissionUser = {
+      roles: ["SERVER_OWNER"],
+      permissions,
+    };
+
+    expect(canRequestDomainForUser(arm, "SERVER")).toBe(true);
+    expect(canRequestDomainForUser(arm, "NETWORK")).toBe(true);
+    expect(canManageDomainForUser(arm, "NETWORK")).toBe(false);
+  });
+
+  it("blocks requests when a user cannot view the domain", () => {
+    const serverOnlyStaff: PermissionUser = {
+      roles: ["STAFF"],
+      permissions: [{ domainCode: "SERVER", canView: true, canManage: false }],
+    };
+
+    expect(canRequestAssetsForUser(serverOnlyStaff)).toBe(true);
+    expect(canRequestDomainForUser(serverOnlyStaff, "NETWORK")).toBe(false);
+    expect(() =>
+      assertCanRequestDomain(serverOnlyStaff, "NETWORK"),
+    ).toThrow(PermissionError);
   });
 });

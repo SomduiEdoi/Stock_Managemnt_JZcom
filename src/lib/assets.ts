@@ -4,11 +4,12 @@ import { db } from "@/lib/db";
 import {
   canManageDomainForUser,
   canViewDomainForUser,
+  domainCodes,
   type DomainCode,
   type PermissionUser,
 } from "@/lib/permissions";
 
-export const assetDomainOptions = ["SERVER", "NETWORK"] as const;
+export const assetDomainOptions = domainCodes;
 export const assetStatusOptions = [
   "READY",
   "REQUEST",

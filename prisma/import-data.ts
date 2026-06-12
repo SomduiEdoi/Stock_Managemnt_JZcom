@@ -302,6 +302,8 @@ function toAssetData(
     locationText: mapped.locationText,
     migrationBatchId: batchId,
     note: mapped.note,
+    requestLockedAt: null,
+    requestLockedById: null,
     serialNo: mapped.serialNo,
     sourceRecordId,
     sourceSystem,

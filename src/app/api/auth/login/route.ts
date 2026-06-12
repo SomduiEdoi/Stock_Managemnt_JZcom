@@ -47,6 +47,11 @@ export async function POST(request: Request) {
     );
   }
 
+  await db.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date() },
+  });
+
   const token = createSessionToken(user.id);
   const currentUser = await getUserFromSessionToken(token);
   const response = NextResponse.json({ user: currentUser });

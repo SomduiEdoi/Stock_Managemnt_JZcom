@@ -1,16 +1,19 @@
 import bcrypt from "bcryptjs";
-import { PrismaClient } from "@prisma/client";
+import {
+  type AssetDomainCode,
+  PrismaClient,
+  type RoleCode,
+} from "@prisma/client";
 
 const prisma = new PrismaClient();
 const defaultPassword = "ChangeMe123!";
 
-type RoleCode = "ADMIN" | "SERVER_OWNER" | "NETWORK_OWNER" | "STAFF";
-type AssetDomainCode = "SERVER" | "NETWORK";
-
 type SeedUser = {
   name: string;
   email: string;
+  position: string;
   roleCode: RoleCode;
+  azureAdObjectId?: string;
   permissions: Array<{
     domainCode: AssetDomainCode;
     canView: boolean;
@@ -22,6 +25,7 @@ const seedUsers: SeedUser[] = [
   {
     name: "P' Oak",
     email: "oak@example.com",
+    position: "Administrator",
     roleCode: "ADMIN",
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: true },
@@ -31,6 +35,7 @@ const seedUsers: SeedUser[] = [
   {
     name: "P' Arm",
     email: "arm@example.com",
+    position: "Server Stock Owner",
     roleCode: "SERVER_OWNER",
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: true },
@@ -40,6 +45,7 @@ const seedUsers: SeedUser[] = [
   {
     name: "P' Mek",
     email: "mek@example.com",
+    position: "Network Stock Owner",
     roleCode: "NETWORK_OWNER",
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: false },
@@ -49,6 +55,7 @@ const seedUsers: SeedUser[] = [
   {
     name: "Staff User",
     email: "viewer@example.com",
+    position: "Staff",
     roleCode: "STAFF",
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: false },
@@ -134,18 +141,26 @@ async function upsertSeedUser(
   roleByCode: Map<RoleCode, string>,
   domainByCode: Map<AssetDomainCode, string>,
 ) {
+  const identityData = user.azureAdObjectId
+    ? { azureAdObjectId: user.azureAdObjectId }
+    : {};
+
   const createdUser = await prisma.user.upsert({
     where: { email: user.email },
     update: {
+      isActive: true,
       name: user.name,
       passwordHash,
-      isActive: true,
+      position: user.position,
+      ...identityData,
     },
     create: {
-      name: user.name,
       email: user.email,
-      passwordHash,
       isActive: true,
+      name: user.name,
+      passwordHash,
+      position: user.position,
+      ...identityData,
     },
   });
 
