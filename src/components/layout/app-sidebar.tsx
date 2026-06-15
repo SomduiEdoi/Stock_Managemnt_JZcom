@@ -34,7 +34,7 @@ const dashboardItem: NavItem = {
 
 const baseItems: NavItem[] = [
   {
-    href: "/dashboard/assets?domain=SERVER",
+    href: "/dashboard/server",
     icon: Server,
     id: "server",
     label: "Server",
@@ -88,7 +88,10 @@ function isActiveItem(
   }
 
   if (item.id === "server") {
-    return pathname === "/dashboard/assets" && searchParams.get("domain") === "SERVER";
+    return (
+      pathname === "/dashboard/server" ||
+      (pathname === "/dashboard/assets" && searchParams.get("domain") === "SERVER")
+    );
   }
 
   if (item.id === "network") {

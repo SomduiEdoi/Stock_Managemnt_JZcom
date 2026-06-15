@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { RoleCode } from "@/lib/permissions";
 import { AppSidebar } from "./app-sidebar";
+import { AppShellTitle } from "./app-shell-title";
 import { UserProfileMenu } from "./user-profile-menu";
 
 type AppShellUser = {
@@ -17,7 +18,7 @@ type AppShellProps = {
 
 export function AppShell({
   children,
-  title = "Dashboard Overview",
+  title,
   user,
 }: AppShellProps) {
   return (
@@ -27,7 +28,7 @@ export function AppShell({
       <section className="min-w-0">
         <header className="border-b border-border bg-white">
           <div className="flex min-h-16 items-center justify-between gap-4 px-5 py-3 lg:px-7">
-            <p className="text-xl font-bold text-navy">{title}</p>
+            <AppShellTitle title={title} />
 
             <UserProfileMenu
               name={user.name}
