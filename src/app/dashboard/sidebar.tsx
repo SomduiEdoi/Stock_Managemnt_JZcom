@@ -14,7 +14,7 @@ import {
 import { clsx } from "clsx";
 import type { RoleCode } from "@/lib/permissions";
 
-type AppSidebarProps = {
+type DashboardSidebarProps = {
   roles: RoleCode[];
 };
 
@@ -34,13 +34,13 @@ const dashboardItem: NavItem = {
 
 const baseItems: NavItem[] = [
   {
-    href: "/dashboard/server",
+    href: "/dashboard/assets?domain=SERVER",
     icon: Server,
     id: "server",
     label: "Server",
   },
   {
-    href: "/dashboard/network",
+    href: "/dashboard/assets?domain=NETWORK",
     icon: Network,
     id: "network",
     label: "Network",
@@ -88,17 +88,11 @@ function isActiveItem(
   }
 
   if (item.id === "server") {
-    return (
-      pathname === "/dashboard/server" ||
-      (pathname === "/dashboard/assets" && searchParams.get("domain") === "SERVER")
-    );
+    return pathname === "/dashboard/assets" && searchParams.get("domain") === "SERVER";
   }
 
   if (item.id === "network") {
-    return (
-      pathname === "/dashboard/network" ||
-      (pathname === "/dashboard/assets" && searchParams.get("domain") === "NETWORK")
-    );
+    return pathname === "/dashboard/assets" && searchParams.get("domain") === "NETWORK";
   }
 
   return pathname === item.href;
@@ -132,7 +126,7 @@ function NavLink({
   );
 }
 
-export function AppSidebar({ roles }: AppSidebarProps) {
+export function DashboardSidebar({ roles }: DashboardSidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const items = getRoleNavItems(roles);

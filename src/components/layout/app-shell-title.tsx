@@ -57,7 +57,7 @@ function resolveTitle(pathname: string, searchParams: SearchParamReader) {
     return "Settings";
   }
 
-  if (pathname === "/dashboard/users") {
+  if (pathname === "/user") {
     return "User Management";
   }
 
