@@ -147,7 +147,12 @@ export default async function AssetsPage({ searchParams }: AssetsPageProps) {
                 <tr key={asset.id} className="align-top">
                   <td className="px-4 py-3 font-medium">{asset.serialNo}</td>
                   <td className="px-4 py-3">
-                    <div className="font-medium">{asset.assetModel.name}</div>
+                    <Link
+                      className="font-medium text-navy hover:underline"
+                      href={`/dashboard/assets/${asset.id}`}
+                    >
+                      {asset.assetModel.name}
+                    </Link>
                     <div className="mt-1 text-xs text-muted-foreground">
                       {[asset.assetModel.brand, asset.assetModel.partNo]
                         .filter(Boolean)

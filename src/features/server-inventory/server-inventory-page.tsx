@@ -181,7 +181,11 @@ function ServerTable({ rows }: { rows: ServerInventoryRow[] }) {
 function ServerTableRow({ asset }: { asset: ServerInventoryRow }) {
   return (
     <tr className="align-middle">
-      <td className="px-5 py-4 font-bold text-navy">{asset.assetModel.name}</td>
+      <td className="px-5 py-4 font-bold text-navy">
+        <Link className="hover:underline" href={`/dashboard/assets/${asset.id}`}>
+          {asset.assetModel.name}
+        </Link>
+      </td>
       <td className="px-5 py-4 text-muted-foreground">
         {asset.assetModel.brand ?? "-"}
       </td>

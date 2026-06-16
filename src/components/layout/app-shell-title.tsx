@@ -41,6 +41,10 @@ function resolveTitle(pathname: string, searchParams: SearchParamReader) {
     return resolveAssetTitle(searchParams);
   }
 
+  if (pathname.startsWith("/dashboard/assets/")) {
+    return "Asset Detail";
+  }
+
   if (pathname === "/dashboard/logs") {
     return "Activity Logs";
   }
