@@ -33,6 +33,10 @@ function resolveTitle(pathname: string, searchParams: SearchParamReader) {
     return "Server Inventory";
   }
 
+  if (pathname === "/dashboard/network") {
+    return "Network Inventory";
+  }
+
   if (pathname === "/dashboard/assets") {
     return resolveAssetTitle(searchParams);
   }

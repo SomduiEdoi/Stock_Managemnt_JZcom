@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getUserFromSessionToken } from "@/lib/auth";
+import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import {
   SESSION_COOKIE_NAME,
   createSessionToken,
@@ -26,37 +27,49 @@ export async function POST(request: Request) {
   }
 
   const email = parsed.data.email.trim().toLowerCase();
-  const user = await db.user.findUnique({
-    where: { email },
-    select: {
-      id: true,
-      isActive: true,
-      passwordHash: true,
-    },
-  });
 
-  const passwordMatches =
-    user?.isActive && user.passwordHash
-      ? await bcrypt.compare(parsed.data.password, user.passwordHash)
-      : false;
+  try {
+    const user = await db.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        isActive: true,
+        passwordHash: true,
+      },
+    });
 
-  if (!user || !passwordMatches) {
-    return NextResponse.json(
-      { message: "Invalid email or password." },
-      { status: 401 },
-    );
+    const passwordMatches =
+      user?.isActive && user.passwordHash
+        ? await bcrypt.compare(parsed.data.password, user.passwordHash)
+        : false;
+
+    if (!user || !passwordMatches) {
+      return NextResponse.json(
+        { message: "Invalid email or password." },
+        { status: 401 },
+      );
+    }
+
+    await db.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+
+    const token = createSessionToken(user.id);
+    const currentUser = await getUserFromSessionToken(token);
+    const response = NextResponse.json({ user: currentUser });
+
+    response.cookies.set(SESSION_COOKIE_NAME, token, sessionCookieOptions());
+
+    return response;
+  } catch (error) {
+    if (isDatabaseUnavailableError(error)) {
+      return NextResponse.json(
+        { message: "Database is unavailable. Start PostgreSQL and try again." },
+        { status: 503 },
+      );
+    }
+
+    throw error;
   }
-
-  await db.user.update({
-    where: { id: user.id },
-    data: { lastLoginAt: new Date() },
-  });
-
-  const token = createSessionToken(user.id);
-  const currentUser = await getUserFromSessionToken(token);
-  const response = NextResponse.json({ user: currentUser });
-
-  response.cookies.set(SESSION_COOKIE_NAME, token, sessionCookieOptions());
-
-  return response;
 }

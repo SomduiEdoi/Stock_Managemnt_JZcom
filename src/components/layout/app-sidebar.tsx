@@ -40,7 +40,7 @@ const baseItems: NavItem[] = [
     label: "Server",
   },
   {
-    href: "/dashboard/assets?domain=NETWORK",
+    href: "/dashboard/network",
     icon: Network,
     id: "network",
     label: "Network",
@@ -95,7 +95,10 @@ function isActiveItem(
   }
 
   if (item.id === "network") {
-    return pathname === "/dashboard/assets" && searchParams.get("domain") === "NETWORK";
+    return (
+      pathname === "/dashboard/network" ||
+      (pathname === "/dashboard/assets" && searchParams.get("domain") === "NETWORK")
+    );
   }
 
   return pathname === item.href;

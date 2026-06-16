@@ -3,13 +3,13 @@ import { InventoryDataUnavailable } from "@/components/inventory/inventory-data-
 import { requireCurrentUser } from "@/lib/auth";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 
-export default async function ServerInventoryLayout({
+export default async function NetworkInventoryLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   try {
-    const user = await requireCurrentUser("/dashboard/server");
+    const user = await requireCurrentUser("/dashboard/network");
 
     return <AppShell user={user}>{children}</AppShell>;
   } catch (error) {
@@ -17,8 +17,8 @@ export default async function ServerInventoryLayout({
       return (
         <main className="min-h-screen bg-background p-6">
           <InventoryDataUnavailable
-            domainLabel="Server inventory"
-            retryHref="/dashboard/server"
+            domainLabel="Network inventory"
+            retryHref="/dashboard/network"
           />
         </main>
       );

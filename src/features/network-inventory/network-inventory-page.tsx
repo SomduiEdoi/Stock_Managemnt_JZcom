@@ -11,20 +11,20 @@ import {
 } from "lucide-react";
 import { requireCurrentUser } from "@/lib/auth";
 import {
-  getServerInventoryForUser,
-  normalizeServerInventoryFilters,
-  type ServerInventoryFilters,
-  type ServerInventoryRow,
-} from "@/lib/server-inventory";
+  getNetworkInventoryForUser,
+  normalizeNetworkInventoryFilters,
+  type NetworkInventoryFilters,
+  type NetworkInventoryRow,
+} from "@/lib/network-inventory";
 import {
   assetStatusBadgeClasses,
   assetStatusLabels,
 } from "@/lib/status-style";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { InventoryDataUnavailable } from "@/components/inventory/inventory-data-unavailable";
-import { ServerInventoryControls } from "@/components/inventory/server-inventory-controls";
+import { NetworkInventoryControls } from "@/components/inventory/network-inventory-controls";
 
-type ServerPageProps = {
+type NetworkPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
@@ -52,7 +52,7 @@ function appendValues(params: URLSearchParams, key: string, values: string[]) {
   values.forEach((value) => params.append(key, value));
 }
 
-function buildServerPageHref(page: number, filters: ServerInventoryFilters) {
+function buildNetworkPageHref(page: number, filters: NetworkInventoryFilters) {
   const params = new URLSearchParams();
 
   if (filters.search) {
@@ -64,7 +64,7 @@ function buildServerPageHref(page: number, filters: ServerInventoryFilters) {
   appendValues(params, "status", filters.statuses);
   params.set("page", String(page));
 
-  return `/dashboard/server?${params.toString()}`;
+  return `/dashboard/network?${params.toString()}`;
 }
 
 function MetricCard({ detail, icon: Icon, label, tone, value }: MetricCardProps) {
@@ -90,7 +90,7 @@ function MetricCard({ detail, icon: Icon, label, tone, value }: MetricCardProps)
   );
 }
 
-function ServerMetrics({
+function NetworkMetrics({
   borrowed,
   ready,
   request,
@@ -106,23 +106,23 @@ function ServerMetrics({
   return (
     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
       <MetricCard
-        detail="Server domain only"
+        detail="Network domain only"
         icon={Package}
-        label="Total Server Equipment"
+        label="Total Network Equipment"
         tone="total"
         value={total}
       />
       <MetricCard
         detail="Ready for use"
         icon={CheckCircle2}
-        label="Ready Server Equipment"
+        label="Ready Network Equipment"
         tone="ready"
         value={ready}
       />
       <MetricCard
         detail="Currently borrowed"
         icon={ArrowRightLeft}
-        label="Borrowed Server Equipment"
+        label="Borrowed Network Equipment"
         tone="borrow"
         value={borrowed}
       />
@@ -136,7 +136,7 @@ function ServerMetrics({
       <MetricCard
         detail="Moved to sold state"
         icon={DollarSign}
-        label="Sold Server Equipment"
+        label="Sold Network Equipment"
         tone="sold"
         value={sold}
       />
@@ -144,7 +144,7 @@ function ServerMetrics({
   );
 }
 
-function ServerTable({ rows }: { rows: ServerInventoryRow[] }) {
+function NetworkTable({ rows }: { rows: NetworkInventoryRow[] }) {
   return (
     <section className="overflow-hidden rounded-md border border-border bg-white shadow-sm">
       <div className="overflow-x-auto">
@@ -163,7 +163,7 @@ function ServerTable({ rows }: { rows: ServerInventoryRow[] }) {
           </thead>
           <tbody className="divide-y divide-border">
             {rows.map((asset) => (
-              <ServerTableRow asset={asset} key={asset.id} />
+              <NetworkTableRow asset={asset} key={asset.id} />
             ))}
           </tbody>
         </table>
@@ -171,14 +171,14 @@ function ServerTable({ rows }: { rows: ServerInventoryRow[] }) {
 
       {rows.length === 0 ? (
         <div className="border-t border-border px-5 py-10 text-center text-sm font-medium text-muted-foreground">
-          No server assets found.
+          No network assets found.
         </div>
       ) : null}
     </section>
   );
 }
 
-function ServerTableRow({ asset }: { asset: ServerInventoryRow }) {
+function NetworkTableRow({ asset }: { asset: NetworkInventoryRow }) {
   return (
     <tr className="align-middle">
       <td className="px-5 py-4 font-bold text-navy">{asset.assetModel.name}</td>
@@ -214,7 +214,7 @@ function Pagination({
   page,
   totalPages,
 }: {
-  filters: ServerInventoryFilters;
+  filters: NetworkInventoryFilters;
   page: number;
   totalPages: number;
 }) {
@@ -227,7 +227,7 @@ function Pagination({
         <Link
           aria-disabled={page <= 1}
           className="flex h-9 items-center gap-2 rounded-md border border-border bg-white px-3 font-semibold aria-disabled:pointer-events-none aria-disabled:opacity-50"
-          href={buildServerPageHref(Math.max(1, page - 1), filters)}
+          href={buildNetworkPageHref(Math.max(1, page - 1), filters)}
         >
           <ArrowLeft className="h-4 w-4" />
           Previous
@@ -235,7 +235,7 @@ function Pagination({
         <Link
           aria-disabled={page >= totalPages}
           className="flex h-9 items-center gap-2 rounded-md border border-border bg-white px-3 font-semibold aria-disabled:pointer-events-none aria-disabled:opacity-50"
-          href={buildServerPageHref(Math.min(totalPages, page + 1), filters)}
+          href={buildNetworkPageHref(Math.min(totalPages, page + 1), filters)}
         >
           Next
           <ArrowRight className="h-4 w-4" />
@@ -245,32 +245,32 @@ function Pagination({
   );
 }
 
-function NoServerAccess() {
+function NoNetworkAccess() {
   return (
     <section className="rounded-md border border-border bg-white p-8 text-center shadow-sm">
-      <h2 className="text-xl font-bold text-navy">No server access</h2>
+      <h2 className="text-xl font-bold text-navy">No network access</h2>
       <p className="mt-2 text-sm font-medium text-muted-foreground">
-        Your account does not have permission to view server inventory.
+        Your account does not have permission to view network inventory.
       </p>
     </section>
   );
 }
 
-export default async function ServerInventoryPage({
+export default async function NetworkInventoryPage({
   searchParams,
-}: ServerPageProps) {
-  const filters = normalizeServerInventoryFilters(await searchParams);
-  let result: Awaited<ReturnType<typeof getServerInventoryForUser>>;
+}: NetworkPageProps) {
+  const filters = normalizeNetworkInventoryFilters(await searchParams);
+  let result: Awaited<ReturnType<typeof getNetworkInventoryForUser>>;
 
   try {
-    const user = await requireCurrentUser("/dashboard/server");
-    result = await getServerInventoryForUser(user, filters);
+    const user = await requireCurrentUser("/dashboard/network");
+    result = await getNetworkInventoryForUser(user, filters);
   } catch (error) {
     if (isDatabaseUnavailableError(error)) {
       return (
         <InventoryDataUnavailable
-          domainLabel="Server inventory"
-          retryHref="/dashboard/server"
+          domainLabel="Network inventory"
+          retryHref="/dashboard/network"
         />
       );
     }
@@ -279,12 +279,12 @@ export default async function ServerInventoryPage({
   }
 
   if (!result.canView) {
-    return <NoServerAccess />;
+    return <NoNetworkAccess />;
   }
 
   return (
     <div className="flex flex-col gap-6">
-      <ServerMetrics
+      <NetworkMetrics
         borrowed={result.metrics.borrowed}
         ready={result.metrics.ready}
         request={result.metrics.request}
@@ -292,7 +292,7 @@ export default async function ServerInventoryPage({
         total={result.metrics.total}
       />
 
-      <ServerInventoryControls
+      <NetworkInventoryControls
         categories={result.filterOptions.categories}
         filters={{
           categories: filters.categories,
@@ -308,7 +308,7 @@ export default async function ServerInventoryPage({
         types={result.filterOptions.types}
       />
 
-      <ServerTable rows={result.rows} />
+      <NetworkTable rows={result.rows} />
       <Pagination
         filters={filters}
         page={filters.page}
