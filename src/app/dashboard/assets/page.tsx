@@ -6,10 +6,8 @@ import {
   normalizeAssetListFilters,
   type AssetDomainAccess,
 } from "@/lib/assets";
-import {
-  assetStatusBadgeClasses,
-  assetStatusLabels,
-} from "@/lib/status-style";
+import { assetStatusLabels } from "@/lib/status-style";
+import { AssetStatusBadge } from "@/components/status/asset-status-badge";
 
 type AssetsPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -166,11 +164,7 @@ export default async function AssetsPage({ searchParams }: AssetsPageProps) {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex min-w-[88px] justify-center rounded-full px-3 py-1 text-xs font-semibold ${assetStatusBadgeClasses[asset.status]}`}
-                    >
-                      {assetStatusLabels[asset.status]}
-                    </span>
+                    <AssetStatusBadge status={asset.status} />
                   </td>
                   <td className="px-4 py-3">
                     {asset.location?.name ?? asset.locationText ?? "-"}

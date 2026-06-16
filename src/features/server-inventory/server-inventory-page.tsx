@@ -16,13 +16,11 @@ import {
   type ServerInventoryFilters,
   type ServerInventoryRow,
 } from "@/lib/server-inventory";
-import {
-  assetStatusBadgeClasses,
-  assetStatusLabels,
-} from "@/lib/status-style";
+import { assetStatusLabels } from "@/lib/status-style";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { InventoryDataUnavailable } from "@/components/inventory/inventory-data-unavailable";
 import { ServerInventoryControls } from "@/components/inventory/server-inventory-controls";
+import { AssetStatusBadge } from "@/components/status/asset-status-badge";
 
 type ServerPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -203,11 +201,7 @@ function ServerTableRow({ asset }: { asset: ServerInventoryRow }) {
       </td>
       <td className="px-5 py-4 font-medium text-ink">{asset.serialNo}</td>
       <td className="px-5 py-4">
-        <span
-          className={`inline-flex min-w-[86px] justify-center rounded-full px-3 py-1 text-xs font-bold ${assetStatusBadgeClasses[asset.status]}`}
-        >
-          {assetStatusLabels[asset.status]}
-        </span>
+        <AssetStatusBadge status={asset.status} />
       </td>
     </tr>
   );

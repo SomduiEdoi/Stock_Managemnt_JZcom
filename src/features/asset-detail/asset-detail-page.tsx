@@ -16,12 +16,9 @@ import {
   UserRound,
 } from "lucide-react";
 import type { AssetDetailRecord } from "@/lib/asset-detail";
-import {
-  assetStatusBadgeClasses,
-  assetStatusLabels,
-  transactionStatusLabels,
-} from "@/lib/status-style";
+import { transactionStatusLabels } from "@/lib/status-style";
 import { ExportPdfButton } from "@/features/asset-detail/export-pdf-button";
+import { AssetStatusBadge } from "@/components/status/asset-status-badge";
 
 const actionLabels = {
   CREATE: "Create",
@@ -54,10 +51,6 @@ function formatDateTime(value: Date | null) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(value);
-}
-
-function formatStatus(status: AssetStatus | null) {
-  return status ? assetStatusLabels[status] : "-";
 }
 
 function personName(person: { email: string; name: string } | null | undefined) {
@@ -173,11 +166,7 @@ function AssetHeader({ asset, canManage }: AssetDetailPageProps) {
           {asset.assetModel.name}
         </h1>
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <span
-            className={`rounded-full px-3 py-1 text-xs font-bold ${assetStatusBadgeClasses[asset.status]}`}
-          >
-            {assetStatusLabels[asset.status]}
-          </span>
+          <AssetStatusBadge status={asset.status} />
           <span className="text-sm font-medium text-muted-foreground">
             Last updated {formatDateTime(asset.updatedAt)}
           </span>
@@ -354,13 +343,7 @@ function StatusPill({ status }: { status: AssetStatus | null }) {
     );
   }
 
-  return (
-    <span
-      className={`rounded-full px-3 py-1 text-xs font-bold ${assetStatusBadgeClasses[status]}`}
-    >
-      {formatStatus(status)}
-    </span>
-  );
+  return <AssetStatusBadge status={status} />;
 }
 
 function EmptyHistory() {

@@ -24,6 +24,7 @@ import {
   assetStatusBadgeClasses,
   assetStatusLabels,
 } from "@/lib/status-style";
+import { AssetStatusBadge } from "@/components/status/asset-status-badge";
 
 type DashboardPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -287,11 +288,7 @@ function RecentTable({
                   {row.asset.serialNo}
                 </td>
                 <td className="px-5 py-4">
-                  <span
-                    className={`inline-flex min-w-[88px] justify-center rounded-full px-3 py-1 text-xs font-semibold ${assetStatusBadgeClasses[row.asset.status]}`}
-                  >
-                    {assetStatusLabels[row.asset.status]}
-                  </span>
+                  <AssetStatusBadge status={row.asset.status} />
                 </td>
               </tr>
             ))}
