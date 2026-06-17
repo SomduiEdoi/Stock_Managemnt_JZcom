@@ -157,10 +157,6 @@ function AssetHeader({ asset, canManage }: AssetDetailPageProps) {
           </Link>
           <ChevronRight className="h-4 w-4" />
           <span className="text-navy">{asset.assetModel.name}</span>
-          <ChevronRight className="h-4 w-4" />
-          <span className="rounded-full bg-surface px-3 py-1 text-xs font-bold text-ink">
-            {asset.serialNo}
-          </span>
         </nav>
         <h1 className="mt-3 text-3xl font-bold text-navy">
           {asset.assetModel.name}
@@ -176,10 +172,13 @@ function AssetHeader({ asset, canManage }: AssetDetailPageProps) {
       <div className="flex flex-wrap gap-2">
         <ExportPdfButton />
         {canManage ? (
-          <span className="inline-flex h-10 items-center gap-2 rounded-md bg-navy px-4 text-sm font-bold text-white">
+          <Link
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-navy px-4 text-sm font-bold text-white"
+            href={`/dashboard/assets/${asset.id}/edit`}
+          >
             <Pencil className="h-4 w-4" />
             Edit
-          </span>
+          </Link>
         ) : null}
       </div>
     </header>

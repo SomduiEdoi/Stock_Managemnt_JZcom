@@ -16,6 +16,8 @@ function toClientAsset(asset: RequestCartAsset): RequestCartAssetClient {
 }
 
 export function RequestCartPage({ assets, user }: RequestCartPageProps) {
+  void user;
+
   return (
     <RequestCartClient
       initialAssets={assets.map(toClientAsset)}

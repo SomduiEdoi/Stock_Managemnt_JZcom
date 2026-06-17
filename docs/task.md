@@ -20,8 +20,8 @@ Stock Management System
 ## Current Focus
 
 ```text
-Phase 9: Log and Request Pages
-Next task: Validate Request page manually with held assets
+Phase 4: Asset CRUD and Browse
+Next task: Validate asset edit page manually and connect image workflow to production storage later if needed
 ```
 
 ## Locked MVP Decisions
@@ -162,10 +162,11 @@ Acceptance checks:
 - [ ] Create asset related transactions API
 - [ ] Create asset PDF export API
 - [ ] Create asset create API
-- [ ] Create asset update API
+- [x] Create asset update API
 - [x] Create Server page
 - [x] Create Network page
 - [x] Create asset detail page
+- [x] Create asset edit page
 - [x] Show all asset information on asset detail page
 - [x] Show asset-specific status history on asset detail page
 - [x] Show asset-related transaction history on asset detail page
