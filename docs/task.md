@@ -20,8 +20,8 @@ Stock Management System
 ## Current Focus
 
 ```text
-Phase 1: Update system model for asset + transaction workflow
-Next task: Align schema and implementation with Request / Borrow / Using / Sold flow
+Phase 9: Log and Request Pages
+Next task: Create Request page on top of the existing workflow
 ```
 
 ## Locked MVP Decisions
@@ -38,7 +38,7 @@ Next task: Align schema and implementation with Request / Borrow / Using / Sold 
 - [x] Use CSV/Excel only as one-time migration input
 - [x] Use PostgreSQL as the runtime source of truth after migration
 - [x] Store paper document references as note/reference only in MVP
-- [x] Use `src/data/Network.csv` and `src/data/Server.csv` as source migration files
+- [x] Use `data/Network.csv` and `data/Server.csv` as source migration files
 - [x] Require serial no. for every MVP asset
 - [x] Use `REQUEST` as temporary lock status before submit
 - [x] Use transaction type `BORROW | USING | SOLD`
@@ -58,6 +58,7 @@ Next task: Align schema and implementation with Request / Borrow / Using / Sold 
 - ห้ามให้ dashboard, asset pages, request flow, log page หรือ reports อ่าน CSV เป็น data source
 - Asset ที่อยู่ `REQUEST` ห้ามถูก request ซ้ำ
 - `OVERDUE` เป็น transaction status ไม่ใช่ asset status
+- ตอนนี้ login ยังเป็น user/password ชั่วคราวสำหรับ MVP bootstrap ส่วน Microsoft 365 login ยังรอทำต่อ
 - เมื่อทำ task เสร็จ ต้องอัปเดต checklist ในไฟล์นี้
 
 ## Phase 0: Project Foundation
@@ -80,7 +81,7 @@ Acceptance checks:
 
 ## Phase 1: Database Foundation
 
-- [ ] Configure PostgreSQL connection
+- [x] Configure PostgreSQL connection
 - [x] Configure ORM and migrations
 - [x] Create `users` table
 - [x] Create `roles` table
@@ -94,13 +95,13 @@ Acceptance checks:
 - [x] Create `asset_status_histories` table
 - [x] Create `migration_batches` table
 - [x] Create `migration_rows` table
-- [ ] Add Microsoft 365 identity fields to `users`
+- [x] Add Microsoft 365 identity fields to `users`
 - [ ] Replace legacy password auth fields if no longer needed
-- [ ] Add `transactions` table
-- [ ] Add `transaction_items` table
-- [ ] Add request lock fields to `assets`
-- [ ] Add transaction reference to `asset_status_histories`
-- [ ] Update seed roles to `ADMIN`, `SERVER_OWNER`, `NETWORK_OWNER`, `STAFF`
+- [x] Add `transactions` table
+- [x] Add `transaction_items` table
+- [x] Add request lock fields to `assets`
+- [x] Add transaction reference to `asset_status_histories`
+- [x] Update seed roles to `ADMIN`, `SERVER_OWNER`, `NETWORK_OWNER`, `STAFF`
 
 Acceptance checks:
 
@@ -113,15 +114,15 @@ Acceptance checks:
 ## Phase 2: Authentication and Authorization
 
 - [ ] Implement Microsoft 365 login
-- [ ] Implement logout
-- [ ] Implement current user helper/API
-- [ ] Implement protected routes
-- [ ] Implement role loading
-- [ ] Implement domain permission loading
-- [ ] Implement permission checker
-- [ ] Add API guard for manage Server
-- [ ] Add API guard for manage Network
-- [ ] Add requester permission rules for Staff
+- [x] Implement logout
+- [x] Implement current user helper/API
+- [x] Implement protected routes
+- [x] Implement role loading
+- [x] Implement domain permission loading
+- [x] Implement permission checker
+- [x] Add API guard for manage Server
+- [x] Add API guard for manage Network
+- [x] Add requester permission rules for Staff
 
 Acceptance checks:
 
@@ -133,8 +134,8 @@ Acceptance checks:
 
 ## Phase 3: Master Data
 
-- [ ] Create default Server domain
-- [ ] Create default Network domain
+- [x] Create default Server domain
+- [x] Create default Network domain
 - [ ] Prevent deleting domains used by assets
 - [ ] Create category list page
 - [ ] Create category form
@@ -162,19 +163,19 @@ Acceptance checks:
 - [ ] Create asset PDF export API
 - [ ] Create asset create API
 - [ ] Create asset update API
-- [ ] Create Server page
-- [ ] Create Network page
-- [ ] Create asset detail page
-- [ ] Show all asset information on asset detail page
-- [ ] Show asset-specific status history on asset detail page
-- [ ] Show asset-related transaction history on asset detail page
-- [ ] Add export PDF action for asset detail
-- [ ] Show `REQUEST` status in asset tables
-- [ ] Add search by serial no.
-- [ ] Add search by model name
-- [ ] Add filters for domain, status, category, and location
-- [ ] Add pagination
-- [ ] Add duplicate serial no. validation
+- [x] Create Server page
+- [x] Create Network page
+- [x] Create asset detail page
+- [x] Show all asset information on asset detail page
+- [x] Show asset-specific status history on asset detail page
+- [x] Show asset-related transaction history on asset detail page
+- [x] Add export PDF action for asset detail
+- [x] Show `REQUEST` status in asset tables
+- [x] Add search by serial no.
+- [x] Add search by model name
+- [x] Add filters for domain, status, category, and location
+- [x] Add pagination
+- [x] Add duplicate serial no. validation
 
 Acceptance checks:
 
@@ -189,14 +190,14 @@ Acceptance checks:
 
 ## Phase 5: Asset Status and History
 
-- [ ] Implement asset status enum
-- [ ] Implement asset status transition rules
-- [ ] Implement note-required rules
-- [ ] Implement `changeAssetStatus` service
-- [ ] Lock asset row during status update
-- [ ] Update `assets.status`
-- [ ] Insert `asset_status_histories`
-- [ ] Show status history timeline on asset detail
+- [x] Implement asset status enum
+- [x] Implement asset status transition rules
+- [x] Implement note-required rules
+- [x] Implement `changeAssetStatus` service
+- [x] Lock asset row during status update
+- [x] Update `assets.status`
+- [x] Insert `asset_status_histories`
+- [x] Show status history timeline on asset detail
 - [ ] Add owner/admin manual override flow
 
 Acceptance checks:
@@ -208,21 +209,21 @@ Acceptance checks:
 
 ## Phase 6: Request and Transaction Workflow
 
-- [ ] Implement request hold API/service
-- [ ] Change asset from `READY` to `REQUEST` when staff selects it
-- [ ] Prevent duplicate request on `REQUEST` asset
+- [x] Implement request hold API/service
+- [x] Change asset from `READY` to `REQUEST` when staff selects it
+- [x] Prevent duplicate request on `REQUEST` asset
 - [ ] Implement request cart / draft transaction UI
-- [ ] Allow one transaction to contain many assets
-- [ ] Implement transaction type `BORROW`
-- [ ] Implement transaction type `USING`
-- [ ] Implement transaction type `SOLD`
-- [ ] Require purpose when submitting transaction
-- [ ] Require `due_date` for `BORROW`
-- [ ] Submit transaction and move assets to target status
-- [ ] Implement return flow for `BORROW`
-- [ ] Implement return flow for `USING`
-- [ ] Implement automatic `OVERDUE` update
-- [ ] Link transaction records to asset status histories
+- [x] Allow one transaction to contain many assets
+- [x] Implement transaction type `BORROW`
+- [x] Implement transaction type `USING`
+- [x] Implement transaction type `SOLD`
+- [x] Require purpose when submitting transaction
+- [x] Require `due_date` for `BORROW`
+- [x] Submit transaction and move assets to target status
+- [x] Implement return flow for `BORROW`
+- [x] Implement return flow for `USING`
+- [x] Implement automatic `OVERDUE` update
+- [x] Link transaction records to asset status histories
 
 Acceptance checks:
 
@@ -237,26 +238,26 @@ Acceptance checks:
 ## Phase 7: SharePoint Migration
 
 - [x] Define expected SharePoint export fields
-- [x] Confirm `src/data/Network.csv` has 594 rows, no blank serial no., no duplicate serial no.
-- [x] Confirm `src/data/Server.csv` has 551 rows, no blank serial no., no duplicate serial no.
-- [ ] Build CSV parser
-- [ ] Skip SharePoint `ListSchema=...` first line before parsing CSV header
+- [x] Confirm `data/Network.csv` has 594 rows, no blank serial no., no duplicate serial no.
+- [x] Confirm `data/Server.csv` has 551 rows, no blank serial no., no duplicate serial no.
+- [x] Build CSV parser
+- [x] Skip SharePoint `ListSchema=...` first line before parsing CSV header
 - [ ] Build Excel parser
 - [ ] Build field mapping preview
-- [ ] Validate required fields
-- [ ] Validate status mapping to new asset enum
-- [ ] Infer domain from file name
-- [ ] Validate duplicate serial no.
-- [ ] Reject blank serial no.
-- [ ] Store `QTY` and `FG` as legacy/reference fields only
-- [ ] Create migration batch records
-- [ ] Create migration row records
-- [ ] Import valid rows as assets
-- [ ] Persist all imported source data into PostgreSQL permanent tables
-- [ ] Create initial asset status history for imported assets
-- [ ] Mark invalid rows as failed or needs review
+- [x] Validate required fields
+- [x] Validate status mapping to new asset enum
+- [x] Infer domain from file name
+- [x] Validate duplicate serial no.
+- [x] Reject blank serial no.
+- [x] Store `QTY` and `FG` as legacy/reference fields only
+- [x] Create migration batch records
+- [x] Create migration row records
+- [x] Import valid rows as assets
+- [x] Persist all imported source data into PostgreSQL permanent tables
+- [x] Create initial asset status history for imported assets
+- [x] Mark invalid rows as failed or needs review
 - [ ] Create import summary page
-- [ ] Ensure runtime APIs do not read CSV files after import
+- [x] Ensure runtime APIs do not read CSV files after import
 
 Acceptance checks:
 
@@ -269,16 +270,16 @@ Acceptance checks:
 
 ## Phase 8: Dashboard
 
-- [ ] Create dashboard layout
-- [ ] Show asset count by status
-- [ ] Show asset count by Server/Network
-- [ ] Show borrow assets summary
-- [ ] Show using assets summary
-- [ ] Show sold assets summary
-- [ ] Show fail/lost/need check summary
-- [ ] Show recent asset activity
-- [ ] Show recently table grouped by registered/borrow/using/sold
-- [ ] Scope dashboard data by user permission
+- [x] Create dashboard layout
+- [x] Show asset count by status
+- [x] Show asset count by Server/Network
+- [x] Show borrow assets summary
+- [x] Show using assets summary
+- [x] Show sold assets summary
+- [x] Show fail/lost/need check summary
+- [x] Show recent asset activity
+- [x] Show recently table grouped by registered/borrow/using/sold
+- [x] Scope dashboard data by user permission
 
 Acceptance checks:
 
@@ -289,9 +290,9 @@ Acceptance checks:
 ## Phase 9: Log and Request Pages
 
 - [ ] Create transaction log API
-- [ ] Create Log page
-- [ ] Show `Transaction ID`, `Asset`, `Requester`, `Borrow Date`, `Type`, `Status`
-- [ ] Add filters and search for log page
+- [x] Create Log page
+- [x] Show `Transaction ID`, `Asset`, `Borrower`, `Borrow Date`, `Status`
+- [x] Add filters and search for log page
 - [ ] Create Request page
 - [ ] Show request list for current staff user
 - [ ] Show current draft request/cart
@@ -304,13 +305,13 @@ Acceptance checks:
 
 ## Phase 10: Users and Settings
 
-- [ ] Create user list page
+- [x] Create user list page
 - [ ] Create user form
 - [ ] Assign roles to users
 - [ ] Assign domain permissions to users
 - [ ] Activate/deactivate users
-- [ ] Store position and last login
-- [ ] Support block/unblock in UI
+- [x] Store position and last login
+- [x] Support block/unblock in UI
 
 Acceptance checks:
 
@@ -335,7 +336,7 @@ Acceptance checks:
 - [ ] Review all API authorization checks
 - [ ] Review all status update transactions
 - [ ] Review loading, empty, and error states
-- [ ] Run lint
+- [x] Run lint
 - [ ] Run tests
 - [ ] Run build
 

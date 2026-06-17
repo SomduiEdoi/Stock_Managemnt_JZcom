@@ -45,8 +45,8 @@ function resolveTitle(pathname: string, searchParams: SearchParamReader) {
     return "Asset Detail";
   }
 
-  if (pathname === "/dashboard/logs") {
-    return "Activity Logs";
+  if (pathname === "/logs") {
+    return "Transaction Log";
   }
 
   if (pathname === "/dashboard/request") {

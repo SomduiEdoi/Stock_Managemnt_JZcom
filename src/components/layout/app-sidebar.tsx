@@ -46,7 +46,7 @@ const baseItems: NavItem[] = [
     label: "Network",
   },
   {
-    href: "/dashboard/logs",
+    href: "/logs",
     icon: ScrollText,
     id: "logs",
     label: "Logs",

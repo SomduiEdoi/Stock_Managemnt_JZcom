@@ -41,6 +41,14 @@ export const transactionStatusLabels = {
   [TransactionStatus.RETURNED]: "Returned",
 } as const satisfies Record<TransactionStatus, string>;
 
+export const transactionStatusHexColors = {
+  [TransactionStatus.ACTIVE]: "#FE7743",
+  [TransactionStatus.BORROWED]: "#06B6D4",
+  [TransactionStatus.COMPLETED]: "#273F4F",
+  [TransactionStatus.OVERDUE]: "#DC2626",
+  [TransactionStatus.RETURNED]: "#16A34A",
+} as const satisfies Record<TransactionStatus, string>;
+
 export const systemPaletteHexColors = {
   accent: "#FE7743",
   ink: "#000000",
