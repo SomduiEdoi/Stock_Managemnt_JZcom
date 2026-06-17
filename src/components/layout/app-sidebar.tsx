@@ -67,7 +67,7 @@ function getRoleNavItems(roles: RoleCode[]) {
       dashboardItem,
       ...baseItems,
       {
-        href: "/dashboard/request",
+        href: "/request",
         icon: ClipboardList,
         id: "request",
         label: "Request",

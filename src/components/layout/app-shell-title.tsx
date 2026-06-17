@@ -49,7 +49,7 @@ function resolveTitle(pathname: string, searchParams: SearchParamReader) {
     return "Transaction Log";
   }
 
-  if (pathname === "/dashboard/request") {
+  if (pathname === "/request") {
     return "Request";
   }
 

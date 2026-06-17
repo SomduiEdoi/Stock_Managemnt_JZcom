@@ -21,7 +21,7 @@ Stock Management System
 
 ```text
 Phase 9: Log and Request Pages
-Next task: Create Request page on top of the existing workflow
+Next task: Validate Request page manually with held assets
 ```
 
 ## Locked MVP Decisions
@@ -212,7 +212,7 @@ Acceptance checks:
 - [x] Implement request hold API/service
 - [x] Change asset from `READY` to `REQUEST` when staff selects it
 - [x] Prevent duplicate request on `REQUEST` asset
-- [ ] Implement request cart / draft transaction UI
+- [x] Implement request cart / draft transaction UI
 - [x] Allow one transaction to contain many assets
 - [x] Implement transaction type `BORROW`
 - [x] Implement transaction type `USING`
@@ -293,9 +293,10 @@ Acceptance checks:
 - [x] Create Log page
 - [x] Show `Transaction ID`, `Asset`, `Borrower`, `Borrow Date`, `Status`
 - [x] Add filters and search for log page
-- [ ] Create Request page
-- [ ] Show request list for current staff user
-- [ ] Show current draft request/cart
+- [x] Create Request page
+- [x] Show request list for current staff user
+- [x] Show current draft request/cart
+- [x] Add transaction PDF export from request popup and log page
 
 Acceptance checks:
 

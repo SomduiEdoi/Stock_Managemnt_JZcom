@@ -23,6 +23,7 @@ import { transactionStatusLabels } from "@/lib/status-style";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { InventoryDataUnavailable } from "@/components/inventory/inventory-data-unavailable";
 import { TransactionStatusBadge } from "@/components/status/transaction-status-badge";
+import { TransactionExportButton } from "@/features/transactions/transaction-export-button";
 
 type TransactionLogPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -204,9 +205,9 @@ function Controls({ filters }: { filters: TransactionLogFilters }) {
         >
           <option value="ALL">All status</option>
           {transactionLogStatusChoices.map((status) => (
-              <option key={status} value={status}>
-                {transactionStatusLabels[status]}
-              </option>
+            <option key={status} value={status}>
+              {transactionStatusLabels[status]}
+            </option>
           ))}
         </select>
 
@@ -217,9 +218,9 @@ function Controls({ filters }: { filters: TransactionLogFilters }) {
         >
           <option value="ALL">All type</option>
           {transactionLogTypeChoices.map((type) => (
-              <option key={type} value={type}>
-                {type.charAt(0) + type.slice(1).toLowerCase()}
-              </option>
+            <option key={type} value={type}>
+              {type.charAt(0) + type.slice(1).toLowerCase()}
+            </option>
           ))}
         </select>
 
@@ -244,7 +245,7 @@ function AssetCell({ row }: { row: TransactionLogRow }) {
         {asset.assetModel.name}
       </p>
       <p className="mt-1 text-xs font-medium text-muted-foreground">
-        {asset.assetModel.brand ?? "-"} • {asset.serialNo}
+        {asset.assetModel.brand ?? "-"} / {asset.serialNo}
       </p>
     </Link>
   );
@@ -280,6 +281,7 @@ function TransactionTable({ rows }: { rows: TransactionLogRow[] }) {
               <th className="px-5 py-4 font-bold">Borrower</th>
               <th className="px-5 py-4 font-bold">Borrow Date</th>
               <th className="px-5 py-4 font-bold">Status</th>
+              <th className="px-5 py-4 font-bold">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -299,6 +301,9 @@ function TransactionTable({ rows }: { rows: TransactionLogRow[] }) {
                 </td>
                 <td className="px-5 py-4">
                   <TransactionStatusBadge status={row.transaction.status} />
+                </td>
+                <td className="px-5 py-4">
+                  <TransactionExportButton transactionId={row.transaction.id} />
                 </td>
               </tr>
             ))}

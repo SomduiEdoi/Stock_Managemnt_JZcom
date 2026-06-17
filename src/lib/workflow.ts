@@ -104,6 +104,11 @@ export type ReturnTransactionInput = {
   transactionId: string;
 };
 
+export type ReleaseAssetsInput = {
+  assetIds: string[];
+  note?: string | null;
+};
+
 export type ChangeAssetStatusInput = {
   assetId: string;
   note: string;
@@ -234,6 +239,28 @@ function assertAssetsCanSubmit(user: CurrentUser, assets: WorkflowAsset[]) {
   }
 }
 
+function assertAssetsCanRelease(user: CurrentUser, assets: WorkflowAsset[]) {
+  for (const asset of assets) {
+    assertCanRequestDomain(user, asset.domain.code);
+
+    if (asset.status !== AssetStatus.REQUEST) {
+      throw new WorkflowError(
+        `Asset ${asset.serialNo} is not in request state.`,
+        409,
+        "ASSET_NOT_REQUESTED",
+      );
+    }
+
+    if (asset.requestLockedById !== user.id) {
+      throw new WorkflowError(
+        `Asset ${asset.serialNo} is locked by another user.`,
+        409,
+        "ASSET_LOCKED_BY_ANOTHER_USER",
+      );
+    }
+  }
+}
+
 function assertTransactionInput(input: SubmitTransactionInput) {
   const purpose = requireText(input.purpose, "Purpose");
 
@@ -269,6 +296,34 @@ async function updateSubmittedAsset(
       `Asset ${asset.serialNo} request lock changed before submit.`,
       409,
       "ASSET_SUBMIT_CONFLICT",
+    );
+  }
+}
+
+async function releaseHeldAsset(
+  tx: Prisma.TransactionClient,
+  asset: WorkflowAsset,
+  userId: string,
+) {
+  const result = await tx.asset.updateMany({
+    where: {
+      id: asset.id,
+      requestLockedById: userId,
+      status: AssetStatus.REQUEST,
+    },
+    data: {
+      requestLockedAt: null,
+      requestLockedById: null,
+      status: AssetStatus.READY,
+      updatedById: userId,
+    },
+  });
+
+  if (result.count !== 1) {
+    throw new WorkflowError(
+      `Asset ${asset.serialNo} request lock changed before release.`,
+      409,
+      "ASSET_RELEASE_CONFLICT",
     );
   }
 }
@@ -451,6 +506,40 @@ export async function submitTransaction(
       });
 
       return findTransactionDetail(tx, transaction.id);
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
+}
+
+export async function releaseAssetsFromRequest(
+  user: CurrentUser,
+  input: ReleaseAssetsInput,
+) {
+  const assetIds = uniqueIds(input.assetIds);
+  assertHasIds(assetIds, "Asset ids");
+  const note = cleanText(input.note) ?? "Removed from request list.";
+
+  return db.$transaction(
+    async (tx) => {
+      const assets = await getHeldAssets(tx, assetIds);
+      assertAssetsCanRelease(user, assets);
+
+      for (const asset of assets) {
+        await releaseHeldAsset(tx, asset, user.id);
+      }
+
+      await tx.assetStatusHistory.createMany({
+        data: assets.map((asset) => ({
+          actionType: AssetActionType.STATUS_CHANGE,
+          assetId: asset.id,
+          changedById: user.id,
+          fromStatus: AssetStatus.REQUEST,
+          note,
+          toStatus: AssetStatus.READY,
+        })),
+      });
+
+      return findAssets(tx, assetIds);
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
