@@ -10,6 +10,7 @@ import {
   Search,
 } from "lucide-react";
 import { requireCurrentUser } from "@/lib/auth";
+import type { CurrentUser } from "@/lib/auth";
 import {
   buildTransactionLogHref,
   type TransactionLogFilters,
@@ -19,6 +20,7 @@ import {
   transactionLogStatusChoices,
   transactionLogTypeChoices,
 } from "@/lib/transaction-log";
+import { getRequestCartForUser, type RequestCartAsset } from "@/lib/request-cart";
 import { transactionStatusLabels } from "@/lib/status-style";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { InventoryDataUnavailable } from "@/components/inventory/inventory-data-unavailable";
@@ -59,14 +61,6 @@ function formatDate(value: Date) {
   return new Intl.DateTimeFormat("en-GB", {
     dateStyle: "medium",
   }).format(value);
-}
-
-function personName(person: { email: string; name: string } | null | undefined) {
-  if (!person) {
-    return "-";
-  }
-
-  return person.name || person.email || "-";
 }
 
 function getInitials(name: string) {
@@ -269,6 +263,88 @@ function BorrowerCell({ row }: { row: TransactionLogRow }) {
   );
 }
 
+function formatRequestTime(value: string | null) {
+  if (!value) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat("en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function personName(person: { email: string; name: string } | null | undefined) {
+  if (!person) {
+    return "-";
+  }
+
+  return person.name || person.email || "-";
+}
+
+function RequestQueueTable({
+  assets,
+  user,
+}: {
+  assets: RequestCartAsset[];
+  user: CurrentUser;
+}) {
+  if (assets.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="overflow-hidden rounded-md border border-border bg-white shadow-sm">
+      <div className="border-b border-border px-5 py-4">
+        <h2 className="text-lg font-bold text-navy">Request Queue</h2>
+        <p className="mt-1 text-sm font-medium text-muted-foreground">
+          Assets currently held for request before submission.
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full border-collapse text-left text-sm">
+          <thead className="bg-surface text-xs uppercase text-muted-foreground">
+            <tr>
+              <th className="px-5 py-4 font-bold">Asset</th>
+              <th className="px-5 py-4 font-bold">Borrower</th>
+              <th className="px-5 py-4 font-bold">Locked At</th>
+              <th className="px-5 py-4 font-bold">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {assets.map((asset) => (
+              <tr className="align-middle" key={asset.id}>
+                <td className="px-5 py-4">
+                  <Link
+                    className="font-bold text-navy transition hover:text-brand-accent"
+                    href={`/dashboard/assets/${asset.id}`}
+                  >
+                    {asset.assetModel.name}
+                  </Link>
+                  <p className="mt-1 text-xs font-medium text-muted-foreground">
+                    {asset.assetModel.brand ?? "-"} / SN {asset.serialNo}
+                  </p>
+                </td>
+                <td className="px-5 py-4 font-medium text-ink">
+                  {personName(user)}
+                </td>
+                <td className="px-5 py-4 font-medium text-ink">
+                  {formatRequestTime(asset.requestLockedAt?.toISOString() ?? null)}
+                </td>
+                <td className="px-5 py-4">
+                  <span className="rounded-full bg-status-request/15 px-2.5 py-1 text-xs font-bold uppercase text-status-request">
+                    Request
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 function TransactionTable({ rows }: { rows: TransactionLogRow[] }) {
   return (
     <section className="overflow-hidden rounded-md border border-border bg-white shadow-sm">
@@ -373,6 +449,8 @@ function NoLogAccess() {
 
 export function TransactionLogPage({
   filters,
+  requestQueueAssets,
+  user,
   total,
   totalPages,
   rows,
@@ -384,6 +462,8 @@ export function TransactionLogPage({
     completed: number;
     inProgress: number;
   };
+  requestQueueAssets: RequestCartAsset[];
+  user: CurrentUser;
   rows: TransactionLogRow[];
   total: number;
   totalPages: number;
@@ -392,6 +472,7 @@ export function TransactionLogPage({
     <div className="flex flex-col gap-6">
       <SummaryCards filters={filters} metrics={metrics} />
       <Controls filters={filters} />
+      <RequestQueueTable assets={requestQueueAssets} user={user} />
       <TransactionTable rows={rows} />
       <Pagination filters={filters} page={filters.page} total={total} totalPages={totalPages} />
     </div>
@@ -407,10 +488,19 @@ export default async function TransactionLogPageRoute({
 }: TransactionLogPageProps) {
   const filters = normalizeTransactionLogFilters(await searchParams);
   let result: Awaited<ReturnType<typeof getTransactionLogForUser>>;
+  let requestQueueAssets: RequestCartAsset[] = [];
+  let user: CurrentUser;
 
   try {
-    const user = await requireCurrentUser("/logs");
-    result = await getTransactionLogForUser(user, filters);
+    user = await requireCurrentUser("/logs");
+    const [logResult, queueResult] = await Promise.all([
+      getTransactionLogForUser(user, filters),
+      getRequestCartForUser(user),
+    ]);
+    result = logResult;
+    if ("assets" in queueResult) {
+      requestQueueAssets = queueResult.assets as RequestCartAsset[];
+    }
   } catch (error) {
     if (isDatabaseUnavailableError(error)) {
       return (
@@ -432,6 +522,8 @@ export default async function TransactionLogPageRoute({
     <TransactionLogPage
       filters={filters}
       metrics={result.metrics}
+      requestQueueAssets={requestQueueAssets}
+      user={user}
       rows={result.rows}
       total={result.total}
       totalPages={result.totalPages}

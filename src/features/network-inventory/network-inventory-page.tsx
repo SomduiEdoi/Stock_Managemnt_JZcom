@@ -10,18 +10,20 @@ import {
   Package,
 } from "lucide-react";
 import { requireCurrentUser } from "@/lib/auth";
-import { canManageDomainForUser } from "@/lib/permissions";
+import {
+  canManageDomainForUser,
+  canRequestAssetsForUser,
+} from "@/lib/permissions";
 import {
   getNetworkInventoryForUser,
   normalizeNetworkInventoryFilters,
   type NetworkInventoryFilters,
-  type NetworkInventoryRow,
 } from "@/lib/network-inventory";
 import { assetStatusLabels } from "@/lib/status-style";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { InventoryDataUnavailable } from "@/components/inventory/inventory-data-unavailable";
 import { NetworkInventoryControls } from "@/components/inventory/network-inventory-controls";
-import { AssetStatusBadge } from "@/components/status/asset-status-badge";
+import { RequestableInventoryTable } from "@/features/inventory/requestable-inventory-table";
 
 type NetworkPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -143,71 +145,6 @@ function NetworkMetrics({
   );
 }
 
-function NetworkTable({ rows }: { rows: NetworkInventoryRow[] }) {
-  return (
-    <section className="overflow-hidden rounded-md border border-border bg-white shadow-sm">
-      <div className="overflow-x-auto">
-        <table className="min-w-full border-collapse text-left text-sm">
-          <thead className="bg-surface text-xs uppercase text-muted-foreground">
-            <tr>
-              <th className="px-5 py-4 font-bold">Model</th>
-              <th className="px-5 py-4 font-bold">Brand</th>
-              <th className="px-5 py-4 font-bold">Category</th>
-              <th className="px-5 py-4 font-bold">Type</th>
-              <th className="px-5 py-4 font-bold">Location</th>
-              <th className="px-5 py-4 font-bold">Stock Code</th>
-              <th className="px-5 py-4 font-bold">Serial No.</th>
-              <th className="px-5 py-4 font-bold">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {rows.map((asset) => (
-              <NetworkTableRow asset={asset} key={asset.id} />
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {rows.length === 0 ? (
-        <div className="border-t border-border px-5 py-10 text-center text-sm font-medium text-muted-foreground">
-          No network assets found.
-        </div>
-      ) : null}
-    </section>
-  );
-}
-
-function NetworkTableRow({ asset }: { asset: NetworkInventoryRow }) {
-  return (
-    <tr className="align-middle">
-      <td className="px-5 py-4 font-bold text-navy">
-        <Link className="hover:underline" href={`/dashboard/assets/${asset.id}`}>
-          {asset.assetModel.name}
-        </Link>
-      </td>
-      <td className="px-5 py-4 text-muted-foreground">
-        {asset.assetModel.brand ?? "-"}
-      </td>
-      <td className="px-5 py-4 text-ink">
-        {asset.assetModel.category?.name ?? "-"}
-      </td>
-      <td className="px-5 py-4 text-muted-foreground">
-        {asset.assetModel.typeName ?? "-"}
-      </td>
-      <td className="px-5 py-4 text-muted-foreground">
-        {asset.location?.name ?? asset.locationText ?? "-"}
-      </td>
-      <td className="px-5 py-4 font-medium text-ink">
-        {asset.stockCode ?? "-"}
-      </td>
-      <td className="px-5 py-4 font-medium text-ink">{asset.serialNo}</td>
-      <td className="px-5 py-4">
-        <AssetStatusBadge status={asset.status} />
-      </td>
-    </tr>
-  );
-}
-
 function Pagination({
   filters,
   page,
@@ -313,7 +250,11 @@ export default async function NetworkInventoryPage({
         types={result.filterOptions.types}
       />
 
-      <NetworkTable rows={result.rows} />
+      <RequestableInventoryTable
+        canRequest={canRequestAssetsForUser(user)}
+        domainLabel="Network"
+        rows={result.rows}
+      />
       <Pagination
         filters={filters}
         page={filters.page}

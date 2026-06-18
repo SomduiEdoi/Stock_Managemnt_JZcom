@@ -76,6 +76,10 @@ export function canRequestDomainForUser(
   user: PermissionUser,
   domainCode: DomainCode,
 ) {
+  if (hasRole(user, "ADMIN")) {
+    return false;
+  }
+
   return (
     hasAnyRole(user, requestRoleCodes) &&
     canViewDomainForUser(user, domainCode)

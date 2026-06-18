@@ -1,4 +1,4 @@
-import { Prisma, TransactionStatus, TransactionType } from "@prisma/client";
+import { AssetStatus, Prisma, TransactionStatus, TransactionType } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
 import { getVisibleDomainCodes } from "@/lib/assets";
 import { db } from "@/lib/db";
@@ -270,8 +270,14 @@ export function buildTransactionLogHref(
 
 async function getTransactionLogMetrics(user: CurrentUser) {
   const baseWhere = buildBaseWhere(user);
+  const requestWhere = {
+    domain: { is: { code: { in: getVisibleDomainCodes(user) } } },
+    isActive: true,
+    requestLockedById: user.id,
+    status: AssetStatus.REQUEST,
+  } satisfies Prisma.AssetWhereInput;
 
-  const [allRequests, inProgress, completed] = await Promise.all([
+  const [allRequests, inProgress, completed, requestCount] = await Promise.all([
     db.transactionItem.count({ where: baseWhere }),
     db.transactionItem.count({
       where: {
@@ -289,9 +295,14 @@ async function getTransactionLogMetrics(user: CurrentUser) {
         ],
       },
     }),
+    db.asset.count({ where: requestWhere }),
   ]);
 
-  return { allRequests, completed, inProgress };
+  return {
+    allRequests: allRequests + requestCount,
+    completed,
+    inProgress: inProgress + requestCount,
+  };
 }
 
 export async function getTransactionLogForUser(

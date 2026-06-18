@@ -16,6 +16,7 @@ import type { RoleCode } from "@/lib/permissions";
 
 type AppSidebarProps = {
   roles: RoleCode[];
+  requestCount: number;
 };
 
 type NavItem = {
@@ -55,14 +56,14 @@ const baseItems: NavItem[] = [
 
 function getRoleNavItems(roles: RoleCode[]) {
   if (roles.includes("ADMIN")) {
-    return [
-      dashboardItem,
-      ...baseItems,
-      { href: "/user", icon: Users, id: "users", label: "User" },
-    ];
+    return [dashboardItem, ...baseItems, { href: "/user", icon: Users, id: "users", label: "User" }];
   }
 
-  if (roles.includes("STAFF")) {
+  if (
+    roles.includes("STAFF") ||
+    roles.includes("SERVER_OWNER") ||
+    roles.includes("NETWORK_OWNER")
+  ) {
     return [
       dashboardItem,
       ...baseItems,
@@ -108,13 +109,16 @@ function NavLink({
   item,
   pathname,
   searchParams,
+  requestCount,
 }: {
   item: NavItem;
   pathname: string;
   searchParams: URLSearchParams;
+  requestCount: number;
 }) {
   const Icon = item.icon;
   const isActive = isActiveItem(item, pathname, searchParams);
+  const showRequestBadge = item.id === "request" && requestCount > 0;
 
   return (
     <Link
@@ -128,11 +132,16 @@ function NavLink({
     >
       <Icon className="h-4 w-4 shrink-0" />
       <span>{item.label}</span>
+      {showRequestBadge ? (
+        <span className="ml-auto rounded-full bg-[#FE7743] px-2 py-0.5 text-[11px] font-bold text-white">
+          {requestCount}
+        </span>
+      ) : null}
     </Link>
   );
 }
 
-export function AppSidebar({ roles }: AppSidebarProps) {
+export function AppSidebar({ requestCount, roles }: AppSidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const items = getRoleNavItems(roles);
@@ -160,6 +169,7 @@ export function AppSidebar({ roles }: AppSidebarProps) {
               item={item}
               key={item.id}
               pathname={pathname}
+              requestCount={requestCount}
               searchParams={searchParams}
             />
           ))}
