@@ -14,6 +14,7 @@ type RouteContext = {
 const returnTransactionSchema = z.object({
   itemIds: z.array(z.string().uuid()).min(1).max(100).optional(),
   note: z.string().max(1000).optional().nullable(),
+  returnerName: z.string().max(200).optional().nullable(),
 });
 const paramsSchema = z.object({ id: z.string().uuid() });
 
@@ -25,6 +26,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const transaction = await returnTransactionItems(user, {
       itemIds: body.itemIds,
       note: body.note,
+      returnerName: body.returnerName,
       transactionId: id,
     });
 

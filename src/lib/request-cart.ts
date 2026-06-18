@@ -8,6 +8,7 @@ const requestCartAssetSelect = Prisma.validator<Prisma.AssetSelect>()({
   id: true,
   locationText: true,
   requestLockedAt: true,
+  requestLockedBy: { select: { email: true, name: true } },
   serialNo: true,
   status: true,
   stockCode: true,
@@ -44,4 +45,18 @@ export async function getRequestCartForUser(user: CurrentUser) {
   });
 
   return { assets, canRequest: true as const };
+}
+
+export async function getRequestQueueForLog() {
+  const assets = await db.asset.findMany({
+    orderBy: [{ requestLockedAt: "desc" }, { serialNo: "asc" }],
+    select: requestCartAssetSelect,
+    where: {
+      isActive: true,
+      requestLockedById: { not: null },
+      status: AssetStatus.REQUEST,
+    },
+  });
+
+  return { assets };
 }

@@ -10,7 +10,6 @@ import {
   Search,
 } from "lucide-react";
 import { requireCurrentUser } from "@/lib/auth";
-import type { CurrentUser } from "@/lib/auth";
 import {
   buildTransactionLogHref,
   type TransactionLogFilters,
@@ -20,12 +19,12 @@ import {
   transactionLogStatusChoices,
   transactionLogTypeChoices,
 } from "@/lib/transaction-log";
-import { getRequestCartForUser, type RequestCartAsset } from "@/lib/request-cart";
+import { getRequestQueueForLog, type RequestCartAsset } from "@/lib/request-cart";
 import { transactionStatusLabels } from "@/lib/status-style";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { InventoryDataUnavailable } from "@/components/inventory/inventory-data-unavailable";
 import { TransactionStatusBadge } from "@/components/status/transaction-status-badge";
-import { TransactionExportButton } from "@/features/transactions/transaction-export-button";
+import { TransactionRowActions } from "@/features/transaction-log/transaction-row-actions";
 
 type TransactionLogPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -284,10 +283,8 @@ function personName(person: { email: string; name: string } | null | undefined) 
 
 function RequestQueueTable({
   assets,
-  user,
 }: {
   assets: RequestCartAsset[];
-  user: CurrentUser;
 }) {
   if (assets.length === 0) {
     return null;
@@ -306,7 +303,7 @@ function RequestQueueTable({
           <thead className="bg-surface text-xs uppercase text-muted-foreground">
             <tr>
               <th className="px-5 py-4 font-bold">Asset</th>
-              <th className="px-5 py-4 font-bold">Borrower</th>
+              <th className="px-5 py-4 font-bold">Requester</th>
               <th className="px-5 py-4 font-bold">Locked At</th>
               <th className="px-5 py-4 font-bold">Status</th>
             </tr>
@@ -326,7 +323,7 @@ function RequestQueueTable({
                   </p>
                 </td>
                 <td className="px-5 py-4 font-medium text-ink">
-                  {personName(user)}
+                  {personName(asset.requestLockedBy)}
                 </td>
                 <td className="px-5 py-4 font-medium text-ink">
                   {formatRequestTime(asset.requestLockedAt?.toISOString() ?? null)}
@@ -379,7 +376,15 @@ function TransactionTable({ rows }: { rows: TransactionLogRow[] }) {
                   <TransactionStatusBadge status={row.transaction.status} />
                 </td>
                 <td className="px-5 py-4">
-                  <TransactionExportButton transactionId={row.transaction.id} />
+                  <TransactionRowActions
+                    canReturn={
+                      row.transaction.type !== "SOLD" &&
+                      row.transaction.status !== "RETURNED" &&
+                      row.transaction.status !== "COMPLETED"
+                    }
+                    itemId={row.id}
+                    transactionId={row.transaction.id}
+                  />
                 </td>
               </tr>
             ))}
@@ -450,7 +455,6 @@ function NoLogAccess() {
 export function TransactionLogPage({
   filters,
   requestQueueAssets,
-  user,
   total,
   totalPages,
   rows,
@@ -463,7 +467,6 @@ export function TransactionLogPage({
     inProgress: number;
   };
   requestQueueAssets: RequestCartAsset[];
-  user: CurrentUser;
   rows: TransactionLogRow[];
   total: number;
   totalPages: number;
@@ -472,7 +475,7 @@ export function TransactionLogPage({
     <div className="flex flex-col gap-6">
       <SummaryCards filters={filters} metrics={metrics} />
       <Controls filters={filters} />
-      <RequestQueueTable assets={requestQueueAssets} user={user} />
+      <RequestQueueTable assets={requestQueueAssets} />
       <TransactionTable rows={rows} />
       <Pagination filters={filters} page={filters.page} total={total} totalPages={totalPages} />
     </div>
@@ -489,18 +492,15 @@ export default async function TransactionLogPageRoute({
   const filters = normalizeTransactionLogFilters(await searchParams);
   let result: Awaited<ReturnType<typeof getTransactionLogForUser>>;
   let requestQueueAssets: RequestCartAsset[] = [];
-  let user: CurrentUser;
 
   try {
-    user = await requireCurrentUser("/logs");
+    const user = await requireCurrentUser("/logs");
     const [logResult, queueResult] = await Promise.all([
       getTransactionLogForUser(user, filters),
-      getRequestCartForUser(user),
+      getRequestQueueForLog(),
     ]);
     result = logResult;
-    if ("assets" in queueResult) {
-      requestQueueAssets = queueResult.assets as RequestCartAsset[];
-    }
+    requestQueueAssets = queueResult.assets as RequestCartAsset[];
   } catch (error) {
     if (isDatabaseUnavailableError(error)) {
       return (
@@ -523,7 +523,6 @@ export default async function TransactionLogPageRoute({
       filters={filters}
       metrics={result.metrics}
       requestQueueAssets={requestQueueAssets}
-      user={user}
       rows={result.rows}
       total={result.total}
       totalPages={result.totalPages}

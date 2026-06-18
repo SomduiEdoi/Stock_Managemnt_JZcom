@@ -101,6 +101,7 @@ export type SubmitTransactionInput = {
 export type ReturnTransactionInput = {
   itemIds?: string[];
   note?: string | null;
+  returnerName?: string | null;
   transactionId: string;
 };
 
@@ -397,6 +398,14 @@ async function returnItem(
   });
 }
 
+function composeReturnNote(note: string | null, returnerName: string | null) {
+  const parts = [returnerName ? `Returned by ${returnerName}` : null, note].filter(
+    Boolean,
+  );
+
+  return parts.length > 0 ? parts.join(" | ") : null;
+}
+
 async function refreshTransactionReturnStatus(
   tx: Prisma.TransactionClient,
   transactionId: string,
@@ -551,7 +560,9 @@ export async function returnTransactionItems(
 ) {
   const itemIds = input.itemIds ? uniqueIds(input.itemIds) : undefined;
   const note = cleanText(input.note);
+  const returnerName = cleanText(input.returnerName);
   const now = new Date();
+  const returnNote = composeReturnNote(note, returnerName);
 
   return db.$transaction(
     async (tx) => {
@@ -574,7 +585,7 @@ export async function returnTransactionItems(
       assertCanReturnItems(user, items);
 
       for (const item of items) {
-        await returnItem(tx, item, user, now, note);
+        await returnItem(tx, item, user, now, returnNote);
       }
 
       await tx.assetStatusHistory.createMany({
@@ -583,7 +594,7 @@ export async function returnTransactionItems(
           assetId: item.assetId,
           changedById: user.id,
           fromStatus: item.toStatus,
-          note,
+          note: returnNote,
           toStatus: AssetStatus.READY,
           transactionId: transaction.id,
         })),

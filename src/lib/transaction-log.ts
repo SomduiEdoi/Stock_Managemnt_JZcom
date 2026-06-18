@@ -1,6 +1,5 @@
 import { AssetStatus, Prisma, TransactionStatus, TransactionType } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
-import { getVisibleDomainCodes } from "@/lib/assets";
 import { db } from "@/lib/db";
 
 export const transactionLogScopes = ["ALL", "IN_PROGRESS", "COMPLETED"] as const;
@@ -136,12 +135,6 @@ function containsText(search: string) {
   };
 }
 
-function buildBaseWhere(user: CurrentUser): Prisma.TransactionItemWhereInput {
-  return {
-    asset: { is: { domain: { is: { code: { in: getVisibleDomainCodes(user) } } } } },
-  };
-}
-
 function buildSearchWhere(search: string): Prisma.TransactionItemWhereInput | undefined {
   if (!search) {
     return undefined;
@@ -205,10 +198,9 @@ function buildStatusWhere(
 }
 
 function buildVisibleLogWhere(
-  user: CurrentUser,
   filters: Pick<TransactionLogFilters, "scope" | "search" | "status" | "type">,
 ) {
-  const clauses = [buildBaseWhere(user), ...buildStatusWhere(filters)];
+  const clauses = [...buildStatusWhere(filters)];
   const searchWhere = buildSearchWhere(filters.search);
 
   if (searchWhere) {
@@ -268,32 +260,20 @@ export function buildTransactionLogHref(
   return `/logs${params.size ? `?${params.toString()}` : ""}`;
 }
 
-async function getTransactionLogMetrics(user: CurrentUser) {
-  const baseWhere = buildBaseWhere(user);
+async function getTransactionLogMetrics() {
   const requestWhere = {
-    domain: { is: { code: { in: getVisibleDomainCodes(user) } } },
     isActive: true,
-    requestLockedById: user.id,
+    requestLockedById: { not: null },
     status: AssetStatus.REQUEST,
   } satisfies Prisma.AssetWhereInput;
 
   const [allRequests, inProgress, completed, requestCount] = await Promise.all([
-    db.transactionItem.count({ where: baseWhere }),
+    db.transactionItem.count(),
     db.transactionItem.count({
-      where: {
-        AND: [
-          baseWhere,
-          { transaction: { is: { status: { in: [...inProgressStatuses] } } } },
-        ],
-      },
+      where: { transaction: { is: { status: { in: [...inProgressStatuses] } } } },
     }),
     db.transactionItem.count({
-      where: {
-        AND: [
-          baseWhere,
-          { transaction: { is: { status: { in: [...completedStatuses] } } } },
-        ],
-      },
+      where: { transaction: { is: { status: { in: [...completedStatuses] } } } },
     }),
     db.asset.count({ where: requestWhere }),
   ]);
@@ -306,13 +286,13 @@ async function getTransactionLogMetrics(user: CurrentUser) {
 }
 
 export async function getTransactionLogForUser(
-  user: CurrentUser,
+  _user: CurrentUser,
   filters: TransactionLogFilters,
 ) {
-  const where = buildVisibleLogWhere(user, filters);
+  const where = buildVisibleLogWhere(filters);
   const skip = (filters.page - 1) * filters.pageSize;
   const [metrics, rows, total] = await Promise.all([
-    getTransactionLogMetrics(user),
+    getTransactionLogMetrics(),
     db.transactionItem.findMany({
       orderBy: [
         { transaction: { createdAt: "desc" } },
@@ -328,7 +308,7 @@ export async function getTransactionLogForUser(
   ]);
 
   return {
-    canView: getVisibleDomainCodes(user).length > 0,
+    canView: true,
     filters,
     metrics,
     rows,
