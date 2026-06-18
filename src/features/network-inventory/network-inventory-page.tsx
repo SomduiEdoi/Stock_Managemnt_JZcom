@@ -10,6 +10,7 @@ import {
   Package,
 } from "lucide-react";
 import { requireCurrentUser } from "@/lib/auth";
+import { canManageDomainForUser } from "@/lib/permissions";
 import {
   getNetworkInventoryForUser,
   normalizeNetworkInventoryFilters,
@@ -258,10 +259,11 @@ export default async function NetworkInventoryPage({
   searchParams,
 }: NetworkPageProps) {
   const filters = normalizeNetworkInventoryFilters(await searchParams);
+  let user: Awaited<ReturnType<typeof requireCurrentUser>>;
   let result: Awaited<ReturnType<typeof getNetworkInventoryForUser>>;
 
   try {
-    const user = await requireCurrentUser("/dashboard/network");
+    user = await requireCurrentUser("/dashboard/network");
     result = await getNetworkInventoryForUser(user, filters);
   } catch (error) {
     if (isDatabaseUnavailableError(error)) {
@@ -280,6 +282,10 @@ export default async function NetworkInventoryPage({
     return <NoNetworkAccess />;
   }
 
+  const addAssetHref = canManageDomainForUser(user, "NETWORK")
+    ? "/dashboard/assets/new?domain=NETWORK"
+    : null;
+
   return (
     <div className="flex flex-col gap-6">
       <NetworkMetrics
@@ -291,6 +297,7 @@ export default async function NetworkInventoryPage({
       />
 
       <NetworkInventoryControls
+        addAssetHref={addAssetHref}
         categories={result.filterOptions.categories}
         filters={{
           categories: filters.categories,

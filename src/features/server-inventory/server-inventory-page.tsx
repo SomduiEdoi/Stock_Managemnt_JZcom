@@ -10,6 +10,7 @@ import {
   Package,
 } from "lucide-react";
 import { requireCurrentUser } from "@/lib/auth";
+import { canManageDomainForUser } from "@/lib/permissions";
 import {
   getServerInventoryForUser,
   normalizeServerInventoryFilters,
@@ -258,10 +259,11 @@ export default async function ServerInventoryPage({
   searchParams,
 }: ServerPageProps) {
   const filters = normalizeServerInventoryFilters(await searchParams);
+  let user: Awaited<ReturnType<typeof requireCurrentUser>>;
   let result: Awaited<ReturnType<typeof getServerInventoryForUser>>;
 
   try {
-    const user = await requireCurrentUser("/dashboard/server");
+    user = await requireCurrentUser("/dashboard/server");
     result = await getServerInventoryForUser(user, filters);
   } catch (error) {
     if (isDatabaseUnavailableError(error)) {
@@ -280,6 +282,10 @@ export default async function ServerInventoryPage({
     return <NoServerAccess />;
   }
 
+  const addAssetHref = canManageDomainForUser(user, "SERVER")
+    ? "/dashboard/assets/new?domain=SERVER"
+    : null;
+
   return (
     <div className="flex flex-col gap-6">
       <ServerMetrics
@@ -291,6 +297,7 @@ export default async function ServerInventoryPage({
       />
 
       <ServerInventoryControls
+        addAssetHref={addAssetHref}
         categories={result.filterOptions.categories}
         filters={{
           categories: filters.categories,

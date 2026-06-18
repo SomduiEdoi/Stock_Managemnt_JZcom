@@ -41,6 +41,10 @@ function resolveTitle(pathname: string, searchParams: SearchParamReader) {
     return resolveAssetTitle(searchParams);
   }
 
+  if (pathname === "/dashboard/assets/new") {
+    return "Add Asset";
+  }
+
   if (pathname.endsWith("/edit") && pathname.startsWith("/dashboard/assets/")) {
     return "Edit Asset";
   }

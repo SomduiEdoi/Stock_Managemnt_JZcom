@@ -8,14 +8,6 @@ Stock Management System
 
 เอกสารนี้ใช้เป็น task tracker หลักของโปรเจกต์ โดยอ้างอิงจาก requirement ล่าสุดที่มีทั้ง asset workflow และ transaction workflow
 
-## Status Legend
-
-```text
-[ ] Not started
-[~] In progress
-[x] Done
-[!] Blocked
-```
 
 ## Current Focus
 

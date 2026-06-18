@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   Check,
   ChevronDown,
+  Plus,
   Search,
   SlidersHorizontal,
   X,
@@ -23,6 +24,7 @@ type NetworkInventoryControlFilters = {
 };
 
 type NetworkInventoryControlsProps = {
+  addAssetHref?: string | null;
   categories: string[];
   filters: NetworkInventoryControlFilters;
   statuses: StatusOption[];
@@ -286,6 +288,7 @@ function FilterDrawer({
 }
 
 export function NetworkInventoryControls({
+  addAssetHref,
   categories,
   filters,
   statuses,
@@ -328,6 +331,15 @@ export function NetworkInventoryControls({
             onOpen={() => setIsDrawerOpen(true)}
             selectedCount={selectedCount}
           />
+          {addAssetHref ? (
+            <Link
+              className="inline-flex h-11 items-center gap-2 rounded-md bg-navy px-4 text-sm font-bold text-white shadow-sm transition hover:bg-black"
+              href={addAssetHref}
+            >
+              <Plus className="h-4 w-4" />
+              Add Asset
+            </Link>
+          ) : null}
         </div>
       </div>
 

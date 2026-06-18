@@ -1,4 +1,9 @@
-import { AssetDomainCode, AssetStatus, Prisma } from "@prisma/client";
+import {
+  AssetActionType,
+  AssetDomainCode,
+  AssetStatus,
+  Prisma,
+} from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
@@ -66,6 +71,15 @@ export type AssetEditResult =
   | { kind: "forbidden" }
   | { kind: "notFound" };
 
+export type AssetCreateResult =
+  | {
+      canChangeDomain: boolean;
+      initialDomainCode: AssetDomainCode;
+      kind: "ok";
+      options: AssetEditOptions;
+    }
+  | { kind: "forbidden" };
+
 export type UpdateAssetInput = {
   assetNo?: string | null;
   brand?: string | null;
@@ -90,6 +104,8 @@ export type UpdateAssetInput = {
   typeName?: string | null;
 };
 
+export type CreateAssetInput = UpdateAssetInput;
+
 function cleanText(value: string | null | undefined) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
@@ -103,6 +119,14 @@ function requireText(value: string | null | undefined, label: string) {
   }
 
   return trimmed;
+}
+
+function requirePositiveInteger(value: number | null | undefined, label: string) {
+  if (!Number.isInteger(value) || (value ?? 0) <= 0) {
+    throw new WorkflowError(`${label} must be greater than 0.`);
+  }
+
+  return value;
 }
 
 function editableStatuses(currentStatus: AssetStatus) {
@@ -214,6 +238,36 @@ export async function getAssetEditForUser(
     canChangeDomain: hasRole(user, "ADMIN"),
     kind: "ok",
     options: await getAssetEditOptions(user, asset.status),
+  };
+}
+
+export async function getAssetCreateForUser(
+  user: CurrentUser,
+  preferredDomainCode?: string | null,
+): Promise<AssetCreateResult> {
+  const options = await getAssetEditOptions(user, AssetStatus.READY);
+
+  if (options.domains.length === 0) {
+    return { kind: "forbidden" };
+  }
+
+  const requestedDomainCode =
+    preferredDomainCode === AssetDomainCode.SERVER ||
+    preferredDomainCode === AssetDomainCode.NETWORK
+      ? preferredDomainCode
+      : null;
+
+  const initialDomainCode =
+    requestedDomainCode &&
+    options.domains.some((domain) => domain.code === requestedDomainCode)
+      ? requestedDomainCode
+      : options.domains[0].code;
+
+  return {
+    canChangeDomain: hasRole(user, "ADMIN"),
+    initialDomainCode,
+    kind: "ok",
+    options,
   };
 }
 
@@ -481,6 +535,114 @@ export async function updateAssetForUser(
       }
 
       return updatedAsset;
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
+}
+
+export async function createAssetForUser(user: CurrentUser, input: CreateAssetInput) {
+  const serialNo = requireText(input.serialNo, "Serial no.");
+  const modelName = requireText(input.modelName, "Asset model");
+  const brand = requireText(input.brand, "Brand");
+  const categoryName = requireText(input.categoryName, "Category");
+  const locationText = requireText(input.locationText, "Location");
+  const modelNo = cleanText(input.modelNo);
+  const note = cleanText(input.note);
+  const partNo = requireText(input.partNo, "Part no.");
+  const sourceRecordId = cleanText(input.sourceRecordId);
+  const sourceSystem = cleanText(input.sourceSystem);
+  const stockCode = requireText(input.stockCode, "Stock code");
+  const imageRef = requireText(input.imageRef, "Asset image");
+  const typeName = requireText(input.typeName, "Type");
+  const assetNo = cleanText(input.assetNo);
+  const legacyQty = requirePositiveInteger(input.legacyQty, "QTY");
+  const legacyFg = requirePositiveInteger(input.legacyFg, "FG");
+
+  if (input.status === AssetStatus.REQUEST) {
+    throw new WorkflowError(
+      "REQUEST status must be created by request flow.",
+      409,
+      "REQUEST_STATUS_RESTRICTED",
+    );
+  }
+
+  assertCanManageDomain(user, input.domainCode);
+
+  return db.$transaction(
+    async (tx) => {
+      const duplicateSerial = await tx.asset.findFirst({
+        select: { id: true },
+        where: { serialNo },
+      });
+
+      if (duplicateSerial) {
+        throw new WorkflowError(
+          "Serial no. already exists.",
+          409,
+          "DUPLICATE_SERIAL_NO",
+        );
+      }
+
+      const targetDomain = await tx.assetDomain.findFirst({
+        where: { code: input.domainCode, isActive: true },
+      });
+
+      if (!targetDomain) {
+        throw new WorkflowError("Target domain not found.", 404);
+      }
+
+      const category = await resolveCategory(tx, targetDomain.id, categoryName);
+      const location = await resolveLocation(tx, {
+        locationCode: input.locationCode,
+        locationName: input.locationName,
+      });
+      const assetModel = await resolveAssetModel(tx, {
+        brand,
+        categoryId: category?.id ?? null,
+        domainId: targetDomain.id,
+        modelName,
+        modelNo,
+        partNo,
+        typeName,
+      });
+
+      const createdAsset = await tx.asset.create({
+        data: {
+          assetModelId: assetModel.id,
+          assetNo,
+          createdById: user.id,
+          domainId: targetDomain.id,
+          imageRef,
+          isActive: input.isActive ?? true,
+          legacyFg,
+          legacyQty,
+          locationId: location?.id ?? null,
+          locationText,
+          note,
+          serialNo,
+          sourceRecordId,
+          sourceSystem,
+          status: input.status,
+          stockCode,
+          updatedById: user.id,
+        },
+        select: assetEditSelect,
+      });
+
+      await tx.assetStatusHistory.create({
+        data: {
+          actionType: AssetActionType.CREATE,
+          assetId: createdAsset.id,
+          changedById: user.id,
+          fromStatus: null,
+          note: note
+            ? `Asset registered in ${targetDomain.name} inventory. ${note}`
+            : `Asset registered in ${targetDomain.name} inventory.`,
+          toStatus: input.status,
+        },
+      });
+
+      return createdAsset;
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
