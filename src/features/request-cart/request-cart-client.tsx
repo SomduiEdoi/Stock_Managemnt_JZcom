@@ -52,13 +52,22 @@ function getReferenceLabel(type: TransactionTypeCode) {
 }
 
 function getReferencePlaceholder(type: TransactionTypeCode) {
-  return type === "USING"
-    ? "Enter staff name"
-    : "Enter customer name";
+  return type === "USING" ? "Enter staff name" : "Enter customer name";
 }
 
 function assetLocation(asset: RequestCartAssetClient) {
   return asset.location?.name ?? asset.locationText ?? "-";
+}
+
+function formatCurrencyInput(value: string) {
+  const cleaned = value.replace(/[^\d.]/g, "");
+  const [integerPart, ...fractionParts] = cleaned.split(".");
+
+  if (fractionParts.length === 0) {
+    return integerPart;
+  }
+
+  return `${integerPart}.${fractionParts.join("").slice(0, 2)}`;
 }
 
 function RequestItemCard({
@@ -204,29 +213,48 @@ function TransactionForm({
   assetCount,
   dueDate,
   error,
+  internalRequest,
   isSubmitting,
   note,
-  onReferenceChange,
   onDueDateChange,
+  onInternalRequestChange,
   onNoteChange,
+  onProjectRequestChange,
+  onReferenceChange,
+  onServiceRequestChange,
+  onSoldPriceChange,
   onSubmit,
   onTypeChange,
+  projectRequest,
   referenceName,
+  serviceRequest,
+  soldPrice,
   type,
 }: {
   assetCount: number;
   dueDate: string;
   error: string | null;
+  internalRequest: boolean;
   isSubmitting: boolean;
   note: string;
-  onReferenceChange: (value: string) => void;
   onDueDateChange: (value: string) => void;
+  onInternalRequestChange: (checked: boolean) => void;
   onNoteChange: (value: string) => void;
+  onProjectRequestChange: (checked: boolean) => void;
+  onReferenceChange: (value: string) => void;
+  onServiceRequestChange: (checked: boolean) => void;
+  onSoldPriceChange: (value: string) => void;
   onSubmit: () => void;
   onTypeChange: (value: TransactionTypeCode) => void;
+  projectRequest: boolean;
   referenceName: string;
+  serviceRequest: boolean;
+  soldPrice: string;
   type: TransactionTypeCode;
 }) {
+  const showDueDate = type !== "SOLD";
+  const showSoldPrice = type === "SOLD";
+
   return (
     <aside className="flex flex-col gap-4">
       <section className="rounded-md border border-border bg-white p-5 shadow-sm">
@@ -236,6 +264,38 @@ function TransactionForm({
             Transaction Type
             <TransactionTypeSelect onChange={onTypeChange} value={type} />
           </label>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {[
+              {
+                checked: internalRequest,
+                label: "Internal",
+                onChange: onInternalRequestChange,
+              },
+              {
+                checked: serviceRequest,
+                label: "Service",
+                onChange: onServiceRequestChange,
+              },
+              {
+                checked: projectRequest,
+                label: "Project",
+                onChange: onProjectRequestChange,
+              },
+            ].map((item) => (
+              <label
+                className="inline-flex items-center gap-2 rounded-md border border-border bg-surface/40 px-3 py-2 text-sm font-semibold text-navy"
+                key={item.label}
+              >
+                <input
+                  checked={item.checked}
+                  className="h-4 w-4 rounded border-border text-brand-accent focus:ring-brand-accent"
+                  onChange={(event) => item.onChange(event.target.checked)}
+                  type="checkbox"
+                />
+                {item.label}
+              </label>
+            ))}
+          </div>
           <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
             {getReferenceLabel(type)}
             <input
@@ -245,15 +305,31 @@ function TransactionForm({
               value={referenceName}
             />
           </label>
-          <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-            Expected Return Date
-            <input
-              className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold normal-case tracking-normal text-ink outline-none ring-brand-accent/20 focus:ring-4"
-              onChange={(event) => onDueDateChange(event.target.value)}
-              type="date"
-              value={dueDate}
-            />
-          </label>
+          {showDueDate ? (
+            <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              Expected Return Date
+              <input
+                className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold normal-case tracking-normal text-ink outline-none ring-brand-accent/20 focus:ring-4"
+                onChange={(event) => onDueDateChange(event.target.value)}
+                type="date"
+                value={dueDate}
+              />
+            </label>
+          ) : null}
+          {showSoldPrice ? (
+            <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              Price
+              <input
+                className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold normal-case tracking-normal text-ink outline-none ring-brand-accent/20 focus:ring-4"
+                inputMode="decimal"
+                onChange={(event) =>
+                  onSoldPriceChange(formatCurrencyInput(event.target.value))
+                }
+                placeholder="0.00"
+                value={soldPrice}
+              />
+            </label>
+          ) : null}
           <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
             Use Detail
             <textarea
@@ -381,19 +457,32 @@ async function readApiMessage(response: Response) {
   return data;
 }
 
-export function RequestCartClient({
-  initialAssets,
-}: RequestCartClientProps) {
+export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
   const [assets, setAssets] = useState(initialAssets);
   const [dueDate, setDueDate] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [internalRequest, setInternalRequest] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [note, setNote] = useState("");
+  const [projectRequest, setProjectRequest] = useState(false);
   const [referenceName, setReferenceName] = useState("");
   const [removingAssetId, setRemovingAssetId] = useState<string | null>(null);
+  const [serviceRequest, setServiceRequest] = useState(false);
+  const [soldPrice, setSoldPrice] = useState("");
   const [submitted, setSubmitted] = useState<PrintableTransaction | null>(null);
   const [type, setType] = useState<TransactionTypeCode>("BORROW");
+
+  function handleTypeChange(nextType: TransactionTypeCode) {
+    setType(nextType);
+
+    if (nextType === "SOLD") {
+      setDueDate("");
+      return;
+    }
+
+    setSoldPrice("");
+  }
 
   async function releaseAssets(assetIds: string[]) {
     const response = await fetch("/api/requests/release", {
@@ -448,8 +537,12 @@ export function RequestCartClient({
       return "Use detail is required.";
     }
 
-    if (type === "BORROW" && !dueDate) {
-      return "Expected return date is required for borrow requests.";
+    if ((type === "BORROW" || type === "USING") && !dueDate) {
+      return "Expected return date is required.";
+    }
+
+    if (type === "SOLD" && !soldPrice.trim()) {
+      return "Price is required for sold requests.";
     }
 
     return null;
@@ -480,9 +573,13 @@ export function RequestCartClient({
       const response = await fetch("/api/transactions", {
         body: JSON.stringify({
           assetIds: assets.map((asset) => asset.id),
-          dueDate: type === "BORROW" ? dueDate : null,
+          dueDate: type === "SOLD" ? null : dueDate,
+          internalRequest,
           note,
+          projectRequest,
           purpose: referenceName,
+          serviceRequest,
+          soldPrice: type === "SOLD" ? soldPrice : null,
           type,
         }),
         headers: { "Content-Type": "application/json" },
@@ -513,14 +610,22 @@ export function RequestCartClient({
           assetCount={assets.length}
           dueDate={dueDate}
           error={error}
+          internalRequest={internalRequest}
           isSubmitting={isSubmitting}
           note={note}
-          onReferenceChange={setReferenceName}
           onDueDateChange={setDueDate}
+          onInternalRequestChange={setInternalRequest}
           onNoteChange={setNote}
+          onProjectRequestChange={setProjectRequest}
+          onReferenceChange={setReferenceName}
+          onServiceRequestChange={setServiceRequest}
+          onSoldPriceChange={setSoldPrice}
           onSubmit={handleSubmit}
-          onTypeChange={setType}
+          onTypeChange={handleTypeChange}
+          projectRequest={projectRequest}
           referenceName={referenceName}
+          serviceRequest={serviceRequest}
+          soldPrice={soldPrice}
           type={type}
         />
       </div>

@@ -22,8 +22,12 @@ const submitTransactionSchema = z.object({
   assetIds: z.array(z.string().uuid()).min(1).max(100),
   documentRef: z.string().max(255).optional().nullable(),
   dueDate: optionalDateSchema,
+  internalRequest: z.boolean().optional().default(false),
   note: z.string().max(1000).optional().nullable(),
+  projectRequest: z.boolean().optional().default(false),
   purpose: z.string().min(1).max(1000),
+  serviceRequest: z.boolean().optional().default(false),
+  soldPrice: z.string().trim().optional().nullable(),
   type: z.nativeEnum(TransactionType),
 });
 

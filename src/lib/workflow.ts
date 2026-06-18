@@ -46,9 +46,13 @@ const transactionDetailSelect = Prisma.validator<Prisma.TransactionSelect>()({
   createdAt: true,
   documentRef: true,
   dueDate: true,
+  internalRequest: true,
   note: true,
+  projectRequest: true,
   purpose: true,
   returnedAt: true,
+  serviceRequest: true,
+  soldPrice: true,
   status: true,
   transactionNo: true,
   type: true,
@@ -93,8 +97,12 @@ export type SubmitTransactionInput = {
   assetIds: string[];
   documentRef?: string | null;
   dueDate?: Date | null;
+  internalRequest?: boolean;
   note?: string | null;
+  projectRequest?: boolean;
   purpose: string;
+  serviceRequest?: boolean;
+  soldPrice?: string | null;
   type: TransactionType;
 };
 
@@ -264,12 +272,24 @@ function assertAssetsCanRelease(user: CurrentUser, assets: WorkflowAsset[]) {
 
 function assertTransactionInput(input: SubmitTransactionInput) {
   const purpose = requireText(input.purpose, "Purpose");
+  const soldPrice = cleanText(input.soldPrice);
 
-  if (input.type === TransactionType.BORROW && !input.dueDate) {
-    throw new WorkflowError("Due date is required for borrow transactions.");
+  if (
+    (input.type === TransactionType.BORROW || input.type === TransactionType.USING) &&
+    !input.dueDate
+  ) {
+    throw new WorkflowError("Due date is required for borrow and using transactions.");
   }
 
-  return { purpose };
+  if (input.type === TransactionType.SOLD && !soldPrice) {
+    throw new WorkflowError("Price is required for sold transactions.");
+  }
+
+  if (input.type === TransactionType.SOLD && soldPrice && Number.isNaN(Number(soldPrice))) {
+    throw new WorkflowError("Price must be a valid number.");
+  }
+
+  return { purpose, soldPrice };
 }
 
 async function updateSubmittedAsset(
@@ -398,14 +418,6 @@ async function returnItem(
   });
 }
 
-function composeReturnNote(note: string | null, returnerName: string | null) {
-  const parts = [returnerName ? `Returned by ${returnerName}` : null, note].filter(
-    Boolean,
-  );
-
-  return parts.length > 0 ? parts.join(" | ") : null;
-}
-
 async function refreshTransactionReturnStatus(
   tx: Prisma.TransactionClient,
   transactionId: string,
@@ -464,7 +476,7 @@ export async function submitTransaction(
 ) {
   const assetIds = uniqueIds(input.assetIds);
   assertHasIds(assetIds, "Asset ids");
-  const { purpose } = assertTransactionInput(input);
+  const { purpose, soldPrice } = assertTransactionInput(input);
   const note = cleanText(input.note);
   const now = new Date();
   const toStatus = getTransactionAssetStatus(input.type);
@@ -479,9 +491,13 @@ export async function submitTransaction(
           createdById: user.id,
           documentRef: cleanText(input.documentRef),
           dueDate: input.dueDate ?? null,
+          internalRequest: input.internalRequest ?? false,
           note,
+          projectRequest: input.projectRequest ?? false,
           purpose,
           requestedById: user.id,
+          serviceRequest: input.serviceRequest ?? false,
+          soldPrice: soldPrice ? new Prisma.Decimal(soldPrice) : null,
           status: getInitialTransactionStatus(input.type),
           transactionNo: createTransactionNo(input.type, now),
           type: input.type,
@@ -561,8 +577,12 @@ export async function returnTransactionItems(
   const itemIds = input.itemIds ? uniqueIds(input.itemIds) : undefined;
   const note = cleanText(input.note);
   const returnerName = cleanText(input.returnerName);
+  const returnNote = returnerName
+    ? [note ? `Returned by ${returnerName}` : `Returned by ${returnerName}`, note]
+        .filter(Boolean)
+        .join(" - ")
+    : note;
   const now = new Date();
-  const returnNote = composeReturnNote(note, returnerName);
 
   return db.$transaction(
     async (tx) => {
@@ -594,7 +614,7 @@ export async function returnTransactionItems(
           assetId: item.assetId,
           changedById: user.id,
           fromStatus: item.toStatus,
-          note: returnNote,
+          note,
           toStatus: AssetStatus.READY,
           transactionId: transaction.id,
         })),

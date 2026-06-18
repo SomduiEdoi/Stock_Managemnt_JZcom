@@ -280,6 +280,10 @@ model Transaction {
   note            String?
   documentRef     String?              @map("document_ref")
   dueDate         DateTime?            @map("due_date")
+  internalRequest Boolean              @default(false) @map("internal_request")
+  serviceRequest  Boolean              @default(false) @map("service_request")
+  projectRequest  Boolean              @default(false) @map("project_request")
+  soldPrice       Decimal?             @map("sold_price") @db.Decimal(12, 2)
   requestedById   String               @map("requested_by") @db.Uuid
   createdById     String               @map("created_by") @db.Uuid
   returnedAt      DateTime?            @map("returned_at")
