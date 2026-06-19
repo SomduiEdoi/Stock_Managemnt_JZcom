@@ -34,8 +34,8 @@ export type PrintableTransaction = {
   type?: string;
 };
 
-function escapeHtml(value: string | null | undefined) {
-  return (value ?? "-")
+function escapeHtml(value: string | number | null | undefined) {
+  return String(value ?? "-")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -49,13 +49,15 @@ function formatFormDate(value: Date | string | null | undefined) {
 
   const date = value instanceof Date ? value : new Date(value);
 
-  return Number.isNaN(date.getTime())
-    ? "-"
-    : new Intl.DateTimeFormat("en-GB", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      }).format(date);
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
 }
 
 function formatMoney(value: string | number | null | undefined) {
@@ -71,106 +73,98 @@ function formatMoney(value: string | number | null | undefined) {
   }
 
   return new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
   }).format(amount);
 }
 
-function assetDetails(asset: PrintableAsset | null | undefined) {
+function assetDetail(asset: PrintableAsset | null | undefined) {
   return asset?.assetModel?.name ?? "-";
 }
 
 function cell(value: string | number | null | undefined, className = "") {
-  return `<span class="cell ${className}">${escapeHtml(String(value ?? ""))}</span>`;
+  return `<span class="cell ${className}">${escapeHtml(value ?? "")}</span>`;
 }
 
-function buildRequestFlags(transaction: PrintableTransaction) {
-  const flags = [
-    { checked: transaction.internalRequest, label: "Internal" },
-    { checked: transaction.serviceRequest, label: "Service" },
-    { checked: transaction.projectRequest, label: "Project" },
-  ];
-
-  return flags
-    .map(
-      ({ checked, label }) => `
-        <span class="flag">
-          <span class="checkbox">${checked ? "&#10003;" : ""}</span>
-          <span>${label}</span>
-        </span>
-      `,
-    )
-    .join("");
-}
-
-function buildEmptyRow(columnCount: number) {
+function flag(checked: boolean | undefined, label: string) {
   return `
-    <tr>
-      ${Array.from({ length: columnCount }, () => "<td>&nbsp;</td>").join("")}
-    </tr>
+    <span class="flag">
+      <span class="checkbox">${checked ? "✓" : ""}</span>
+      <span>${escapeHtml(label)}</span>
+    </span>
   `;
 }
 
-function buildFilledRows(
+function requestFlags(transaction: PrintableTransaction) {
+  return [
+    flag(transaction.internalRequest, "Internal"),
+    flag(transaction.serviceRequest, "Service"),
+    flag(transaction.projectRequest, "Project"),
+  ].join("");
+}
+
+function emptyRow(columns: number) {
+  return `<tr>${Array.from({ length: columns }, () => "<td>&nbsp;</td>").join("")}</tr>`;
+}
+
+function filledRows(
   transaction: PrintableTransaction,
   options: {
-    blankRows: number;
-    columnCount: number;
-    buildRow: (asset: PrintableAsset | null, index: number) => string;
+    columns: number;
+    minRows: number;
+    row: (asset: PrintableAsset, index: number) => string;
   },
 ) {
   const items = transaction.items ?? [];
-  const rowCount = Math.max(options.blankRows, items.length);
+  const rowCount = Math.max(options.minRows, items.length);
 
   return Array.from({ length: rowCount }, (_, index) => {
-    const asset = items[index]?.asset ?? null;
-
-    return asset ? options.buildRow(asset, index) : buildEmptyRow(options.columnCount);
+    const asset = items[index]?.asset;
+    return asset ? options.row(asset, index) : emptyRow(options.columns);
   }).join("");
 }
 
-function buildBorrowRows(transaction: PrintableTransaction) {
-  return buildFilledRows(transaction, {
-    blankRows: 9,
-    columnCount: 7,
-    buildRow: (asset, index) => `
+function borrowRows(transaction: PrintableTransaction) {
+  return filledRows(transaction, {
+    columns: 7,
+    minRows: 10,
+    row: (asset, index) => `
       <tr>
         <td class="center">${cell(index + 1)}</td>
-        <td>${cell(asset?.assetModel?.brand)}</td>
-        <td>${cell(asset?.stockCode)}</td>
-        <td>${cell(assetDetails(asset))}</td>
-        <td>${cell(asset?.serialNo)}</td>
+        <td>${cell(asset.assetModel?.brand)}</td>
+        <td>${cell(asset.stockCode)}</td>
+        <td>${cell(assetDetail(asset))}</td>
+        <td>${cell(asset.serialNo)}</td>
         <td class="center">${cell("1")}</td>
-        <td></td>
+        <td>${cell("")}</td>
       </tr>
     `,
   });
 }
 
-function buildSoldRows(transaction: PrintableTransaction) {
+function soldRows(transaction: PrintableTransaction) {
   const price = formatMoney(transaction.soldPrice);
-  const items = transaction.items ?? [];
-  const total = price
-    ? formatMoney(Number.parseFloat(price.replaceAll(",", "")) * items.length)
-    : "";
   const soldDate = formatFormDate(transaction.completedAt ?? transaction.createdAt);
+  const total = price && transaction.items?.length
+    ? formatMoney(Number(price.replaceAll(",", "")) * transaction.items.length)
+    : "";
 
   return {
-    rows: buildFilledRows(transaction, {
-      blankRows: 8,
-      columnCount: 10,
-      buildRow: (asset, index) => `
+    rows: filledRows(transaction, {
+      columns: 10,
+      minRows: 8,
+      row: (asset, index) => `
         <tr>
           <td class="center">${cell(index + 1)}</td>
-          <td>${cell(asset?.stockCode)}</td>
-          <td>${cell(assetDetails(asset))}</td>
-          <td>${cell(asset?.serialNo)}</td>
-          <td class="center">${cell("Sold")}</td>
+          <td>${cell(asset.stockCode)}</td>
+          <td>${cell(assetDetail(asset))}</td>
+          <td>${cell(asset.serialNo)}</td>
           <td class="center">${cell("1")}</td>
+          <td class="center">${cell("")}</td>
           <td>${cell(soldDate)}</td>
           <td class="right">${cell(price)}</td>
           <td class="right">${cell(price)}</td>
-          <td></td>
+          <td>${cell("")}</td>
         </tr>
       `,
     }),
@@ -178,403 +172,346 @@ function buildSoldRows(transaction: PrintableTransaction) {
   };
 }
 
-function signatureBlock(title: string, subtitle: string) {
+function signature(title: string, role: string) {
   return `
-    <div class="signature-block">
-      <div class="signature-line">${escapeHtml(title)}</div>
-      <div class="signature-subtitle">${escapeHtml(subtitle)}</div>
-      <div class="signature-date">Date: ____________________</div>
+    <div class="signature">
+      <span class="signature-label">${escapeHtml(title)}</span>
+      <span class="signature-line"></span>
+      <div class="signature-role">${escapeHtml(role)}</div>
+      <div class="signature-date">Date :</div>
     </div>
   `;
 }
 
+function metaBox(className: string, label: string, value: string | null | undefined) {
+  return `
+    <div class="meta-box ${className}">
+      <span class="meta-label">${escapeHtml(label)} :</span>
+      <span class="meta-value">${escapeHtml(value)}</span>
+    </div>
+  `;
+}
+
+function borrowTable(transaction: PrintableTransaction, isSold: boolean) {
+  return `
+    <div class="section-title borrow-title">รายการอุปกรณ์ (เบิก/ยืม) :</div>
+    <table class="borrow-table form-table">
+      <colgroup>
+        <col style="width: 18pt" />
+        <col style="width: 50pt" />
+        <col style="width: 64pt" />
+        <col style="width: 205pt" />
+        <col style="width: 100pt" />
+        <col style="width: 44pt" />
+        <col style="width: 106pt" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th>No.</th>
+          <th>Brand</th>
+          <th>Stock Code No.</th>
+          <th>Details</th>
+          <th>Serial No.</th>
+          <th>Q'ty</th>
+          <th>Remark</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${isSold ? Array.from({ length: 10 }, () => emptyRow(7)).join("") : borrowRows(transaction)}
+      </tbody>
+    </table>
+  `;
+}
+
+function soldTable(transaction: PrintableTransaction, isSold: boolean) {
+  const sold = soldRows(transaction);
+
+  return `
+    <div class="section-title sold-title">รายการอุปกรณ์ (ขาย/คืน) :</div>
+    <table class="sold-table form-table">
+      <colgroup>
+        <col style="width: 18pt" />
+        <col style="width: 64pt" />
+        <col style="width: 190pt" />
+        <col style="width: 86pt" />
+        <col style="width: 32pt" />
+        <col style="width: 46pt" />
+        <col style="width: 44pt" />
+        <col style="width: 54pt" />
+        <col style="width: 54pt" />
+        <col style="width: 45pt" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th>No.</th>
+          <th>Stock Code No.</th>
+          <th>Details</th>
+          <th>Serial No.</th>
+          <th>Use</th>
+          <th>Q'ty<br />Return</th>
+          <th>Date</th>
+          <th>Price</th>
+          <th>Total</th>
+          <th>Remark</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${isSold ? sold.rows : Array.from({ length: 8 }, () => emptyRow(10)).join("")}
+      </tbody>
+      ${
+        isSold
+          ? `<tfoot><tr><td colspan="8" class="right total-label">Total</td><td class="right">${escapeHtml(sold.total)}</td><td></td></tr></tfoot>`
+          : ""
+      }
+    </table>
+  `;
+}
+
+function documentStyles() {
+  return `
+    <style>
+      @page { margin: 0; size: A4 portrait; }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; min-height: 100%; background: #fff; }
+      body {
+        color: #000;
+        font-family: "Browallia New", BrowalliaUPC, Arial, sans-serif;
+        font-size: 8pt;
+        line-height: 1;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .page {
+        position: relative;
+        width: 595pt;
+        height: 842pt;
+        overflow: hidden;
+        background: #fff;
+      }
+      .logo {
+        position: absolute;
+        left: 53pt;
+        top: 29pt;
+        width: 52pt;
+        height: 44pt;
+        border: 1pt solid #cfcfcf;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #111;
+        font: 700 12pt Calibri, Arial, sans-serif;
+        transform: rotate(-8deg);
+      }
+      .company-en,
+      .company-th {
+        position: absolute;
+        left: 110pt;
+        font-family: "Angsana New", AngsanaUPC, "Times New Roman", serif;
+        font-weight: 700;
+        letter-spacing: 0;
+        white-space: nowrap;
+      }
+      .company-en { top: 39pt; font-size: 17pt; }
+      .company-th { top: 62pt; font-size: 16.5pt; }
+      .form-title {
+        position: absolute;
+        left: 370pt;
+        top: 36pt;
+        width: 196pt;
+        height: 36pt;
+        border-radius: 7pt;
+        background: #29558d;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font: 700 18pt Calibri, Arial, sans-serif;
+      }
+      .meta-box {
+        position: absolute;
+        height: 24pt;
+        border-radius: 4pt;
+        background: #dce8f5;
+        display: flex;
+        align-items: center;
+        gap: 4pt;
+        padding: 2pt 8pt;
+        overflow: hidden;
+      }
+      .customer { left: 53pt; top: 86pt; width: 314pt; }
+      .req-no { left: 372pt; top: 86pt; width: 194pt; }
+      .description { left: 53pt; top: 114pt; width: 314pt; }
+      .flags {
+        left: 372pt;
+        top: 114pt;
+        width: 194pt;
+        justify-content: space-around;
+        padding: 2pt 6pt;
+      }
+      .meta-label,
+      .flag,
+      th {
+        font-family: Calibri, Arial, sans-serif;
+        font-weight: 700;
+      }
+      .meta-label { flex: 0 0 auto; font-size: 7.5pt; }
+      .meta-value {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 8.5pt;
+        font-weight: 700;
+      }
+      .flag {
+        display: inline-flex;
+        align-items: center;
+        gap: 4pt;
+        font-size: 7.3pt;
+      }
+      .checkbox {
+        width: 8pt;
+        height: 8pt;
+        border: 1pt solid #333;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 7pt;
+        line-height: 1;
+      }
+      .section-title {
+        position: absolute;
+        left: 47pt;
+        font-size: 9.2pt;
+        font-weight: 700;
+      }
+      .borrow-title { top: 137pt; }
+      .sold-title { top: 454pt; }
+      .form-table {
+        position: absolute;
+        left: 47pt;
+        width: 520pt;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-family: "Browallia New", BrowalliaUPC, Arial, sans-serif;
+        font-size: 7.2pt;
+        line-height: 0.94;
+      }
+      .borrow-table { top: 148pt; }
+      .sold-table { top: 470pt; }
+      th,
+      td {
+        height: 17pt;
+        border: 0.75pt solid #a6b0bb;
+        padding: 1pt 3pt;
+        vertical-align: middle;
+      }
+      th {
+        height: 17pt;
+        border-color: #222;
+        border-top-width: 1.2pt;
+        border-bottom: 2pt solid #29558d;
+        background: #d9d9d9;
+        font-size: 6.7pt;
+        font-style: italic;
+        text-align: center;
+      }
+      td.center { text-align: center; }
+      td.right { text-align: right; }
+      .cell {
+        display: block;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .signature {
+        width: 160pt;
+        min-height: 42pt;
+        font-size: 7.4pt;
+      }
+      .signature-label { display: inline-block; width: 62pt; }
+      .signature-line {
+        display: inline-block;
+        width: 108pt;
+        border-bottom: 1pt solid #777;
+        transform: translateY(-2pt);
+      }
+      .signature-role { margin: 5pt 0 0 58pt; }
+      .signature-date { margin: 4pt 0 0 64pt; }
+      .sig-a,
+      .sig-b,
+      .sig-c,
+      .sig-d,
+      .sig-e,
+      .sig-f,
+      .sig-g,
+      .sig-h { position: absolute; }
+      .sig-a { left: 70pt; top: 360pt; }
+      .sig-b { left: 395pt; top: 360pt; }
+      .sig-c { left: 74pt; top: 425pt; }
+      .sig-d { left: 398pt; top: 425pt; }
+      .sig-e { left: 70pt; top: 692pt; }
+      .sig-f { left: 395pt; top: 692pt; }
+      .sig-g { left: 74pt; top: 756pt; }
+      .sig-h { left: 398pt; top: 756pt; }
+      tfoot td { height: 15pt; font-weight: 700; }
+      .total-label { font-family: Calibri, Arial, sans-serif; }
+      .footer-code {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 8pt;
+        text-align: center;
+        font-size: 7pt;
+      }
+      @media screen {
+        body { background: #444; padding: 18px; }
+        .page { margin: 0 auto; box-shadow: 0 2px 20px rgba(0,0,0,.25); }
+      }
+    </style>
+  `;
+}
+
 function buildDocument(transaction: PrintableTransaction) {
-  const requesterName =
-    transaction.type === "USING" ? "Staff Name" : "Customer Name";
-  const requesterValue = transaction.purpose ?? "-";
-  const referenceNo = transaction.transactionNo ?? transaction.id ?? "-";
   const isSold = transaction.type === "SOLD";
-  const soldRows = buildSoldRows(transaction);
+  const referenceNo = transaction.transactionNo ?? transaction.id ?? "-";
 
   return `<!doctype html>
-  <html lang="th">
-    <head>
-      <meta charset="utf-8" />
-      <title>${escapeHtml(referenceNo)}</title>
-      <style>
-        @page {
-          size: A4 portrait;
-          margin: 0;
-        }
-
-        * {
-          box-sizing: border-box;
-        }
-
-        body {
-          margin: 0;
-          background: #fff;
-          color: #000;
-          font-family: "Browallia New", BrowalliaUPC, Arial, sans-serif;
-          font-size: 3mm;
-          line-height: 1.02;
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
-        }
-
-        .page {
-          width: 210mm;
-          min-height: 297mm;
-          padding: 9mm 13mm 7mm;
-        }
-
-        .header {
-          display: grid;
-          grid-template-columns: 1fr 92mm;
-          align-items: center;
-          gap: 7mm;
-          margin-bottom: 2.8mm;
-        }
-
-        .company {
-          display: flex;
-          align-items: center;
-          gap: 3.5mm;
-        }
-
-        .logo {
-          width: 18mm;
-          height: 18mm;
-          border: 0.25mm solid #b8b8b8;
-          border-radius: 50%;
-          color: #273f4f;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-family: Calibri, Arial, sans-serif;
-          font-size: 4.6mm;
-          font-weight: 700;
-        }
-
-        .company-text,
-        .company-sub {
-          font-family: "Angsana New", AngsanaUPC, "Times New Roman", serif;
-          font-weight: 700;
-          letter-spacing: 0;
-        }
-
-        .company-text {
-          font-size: 5mm;
-          line-height: 0.9;
-        }
-
-        .company-sub {
-          font-size: 4.5mm;
-          line-height: 0.9;
-          margin-top: 0.4mm;
-        }
-
-        .form-title {
-          justify-self: end;
-          width: 100%;
-          background: #273f4f;
-          border-radius: 3mm;
-          color: #fff;
-          font-family: Calibri, Arial, sans-serif;
-          font-size: 6mm;
-          font-weight: 700;
-          letter-spacing: 0;
-          padding: 4.2mm 7mm;
-          text-align: center;
-        }
-
-        .meta-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 1.8mm;
-          margin-bottom: 2.4mm;
-        }
-
-        .meta-block {
-          min-height: 8.4mm;
-          background: #dde7f3;
-          border-radius: 2mm;
-          display: flex;
-          align-items: center;
-          gap: 1.6mm;
-          padding: 1.6mm 2.4mm;
-        }
-
-        .meta-label,
-        .flag,
-        th {
-          font-family: Calibri, Arial, sans-serif;
-        }
-
-        .meta-label {
-          font-size: 2.8mm;
-          font-weight: 700;
-          white-space: nowrap;
-        }
-
-        .meta-value {
-          flex: 1;
-          min-width: 0;
-          overflow: hidden;
-          font-size: 3mm;
-          font-weight: 700;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-        .full {
-          grid-column: 1 / -1;
-        }
-
-        .checkboxes {
-          display: flex;
-          align-items: center;
-          justify-content: flex-end;
-          gap: 4mm;
-          width: 100%;
-        }
-
-        .flag {
-          display: inline-flex;
-          align-items: center;
-          gap: 1.2mm;
-          font-size: 2.8mm;
-          font-weight: 700;
-          white-space: nowrap;
-        }
-
-        .checkbox {
-          width: 3.6mm;
-          height: 3.6mm;
-          border: 0.3mm solid #111;
-          border-radius: 0.7mm;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 2.45mm;
-          line-height: 1;
-        }
-
-        .section-title {
-          margin: 2.1mm 0 1mm;
-          font-size: 3.4mm;
-          font-weight: 700;
-        }
-
-        table {
-          width: 100%;
-          border-collapse: collapse;
-          table-layout: fixed;
-          font-size: 2.65mm;
-          line-height: 0.95;
-        }
-
-        th,
-        td {
-          height: 6.1mm;
-          border: 0.25mm solid #6a6a6a;
-          padding: 0.55mm 0.9mm;
-          vertical-align: middle;
-        }
-
-        th {
-          height: 5.1mm;
-          background: #d9d9d9;
-          font-size: 2.35mm;
-          font-weight: 700;
-          text-align: center;
-        }
-
-        td.center {
-          text-align: center;
-        }
-
-        td.right {
-          text-align: right;
-        }
-
-        .cell {
-          display: block;
-          max-width: 100%;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-        .signatures {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 4.8mm 9mm;
-          margin-top: 4mm;
-        }
-
-        .signature-block {
-          min-height: 12.5mm;
-          padding-top: 2.4mm;
-        }
-
-        .signature-line {
-          min-height: 5.2mm;
-          border-top: 0.25mm solid #555;
-          font-size: 2.9mm;
-          font-weight: 700;
-          padding-top: 1.1mm;
-        }
-
-        .signature-subtitle,
-        .signature-date {
-          font-size: 2.55mm;
-          margin-top: 0.5mm;
-        }
-
-        .footer-code {
-          margin-top: 2.5mm;
-          font-size: 2.45mm;
-          text-align: center;
-        }
-
-        .spacer {
-          height: 1.4mm;
-        }
-      </style>
-    </head>
-    <body>
-      <main class="page">
-        <section class="header">
-          <div class="company">
-            <div class="logo">JZ</div>
-            <div>
-              <div class="company-text">JZ Computer and Consultant Ltd., Part.</div>
-              <div class="company-sub">หจก. เจซี คอมพิวเตอร์ แอนด์ คอนซัลแทนส์</div>
-            </div>
-          </div>
+    <html lang="th">
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapeHtml(referenceNo)}</title>
+        ${documentStyles()}
+      </head>
+      <body>
+        <main class="page">
+          <div class="logo">JZ</div>
+          <div class="company-en">JZ Computer and Consultant Ltd., Part.</div>
+          <div class="company-th">หจก. เจซี คอมพิวเตอร์ แอนด์ คอนซัลแทนส์</div>
           <div class="form-title">ใบเบิก-ยืม-คืนอุปกรณ์</div>
-        </section>
 
-        <section class="meta-grid">
-          <div class="meta-block">
-            <div class="meta-label">${escapeHtml(requesterName)} :</div>
-            <div class="meta-value">${escapeHtml(requesterValue)}</div>
-          </div>
-          <div class="meta-block">
-            <div class="meta-label">Requisition No. :</div>
-            <div class="meta-value">${escapeHtml(referenceNo)}</div>
-          </div>
-          <div class="meta-block full">
-            <div class="meta-label">Description :</div>
-            <div class="meta-value">${escapeHtml(transaction.note)}</div>
-            <div class="checkboxes">${buildRequestFlags(transaction)}</div>
-          </div>
-        </section>
+          ${metaBox("customer", "Customer Name", transaction.purpose)}
+          ${metaBox("req-no", "Requisition No.", referenceNo)}
+          ${metaBox("description", "Description", transaction.note)}
+          <div class="meta-box flags">${requestFlags(transaction)}</div>
 
-        <section>
-          <div class="section-title">รายการอุปกรณ์ (เบิก/ยืม) :</div>
-          <table>
-            <colgroup>
-              <col style="width: 5%">
-              <col style="width: 10%">
-              <col style="width: 11%">
-              <col style="width: 34%">
-              <col style="width: 17%">
-              <col style="width: 7%">
-              <col style="width: 16%">
-            </colgroup>
-            <thead>
-              <tr>
-                <th>No.</th>
-                <th>Brand</th>
-                <th>Stock Code No.</th>
-                <th>Details</th>
-                <th>Serial No.</th>
-                <th>Q'ty</th>
-                <th>Remark</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${
-                isSold
-                  ? Array.from({ length: 9 }, () => buildEmptyRow(7)).join("")
-                  : buildBorrowRows(transaction)
-              }
-            </tbody>
-          </table>
-        </section>
+          ${borrowTable(transaction, isSold)}
+          <div class="sig-a">${signature("Requisition by :", "(____________________)")}</div>
+          <div class="sig-b">${signature("Requisition by :", "Lead of Project/Job")}</div>
+          <div class="sig-c">${signature("Inspector by :", "(Stock control)")}</div>
+          <div class="sig-d">${signature("Inspector by :", "(BSD)")}</div>
 
-        <section class="signatures">
-          ${signatureBlock("Requisition by :", "(____________________)")}
-          ${signatureBlock("Requisition by :", "Lead of Project/Job")}
-          ${signatureBlock("Inspector by :", "(Stock control)")}
-          ${signatureBlock("Inspector by :", "(BSD)")}
-        </section>
-
-        <div class="spacer"></div>
-
-        <section>
-          <div class="section-title">รายการอุปกรณ์ (ขาย/คืน) :</div>
-          <table>
-            <colgroup>
-              <col style="width: 4%">
-              <col style="width: 10%">
-              <col style="width: 23%">
-              <col style="width: 14%">
-              <col style="width: 8%">
-              <col style="width: 8%">
-              <col style="width: 12%">
-              <col style="width: 8%">
-              <col style="width: 8%">
-              <col style="width: 5%">
-            </colgroup>
-            <thead>
-              <tr>
-                <th>No.</th>
-                <th>Stock Code No.</th>
-                <th>Details</th>
-                <th>Serial No.</th>
-                <th>Use</th>
-                <th>Qty Return</th>
-                <th>Date</th>
-                <th>Price</th>
-                <th>Total</th>
-                <th>Remark</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${
-                isSold
-                  ? soldRows.rows
-                  : Array.from({ length: 8 }, () => buildEmptyRow(10)).join("")
-              }
-            </tbody>
-            ${
-              isSold
-                ? `<tfoot>
-                    <tr>
-                      <td colspan="8" class="right" style="font-weight:700;">Total</td>
-                      <td class="right" style="font-weight:700;">${escapeHtml(soldRows.total)}</td>
-                      <td></td>
-                    </tr>
-                  </tfoot>`
-                : ""
-            }
-          </table>
-        </section>
-
-        <section class="signatures">
-          ${signatureBlock("Requisition by :", "(____________________)")}
-          ${signatureBlock("Requisition by :", "Lead of Project/Job")}
-          ${signatureBlock("Inspector by :", "(Stock control)")}
-          ${signatureBlock("Inspector by :", "(BSD)")}
-        </section>
-
-        <div class="footer-code">FM-5300(2)-R.5</div>
-      </main>
-    </body>
-  </html>`;
+          ${soldTable(transaction, isSold)}
+          <div class="sig-e">${signature("Requisition by :", "(____________________)")}</div>
+          <div class="sig-f">${signature("Requisition by :", "Lead of Project/Job")}</div>
+          <div class="sig-g">${signature("Inspector by :", "(Stock control)")}</div>
+          <div class="sig-h">${signature("Inspector by :", "(BSD)")}</div>
+          <div class="footer-code">FM-5300(2)-R.5</div>
+        </main>
+      </body>
+    </html>`;
 }
 
 export function printTransaction(transaction: PrintableTransaction) {
@@ -589,5 +526,5 @@ export function printTransaction(transaction: PrintableTransaction) {
   popup.document.write(buildDocument(transaction));
   popup.document.close();
   popup.focus();
-  window.setTimeout(() => popup.print(), 300);
+  window.setTimeout(() => popup.print(), 450);
 }
