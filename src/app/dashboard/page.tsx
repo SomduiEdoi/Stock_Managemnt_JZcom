@@ -20,7 +20,6 @@ import {
   type RecentAssetActivity,
 } from "@/lib/dashboard";
 import {
-  assetStatusBadgeClasses,
   assetStatusHexColors,
   assetStatusLabels,
 } from "@/lib/status-style";
@@ -73,7 +72,7 @@ function getActivityBadge(activity: RecentAssetActivity) {
     activity.actionType === AssetActionType.IMPORT
   ) {
     return {
-      badgeClassName: "bg-[#6366F1] text-white",
+      badgeColor: "#6366F1",
       dotColor: "#6366F1",
       helperText: null,
       label: "Register",
@@ -81,7 +80,7 @@ function getActivityBadge(activity: RecentAssetActivity) {
   }
 
   return {
-    badgeClassName: assetStatusBadgeClasses[activity.toStatus],
+    badgeColor: assetStatusHexColors[activity.toStatus],
     dotColor: assetStatusHexColors[activity.toStatus],
     helperText: "updated to",
     label: assetStatusLabels[activity.toStatus],
@@ -160,7 +159,7 @@ function ProblemItems({
   ];
 
   return (
-    <section className="h-[130px] overflow-hidden rounded-md border border-border bg-white shadow-sm">
+    <section className="h-[115px] overflow-hidden rounded-md border border-border bg-white shadow-sm">
       <div className="flex items-center justify-between gap-4 px-5 pt-3">
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-status-fail" />
@@ -212,7 +211,7 @@ function ProblemItems({
 
 function ActivityFeed({ activity }: { activity: RecentAssetActivity[] }) {
   return (
-    <aside className="flex h-[680px] min-h-0 flex-col rounded-md border border-border bg-white shadow-sm">
+    <aside className="flex h-[717px] min-h-0 flex-col rounded-md border border-border bg-white shadow-sm">
       <div className="shrink-0 border-b border-border px-5 py-4">
         <h3 className="text-xl font-bold text-navy">Activity Feed</h3>
       </div>
@@ -241,7 +240,8 @@ function ActivityFeed({ activity }: { activity: RecentAssetActivity[] }) {
                       </span>
                     ) : null}
                     <span
-                      className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${badge.badgeClassName}`}
+                      className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold text-white"
+                      style={{ backgroundColor: badge.badgeColor }}
                     >
                       {badge.label}
                     </span>
@@ -379,7 +379,7 @@ export default async function DashboardPage({
           value={overview.metrics.borrowedAssets}
         />
         <MetricCard
-          detail="Moved to sold state"
+          detail="Sold state"
           icon={DollarSign}
           label="Sold"
           tone="sold"
@@ -388,7 +388,7 @@ export default async function DashboardPage({
       </section>
 
       <section className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="flex min-w-0 flex-col gap-[7px]">
+        <div className="flex min-w-0 flex-col gap-[23px]">
           <ProblemItems
             fail={overview.problems.failAssets}
             lost={overview.problems.lostAssets}
@@ -401,12 +401,6 @@ export default async function DashboardPage({
     </div>
   );
 }
-
-
-
-
-
-
 
 
 
