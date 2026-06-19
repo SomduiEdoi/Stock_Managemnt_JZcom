@@ -8,7 +8,6 @@ import {
   CircleX,
   DollarSign,
   Package,
-  RefreshCw,
   SearchX,
 } from "lucide-react";
 import { AssetActionType, AssetStatus } from "@prisma/client";
@@ -22,6 +21,7 @@ import {
 } from "@/lib/dashboard";
 import {
   assetStatusBadgeClasses,
+  assetStatusHexColors,
   assetStatusLabels,
 } from "@/lib/status-style";
 import { AssetStatusBadge } from "@/components/status/asset-status-badge";
@@ -64,9 +64,28 @@ function describeActivity(activity: RecentAssetActivity) {
     return "New Asset registered";
   }
 
-  return `${activity.asset.serialNo} updated to ${
-    assetStatusLabels[activity.toStatus]
-  }`;
+  return activity.asset.serialNo;
+}
+
+function getActivityBadge(activity: RecentAssetActivity) {
+  if (
+    activity.actionType === AssetActionType.CREATE ||
+    activity.actionType === AssetActionType.IMPORT
+  ) {
+    return {
+      badgeClassName: "bg-[#6366F1] text-white",
+      dotColor: "#6366F1",
+      helperText: null,
+      label: "Register",
+    };
+  }
+
+  return {
+    badgeClassName: assetStatusBadgeClasses[activity.toStatus],
+    dotColor: assetStatusHexColors[activity.toStatus],
+    helperText: "updated to",
+    label: assetStatusLabels[activity.toStatus],
+  };
 }
 
 function MetricCard({
@@ -141,8 +160,8 @@ function ProblemItems({
   ];
 
   return (
-    <section className="rounded-md border border-border bg-white shadow-sm">
-      <div className="flex items-center justify-between gap-4 px-5 pt-4">
+    <section className="h-[130px] overflow-hidden rounded-md border border-border bg-white shadow-sm">
+      <div className="flex items-center justify-between gap-4 px-5 pt-3">
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-status-fail" />
           <h3 className="text-lg font-bold text-navy">Problem Items</h3>
@@ -155,7 +174,7 @@ function ProblemItems({
           <ArrowRight className="h-3.5 w-3.5" />
         </Link>
       </div>
-      <div className="grid px-5 pb-4 pt-3 sm:grid-cols-3">
+      <div className="grid px-5 pb-3 pt-2 sm:grid-cols-3">
         {items.map((item, index) => {
           const Icon = item.icon;
           const count =
@@ -165,7 +184,7 @@ function ProblemItems({
 
           return (
             <div
-              className={`flex items-center gap-3 py-3 ${
+              className={`flex items-center gap-3 py-2 ${
                 index > 0
                   ? "border-t border-border sm:border-l sm:border-t-0 sm:pl-6"
                   : ""
@@ -193,30 +212,47 @@ function ProblemItems({
 
 function ActivityFeed({ activity }: { activity: RecentAssetActivity[] }) {
   return (
-    <aside className="rounded-md border border-border bg-white shadow-sm xl:row-span-2">
-      <div className="flex items-center justify-between border-b border-border px-5 py-4">
+    <aside className="flex h-[680px] min-h-0 flex-col rounded-md border border-border bg-white shadow-sm">
+      <div className="shrink-0 border-b border-border px-5 py-4">
         <h3 className="text-xl font-bold text-navy">Activity Feed</h3>
-        <RefreshCw className="h-4 w-4 text-navy" />
       </div>
-      <div className="max-h-[520px] overflow-y-auto px-5 py-3">
-        <div className="flex flex-col gap-1">
-          {activity.map((item) => (
-            <div className="grid grid-cols-[34px_1fr] gap-3 py-3" key={item.id}>
-              <span
-                className={`mt-1 h-3 w-3 rounded-full ${
-                  assetStatusBadgeClasses[item.toStatus].split(" ")[0]
-                }`}
-              />
-              <div>
-                <p className="text-sm font-bold leading-5 text-navy">
-                  {describeActivity(item)}
-                </p>
-                <p className="mt-1 text-xs font-medium text-muted-foreground">
-                  {item.changedBy.name} • {formatTime(item.changedAt)}
-                </p>
+      <div className="min-h-0 flex-1 overflow-auto px-5 py-3">
+        <div className="flex min-w-[430px] flex-col gap-1">
+          {activity.map((item) => {
+            const badge = getActivityBadge(item);
+
+            return (
+              <div
+                className="grid grid-cols-[22px_minmax(0,max-content)] gap-3 py-3"
+                key={item.id}
+              >
+                <span
+                  className="mt-1 h-3 w-3 rounded-full"
+                  style={{ backgroundColor: badge.dotColor }}
+                />
+                <div>
+                  <p className="whitespace-nowrap text-sm font-bold leading-5 text-navy">
+                    {describeActivity(item)}
+                  </p>
+                  <div className="mt-1 flex items-center gap-2 whitespace-nowrap">
+                    {badge.helperText ? (
+                      <span className="text-xs font-semibold text-muted-foreground">
+                        {badge.helperText}
+                      </span>
+                    ) : null}
+                    <span
+                      className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${badge.badgeClassName}`}
+                    >
+                      {badge.label}
+                    </span>
+                  </div>
+                  <p className="mt-2 whitespace-nowrap text-xs font-medium text-muted-foreground">
+                    {item.changedBy.name} &middot; {formatTime(item.changedAt)}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </aside>
@@ -255,8 +291,8 @@ function RecentTable({
   rows: RecentAssetActivity[];
 }) {
   return (
-    <section className="rounded-md border border-border bg-white shadow-sm">
-      <div className="flex flex-col gap-3 border-b border-border px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+    <section className="flex h-[580px] min-h-0 flex-col rounded-md border border-border bg-white shadow-sm">
+      <div className="flex shrink-0 flex-col gap-3 border-b border-border px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h3 className="text-xl font-bold text-navy">Recently</h3>
           <p className="mt-1 text-xs font-medium text-muted-foreground">
@@ -265,7 +301,7 @@ function RecentTable({
         </div>
         <RecentTabs activeTab={activeTab} />
       </div>
-      <div className="max-h-[620px] overflow-auto">
+      <div className="min-h-0 flex-1 overflow-auto">
         <table className="min-w-full border-collapse text-left text-sm">
           <thead className="sticky top-0 z-10 bg-surface text-xs uppercase text-muted-foreground">
             <tr>
@@ -351,8 +387,8 @@ export default async function DashboardPage({
         />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="flex min-w-0 flex-col gap-4">
+      <section className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="flex min-w-0 flex-col gap-[7px]">
           <ProblemItems
             fail={overview.problems.failAssets}
             lost={overview.problems.lostAssets}
@@ -365,3 +401,13 @@ export default async function DashboardPage({
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
