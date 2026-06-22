@@ -167,7 +167,7 @@ function ProblemItems({
         </div>
         <Link
           className="inline-flex items-center gap-1 text-xs font-bold text-navy transition hover:text-brand-accent"
-          href="/dashboard/assets?status=FAIL"
+          href="/dashboard/assets"
         >
           View All
           <ArrowRight className="h-3.5 w-3.5" />

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   ClipboardList,
   LayoutDashboard,
@@ -79,27 +79,17 @@ function getRoleNavItems(roles: RoleCode[]) {
   return [dashboardItem, ...baseItems];
 }
 
-function isActiveItem(
-  item: NavItem,
-  pathname: string,
-  searchParams: URLSearchParams,
-) {
+function isActiveItem(item: NavItem, pathname: string) {
   if (item.id === "dashboard") {
-    return pathname === "/dashboard";
+    return pathname === "/dashboard" || pathname === "/dashboard/assets";
   }
 
   if (item.id === "server") {
-    return (
-      pathname === "/dashboard/server" ||
-      (pathname === "/dashboard/assets" && searchParams.get("domain") === "SERVER")
-    );
+    return pathname === "/dashboard/server";
   }
 
   if (item.id === "network") {
-    return (
-      pathname === "/dashboard/network" ||
-      (pathname === "/dashboard/assets" && searchParams.get("domain") === "NETWORK")
-    );
+    return pathname === "/dashboard/network";
   }
 
   return pathname === item.href;
@@ -108,16 +98,14 @@ function isActiveItem(
 function NavLink({
   item,
   pathname,
-  searchParams,
   requestCount,
 }: {
   item: NavItem;
   pathname: string;
-  searchParams: URLSearchParams;
   requestCount: number;
 }) {
   const Icon = item.icon;
-  const isActive = isActiveItem(item, pathname, searchParams);
+  const isActive = isActiveItem(item, pathname);
   const showRequestBadge = item.id === "request" && requestCount > 0;
 
   return (
@@ -143,7 +131,6 @@ function NavLink({
 
 export function AppSidebar({ requestCount, roles }: AppSidebarProps) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const items = getRoleNavItems(roles);
 
   return (
@@ -170,7 +157,6 @@ export function AppSidebar({ requestCount, roles }: AppSidebarProps) {
               key={item.id}
               pathname={pathname}
               requestCount={requestCount}
-              searchParams={searchParams}
             />
           ))}
         </nav>

@@ -1,4 +1,4 @@
-import { Prisma, type AssetStatus } from "@prisma/client";
+import { AssetStatus, Prisma } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
@@ -21,26 +21,36 @@ export const assetStatusOptions = [
   "NEED_CHECK",
 ] as const satisfies readonly AssetStatus[];
 
+export const problemAssetStatusOptions = [
+  AssetStatus.FAIL,
+  AssetStatus.LOST,
+  AssetStatus.NEED_CHECK,
+] as const satisfies readonly AssetStatus[];
+
 export type AssetDomainFilter = DomainCode | "ALL";
-export type AssetStatusFilter = AssetStatus | "ALL";
+export type AssetStatusFilter = (typeof problemAssetStatusOptions)[number] | "ALL";
 export type AssetDomainAccess = "MANAGE" | "READ_ONLY" | "NONE";
 
 export type AssetListFilters = {
+  category: string;
   domain: AssetDomainFilter;
   page: number;
   pageSize: number;
   search: string;
   status: AssetStatusFilter;
+  type: string;
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
 const defaultFilters: AssetListFilters = {
+  category: "ALL",
   domain: "ALL",
   page: 1,
   pageSize: 25,
   search: "",
   status: "ALL",
+  type: "ALL",
 };
 
 const assetListSelect = Prisma.validator<Prisma.AssetSelect>()({
@@ -80,14 +90,24 @@ function isDomainCode(value: string | undefined): value is DomainCode {
   return assetDomainOptions.includes(value as DomainCode);
 }
 
-function isAssetStatus(value: string | undefined): value is AssetStatus {
-  return assetStatusOptions.includes(value as AssetStatus);
+function isAssetStatus(
+  value: string | undefined,
+): value is (typeof problemAssetStatusOptions)[number] {
+  return problemAssetStatusOptions.includes(
+    value as (typeof problemAssetStatusOptions)[number],
+  );
 }
 
 function parsePage(value: string | undefined) {
   const page = Number.parseInt(value ?? "", 10);
 
   return Number.isFinite(page) && page > 0 ? page : defaultFilters.page;
+}
+
+function cleanFilterValue(value: string | undefined) {
+  const nextValue = value?.trim();
+
+  return nextValue ? nextValue : "ALL";
 }
 
 export function normalizeAssetListFilters(
@@ -97,11 +117,13 @@ export function normalizeAssetListFilters(
   const status = firstParam(searchParams.status);
 
   return {
+    category: cleanFilterValue(firstParam(searchParams.category)),
     domain: isDomainCode(domain) ? domain : defaultFilters.domain,
     page: parsePage(firstParam(searchParams.page)),
     pageSize: defaultFilters.pageSize,
     search: firstParam(searchParams.q)?.trim() ?? defaultFilters.search,
     status: isAssetStatus(status) ? status : defaultFilters.status,
+    type: cleanFilterValue(firstParam(searchParams.type)),
   };
 }
 
@@ -169,11 +191,30 @@ export function buildAssetWhere(
   user: PermissionUser,
   filters: AssetListFilters,
 ): Prisma.AssetWhereInput {
+  const clauses: Prisma.AssetWhereInput[] = [];
+  const searchWhere = buildSearchWhere(filters.search);
+
+  if (searchWhere) {
+    clauses.push(searchWhere);
+  }
+
+  if (filters.category !== "ALL") {
+    clauses.push({
+      assetModel: { is: { category: { is: { name: filters.category } } } },
+    });
+  }
+
+  if (filters.type !== "ALL") {
+    clauses.push({ assetModel: { is: { typeName: filters.type } } });
+  }
+
   return {
     isActive: true,
     domain: { code: { in: getSelectedDomainCodes(user, filters.domain) } },
-    ...(filters.status === "ALL" ? {} : { status: filters.status }),
-    ...buildSearchWhere(filters.search),
+    ...(filters.status === "ALL"
+      ? { status: { in: [...problemAssetStatusOptions] } }
+      : { status: filters.status }),
+    ...(clauses.length > 0 ? { AND: clauses } : {}),
   };
 }
 
@@ -193,7 +234,10 @@ export async function listAssetsForUser(
 ) {
   const where = buildAssetWhere(user, filters);
   const skip = (filters.page - 1) * filters.pageSize;
-  const [assets, total] = await db.$transaction([
+  const filterDomainCodes = getSelectedDomainCodes(user, filters.domain);
+  const filterOptionDomainCodes =
+    filterDomainCodes.length > 0 ? filterDomainCodes : getVisibleDomainCodes(user);
+  const [assets, total, categories, types] = await db.$transaction([
     db.asset.findMany({
       orderBy: [{ updatedAt: "desc" }, { serialNo: "asc" }],
       select: assetListSelect,
@@ -202,10 +246,32 @@ export async function listAssetsForUser(
       where,
     }),
     db.asset.count({ where }),
+    db.assetCategory.findMany({
+      orderBy: { name: "asc" },
+      select: { name: true },
+      where: {
+        domain: { code: { in: filterOptionDomainCodes } },
+        isActive: true,
+      },
+    }),
+    db.assetModel.findMany({
+      distinct: ["typeName"],
+      orderBy: { typeName: "asc" },
+      select: { typeName: true },
+      where: {
+        domain: { code: { in: filterOptionDomainCodes } },
+        isActive: true,
+        typeName: { not: null },
+      },
+    }),
   ]);
 
   return {
     assets: assets.map((asset) => withDomainAccess(user, asset)),
+    filterOptions: {
+      categories: categories.map((category) => category.name),
+      types: types.map((type) => type.typeName).filter(Boolean) as string[],
+    },
     filters,
     total,
     totalPages: Math.max(1, Math.ceil(total / filters.pageSize)),

@@ -1,30 +1,16 @@
 "use client";
 
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 type AppShellTitleProps = {
   title?: string;
 };
 
-type SearchParamReader = {
-  get: (name: string) => string | null;
-};
-
-function resolveAssetTitle(searchParams: SearchParamReader) {
-  const domain = searchParams.get("domain");
-
-  if (domain === "SERVER") {
-    return "Server Inventory";
-  }
-
-  if (domain === "NETWORK") {
-    return "Network Inventory";
-  }
-
-  return "Asset Inventory";
+function resolveAssetTitle() {
+  return "Problem Items";
 }
 
-function resolveTitle(pathname: string, searchParams: SearchParamReader) {
+function resolveTitle(pathname: string) {
   if (pathname === "/dashboard") {
     return "Dashboard Overview";
   }
@@ -38,7 +24,7 @@ function resolveTitle(pathname: string, searchParams: SearchParamReader) {
   }
 
   if (pathname === "/dashboard/assets") {
-    return resolveAssetTitle(searchParams);
+    return resolveAssetTitle();
   }
 
   if (pathname === "/dashboard/assets/new") {
@@ -74,11 +60,10 @@ function resolveTitle(pathname: string, searchParams: SearchParamReader) {
 
 export function AppShellTitle({ title }: AppShellTitleProps) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   return (
     <p className="text-xl font-bold text-navy">
-      {title ?? resolveTitle(pathname, searchParams)}
+      {title ?? resolveTitle(pathname)}
     </p>
   );
 }
