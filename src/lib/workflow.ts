@@ -9,6 +9,7 @@ import {
 import type { CurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
+  assertCanChangeAssetStatus,
   assertCanManageDomain,
   assertCanRequestDomain,
 } from "@/lib/permissions";
@@ -645,7 +646,7 @@ export async function changeAssetStatus(
         throw new WorkflowError("Asset not found.", 404);
       }
 
-      assertCanManageDomain(user, asset.domain.code);
+      assertCanChangeAssetStatus(user, asset.domain.code);
 
       if (input.toStatus === AssetStatus.REQUEST) {
         throw new WorkflowError("Use the request hold endpoint for REQUEST.");

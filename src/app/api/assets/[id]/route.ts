@@ -6,7 +6,7 @@ import {
   readJsonBody,
   requireApiUser,
 } from "@/lib/api";
-import { updateAssetForUser } from "@/lib/asset-edit";
+import { deleteAssetForUser, updateAssetForUser } from "@/lib/asset-edit";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -47,6 +47,18 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const { id } = paramsSchema.parse(await context.params);
     const body = updateAssetSchema.parse(await readJsonBody(request));
     const asset = await updateAssetForUser(user, id, body);
+
+    return NextResponse.json({ asset });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}
+
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  try {
+    const user = await requireApiUser(request);
+    const { id } = paramsSchema.parse(await context.params);
+    const asset = await deleteAssetForUser(user, id);
 
     return NextResponse.json({ asset });
   } catch (error) {

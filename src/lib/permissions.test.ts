@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   PermissionError,
   assertCanRequestDomain,
+  canChangeAssetStatusForUser,
+  canDeleteAssetsForUser,
   canRequestAssetsForUser,
   canRequestDomainForUser,
   assertCanManageDomain,
@@ -64,15 +66,29 @@ describe("domain permissions", () => {
     );
   });
 
-  it("lets domain owners request visible cross-domain assets without manage access", () => {
+  it("keeps stock owners out of request flow while allowing managed-domain actions", () => {
     const arm: PermissionUser = {
       roles: ["SERVER_OWNER"],
       permissions,
     };
 
-    expect(canRequestDomainForUser(arm, "SERVER")).toBe(true);
-    expect(canRequestDomainForUser(arm, "NETWORK")).toBe(true);
+    expect(canRequestDomainForUser(arm, "SERVER")).toBe(false);
+    expect(canRequestDomainForUser(arm, "NETWORK")).toBe(false);
+    expect(canDeleteAssetsForUser(arm, "SERVER")).toBe(true);
+    expect(canChangeAssetStatusForUser(arm, "SERVER")).toBe(true);
+    expect(canDeleteAssetsForUser(arm, "NETWORK")).toBe(false);
     expect(canManageDomainForUser(arm, "NETWORK")).toBe(false);
+  });
+
+  it("keeps admin out of request flow", () => {
+    const admin: PermissionUser = {
+      roles: ["ADMIN"],
+      permissions: [],
+    };
+
+    expect(canRequestAssetsForUser(admin)).toBe(false);
+    expect(canDeleteAssetsForUser(admin, "SERVER")).toBe(true);
+    expect(canChangeAssetStatusForUser(admin, "NETWORK")).toBe(true);
   });
 
   it("blocks requests when a user cannot view the domain", () => {

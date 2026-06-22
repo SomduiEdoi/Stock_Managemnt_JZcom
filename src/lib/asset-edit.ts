@@ -7,6 +7,7 @@ import {
 import type { CurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
+  assertCanDeleteAssets,
   assertCanManageDomain,
   canManageDomainForUser,
   domainCodes,
@@ -535,6 +536,41 @@ export async function updateAssetForUser(
       }
 
       return updatedAsset;
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
+}
+
+export async function deleteAssetForUser(user: CurrentUser, assetId: string) {
+  return db.$transaction(
+    async (tx) => {
+      const asset = await tx.asset.findUnique({
+        select: {
+          domain: { select: { code: true } },
+          id: true,
+          isActive: true,
+        },
+        where: { id: assetId },
+      });
+
+      if (!asset || !asset.isActive) {
+        throw new WorkflowError("Asset not found.", 404);
+      }
+
+      assertCanDeleteAssets(user, asset.domain.code);
+
+      return tx.asset.update({
+        data: {
+          isActive: false,
+          requestLockedAt: null,
+          requestLockedById: null,
+          updatedById: user.id,
+        },
+        select: {
+          id: true,
+        },
+        where: { id: asset.id },
+      });
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );

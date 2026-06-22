@@ -10,12 +10,7 @@ export const domainCodes = [
   "SERVER",
   "NETWORK",
 ] as const satisfies readonly DomainCode[];
-export const requestRoleCodes = [
-  "ADMIN",
-  "SERVER_OWNER",
-  "NETWORK_OWNER",
-  "STAFF",
-] as const satisfies readonly RoleCode[];
+export const requestRoleCodes = ["STAFF"] as const satisfies readonly RoleCode[];
 
 export type DomainPermission = {
   domainCode: DomainCode;
@@ -92,12 +87,48 @@ export function canRequestAssetsForUser(user: PermissionUser) {
   );
 }
 
+export function canDeleteAssetsForUser(
+  user: PermissionUser,
+  domainCode: DomainCode,
+) {
+  return canManageDomainForUser(user, domainCode);
+}
+
+export function canChangeAssetStatusForUser(
+  user: PermissionUser,
+  domainCode: DomainCode,
+) {
+  return (
+    hasRole(user, "ADMIN") ||
+    (domainCode === "SERVER" && hasRole(user, "SERVER_OWNER")) ||
+    (domainCode === "NETWORK" && hasRole(user, "NETWORK_OWNER"))
+  );
+}
+
 export function assertCanManageDomain(
   user: PermissionUser,
   domainCode: DomainCode,
 ) {
   if (!canManageDomainForUser(user, domainCode)) {
     throw new PermissionError(`Cannot manage ${domainCode} assets.`);
+  }
+}
+
+export function assertCanChangeAssetStatus(
+  user: PermissionUser,
+  domainCode: DomainCode,
+) {
+  if (!canChangeAssetStatusForUser(user, domainCode)) {
+    throw new PermissionError(`Cannot change ${domainCode} asset status.`);
+  }
+}
+
+export function assertCanDeleteAssets(
+  user: PermissionUser,
+  domainCode: DomainCode,
+) {
+  if (!canDeleteAssetsForUser(user, domainCode)) {
+    throw new PermissionError(`Cannot delete ${domainCode} assets.`);
   }
 }
 

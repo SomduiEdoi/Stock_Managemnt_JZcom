@@ -11,8 +11,10 @@ import {
 } from "lucide-react";
 import { requireCurrentUser } from "@/lib/auth";
 import {
+  canChangeAssetStatusForUser,
+  canDeleteAssetsForUser,
   canManageDomainForUser,
-  canRequestAssetsForUser,
+  canRequestDomainForUser,
 } from "@/lib/permissions";
 import {
   getServerInventoryForUser,
@@ -251,7 +253,9 @@ export default async function ServerInventoryPage({
       />
 
       <RequestableInventoryTable
-        canRequest={canRequestAssetsForUser(user)}
+        canChangeStatus={canChangeAssetStatusForUser(user, "SERVER")}
+        canDelete={canDeleteAssetsForUser(user, "SERVER")}
+        canRequest={canRequestDomainForUser(user, "SERVER")}
         domainLabel="Server"
         rows={result.rows}
       />

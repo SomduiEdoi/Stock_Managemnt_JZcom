@@ -59,11 +59,7 @@ function getRoleNavItems(roles: RoleCode[]) {
     return [dashboardItem, ...baseItems, { href: "/user", icon: Users, id: "users", label: "User" }];
   }
 
-  if (
-    roles.includes("STAFF") ||
-    roles.includes("SERVER_OWNER") ||
-    roles.includes("NETWORK_OWNER")
-  ) {
+  if (roles.includes("STAFF")) {
     return [
       dashboardItem,
       ...baseItems,

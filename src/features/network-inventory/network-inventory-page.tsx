@@ -11,8 +11,10 @@ import {
 } from "lucide-react";
 import { requireCurrentUser } from "@/lib/auth";
 import {
+  canChangeAssetStatusForUser,
+  canDeleteAssetsForUser,
   canManageDomainForUser,
-  canRequestAssetsForUser,
+  canRequestDomainForUser,
 } from "@/lib/permissions";
 import {
   getNetworkInventoryForUser,
@@ -251,7 +253,9 @@ export default async function NetworkInventoryPage({
       />
 
       <RequestableInventoryTable
-        canRequest={canRequestAssetsForUser(user)}
+        canChangeStatus={canChangeAssetStatusForUser(user, "NETWORK")}
+        canDelete={canDeleteAssetsForUser(user, "NETWORK")}
+        canRequest={canRequestDomainForUser(user, "NETWORK")}
         domainLabel="Network"
         rows={result.rows}
       />
