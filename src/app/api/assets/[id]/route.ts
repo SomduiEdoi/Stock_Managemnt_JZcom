@@ -19,6 +19,7 @@ const updateAssetSchema = z.object({
   assetNo: nullableString(255),
   brand: nullableString(255),
   categoryName: nullableString(255),
+  description: nullableString(2000),
   domainCode: z.nativeEnum(AssetDomainCode),
   imageRef: z.string().trim().max(2_000_000).optional().nullable(),
   isActive: z.boolean().optional(),

@@ -13,6 +13,7 @@
     "prisma:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
     "db:import": "tsx prisma/import-data.ts",
+    "db:backfill-descriptions": "tsx prisma/backfill-descriptions.ts",
     "db:setup": "prisma migrate dev && prisma db seed && tsx prisma/import-data.ts",
     "db:studio": "prisma studio",
     "docker:up": "docker compose up -d db",

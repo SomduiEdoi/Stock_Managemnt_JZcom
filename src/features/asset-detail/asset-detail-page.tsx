@@ -80,7 +80,7 @@ function domainLabel(asset: AssetDetailRecord) {
 function AssetImagePanel({ asset }: { asset: AssetDetailRecord }) {
   if (asset.imageRef) {
     return (
-      <div className="relative aspect-[4/3] overflow-hidden rounded-md border border-border bg-white">
+      <div className="relative aspect-[6/8] overflow-hidden rounded-md border border-border bg-white">
         <Image
           alt={asset.assetModel.name}
           className="object-cover"
@@ -208,6 +208,15 @@ function AssetDetails({ asset }: { asset: AssetDetailRecord }) {
         <DetailGrid items={buildPrimaryDetails(asset)} />
 
         <div className="mt-6 border-t border-border pt-5">
+          <h3 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
+            Description
+          </h3>
+          <p className="mt-2 whitespace-pre-wrap text-sm font-medium leading-6 text-ink">
+            {asset.assetModel.description || "-"}
+          </p>
+        </div>
+
+        <div className="mt-5 border-t border-border pt-5">
           <h3 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
             Remark
           </h3>

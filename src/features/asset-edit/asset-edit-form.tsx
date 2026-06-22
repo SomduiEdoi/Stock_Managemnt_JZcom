@@ -36,6 +36,7 @@ type AssetEditFormProps = {
 type AssetEditFormState = {
   brand: string;
   categoryName: string;
+  description: string;
   domainCode: AssetDomainCode;
   imageRef: string;
   legacyFg: string;
@@ -152,6 +153,7 @@ function toFormState(asset: AssetEditRecord): AssetEditFormState {
   return {
     brand: asset.assetModel.brand ?? "",
     categoryName: asset.assetModel.category?.name ?? "",
+    description: asset.assetModel.description ?? "",
     domainCode: asset.domain.code,
     imageRef: asset.imageRef ?? "",
     legacyFg: asset.legacyFg === null ? "" : String(asset.legacyFg),
@@ -171,6 +173,7 @@ function createFormState(initialDomainCode: AssetDomainCode): AssetEditFormState
   return {
     brand: "",
     categoryName: "",
+    description: "",
     domainCode: initialDomainCode,
     imageRef: "",
     legacyFg: "1",
@@ -336,6 +339,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
         body: JSON.stringify({
           brand: form.brand,
           categoryName: form.categoryName,
+          description: form.description,
           domainCode: form.domainCode,
           imageRef: form.imageRef,
           legacyFg: normalizeNumber(form.legacyFg),
@@ -658,6 +662,15 @@ export function AssetEditForm(props: AssetEditFormProps) {
               aria-invalid={Boolean(fieldErrors.location)}
               onChange={(event) => setField("location", event.target.value)}
               value={form.location}
+            />
+          </Field>
+        </div>
+
+        <div className="mt-4">
+          <Field label="Description">
+            <Textarea
+              onChange={(event) => setField("description", event.target.value)}
+              value={form.description}
             />
           </Field>
         </div>

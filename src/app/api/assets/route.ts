@@ -15,6 +15,7 @@ const createAssetSchema = z.object({
   assetNo: nullableString(255),
   brand: z.string().trim().min(1).max(255),
   categoryName: z.string().trim().min(1).max(255),
+  description: nullableString(2000),
   domainCode: z.nativeEnum(AssetDomainCode),
   imageRef: z.string().trim().min(1).max(2_000_000),
   isActive: z.boolean().optional(),

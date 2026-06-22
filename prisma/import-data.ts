@@ -181,7 +181,7 @@ function mapStatus(value: string | undefined) {
 }
 
 function combineNote(row: CsvRecord) {
-  const parts = [clean(row.Remark), clean(row.Comment)].filter(Boolean);
+  const parts = [clean(row.Remark)].filter(Boolean);
 
   return parts.length > 0 ? parts.join("\n") : null;
 }
@@ -196,7 +196,7 @@ function mapRow(row: CsvRecord): MappedRow {
   return {
     brand: clean(row.Brand),
     categoryName: clean(row.Category),
-    description: clean(row.Description),
+    description: clean(row.Description) ?? clean(row.Comment),
     imageRef: clean(row.Image),
     legacyFg: parseInteger(row.FG),
     legacyQty: parseInteger(row.QTY),

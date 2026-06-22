@@ -85,6 +85,7 @@ export type UpdateAssetInput = {
   assetNo?: string | null;
   brand?: string | null;
   categoryName?: string | null;
+  description?: string | null;
   domainCode: AssetDomainCode;
   imageRef?: string | null;
   isActive?: boolean;
@@ -347,6 +348,7 @@ async function resolveAssetModel(
   input: {
     brand: string | null;
     categoryId: string | null;
+    description: string | null;
     domainId: string;
     modelName: string;
     modelNo: string | null;
@@ -367,13 +369,17 @@ async function resolveAssetModel(
   });
 
   if (existing) {
-    return existing;
+    return tx.assetModel.update({
+      data: { description: input.description },
+      where: { id: existing.id },
+    });
   }
 
   return tx.assetModel.create({
     data: {
       brand: input.brand,
       categoryId: input.categoryId,
+      description: input.description,
       domainId: input.domainId,
       modelNo: input.modelNo,
       name: input.modelName,
@@ -392,6 +398,7 @@ export async function updateAssetForUser(
   const modelName = requireText(input.modelName, "Asset model");
   const brand = cleanText(input.brand);
   const categoryName = cleanText(input.categoryName);
+  const description = cleanText(input.description);
   const locationText = cleanText(input.locationText);
   const modelNo = cleanText(input.modelNo);
   const note = cleanText(input.note);
@@ -490,6 +497,7 @@ export async function updateAssetForUser(
       const assetModel = await resolveAssetModel(tx, {
         brand,
         categoryId: category?.id ?? null,
+        description,
         domainId: targetDomain.id,
         modelName,
         modelNo,
@@ -581,6 +589,7 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
   const modelName = requireText(input.modelName, "Asset model");
   const brand = requireText(input.brand, "Brand");
   const categoryName = requireText(input.categoryName, "Category");
+  const description = cleanText(input.description);
   const locationText = requireText(input.locationText, "Location");
   const modelNo = cleanText(input.modelNo);
   const note = cleanText(input.note);
@@ -635,6 +644,7 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
       const assetModel = await resolveAssetModel(tx, {
         brand,
         categoryId: category?.id ?? null,
+        description,
         domainId: targetDomain.id,
         modelName,
         modelNo,
