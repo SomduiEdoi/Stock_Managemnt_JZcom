@@ -291,9 +291,9 @@ unique(user_id, domain_id)
 Default examples:
 
 ```text
-P' Oak -> SERVER manage, NETWORK manage
-P' Arm -> SERVER manage
-P' Mek -> NETWORK manage
+Admin -> SERVER manage, NETWORK manage
+Server Stock Controller -> SERVER manage
+Network Stock Controller -> NETWORK manage
 Staff  -> SERVER view, NETWORK view
 ```
 
@@ -611,7 +611,7 @@ Import endpoints are for controlled migration/admin operations only. Normal appl
 ## Authorization Matrix
 
 ```text
-Feature                         Admin   Server Owner   Network Owner   Staff
+Feature                         Admin   Server Stock Controller   Network Stock Controller   Staff
 View dashboard all              yes     no             no              no
 View own-scoped dashboard       yes     yes            yes             yes
 View Server assets              yes     yes            read            read

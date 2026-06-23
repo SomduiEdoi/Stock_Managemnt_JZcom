@@ -23,8 +23,8 @@ type SeedUser = {
 
 const seedUsers: SeedUser[] = [
   {
-    name: "P' Oak",
-    email: "oak@example.com",
+    name: "Admin",
+    email: "admin@example.com",
     position: "Administrator",
     roleCode: "ADMIN",
     permissions: [
@@ -33,9 +33,9 @@ const seedUsers: SeedUser[] = [
     ],
   },
   {
-    name: "P' Arm",
-    email: "arm@example.com",
-    position: "Server Stock Owner",
+    name: "Server Stock Controller",
+    email: "server@example.com",
+    position: "Server Stock Controller",
     roleCode: "SERVER_OWNER",
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: true },
@@ -43,9 +43,9 @@ const seedUsers: SeedUser[] = [
     ],
   },
   {
-    name: "P' Mek",
-    email: "mek@example.com",
-    position: "Network Stock Owner",
+    name: "Network Stock Controller",
+    email: "network@example.com",
+    position: "Network Stock Controller",
     roleCode: "NETWORK_OWNER",
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: false },
@@ -55,6 +55,16 @@ const seedUsers: SeedUser[] = [
   {
     name: "Staff User",
     email: "viewer@example.com",
+    position: "Staff",
+    roleCode: "STAFF",
+    permissions: [
+      { domainCode: "SERVER", canView: true, canManage: false },
+      { domainCode: "NETWORK", canView: true, canManage: false },
+    ],
+  },
+  {
+    name: "Viewer 2",
+    email: "viewer2@example.com",
     position: "Staff",
     roleCode: "STAFF",
     permissions: [
@@ -77,12 +87,12 @@ async function upsertRoles() {
     },
     {
       code: "SERVER_OWNER",
-      name: "Server Owner",
+      name: "Server Stock Controller",
       description: "Can manage Server assets and view assigned domains.",
     },
     {
       code: "NETWORK_OWNER",
-      name: "Network Owner",
+      name: "Network Stock Controller",
       description: "Can manage Network assets and view assigned domains.",
     },
     {

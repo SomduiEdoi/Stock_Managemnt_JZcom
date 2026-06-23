@@ -22,7 +22,7 @@ Rationale:
 - Next.js full-stack keeps the MVP compact and easier to iterate.
 - `assets.status` makes asset list/search/report queries simple.
 - `asset_status_histories` preserves auditability for asset state changes.
-- Domain permission directly matches the real workflow: Server Owner manages Server, Network Owner manages Network, and Admin manages all.
+- Domain permission directly matches the real workflow: Server Stock Controller manages Server, Network Stock Controller manages Network, and Admin manages all.
 - SharePoint migration is needed, but real-time SharePoint sync is not needed in MVP.
 - After import, normal app workflows must not read SharePoint or CSV files again.
 - Paper documents remain the legal/operational source for signatures, while the system tracks references and operational status.

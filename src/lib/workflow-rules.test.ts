@@ -6,11 +6,11 @@ import {
 } from "@prisma/client";
 import { describe, expect, it } from "vitest";
 import {
-  canReturnTransactionStatus,
   canTransitionAssetStatus,
   getInitialTransactionStatus,
   getManualStatusAction,
   getTransactionAssetStatus,
+  isTransactionItemResolutionStatus,
   isReturnableTransaction,
 } from "./workflow-rules";
 
@@ -70,10 +70,14 @@ describe("transaction workflow mapping", () => {
 });
 
 describe("return and history action rules", () => {
-  it("allows open and overdue transactions to be returned", () => {
-    expect(canReturnTransactionStatus(TransactionStatus.BORROWED)).toBe(true);
-    expect(canReturnTransactionStatus(TransactionStatus.OVERDUE)).toBe(true);
-    expect(canReturnTransactionStatus(TransactionStatus.RETURNED)).toBe(false);
+  it("limits transaction item outcomes to operational final states", () => {
+    expect(isTransactionItemResolutionStatus(AssetStatus.READY)).toBe(true);
+    expect(isTransactionItemResolutionStatus(AssetStatus.SOLD)).toBe(true);
+    expect(isTransactionItemResolutionStatus(AssetStatus.LOST)).toBe(false);
+    expect(isTransactionItemResolutionStatus(AssetStatus.FAIL)).toBe(false);
+    expect(isTransactionItemResolutionStatus(AssetStatus.NEED_CHECK)).toBe(false);
+    expect(isTransactionItemResolutionStatus(AssetStatus.REQUEST)).toBe(false);
+    expect(isTransactionItemResolutionStatus(AssetStatus.BORROW)).toBe(false);
   });
 
   it("uses explicit action types for operational manual statuses", () => {

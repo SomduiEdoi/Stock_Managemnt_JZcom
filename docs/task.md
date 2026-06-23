@@ -119,9 +119,9 @@ Acceptance checks:
 Acceptance checks:
 
 - unauthenticated users cannot access protected pages
-- P' Oak can manage all domains
-- P' Arm can manage Server only
-- P' Mek can manage Network only
+- admin@example.com can manage all domains
+- server@example.com can manage Server only
+- network@example.com can manage Network only
 - Staff can request but cannot manage master data or override status
 
 ## Phase 3: Master Data

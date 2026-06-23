@@ -304,23 +304,26 @@ model Transaction {
 }
 
 model TransactionItem {
-  id            String       @id @default(uuid()) @db.Uuid
-  transactionId String       @map("transaction_id") @db.Uuid
-  assetId       String       @map("asset_id") @db.Uuid
-  fromStatus    AssetStatus? @map("from_status")
-  toStatus      AssetStatus  @map("to_status")
-  note          String?
-  returnedAt    DateTime?    @map("returned_at")
-  returnedById  String?      @map("returned_by") @db.Uuid
-  createdAt     DateTime     @default(now()) @map("created_at")
-  updatedAt     DateTime     @updatedAt @map("updated_at")
-  transaction   Transaction  @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  asset         Asset        @relation(fields: [assetId], references: [id], onDelete: Restrict)
-  returnedBy    User?        @relation("TransactionItemReturnedBy", fields: [returnedById], references: [id], onDelete: SetNull)
+  id             String       @id @default(uuid()) @db.Uuid
+  transactionId  String       @map("transaction_id") @db.Uuid
+  assetId        String       @map("asset_id") @db.Uuid
+  fromStatus     AssetStatus? @map("from_status")
+  toStatus       AssetStatus  @map("to_status")
+  note           String?
+  resolvedStatus AssetStatus? @map("resolved_status")
+  resolutionNote String?      @map("resolution_note")
+  returnedAt     DateTime?    @map("returned_at")
+  returnedById   String?      @map("returned_by") @db.Uuid
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  transaction    Transaction  @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  asset          Asset        @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  returnedBy     User?        @relation("TransactionItemReturnedBy", fields: [returnedById], references: [id], onDelete: SetNull)
 
   @@unique([transactionId, assetId])
   @@index([assetId])
   @@index([transactionId])
+  @@index([resolvedStatus])
   @@index([returnedById])
   @@map("transaction_items")
 }

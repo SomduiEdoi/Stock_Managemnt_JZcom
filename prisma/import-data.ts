@@ -504,11 +504,11 @@ async function importRowsForBatch(
 
 async function main() {
   const admin = await prisma.user.findUnique({
-    where: { email: "oak@example.com" },
+    where: { email: "admin@example.com" },
   });
 
   if (!admin) {
-    throw new Error("Missing oak@example.com. Run npm run db:seed first.");
+    throw new Error("Missing admin@example.com. Run npm run db:seed first.");
   }
 
   const seenSerials = new Set<string>();

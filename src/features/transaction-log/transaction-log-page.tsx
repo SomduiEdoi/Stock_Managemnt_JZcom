@@ -9,6 +9,7 @@ import {
   Filter,
   Search,
 } from "lucide-react";
+import type { CurrentUser } from "@/lib/auth";
 import { requireCurrentUser } from "@/lib/auth";
 import {
   buildTransactionLogHref,
@@ -20,10 +21,11 @@ import {
   transactionLogTypeChoices,
 } from "@/lib/transaction-log";
 import { getRequestQueueForLog, type RequestCartAsset } from "@/lib/request-cart";
-import { transactionStatusLabels } from "@/lib/status-style";
+import { canViewDomainForUser } from "@/lib/permissions";
+import { assetStatusLabels } from "@/lib/status-style";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { InventoryDataUnavailable } from "@/components/inventory/inventory-data-unavailable";
-import { TransactionStatusBadge } from "@/components/status/transaction-status-badge";
+import { AssetStatusBadge } from "@/components/status/asset-status-badge";
 import { TransactionRowActions } from "@/features/transaction-log/transaction-row-actions";
 
 type TransactionLogPageProps = {
@@ -47,9 +49,9 @@ const scopeLabels = {
 } as const;
 
 const scopeDetails = {
-  ALL: "Visible transaction rows",
-  COMPLETED: "Finished requests",
-  IN_PROGRESS: "Open requests",
+  ALL: "Submitted plus request queue",
+  COMPLETED: "Submitted requests",
+  IN_PROGRESS: "Request queue",
 } as const;
 
 function formatNumber(value: number) {
@@ -199,7 +201,7 @@ function Controls({ filters }: { filters: TransactionLogFilters }) {
           <option value="ALL">All status</option>
           {transactionLogStatusChoices.map((status) => (
             <option key={status} value={status}>
-              {transactionStatusLabels[status]}
+              {assetStatusLabels[status]}
             </option>
           ))}
         </select>
@@ -342,7 +344,13 @@ function RequestQueueTable({
   );
 }
 
-function TransactionTable({ rows }: { rows: TransactionLogRow[] }) {
+function TransactionTable({
+  rows,
+  user,
+}: {
+  rows: TransactionLogRow[];
+  user: CurrentUser;
+}) {
   return (
     <section className="overflow-hidden rounded-md border border-border bg-white shadow-sm">
       <div className="overflow-x-auto">
@@ -352,7 +360,7 @@ function TransactionTable({ rows }: { rows: TransactionLogRow[] }) {
               <th className="px-5 py-4 font-bold">Transaction ID</th>
               <th className="px-5 py-4 font-bold">Asset</th>
               <th className="px-5 py-4 font-bold">Borrower</th>
-              <th className="px-5 py-4 font-bold">Borrow Date</th>
+              <th className="px-5 py-4 font-bold">Request Date</th>
               <th className="px-5 py-4 font-bold">Status</th>
               <th className="px-5 py-4 font-bold">Action</th>
             </tr>
@@ -373,16 +381,15 @@ function TransactionTable({ rows }: { rows: TransactionLogRow[] }) {
                   {formatDate(row.transaction.createdAt)}
                 </td>
                 <td className="px-5 py-4">
-                  <TransactionStatusBadge status={row.transaction.status} />
+                  <AssetStatusBadge status={row.resolvedStatus ?? row.toStatus} />
                 </td>
                 <td className="px-5 py-4">
                   <TransactionRowActions
                     canReturn={
                       row.transaction.type !== "SOLD" &&
-                      row.transaction.status !== "RETURNED" &&
-                      row.transaction.status !== "COMPLETED"
+                      !row.returnedAt &&
+                      canViewDomainForUser(user, row.asset.domain.code)
                     }
-                    itemId={row.id}
                     transactionId={row.transaction.id}
                   />
                 </td>
@@ -459,6 +466,7 @@ export function TransactionLogPage({
   totalPages,
   rows,
   metrics,
+  user,
 }: {
   filters: TransactionLogFilters;
   metrics: {
@@ -470,13 +478,16 @@ export function TransactionLogPage({
   rows: TransactionLogRow[];
   total: number;
   totalPages: number;
+  user: CurrentUser;
 }) {
   return (
     <div className="flex flex-col gap-6">
       <SummaryCards filters={filters} metrics={metrics} />
       <Controls filters={filters} />
-      <RequestQueueTable assets={requestQueueAssets} />
-      <TransactionTable rows={rows} />
+      {filters.scope !== "COMPLETED" ? (
+        <RequestQueueTable assets={requestQueueAssets} />
+      ) : null}
+      <TransactionTable rows={rows} user={user} />
       <Pagination filters={filters} page={filters.page} total={total} totalPages={totalPages} />
     </div>
   );
@@ -492,9 +503,10 @@ export default async function TransactionLogPageRoute({
   const filters = normalizeTransactionLogFilters(await searchParams);
   let result: Awaited<ReturnType<typeof getTransactionLogForUser>>;
   let requestQueueAssets: RequestCartAsset[] = [];
+  let user: CurrentUser | null = null;
 
   try {
-    const user = await requireCurrentUser("/logs");
+    user = await requireCurrentUser("/logs");
     const [logResult, queueResult] = await Promise.all([
       getTransactionLogForUser(user, filters),
       getRequestQueueForLog(),
@@ -518,6 +530,10 @@ export default async function TransactionLogPageRoute({
     return <NoLogAccess />;
   }
 
+  if (!user) {
+    return <NoLogAccess />;
+  }
+
   return (
     <TransactionLogPage
       filters={filters}
@@ -526,6 +542,7 @@ export default async function TransactionLogPageRoute({
       rows={result.rows}
       total={result.total}
       totalPages={result.totalPages}
+      user={user}
     />
   );
 }

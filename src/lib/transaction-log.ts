@@ -1,4 +1,4 @@
-import { AssetStatus, Prisma, TransactionStatus, TransactionType } from "@prisma/client";
+import { AssetStatus, Prisma, TransactionType } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
@@ -7,21 +7,25 @@ export type TransactionLogScope = (typeof transactionLogScopes)[number];
 
 export const transactionLogStatusOptions = [
   "ALL",
-  TransactionStatus.BORROWED,
-  TransactionStatus.RETURNED,
-  TransactionStatus.OVERDUE,
-  TransactionStatus.ACTIVE,
-  TransactionStatus.COMPLETED,
+  AssetStatus.BORROW,
+  AssetStatus.USING,
+  AssetStatus.SOLD,
+  AssetStatus.READY,
+  AssetStatus.FAIL,
+  AssetStatus.LOST,
+  AssetStatus.NEED_CHECK,
 ] as const;
-export type TransactionLogStatusFilter = TransactionStatus | "ALL";
+export type TransactionLogStatusFilter = AssetStatus | "ALL";
 
 export const transactionLogStatusChoices = [
-  TransactionStatus.BORROWED,
-  TransactionStatus.RETURNED,
-  TransactionStatus.OVERDUE,
-  TransactionStatus.ACTIVE,
-  TransactionStatus.COMPLETED,
-] as const satisfies readonly TransactionStatus[];
+  AssetStatus.BORROW,
+  AssetStatus.USING,
+  AssetStatus.SOLD,
+  AssetStatus.READY,
+  AssetStatus.FAIL,
+  AssetStatus.LOST,
+  AssetStatus.NEED_CHECK,
+] as const satisfies readonly AssetStatus[];
 
 export const transactionLogTypeOptions = [
   "ALL",
@@ -57,20 +61,10 @@ const defaultFilters: TransactionLogFilters = {
   type: "ALL",
 };
 
-const inProgressStatuses = [
-  TransactionStatus.ACTIVE,
-  TransactionStatus.BORROWED,
-  TransactionStatus.OVERDUE,
-] as const;
-
-const completedStatuses = [
-  TransactionStatus.RETURNED,
-  TransactionStatus.COMPLETED,
-] as const;
-
 const transactionLogSelect = Prisma.validator<Prisma.TransactionItemSelect>()({
   asset: {
     select: {
+      domain: { select: { code: true } },
       id: true,
       location: { select: { name: true } },
       locationText: true,
@@ -89,17 +83,20 @@ const transactionLogSelect = Prisma.validator<Prisma.TransactionItemSelect>()({
   },
   createdAt: true,
   id: true,
+  resolvedStatus: true,
+  resolutionNote: true,
+  returnedAt: true,
   transaction: {
     select: {
       createdAt: true,
       dueDate: true,
       id: true,
       requestedBy: { select: { email: true, name: true } },
-      status: true,
       transactionNo: true,
       type: true,
     },
   },
+  toStatus: true,
 });
 
 export type TransactionLogRow = Prisma.TransactionItemGetPayload<{
@@ -116,8 +113,8 @@ function parsePage(value: string | undefined) {
   return Number.isFinite(page) && page > 0 ? page : defaultFilters.page;
 }
 
-function isTransactionStatus(value: string | undefined): value is TransactionStatus {
-  return transactionLogStatusOptions.includes(value as TransactionStatus);
+function isTransactionStatus(value: string | undefined): value is AssetStatus {
+  return (transactionLogStatusOptions as readonly string[]).includes(value ?? "");
 }
 
 function isTransactionType(value: string | undefined): value is TransactionType {
@@ -174,20 +171,18 @@ function buildStatusWhere(
 ) {
   const clauses: Prisma.TransactionItemWhereInput[] = [];
 
-  if (filters.scope === "IN_PROGRESS") {
-    clauses.push({
-      transaction: { is: { status: { in: [...inProgressStatuses] } } },
-    });
-  }
-
-  if (filters.scope === "COMPLETED") {
-    clauses.push({
-      transaction: { is: { status: { in: [...completedStatuses] } } },
-    });
-  }
-
   if (filters.status !== "ALL") {
-    clauses.push({ transaction: { is: { status: filters.status } } });
+    clauses.push({
+      OR: [
+        { resolvedStatus: filters.status },
+        {
+          AND: [
+            { resolvedStatus: null },
+            { toStatus: filters.status },
+          ],
+        },
+      ],
+    });
   }
 
   if (filters.type !== "ALL") {
@@ -267,21 +262,15 @@ async function getTransactionLogMetrics() {
     status: AssetStatus.REQUEST,
   } satisfies Prisma.AssetWhereInput;
 
-  const [allRequests, inProgress, completed, requestCount] = await Promise.all([
-    db.transactionItem.count(),
-    db.transactionItem.count({
-      where: { transaction: { is: { status: { in: [...inProgressStatuses] } } } },
-    }),
-    db.transactionItem.count({
-      where: { transaction: { is: { status: { in: [...completedStatuses] } } } },
-    }),
+  const [submittedRequests, requestCount] = await Promise.all([
+    db.transaction.count(),
     db.asset.count({ where: requestWhere }),
   ]);
 
   return {
-    allRequests: allRequests + requestCount,
-    completed,
-    inProgress: inProgress + requestCount,
+    allRequests: submittedRequests + requestCount,
+    completed: submittedRequests,
+    inProgress: requestCount,
   };
 }
 
@@ -291,20 +280,23 @@ export async function getTransactionLogForUser(
 ) {
   const where = buildVisibleLogWhere(filters);
   const skip = (filters.page - 1) * filters.pageSize;
+  const shouldShowSubmittedRows = filters.scope !== "IN_PROGRESS";
   const [metrics, rows, total] = await Promise.all([
     getTransactionLogMetrics(),
-    db.transactionItem.findMany({
-      orderBy: [
-        { transaction: { createdAt: "desc" } },
-        { createdAt: "desc" },
-        { id: "desc" },
-      ],
-      select: transactionLogSelect,
-      skip,
-      take: filters.pageSize,
-      where,
-    }),
-    db.transactionItem.count({ where }),
+    shouldShowSubmittedRows
+      ? db.transactionItem.findMany({
+          orderBy: [
+            { transaction: { createdAt: "desc" } },
+            { createdAt: "desc" },
+            { id: "desc" },
+          ],
+          select: transactionLogSelect,
+          skip,
+          take: filters.pageSize,
+          where,
+        })
+      : Promise.resolve([]),
+    shouldShowSubmittedRows ? db.transactionItem.count({ where }) : Promise.resolve(0),
   ]);
 
   return {

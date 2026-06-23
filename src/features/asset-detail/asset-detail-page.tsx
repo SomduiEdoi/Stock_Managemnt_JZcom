@@ -16,7 +16,6 @@ import {
   UserRound,
 } from "lucide-react";
 import type { AssetDetailRecord } from "@/lib/asset-detail";
-import { transactionStatusLabels } from "@/lib/status-style";
 import { ExportPdfButton } from "@/features/asset-detail/export-pdf-button";
 import { AssetStatusBadge } from "@/components/status/asset-status-badge";
 
@@ -296,9 +295,7 @@ function HistoryRow({
   history: AssetDetailRecord["statusHistories"][number];
 }) {
   const transaction = history.transaction;
-  const transactionText = transaction
-    ? `${transaction.type} / ${transactionStatusLabels[transaction.status]}`
-    : "-";
+  const transactionText = transaction ? transaction.type : "-";
 
   return (
     <tr className="align-top">

@@ -80,6 +80,17 @@ export function isReturnableTransaction(type: TransactionType) {
   return type === TransactionType.BORROW || type === TransactionType.USING;
 }
 
+export const transactionItemResolutionStatuses = [
+  AssetStatus.READY,
+  AssetStatus.SOLD,
+] as const satisfies readonly AssetStatus[];
+
+export function isTransactionItemResolutionStatus(status: AssetStatus) {
+  return (transactionItemResolutionStatuses as readonly AssetStatus[]).includes(
+    status,
+  );
+}
+
 export function canReturnTransactionStatus(status: TransactionStatus) {
   return (
     [

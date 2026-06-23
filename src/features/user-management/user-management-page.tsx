@@ -40,8 +40,8 @@ type MetricCardProps = {
 
 const roleLabels = {
   ADMIN: "Admin",
-  NETWORK_OWNER: "Network Owner",
-  SERVER_OWNER: "Server Owner",
+  NETWORK_OWNER: "Network Stock Controller",
+  SERVER_OWNER: "Server Stock Controller",
   STAFF: "Staff",
 } as const;
 

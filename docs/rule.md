@@ -40,8 +40,8 @@
 ## Permission Rules
 
 - Admin can manage all domains and users.
-- Server Owner can manage Server assets and view Network assets read-only.
-- Network Owner can manage Network assets and view Server assets read-only.
+- Server Stock Controller can manage Server assets and view Network assets read-only.
+- Network Stock Controller can manage Network assets and view Server assets read-only.
 - Staff can view assets and create/submit requests, but cannot manage master data or manually override asset status.
 - UI permission checks are not enough; every mutating API must enforce role and domain permission.
 

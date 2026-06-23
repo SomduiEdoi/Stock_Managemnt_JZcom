@@ -3,22 +3,21 @@ import {
   AssetActionType,
   AssetStatus,
   Prisma,
-  TransactionStatus,
   TransactionType,
 } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
   assertCanChangeAssetStatus,
-  assertCanManageDomain,
   assertCanRequestDomain,
+  assertCanViewDomain,
 } from "@/lib/permissions";
 import {
-  canReturnTransactionStatus,
   canTransitionAssetStatus,
   getInitialTransactionStatus,
   getManualStatusAction,
   getTransactionAssetStatus,
+  isTransactionItemResolutionStatus,
   isReturnableTransaction,
 } from "@/lib/workflow-rules";
 
@@ -71,11 +70,24 @@ const transactionDetailSelect = Prisma.validator<Prisma.TransactionSelect>()({
       asset: {
         select: {
           id: true,
+          location: { select: { name: true } },
+          locationText: true,
           serialNo: true,
           status: true,
+          stockCode: true,
           domain: { select: { code: true } },
+          assetModel: {
+            select: {
+              brand: true,
+              category: { select: { name: true } },
+              name: true,
+              typeName: true,
+            },
+          },
         },
       },
+      resolvedStatus: true,
+      resolutionNote: true,
       returnedBy: { select: { email: true, id: true, name: true } },
     },
   },
@@ -107,10 +119,20 @@ export type SubmitTransactionInput = {
   type: TransactionType;
 };
 
+export type ResolveTransactionItemInput = {
+  itemId: string;
+  note?: string | null;
+  toStatus: AssetStatus;
+};
+
+export type ResolveTransactionInput = {
+  items: ResolveTransactionItemInput[];
+  transactionId: string;
+};
+
 export type ReturnTransactionInput = {
   itemIds?: string[];
   note?: string | null;
-  returnerName?: string | null;
   transactionId: string;
 };
 
@@ -366,33 +388,72 @@ async function findTransactionDetail(
   return transaction;
 }
 
-function assertCanReturnItems(user: CurrentUser, items: TransactionDetail["items"]) {
+export async function getTransactionResolutionForUser(
+  user: CurrentUser,
+  transactionId: string,
+) {
+  const transaction = await db.transaction.findUnique({
+    where: { id: transactionId },
+    select: transactionDetailSelect,
+  });
+
+  if (!transaction) {
+    throw new WorkflowError("Transaction not found.", 404);
+  }
+
+  if (!isReturnableTransaction(transaction.type)) {
+    throw new WorkflowError("This transaction type cannot be resolved.");
+  }
+
+  assertCanResolveItems(user, transaction.items);
+
+  return transaction;
+}
+
+function assertCanResolveItems(user: CurrentUser, items: TransactionDetail["items"]) {
   for (const item of items) {
-    assertCanManageDomain(user, item.asset.domain.code);
+    assertCanViewDomain(user, item.asset.domain.code);
   }
 }
 
-function getOpenReturnItems(
+function getOpenResolutionItems(
   transaction: TransactionDetail,
-  itemIds: string[] | undefined,
+  requestedItems: ResolveTransactionItemInput[],
 ) {
-  const requestedIds = itemIds ? new Set(itemIds) : null;
-  const items = requestedIds
-    ? transaction.items.filter((item) => requestedIds.has(item.id))
-    : transaction.items;
+  const requestedIds = new Set(requestedItems.map((item) => item.itemId));
+  const items = transaction.items.filter((item) => requestedIds.has(item.id));
 
-  if (requestedIds && items.length !== requestedIds.size) {
+  if (items.length !== requestedIds.size) {
     throw new WorkflowError("One or more transaction items were not found.", 404);
   }
 
   return items.filter((item) => !item.returnedAt);
 }
 
-async function returnItem(
+function buildResolutionMap(items: ResolveTransactionItemInput[]) {
+  const map = new Map<string, ResolveTransactionItemInput>();
+
+  for (const item of items) {
+    if (map.has(item.itemId)) {
+      throw new WorkflowError("Duplicate transaction item selected.");
+    }
+
+    if (!isTransactionItemResolutionStatus(item.toStatus)) {
+      throw new WorkflowError(`Cannot resolve item to ${item.toStatus}.`);
+    }
+
+    map.set(item.itemId, item);
+  }
+
+  return map;
+}
+
+async function resolveItem(
   tx: Prisma.TransactionClient,
   item: TransactionDetail["items"][number],
   user: CurrentUser,
   now: Date,
+  toStatus: AssetStatus,
   note: string | null,
 ) {
   const result = await tx.asset.updateMany({
@@ -400,7 +461,7 @@ async function returnItem(
     data: {
       requestLockedAt: null,
       requestLockedById: null,
-      status: AssetStatus.READY,
+      status: toStatus,
       updatedById: user.id,
     },
   });
@@ -415,11 +476,16 @@ async function returnItem(
 
   await tx.transactionItem.update({
     where: { id: item.id },
-    data: { note: note ?? item.note, returnedAt: now, returnedById: user.id },
+    data: {
+      resolutionNote: note,
+      resolvedStatus: toStatus,
+      returnedAt: now,
+      returnedById: user.id,
+    },
   });
 }
 
-async function refreshTransactionReturnStatus(
+async function refreshTransactionResolutionStatus(
   tx: Prisma.TransactionClient,
   transactionId: string,
   now: Date,
@@ -431,7 +497,7 @@ async function refreshTransactionReturnStatus(
   if (openItems === 0) {
     await tx.transaction.update({
       where: { id: transactionId },
-      data: { returnedAt: now, status: TransactionStatus.RETURNED },
+      data: { returnedAt: now },
     });
   }
 }
@@ -488,7 +554,7 @@ export async function submitTransaction(
       assertAssetsCanSubmit(user, assets);
       const transaction = await tx.transaction.create({
         data: {
-          completedAt: input.type === TransactionType.SOLD ? now : null,
+          completedAt: now,
           createdById: user.id,
           documentRef: cleanText(input.documentRef),
           dueDate: input.dueDate ?? null,
@@ -571,18 +637,19 @@ export async function releaseAssetsFromRequest(
   );
 }
 
-export async function returnTransactionItems(
+export async function resolveTransactionItems(
   user: CurrentUser,
-  input: ReturnTransactionInput,
+  input: ResolveTransactionInput,
 ) {
-  const itemIds = input.itemIds ? uniqueIds(input.itemIds) : undefined;
-  const note = cleanText(input.note);
-  const returnerName = cleanText(input.returnerName);
-  const returnNote = returnerName
-    ? [note ? `Returned by ${returnerName}` : `Returned by ${returnerName}`, note]
-        .filter(Boolean)
-        .join(" - ")
-    : note;
+  const itemIds = uniqueIds(input.items.map((item) => item.itemId));
+  assertHasIds(itemIds, "Transaction items");
+  const resolutionMap = buildResolutionMap(
+    input.items.map((item) => ({
+      itemId: item.itemId.trim(),
+      note: cleanText(item.note),
+      toStatus: item.toStatus,
+    })),
+  );
   const now = new Date();
 
   return db.$transaction(
@@ -593,40 +660,95 @@ export async function returnTransactionItems(
         throw new WorkflowError("This transaction type cannot be returned.");
       }
 
-      if (!canReturnTransactionStatus(transaction.status)) {
-        throw new WorkflowError("This transaction is not open for return.", 409);
-      }
-
-      const items = getOpenReturnItems(transaction, itemIds);
+      const items = getOpenResolutionItems(
+        transaction,
+        Array.from(resolutionMap.values()),
+      );
 
       if (items.length === 0) {
-        throw new WorkflowError("No open transaction items to return.", 409);
+        throw new WorkflowError("No open transaction items to resolve.", 409);
       }
 
-      assertCanReturnItems(user, items);
+      assertCanResolveItems(user, items);
 
       for (const item of items) {
-        await returnItem(tx, item, user, now, returnNote);
+        const resolution = resolutionMap.get(item.id);
+
+        if (!resolution) {
+          throw new WorkflowError("Missing resolution details.", 400);
+        }
+
+        await resolveItem(
+          tx,
+          item,
+          user,
+          now,
+          resolution.toStatus,
+          cleanText(resolution.note),
+        );
       }
 
       await tx.assetStatusHistory.createMany({
-        data: items.map((item) => ({
-          actionType: AssetActionType.RETURN,
-          assetId: item.assetId,
-          changedById: user.id,
-          fromStatus: item.toStatus,
-          note,
-          toStatus: AssetStatus.READY,
-          transactionId: transaction.id,
-        })),
+        data: items.map((item) => {
+          const resolution = resolutionMap.get(item.id);
+          const toStatus = resolution?.toStatus ?? AssetStatus.READY;
+
+          return {
+            actionType: getManualStatusAction(item.toStatus, toStatus),
+            assetId: item.assetId,
+            changedById: user.id,
+            fromStatus: item.toStatus,
+            note: cleanText(resolution?.note),
+            toStatus,
+            transactionId: transaction.id,
+          };
+        }),
       });
 
-      await refreshTransactionReturnStatus(tx, transaction.id, now);
+      await refreshTransactionResolutionStatus(tx, transaction.id, now);
 
       return findTransactionDetail(tx, transaction.id);
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
+}
+
+export async function returnTransactionItems(
+  user: CurrentUser,
+  input: ReturnTransactionInput,
+) {
+  const itemIds = input.itemIds ? uniqueIds(input.itemIds) : undefined;
+
+  if (!itemIds || itemIds.length === 0) {
+    const transaction = await db.transaction.findUnique({
+      where: { id: input.transactionId },
+      select: { items: { select: { id: true, returnedAt: true } } },
+    });
+
+    if (!transaction) {
+      throw new WorkflowError("Transaction not found.", 404);
+    }
+
+    return resolveTransactionItems(user, {
+      items: transaction.items
+        .filter((item) => !item.returnedAt)
+        .map((item) => ({
+          itemId: item.id,
+          note: input.note,
+          toStatus: AssetStatus.READY,
+        })),
+      transactionId: input.transactionId,
+    });
+  }
+
+  return resolveTransactionItems(user, {
+    items: itemIds.map((itemId) => ({
+      itemId,
+      note: input.note,
+      toStatus: AssetStatus.READY,
+    })),
+    transactionId: input.transactionId,
+  });
 }
 
 export async function changeAssetStatus(
@@ -695,12 +817,7 @@ export async function changeAssetStatus(
 }
 
 export async function markBorrowTransactionsOverdue(now = new Date()) {
-  return db.transaction.updateMany({
-    where: {
-      dueDate: { lt: now },
-      status: TransactionStatus.BORROWED,
-      type: TransactionType.BORROW,
-    },
-    data: { status: TransactionStatus.OVERDUE },
-  });
+  void now;
+
+  return { count: 0 };
 }
