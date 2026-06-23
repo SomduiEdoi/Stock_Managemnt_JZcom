@@ -777,10 +777,6 @@ export async function changeAssetStatus(
 
       assertCanChangeAssetStatus(user, asset.domain.code);
 
-      if (input.toStatus === AssetStatus.REQUEST) {
-        throw new WorkflowError("Use the request hold endpoint for REQUEST.");
-      }
-
       if (!canTransitionAssetStatus(asset.status, input.toStatus)) {
         throw new WorkflowError(
           `Cannot change ${asset.serialNo} from ${asset.status} to ${input.toStatus}.`,

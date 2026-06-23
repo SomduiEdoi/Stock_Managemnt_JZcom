@@ -60,6 +60,7 @@ function TruncatedCell({
 
 const manualStatusTransitions = {
   [AssetStatus.READY]: [
+    AssetStatus.REQUEST,
     AssetStatus.BORROW,
     AssetStatus.USING,
     AssetStatus.SOLD,
@@ -67,24 +68,9 @@ const manualStatusTransitions = {
     AssetStatus.LOST,
     AssetStatus.NEED_CHECK,
   ],
-  [AssetStatus.REQUEST]: [
-    AssetStatus.READY,
-    AssetStatus.BORROW,
-    AssetStatus.USING,
-    AssetStatus.SOLD,
-  ],
-  [AssetStatus.BORROW]: [
-    AssetStatus.READY,
-    AssetStatus.FAIL,
-    AssetStatus.LOST,
-    AssetStatus.NEED_CHECK,
-  ],
-  [AssetStatus.USING]: [
-    AssetStatus.READY,
-    AssetStatus.FAIL,
-    AssetStatus.LOST,
-    AssetStatus.NEED_CHECK,
-  ],
+  [AssetStatus.REQUEST]: [],
+  [AssetStatus.BORROW]: [],
+  [AssetStatus.USING]: [],
   [AssetStatus.SOLD]: [],
   [AssetStatus.FAIL]: [AssetStatus.READY, AssetStatus.NEED_CHECK],
   [AssetStatus.LOST]: [AssetStatus.READY, AssetStatus.NEED_CHECK],

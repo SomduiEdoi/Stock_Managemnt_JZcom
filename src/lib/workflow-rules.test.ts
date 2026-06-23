@@ -15,25 +15,47 @@ import {
 } from "./workflow-rules";
 
 describe("asset status transitions", () => {
-  it("allows ready assets to enter the request workflow", () => {
-    expect(
-      canTransitionAssetStatus(AssetStatus.READY, AssetStatus.REQUEST),
-    ).toBe(true);
+  const allStatuses = Object.values(AssetStatus);
+
+  function expectAllowedOnly(from: AssetStatus, allowed: AssetStatus[]) {
+    for (const to of allStatuses) {
+      expect(canTransitionAssetStatus(from, to), `${from} -> ${to}`).toBe(
+        allowed.includes(to),
+      );
+    }
+  }
+
+  it("allows ready assets to move to every other status", () => {
+    expectAllowedOnly(
+      AssetStatus.READY,
+      allStatuses.filter((status) => status !== AssetStatus.READY),
+    );
   });
 
-  it("keeps sold assets terminal", () => {
-    expect(canTransitionAssetStatus(AssetStatus.SOLD, AssetStatus.READY)).toBe(
-      false,
-    );
+  it("keeps request, borrow, using, and sold assets locked from manual changes", () => {
+    expectAllowedOnly(AssetStatus.REQUEST, []);
+    expectAllowedOnly(AssetStatus.BORROW, []);
+    expectAllowedOnly(AssetStatus.USING, []);
+    expectAllowedOnly(AssetStatus.SOLD, []);
   });
 
-  it("allows borrowed and using assets to return to ready", () => {
-    expect(canTransitionAssetStatus(AssetStatus.BORROW, AssetStatus.READY)).toBe(
-      true,
-    );
-    expect(canTransitionAssetStatus(AssetStatus.USING, AssetStatus.READY)).toBe(
-      true,
-    );
+  it("allows need check assets to become ready, fail, or lost", () => {
+    expectAllowedOnly(AssetStatus.NEED_CHECK, [
+      AssetStatus.READY,
+      AssetStatus.FAIL,
+      AssetStatus.LOST,
+    ]);
+  });
+
+  it("allows fail and lost assets to become ready or need check", () => {
+    expectAllowedOnly(AssetStatus.FAIL, [
+      AssetStatus.READY,
+      AssetStatus.NEED_CHECK,
+    ]);
+    expectAllowedOnly(AssetStatus.LOST, [
+      AssetStatus.READY,
+      AssetStatus.NEED_CHECK,
+    ]);
   });
 });
 
