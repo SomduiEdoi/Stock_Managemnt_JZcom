@@ -25,6 +25,7 @@ export type PrintableTransaction = {
   note?: string | null;
   projectRequest?: boolean;
   purpose?: string | null;
+  requestDate?: Date | string | null;
   requestedBy?: { email?: string | null; name?: string | null } | null;
   returnedAt?: Date | string | null;
   serviceRequest?: boolean;
@@ -89,7 +90,7 @@ function cell(value: string | number | null | undefined, className = "") {
 function flag(checked: boolean | undefined, label: string) {
   return `
     <span class="flag">
-      <span class="checkbox">${checked ? "✓" : ""}</span>
+      <span class="checkbox">${checked ? "&#10003;" : ""}</span>
       <span>${escapeHtml(label)}</span>
     </span>
   `;
@@ -105,6 +106,26 @@ function requestFlags(transaction: PrintableTransaction) {
 
 function emptyRow(columns: number) {
   return `<tr>${Array.from({ length: columns }, () => "<td>&nbsp;</td>").join("")}</tr>`;
+}
+
+function chunkItems<T>(items: T[], size: number) {
+  const chunks: T[][] = [];
+
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+
+  return chunks.length > 0 ? chunks : [[]];
+}
+
+function pageTransaction(
+  transaction: PrintableTransaction,
+  items: PrintableTransaction["items"],
+) {
+  return {
+    ...transaction,
+    items,
+  };
 }
 
 function filledRows(
@@ -144,7 +165,7 @@ function borrowRows(transaction: PrintableTransaction) {
 
 function soldRows(transaction: PrintableTransaction) {
   const price = formatMoney(transaction.soldPrice);
-  const soldDate = formatFormDate(transaction.completedAt ?? transaction.createdAt);
+  const soldDate = formatFormDate(transaction.requestDate ?? transaction.createdAt);
   const total = price && transaction.items?.length
     ? formatMoney(Number(price.replaceAll(",", "")) * transaction.items.length)
     : "";
@@ -198,12 +219,12 @@ function borrowTable(transaction: PrintableTransaction, isSold: boolean) {
     <table class="borrow-table form-table">
       <colgroup>
         <col style="width: 18pt" />
-        <col style="width: 50pt" />
-        <col style="width: 64pt" />
-        <col style="width: 205pt" />
-        <col style="width: 100pt" />
         <col style="width: 44pt" />
-        <col style="width: 106pt" />
+        <col style="width: 58pt" />
+        <col style="width: 182pt" />
+        <col style="width: 88pt" />
+        <col style="width: 38pt" />
+        <col style="width: 92pt" />
       </colgroup>
       <thead>
         <tr>
@@ -232,14 +253,14 @@ function soldTable(transaction: PrintableTransaction, isSold: boolean) {
       <colgroup>
         <col style="width: 18pt" />
         <col style="width: 64pt" />
-        <col style="width: 190pt" />
-        <col style="width: 86pt" />
-        <col style="width: 32pt" />
-        <col style="width: 46pt" />
-        <col style="width: 44pt" />
-        <col style="width: 54pt" />
-        <col style="width: 54pt" />
-        <col style="width: 45pt" />
+        <col style="width: 159pt" />
+        <col style="width: 80pt" />
+        <col style="width: 28pt" />
+        <col style="width: 34pt" />
+        <col style="width: 37pt" />
+        <col style="width: 39pt" />
+        <col style="width: 39pt" />
+        <col style="width: 22pt" />
       </colgroup>
       <thead>
         <tr>
@@ -287,6 +308,10 @@ function documentStyles() {
         height: 842pt;
         overflow: hidden;
         background: #fff;
+        page-break-after: always;
+      }
+      .page:last-child {
+        page-break-after: auto;
       }
       .logo {
         position: absolute;
@@ -403,7 +428,7 @@ function documentStyles() {
       th,
       td {
         height: 17pt;
-        border: 0.75pt solid #a6b0bb;
+        border: 0.75pt solid #000;
         padding: 1pt 3pt;
         vertical-align: middle;
       }
@@ -477,6 +502,17 @@ function documentStyles() {
 function buildDocument(transaction: PrintableTransaction) {
   const isSold = transaction.type === "SOLD";
   const referenceNo = transaction.transactionNo ?? transaction.id ?? "-";
+  const itemChunks = chunkItems(transaction.items ?? [], isSold ? 8 : 10);
+  const pages = itemChunks
+    .map((items, pageIndex) =>
+      buildPage(pageTransaction(transaction, items), {
+        isSold,
+        pageIndex,
+        pageTotal: itemChunks.length,
+        referenceNo,
+      }),
+    )
+    .join("");
 
   return `<!doctype html>
     <html lang="th">
@@ -486,36 +522,93 @@ function buildDocument(transaction: PrintableTransaction) {
         ${documentStyles()}
       </head>
       <body>
-        <main class="page">
-          <div class="logo">JZ</div>
-          <div class="company-en">JZ Computer and Consultant Ltd., Part.</div>
-          <div class="company-th">หจก. เจซี คอมพิวเตอร์ แอนด์ คอนซัลแทนส์</div>
-          <div class="form-title">ใบเบิก-ยืม-คืนอุปกรณ์</div>
-
-          ${metaBox("customer", "Customer Name", transaction.purpose)}
-          ${metaBox("req-no", "Requisition No.", referenceNo)}
-          ${metaBox("description", "Description", transaction.note)}
-          <div class="meta-box flags">${requestFlags(transaction)}</div>
-
-          ${borrowTable(transaction, isSold)}
-          <div class="sig-a">${signature("Requisition by :", "(____________________)")}</div>
-          <div class="sig-b">${signature("Requisition by :", "Lead of Project/Job")}</div>
-          <div class="sig-c">${signature("Inspector by :", "(Stock control)")}</div>
-          <div class="sig-d">${signature("Inspector by :", "(BSD)")}</div>
-
-          ${soldTable(transaction, isSold)}
-          <div class="sig-e">${signature("Requisition by :", "(____________________)")}</div>
-          <div class="sig-f">${signature("Requisition by :", "Lead of Project/Job")}</div>
-          <div class="sig-g">${signature("Inspector by :", "(Stock control)")}</div>
-          <div class="sig-h">${signature("Inspector by :", "(BSD)")}</div>
-          <div class="footer-code">FM-5300(2)-R.5</div>
-        </main>
+        ${pages}
       </body>
     </html>`;
 }
 
-export function printTransaction(transaction: PrintableTransaction) {
+function pageSuffix(pageIndex: number, pageTotal: number) {
+  return pageTotal > 1 ? ` (${pageIndex + 1}/${pageTotal})` : "";
+}
+
+function buildPage(
+  transaction: PrintableTransaction,
+  options: {
+    isSold: boolean;
+    pageIndex: number;
+    pageTotal: number;
+    referenceNo: string;
+  },
+) {
+  const referenceNo = `${options.referenceNo}${pageSuffix(
+    options.pageIndex,
+    options.pageTotal,
+  )}`;
+
+  return `
+    <main class="page">
+      <div class="logo">JZ</div>
+      <div class="company-en">JZ Computer and Consultant Ltd., Part.</div>
+      <div class="company-th">หจก. เจซี คอมพิวเตอร์ แอนด์ คอนซัลแทนส์</div>
+      <div class="form-title">ใบเบิก-ยืม-คืนอุปกรณ์</div>
+
+      ${metaBox("customer", "Customer Name", transaction.purpose)}
+      ${metaBox("req-no", "Requisition No.", referenceNo)}
+      ${metaBox("description", "Description", transaction.note)}
+      <div class="meta-box flags">${requestFlags(transaction)}</div>
+
+      ${borrowTable(transaction, options.isSold)}
+      <div class="sig-a">${signature("Requisition by :", "(____________________)")}</div>
+      <div class="sig-b">${signature("Requisition by :", "Lead of Project/Job")}</div>
+      <div class="sig-c">${signature("Inspector by :", "(Stock control)")}</div>
+      <div class="sig-d">${signature("Inspector by :", "(BSD)")}</div>
+
+      ${soldTable(transaction, options.isSold)}
+      <div class="sig-e">${signature("Requisition by :", "(____________________)")}</div>
+      <div class="sig-f">${signature("Requisition by :", "Lead of Project/Job")}</div>
+      <div class="sig-g">${signature("Inspector by :", "(Stock control)")}</div>
+      <div class="sig-h">${signature("Inspector by :", "(BSD)")}</div>
+      <div class="footer-code">FM-5300(2)-R.5</div>
+    </main>
+  `;
+}
+export function openTransactionPrintWindow() {
   const popup = window.open("", "_blank", "height=900,width=1100");
+
+  if (popup) {
+    popup.document.open();
+    popup.document.write(`<!doctype html>
+      <html>
+        <head>
+          <title>Preparing PDF</title>
+          <style>
+            body {
+              align-items: center;
+              background: #efeeea;
+              color: #273f4f;
+              display: flex;
+              font-family: Calibri, Arial, sans-serif;
+              font-size: 16px;
+              font-weight: 700;
+              height: 100vh;
+              justify-content: center;
+              margin: 0;
+            }
+          </style>
+        </head>
+        <body>Preparing PDF form...</body>
+      </html>`);
+    popup.document.close();
+  }
+
+  return popup;
+}
+
+export function printTransaction(
+  transaction: PrintableTransaction,
+  targetWindow?: Window | null,
+) {
+  const popup = targetWindow ?? openTransactionPrintWindow();
 
   if (!popup) {
     window.print();

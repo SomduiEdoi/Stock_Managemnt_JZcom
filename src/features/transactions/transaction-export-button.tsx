@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { FileDown, Loader2 } from "lucide-react";
 import {
+  openTransactionPrintWindow,
   printTransaction,
   type PrintableTransaction,
 } from "@/features/transactions/transaction-print";
@@ -17,6 +18,7 @@ export function TransactionExportButton({
   const [isLoading, setIsLoading] = useState(false);
 
   async function handleExport() {
+    const popup = openTransactionPrintWindow();
     setIsLoading(true);
 
     try {
@@ -30,7 +32,7 @@ export function TransactionExportButton({
         throw new Error(data.message ?? "Unable to export transaction.");
       }
 
-      printTransaction(data.transaction);
+      printTransaction(data.transaction, popup);
     } finally {
       setIsLoading(false);
     }

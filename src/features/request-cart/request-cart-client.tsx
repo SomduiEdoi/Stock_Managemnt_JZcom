@@ -43,6 +43,10 @@ type RequestCartClientProps = {
   initialAssets: RequestCartAssetClient[];
 };
 
+function todayInputValue() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function formatDomain(domainCode: string) {
   return domainCode.charAt(0) + domainCode.slice(1).toLowerCase();
 }
@@ -221,12 +225,14 @@ function TransactionForm({
   onNoteChange,
   onProjectRequestChange,
   onReferenceChange,
+  onRequestDateChange,
   onServiceRequestChange,
   onSoldPriceChange,
   onSubmit,
   onTypeChange,
   projectRequest,
   referenceName,
+  requestDate,
   serviceRequest,
   soldPrice,
   type,
@@ -242,12 +248,14 @@ function TransactionForm({
   onNoteChange: (value: string) => void;
   onProjectRequestChange: (checked: boolean) => void;
   onReferenceChange: (value: string) => void;
+  onRequestDateChange: (value: string) => void;
   onServiceRequestChange: (checked: boolean) => void;
   onSoldPriceChange: (value: string) => void;
   onSubmit: () => void;
   onTypeChange: (value: TransactionTypeCode) => void;
   projectRequest: boolean;
   referenceName: string;
+  requestDate: string;
   serviceRequest: boolean;
   soldPrice: string;
   type: TransactionTypeCode;
@@ -263,6 +271,15 @@ function TransactionForm({
           <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
             Transaction Type
             <TransactionTypeSelect onChange={onTypeChange} value={type} />
+          </label>
+          <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+            Request Date
+            <input
+              className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold normal-case tracking-normal text-ink outline-none ring-brand-accent/20 focus:ring-4"
+              onChange={(event) => onRequestDateChange(event.target.value)}
+              type="date"
+              value={requestDate}
+            />
           </label>
           <div className="grid gap-2 sm:grid-cols-3">
             {[
@@ -468,6 +485,7 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
   const [projectRequest, setProjectRequest] = useState(false);
   const [referenceName, setReferenceName] = useState("");
   const [removingAssetId, setRemovingAssetId] = useState<string | null>(null);
+  const [requestDate, setRequestDate] = useState(todayInputValue());
   const [serviceRequest, setServiceRequest] = useState(false);
   const [soldPrice, setSoldPrice] = useState("");
   const [submitted, setSubmitted] = useState<PrintableTransaction | null>(null);
@@ -482,6 +500,33 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
     }
 
     setSoldPrice("");
+  }
+
+  function handleInternalRequestChange(checked: boolean) {
+    setInternalRequest(checked);
+
+    if (checked) {
+      setServiceRequest(false);
+      setProjectRequest(false);
+    }
+  }
+
+  function handleServiceRequestChange(checked: boolean) {
+    setServiceRequest(checked);
+
+    if (checked) {
+      setInternalRequest(false);
+      setProjectRequest(false);
+    }
+  }
+
+  function handleProjectRequestChange(checked: boolean) {
+    setProjectRequest(checked);
+
+    if (checked) {
+      setInternalRequest(false);
+      setServiceRequest(false);
+    }
   }
 
   async function releaseAssets(assetIds: string[]) {
@@ -525,24 +570,38 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
   }
 
   function validateSubmit() {
+    const missingFields: string[] = [];
+
     if (assets.length === 0) {
-      return "Add at least one asset to submit a request.";
+      missingFields.push("Request list");
     }
 
     if (!referenceName.trim()) {
-      return `${getReferenceLabel(type)} is required.`;
+      missingFields.push(getReferenceLabel(type));
     }
 
     if (!note.trim()) {
-      return "Use detail is required.";
+      missingFields.push("Use Detail");
+    }
+
+    if (!requestDate) {
+      missingFields.push("Request Date");
+    }
+
+    if (!internalRequest && !serviceRequest && !projectRequest) {
+      missingFields.push("Internal / Service / Project");
     }
 
     if ((type === "BORROW" || type === "USING") && !dueDate) {
-      return "Expected return date is required.";
+      missingFields.push("Expected Return Date");
     }
 
     if (type === "SOLD" && !soldPrice.trim()) {
-      return "Price is required for sold requests.";
+      missingFields.push("Price");
+    }
+
+    if (missingFields.length > 0) {
+      return `Please complete: ${missingFields.join(", ")}.`;
     }
 
     return null;
@@ -578,6 +637,7 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
           note,
           projectRequest,
           purpose: referenceName,
+          requestDate,
           serviceRequest,
           soldPrice: type === "SOLD" ? soldPrice : null,
           type,
@@ -614,16 +674,18 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
           isSubmitting={isSubmitting}
           note={note}
           onDueDateChange={setDueDate}
-          onInternalRequestChange={setInternalRequest}
+          onInternalRequestChange={handleInternalRequestChange}
           onNoteChange={setNote}
-          onProjectRequestChange={setProjectRequest}
+          onProjectRequestChange={handleProjectRequestChange}
           onReferenceChange={setReferenceName}
-          onServiceRequestChange={setServiceRequest}
+          onRequestDateChange={setRequestDate}
+          onServiceRequestChange={handleServiceRequestChange}
           onSoldPriceChange={setSoldPrice}
           onSubmit={handleSubmit}
           onTypeChange={handleTypeChange}
           projectRequest={projectRequest}
           referenceName={referenceName}
+          requestDate={requestDate}
           serviceRequest={serviceRequest}
           soldPrice={soldPrice}
           type={type}

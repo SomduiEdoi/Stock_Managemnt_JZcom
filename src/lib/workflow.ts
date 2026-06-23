@@ -50,6 +50,7 @@ const transactionDetailSelect = Prisma.validator<Prisma.TransactionSelect>()({
   note: true,
   projectRequest: true,
   purpose: true,
+  requestDate: true,
   returnedAt: true,
   serviceRequest: true,
   soldPrice: true,
@@ -114,6 +115,7 @@ export type SubmitTransactionInput = {
   note?: string | null;
   projectRequest?: boolean;
   purpose: string;
+  requestDate: Date;
   serviceRequest?: boolean;
   soldPrice?: string | null;
   type: TransactionType;
@@ -296,6 +298,10 @@ function assertAssetsCanRelease(user: CurrentUser, assets: WorkflowAsset[]) {
 function assertTransactionInput(input: SubmitTransactionInput) {
   const purpose = requireText(input.purpose, "Purpose");
   const soldPrice = cleanText(input.soldPrice);
+
+  if (Number.isNaN(input.requestDate.getTime())) {
+    throw new WorkflowError("Request date is required.");
+  }
 
   if (
     (input.type === TransactionType.BORROW || input.type === TransactionType.USING) &&
@@ -562,6 +568,7 @@ export async function submitTransaction(
           note,
           projectRequest: input.projectRequest ?? false,
           purpose,
+          requestDate: input.requestDate,
           requestedById: user.id,
           serviceRequest: input.serviceRequest ?? false,
           soldPrice: soldPrice ? new Prisma.Decimal(soldPrice) : null,

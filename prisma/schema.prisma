@@ -279,6 +279,7 @@ model Transaction {
   purpose         String
   note            String?
   documentRef     String?              @map("document_ref")
+  requestDate     DateTime             @default(now()) @map("request_date")
   dueDate         DateTime?            @map("due_date")
   internalRequest Boolean              @default(false) @map("internal_request")
   serviceRequest  Boolean              @default(false) @map("service_request")
@@ -299,6 +300,7 @@ model Transaction {
   @@index([status])
   @@index([requestedById])
   @@index([createdById])
+  @@index([requestDate])
   @@index([dueDate])
   @@map("transactions")
 }

@@ -61,45 +61,48 @@ const defaultFilters: TransactionLogFilters = {
   type: "ALL",
 };
 
-const transactionLogSelect = Prisma.validator<Prisma.TransactionItemSelect>()({
-  asset: {
+const transactionLogSelect = Prisma.validator<Prisma.TransactionSelect>()({
+  createdAt: true,
+  dueDate: true,
+  id: true,
+  requestDate: true,
+  returnedAt: true,
+  requestedBy: { select: { email: true, name: true } },
+  status: true,
+  transactionNo: true,
+  type: true,
+  items: {
+    orderBy: { createdAt: "asc" },
     select: {
-      domain: { select: { code: true } },
       id: true,
-      location: { select: { name: true } },
-      locationText: true,
-      serialNo: true,
-      status: true,
-      stockCode: true,
-      assetModel: {
+      resolvedStatus: true,
+      returnedAt: true,
+      toStatus: true,
+      returnedBy: { select: { email: true, name: true } },
+      asset: {
         select: {
-          brand: true,
-          category: { select: { name: true } },
-          name: true,
-          typeName: true,
+          domain: { select: { code: true } },
+          id: true,
+          location: { select: { name: true } },
+          locationText: true,
+          serialNo: true,
+          status: true,
+          stockCode: true,
+          assetModel: {
+            select: {
+              brand: true,
+              category: { select: { name: true } },
+              name: true,
+              typeName: true,
+            },
+          },
         },
       },
     },
   },
-  createdAt: true,
-  id: true,
-  resolvedStatus: true,
-  resolutionNote: true,
-  returnedAt: true,
-  transaction: {
-    select: {
-      createdAt: true,
-      dueDate: true,
-      id: true,
-      requestedBy: { select: { email: true, name: true } },
-      transactionNo: true,
-      type: true,
-    },
-  },
-  toStatus: true,
 });
 
-export type TransactionLogRow = Prisma.TransactionItemGetPayload<{
+export type TransactionLogRow = Prisma.TransactionGetPayload<{
   select: typeof transactionLogSelect;
 }>;
 
@@ -132,7 +135,7 @@ function containsText(search: string) {
   };
 }
 
-function buildSearchWhere(search: string): Prisma.TransactionItemWhereInput | undefined {
+function buildSearchWhere(search: string): Prisma.TransactionWhereInput | undefined {
   if (!search) {
     return undefined;
   }
@@ -141,23 +144,27 @@ function buildSearchWhere(search: string): Prisma.TransactionItemWhereInput | un
 
   return {
     OR: [
-      { transaction: { is: { transactionNo: contains } } },
-      { transaction: { is: { purpose: contains } } },
-      { transaction: { is: { documentRef: contains } } },
-      { transaction: { is: { requestedBy: { is: { email: contains } } } } },
-      { transaction: { is: { requestedBy: { is: { name: contains } } } } },
-      { asset: { is: { serialNo: contains } } },
-      { asset: { is: { stockCode: contains } } },
-      { asset: { is: { locationText: contains } } },
-      { asset: { is: { location: { is: { name: contains } } } } },
-      { asset: { is: { assetModel: { is: { brand: contains } } } } },
-      { asset: { is: { assetModel: { is: { name: contains } } } } },
-      { asset: { is: { assetModel: { is: { typeName: contains } } } } },
+      { transactionNo: contains },
+      { purpose: contains },
+      { documentRef: contains },
+      { requestedBy: { is: { email: contains } } },
+      { requestedBy: { is: { name: contains } } },
+      { items: { some: { asset: { is: { serialNo: contains } } } } },
+      { items: { some: { asset: { is: { stockCode: contains } } } } },
+      { items: { some: { asset: { is: { locationText: contains } } } } },
+      { items: { some: { asset: { is: { location: { is: { name: contains } } } } } } },
+      { items: { some: { asset: { is: { assetModel: { is: { brand: contains } } } } } } },
+      { items: { some: { asset: { is: { assetModel: { is: { name: contains } } } } } } },
+      { items: { some: { asset: { is: { assetModel: { is: { typeName: contains } } } } } } },
       {
-        asset: {
-          is: {
-            assetModel: {
-              is: { category: { is: { name: contains } } },
+        items: {
+          some: {
+            asset: {
+              is: {
+                assetModel: {
+                  is: { category: { is: { name: contains } } },
+                },
+              },
             },
           },
         },
@@ -169,24 +176,28 @@ function buildSearchWhere(search: string): Prisma.TransactionItemWhereInput | un
 function buildStatusWhere(
   filters: Pick<TransactionLogFilters, "scope" | "status" | "type">,
 ) {
-  const clauses: Prisma.TransactionItemWhereInput[] = [];
+  const clauses: Prisma.TransactionWhereInput[] = [];
 
   if (filters.status !== "ALL") {
     clauses.push({
-      OR: [
-        { resolvedStatus: filters.status },
-        {
-          AND: [
-            { resolvedStatus: null },
-            { toStatus: filters.status },
+      items: {
+        some: {
+          OR: [
+            { resolvedStatus: filters.status },
+            {
+              AND: [
+                { resolvedStatus: null },
+                { toStatus: filters.status },
+              ],
+            },
           ],
         },
-      ],
+      },
     });
   }
 
   if (filters.type !== "ALL") {
-    clauses.push({ transaction: { is: { type: filters.type } } });
+    clauses.push({ type: filters.type });
   }
 
   return clauses;
@@ -284,9 +295,8 @@ export async function getTransactionLogForUser(
   const [metrics, rows, total] = await Promise.all([
     getTransactionLogMetrics(),
     shouldShowSubmittedRows
-      ? db.transactionItem.findMany({
+      ? db.transaction.findMany({
           orderBy: [
-            { transaction: { createdAt: "desc" } },
             { createdAt: "desc" },
             { id: "desc" },
           ],
@@ -296,7 +306,7 @@ export async function getTransactionLogForUser(
           where,
         })
       : Promise.resolve([]),
-    shouldShowSubmittedRows ? db.transactionItem.count({ where }) : Promise.resolve(0),
+    shouldShowSubmittedRows ? db.transaction.count({ where }) : Promise.resolve(0),
   ]);
 
   return {

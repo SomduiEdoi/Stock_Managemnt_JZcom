@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -21,11 +21,10 @@ import {
   transactionLogTypeChoices,
 } from "@/lib/transaction-log";
 import { getRequestQueueForLog, type RequestCartAsset } from "@/lib/request-cart";
-import { canViewDomainForUser } from "@/lib/permissions";
 import { assetStatusLabels } from "@/lib/status-style";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { InventoryDataUnavailable } from "@/components/inventory/inventory-data-unavailable";
-import { AssetStatusBadge } from "@/components/status/asset-status-badge";
+import { TransactionStatusBadge } from "@/components/status/transaction-status-badge";
 import { TransactionRowActions } from "@/features/transaction-log/transaction-row-actions";
 
 type TransactionLogPageProps = {
@@ -231,23 +230,8 @@ function Controls({ filters }: { filters: TransactionLogFilters }) {
   );
 }
 
-function AssetCell({ row }: { row: TransactionLogRow }) {
-  const asset = row.asset;
-
-  return (
-    <Link className="group block hover:text-brand-accent" href={`/dashboard/assets/${asset.id}`}>
-      <p className="font-bold text-navy transition group-hover:text-brand-accent">
-        {asset.assetModel.name}
-      </p>
-      <p className="mt-1 text-xs font-medium text-muted-foreground">
-        {asset.assetModel.brand ?? "-"} / {asset.serialNo}
-      </p>
-    </Link>
-  );
-}
-
 function BorrowerCell({ row }: { row: TransactionLogRow }) {
-  const borrower = row.transaction.requestedBy;
+  const borrower = row.requestedBy;
 
   return (
     <div className="flex items-center gap-3">
@@ -261,6 +245,48 @@ function BorrowerCell({ row }: { row: TransactionLogRow }) {
         </p>
       </div>
     </div>
+  );
+}
+
+function ReturnerCell({ row }: { row: TransactionLogRow }) {
+  const names = Array.from(
+    new Set(
+      row.items
+        .map((item) => personName(item.returnedBy))
+        .filter((name) => name !== "-"),
+    ),
+  );
+
+  if (names.length === 0) {
+    return <span className="font-medium text-muted-foreground">-</span>;
+  }
+
+  return (
+    <div>
+      <p className="font-semibold text-ink">{names.slice(0, 2).join(", ")}</p>
+      {names.length > 2 ? (
+        <p className="mt-1 text-xs font-medium text-muted-foreground">
+          +{names.length - 2} more
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function TransactionLink({
+  children,
+  transactionId,
+}: {
+  children: ReactNode;
+  transactionId: string;
+}) {
+  return (
+    <Link
+      className="block rounded-sm focus:outline-none focus:ring-4 focus:ring-brand-accent/20"
+      href={`/logs/${transactionId}/return`}
+    >
+      {children}
+    </Link>
   );
 }
 
@@ -346,10 +372,8 @@ function RequestQueueTable({
 
 function TransactionTable({
   rows,
-  user,
 }: {
   rows: TransactionLogRow[];
-  user: CurrentUser;
 }) {
   return (
     <section className="overflow-hidden rounded-md border border-border bg-white shadow-sm">
@@ -358,8 +382,8 @@ function TransactionTable({
           <thead className="bg-surface text-xs uppercase text-muted-foreground">
             <tr>
               <th className="px-5 py-4 font-bold">Transaction ID</th>
-              <th className="px-5 py-4 font-bold">Asset</th>
               <th className="px-5 py-4 font-bold">Borrower</th>
+              <th className="px-5 py-4 font-bold">Returner</th>
               <th className="px-5 py-4 font-bold">Request Date</th>
               <th className="px-5 py-4 font-bold">Status</th>
               <th className="px-5 py-4 font-bold">Action</th>
@@ -367,31 +391,37 @@ function TransactionTable({
           </thead>
           <tbody className="divide-y divide-border">
             {rows.map((row) => (
-              <tr className="align-middle" key={row.id}>
+              <tr className="align-middle transition hover:bg-surface/60" key={row.id}>
                 <td className="px-5 py-4 font-bold text-navy">
-                  {row.transaction.transactionNo ?? row.transaction.id}
+                  <TransactionLink transactionId={row.id}>
+                    {row.transactionNo ?? row.id}
+                    <p className="mt-1 text-xs font-medium text-muted-foreground">
+                      {row.items.length.toLocaleString("en-US")} items
+                    </p>
+                  </TransactionLink>
                 </td>
                 <td className="px-5 py-4">
-                  <AssetCell row={row} />
+                  <TransactionLink transactionId={row.id}>
+                    <BorrowerCell row={row} />
+                  </TransactionLink>
                 </td>
                 <td className="px-5 py-4">
-                  <BorrowerCell row={row} />
+                  <TransactionLink transactionId={row.id}>
+                    <ReturnerCell row={row} />
+                  </TransactionLink>
                 </td>
                 <td className="px-5 py-4 font-medium text-ink">
-                  {formatDate(row.transaction.createdAt)}
+                  <TransactionLink transactionId={row.id}>
+                    {formatDate(row.requestDate)}
+                  </TransactionLink>
                 </td>
                 <td className="px-5 py-4">
-                  <AssetStatusBadge status={row.resolvedStatus ?? row.toStatus} />
+                  <TransactionLink transactionId={row.id}>
+                    <TransactionStatusBadge status={row.status} />
+                  </TransactionLink>
                 </td>
                 <td className="px-5 py-4">
-                  <TransactionRowActions
-                    canReturn={
-                      row.transaction.type !== "SOLD" &&
-                      !row.returnedAt &&
-                      canViewDomainForUser(user, row.asset.domain.code)
-                    }
-                    transactionId={row.transaction.id}
-                  />
+                  <TransactionRowActions transactionId={row.id} />
                 </td>
               </tr>
             ))}
@@ -466,7 +496,6 @@ export function TransactionLogPage({
   totalPages,
   rows,
   metrics,
-  user,
 }: {
   filters: TransactionLogFilters;
   metrics: {
@@ -478,7 +507,6 @@ export function TransactionLogPage({
   rows: TransactionLogRow[];
   total: number;
   totalPages: number;
-  user: CurrentUser;
 }) {
   return (
     <div className="flex flex-col gap-6">
@@ -487,7 +515,7 @@ export function TransactionLogPage({
       {filters.scope !== "COMPLETED" ? (
         <RequestQueueTable assets={requestQueueAssets} />
       ) : null}
-      <TransactionTable rows={rows} user={user} />
+      <TransactionTable rows={rows} />
       <Pagination filters={filters} page={filters.page} total={total} totalPages={totalPages} />
     </div>
   );
@@ -542,7 +570,6 @@ export default async function TransactionLogPageRoute({
       rows={result.rows}
       total={result.total}
       totalPages={result.totalPages}
-      user={user}
     />
   );
 }

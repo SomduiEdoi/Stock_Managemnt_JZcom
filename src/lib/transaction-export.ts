@@ -12,6 +12,7 @@ const transactionExportSelect = Prisma.validator<Prisma.TransactionSelect>()({
   note: true,
   projectRequest: true,
   purpose: true,
+  requestDate: true,
   requestedBy: { select: { email: true, name: true } },
   returnedAt: true,
   serviceRequest: true,
