@@ -11,7 +11,6 @@ import {
   FileDown,
   Loader2,
   Package,
-  ShieldCheck,
   Trash2,
   X,
 } from "lucide-react";
@@ -215,12 +214,10 @@ function TransactionTypeSelect({
 
 function TransactionForm({
   assetCount,
-  dueDate,
   error,
   internalRequest,
   isSubmitting,
   note,
-  onDueDateChange,
   onInternalRequestChange,
   onNoteChange,
   onProjectRequestChange,
@@ -238,12 +235,10 @@ function TransactionForm({
   type,
 }: {
   assetCount: number;
-  dueDate: string;
   error: string | null;
   internalRequest: boolean;
   isSubmitting: boolean;
   note: string;
-  onDueDateChange: (value: string) => void;
   onInternalRequestChange: (checked: boolean) => void;
   onNoteChange: (value: string) => void;
   onProjectRequestChange: (checked: boolean) => void;
@@ -260,7 +255,6 @@ function TransactionForm({
   soldPrice: string;
   type: TransactionTypeCode;
 }) {
-  const showDueDate = type !== "SOLD";
   const showSoldPrice = type === "SOLD";
 
   return (
@@ -269,11 +263,15 @@ function TransactionForm({
         <h2 className="text-xl font-bold text-navy">Transaction Details</h2>
         <div className="mt-5 flex flex-col gap-4">
           <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-            Transaction Type
+            <span>
+              Transaction Type <RequiredMark />
+            </span>
             <TransactionTypeSelect onChange={onTypeChange} value={type} />
           </label>
           <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-            Request Date
+            <span>
+              Request Date <RequiredMark />
+            </span>
             <input
               className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold normal-case tracking-normal text-ink outline-none ring-brand-accent/20 focus:ring-4"
               onChange={(event) => onRequestDateChange(event.target.value)}
@@ -281,40 +279,47 @@ function TransactionForm({
               value={requestDate}
             />
           </label>
-          <div className="grid gap-2 sm:grid-cols-3">
-            {[
-              {
-                checked: internalRequest,
-                label: "Internal",
-                onChange: onInternalRequestChange,
-              },
-              {
-                checked: serviceRequest,
-                label: "Service",
-                onChange: onServiceRequestChange,
-              },
-              {
-                checked: projectRequest,
-                label: "Project",
-                onChange: onProjectRequestChange,
-              },
-            ].map((item) => (
-              <label
-                className="inline-flex items-center gap-2 rounded-md border border-border bg-surface/40 px-3 py-2 text-sm font-semibold text-navy"
-                key={item.label}
-              >
-                <input
-                  checked={item.checked}
-                  className="h-4 w-4 rounded border-border text-brand-accent focus:ring-brand-accent"
-                  onChange={(event) => item.onChange(event.target.checked)}
-                  type="checkbox"
-                />
-                {item.label}
-              </label>
-            ))}
+          <div className="flex flex-col gap-2">
+            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              Request Kind <RequiredMark />
+            </p>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {[
+                {
+                  checked: internalRequest,
+                  label: "Internal",
+                  onChange: onInternalRequestChange,
+                },
+                {
+                  checked: serviceRequest,
+                  label: "Service",
+                  onChange: onServiceRequestChange,
+                },
+                {
+                  checked: projectRequest,
+                  label: "Project",
+                  onChange: onProjectRequestChange,
+                },
+              ].map((item) => (
+                <label
+                  className="inline-flex items-center gap-2 rounded-md border border-border bg-surface/40 px-3 py-2 text-sm font-semibold text-navy"
+                  key={item.label}
+                >
+                  <input
+                    checked={item.checked}
+                    className="h-4 w-4 rounded border-border text-brand-accent focus:ring-brand-accent"
+                    onChange={(event) => item.onChange(event.target.checked)}
+                    type="checkbox"
+                  />
+                  {item.label}
+                </label>
+              ))}
+            </div>
           </div>
           <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-            {getReferenceLabel(type)}
+            <span>
+              {getReferenceLabel(type)} <RequiredMark />
+            </span>
             <input
               className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold normal-case tracking-normal text-ink outline-none ring-brand-accent/20 focus:ring-4"
               onChange={(event) => onReferenceChange(event.target.value)}
@@ -322,20 +327,11 @@ function TransactionForm({
               value={referenceName}
             />
           </label>
-          {showDueDate ? (
-            <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-              Expected Return Date
-              <input
-                className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold normal-case tracking-normal text-ink outline-none ring-brand-accent/20 focus:ring-4"
-                onChange={(event) => onDueDateChange(event.target.value)}
-                type="date"
-                value={dueDate}
-              />
-            </label>
-          ) : null}
           {showSoldPrice ? (
             <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-              Price
+              <span>
+                Price <RequiredMark />
+              </span>
               <input
                 className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold normal-case tracking-normal text-ink outline-none ring-brand-accent/20 focus:ring-4"
                 inputMode="decimal"
@@ -348,7 +344,9 @@ function TransactionForm({
             </label>
           ) : null}
           <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-            Use Detail
+            <span>
+              Use Detail <RequiredMark />
+            </span>
             <textarea
               className="min-h-28 rounded-md border border-border bg-white px-3 py-3 text-sm font-semibold normal-case tracking-normal text-ink outline-none ring-brand-accent/20 focus:ring-4"
               onChange={(event) => onNoteChange(event.target.value)}
@@ -389,18 +387,12 @@ function TransactionForm({
           Submit Request
         </button>
       </section>
-      <section className="rounded-md bg-navy p-5 text-white shadow-sm">
-        <ShieldCheck className="h-5 w-5" />
-        <p className="mt-3 text-xs font-bold uppercase tracking-wide text-white/70">
-          Security Clearance
-        </p>
-        <p className="mt-2 text-sm font-medium leading-6">
-          This request will be recorded with transaction history and routed to
-          the stock owner for paper-document matching.
-        </p>
-      </section>
     </aside>
   );
+}
+
+function RequiredMark() {
+  return <span className="text-status-fail">*</span>;
 }
 
 function SubmitDialog({
@@ -476,7 +468,6 @@ async function readApiMessage(response: Response) {
 
 export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
   const [assets, setAssets] = useState(initialAssets);
-  const [dueDate, setDueDate] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [internalRequest, setInternalRequest] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
@@ -495,7 +486,6 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
     setType(nextType);
 
     if (nextType === "SOLD") {
-      setDueDate("");
       return;
     }
 
@@ -592,10 +582,6 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
       missingFields.push("Internal / Service / Project");
     }
 
-    if ((type === "BORROW" || type === "USING") && !dueDate) {
-      missingFields.push("Expected Return Date");
-    }
-
     if (type === "SOLD" && !soldPrice.trim()) {
       missingFields.push("Price");
     }
@@ -632,7 +618,7 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
       const response = await fetch("/api/transactions", {
         body: JSON.stringify({
           assetIds: assets.map((asset) => asset.id),
-          dueDate: type === "SOLD" ? null : dueDate,
+          dueDate: null,
           internalRequest,
           note,
           projectRequest,
@@ -668,12 +654,10 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
         />
         <TransactionForm
           assetCount={assets.length}
-          dueDate={dueDate}
           error={error}
           internalRequest={internalRequest}
           isSubmitting={isSubmitting}
           note={note}
-          onDueDateChange={setDueDate}
           onInternalRequestChange={handleInternalRequestChange}
           onNoteChange={setNote}
           onProjectRequestChange={handleProjectRequestChange}

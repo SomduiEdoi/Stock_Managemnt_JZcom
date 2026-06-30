@@ -1,0 +1,7 @@
+
+> stock-management-system@0.1.0 db:studio
+> prisma studio --hostname 127.0.0.1 --port 5555
+
+Prisma schema loaded from prisma\schema.prisma
+Prisma Studio is up on http://localhost:5555
+Prisma schema loaded from prisma\schema.prisma

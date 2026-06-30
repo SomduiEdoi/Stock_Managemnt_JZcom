@@ -1,4 +1,4 @@
-import { AssetStatus, Prisma, TransactionType } from "@prisma/client";
+import { AssetStatus, Prisma, TransactionStatus } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
@@ -7,39 +7,24 @@ export type TransactionLogScope = (typeof transactionLogScopes)[number];
 
 export const transactionLogStatusOptions = [
   "ALL",
-  AssetStatus.BORROW,
-  AssetStatus.USING,
-  AssetStatus.SOLD,
-  AssetStatus.READY,
-  AssetStatus.FAIL,
-  AssetStatus.LOST,
-  AssetStatus.NEED_CHECK,
+  "BORROW",
+  "USING",
+  "SOLD",
+  "RETURN",
 ] as const;
-export type TransactionLogStatusFilter = AssetStatus | "ALL";
+export type TransactionLogStatusFilter =
+  | "ALL"
+  | "BORROW"
+  | "USING"
+  | "SOLD"
+  | "RETURN";
 
 export const transactionLogStatusChoices = [
-  AssetStatus.BORROW,
-  AssetStatus.USING,
-  AssetStatus.SOLD,
-  AssetStatus.READY,
-  AssetStatus.FAIL,
-  AssetStatus.LOST,
-  AssetStatus.NEED_CHECK,
-] as const satisfies readonly AssetStatus[];
-
-export const transactionLogTypeOptions = [
-  "ALL",
-  TransactionType.BORROW,
-  TransactionType.USING,
-  TransactionType.SOLD,
+  "BORROW",
+  "USING",
+  "SOLD",
+  "RETURN",
 ] as const;
-export type TransactionLogTypeFilter = TransactionType | "ALL";
-
-export const transactionLogTypeChoices = [
-  TransactionType.BORROW,
-  TransactionType.USING,
-  TransactionType.SOLD,
-] as const satisfies readonly TransactionType[];
 
 export type TransactionLogFilters = {
   page: number;
@@ -47,7 +32,6 @@ export type TransactionLogFilters = {
   scope: TransactionLogScope;
   search: string;
   status: TransactionLogStatusFilter;
-  type: TransactionLogTypeFilter;
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -58,7 +42,6 @@ const defaultFilters: TransactionLogFilters = {
   scope: "ALL",
   search: "",
   status: "ALL",
-  type: "ALL",
 };
 
 const transactionLogSelect = Prisma.validator<Prisma.TransactionSelect>()({
@@ -116,12 +99,10 @@ function parsePage(value: string | undefined) {
   return Number.isFinite(page) && page > 0 ? page : defaultFilters.page;
 }
 
-function isTransactionStatus(value: string | undefined): value is AssetStatus {
+function isTransactionStatus(
+  value: string | undefined,
+): value is TransactionLogStatusFilter {
   return (transactionLogStatusOptions as readonly string[]).includes(value ?? "");
-}
-
-function isTransactionType(value: string | undefined): value is TransactionType {
-  return transactionLogTypeOptions.includes(value as TransactionType);
 }
 
 function isTransactionScope(value: string | undefined): value is TransactionLogScope {
@@ -174,37 +155,35 @@ function buildSearchWhere(search: string): Prisma.TransactionWhereInput | undefi
 }
 
 function buildStatusWhere(
-  filters: Pick<TransactionLogFilters, "scope" | "status" | "type">,
+  filters: Pick<TransactionLogFilters, "scope" | "status">,
 ) {
   const clauses: Prisma.TransactionWhereInput[] = [];
 
-  if (filters.status !== "ALL") {
+  if (filters.status === "RETURN") {
     clauses.push({
-      items: {
-        some: {
-          OR: [
-            { resolvedStatus: filters.status },
-            {
-              AND: [
-                { resolvedStatus: null },
-                { toStatus: filters.status },
-              ],
-            },
-          ],
-        },
+      OR: [
+        { status: TransactionStatus.RETURNED },
+        { returnedAt: { not: null } },
+        { items: { some: { returnedAt: { not: null } } } },
+      ],
+    });
+  } else if (filters.status !== "ALL") {
+    clauses.push({
+      type: filters.status,
+      NOT: {
+        OR: [
+          { status: TransactionStatus.RETURNED },
+          { returnedAt: { not: null } },
+        ],
       },
     });
-  }
-
-  if (filters.type !== "ALL") {
-    clauses.push({ type: filters.type });
   }
 
   return clauses;
 }
 
 function buildVisibleLogWhere(
-  filters: Pick<TransactionLogFilters, "scope" | "search" | "status" | "type">,
+  filters: Pick<TransactionLogFilters, "scope" | "search" | "status">,
 ) {
   const clauses = [...buildStatusWhere(filters)];
   const searchWhere = buildSearchWhere(filters.search);
@@ -224,7 +203,6 @@ export function normalizeTransactionLogFilters(
   searchParams: SearchParams,
 ): TransactionLogFilters {
   const status = firstParam(searchParams.status);
-  const type = firstParam(searchParams.type);
 
   return {
     page: parsePage(firstParam(searchParams.page)),
@@ -232,7 +210,6 @@ export function normalizeTransactionLogFilters(
     scope: parseScope(firstParam(searchParams.scope)),
     search: firstParam(searchParams.q)?.trim() ?? defaultFilters.search,
     status: isTransactionStatus(status) ? status : defaultFilters.status,
-    type: isTransactionType(type) ? type : defaultFilters.type,
   };
 }
 
@@ -253,10 +230,6 @@ export function buildTransactionLogHref(
 
   if (nextFilters.status !== "ALL") {
     params.set("status", nextFilters.status);
-  }
-
-  if (nextFilters.type !== "ALL") {
-    params.set("type", nextFilters.type);
   }
 
   if (nextFilters.page > 1) {

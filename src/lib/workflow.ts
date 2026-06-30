@@ -303,13 +303,6 @@ function assertTransactionInput(input: SubmitTransactionInput) {
     throw new WorkflowError("Request date is required.");
   }
 
-  if (
-    (input.type === TransactionType.BORROW || input.type === TransactionType.USING) &&
-    !input.dueDate
-  ) {
-    throw new WorkflowError("Due date is required for borrow and using transactions.");
-  }
-
   if (input.type === TransactionType.SOLD && !soldPrice) {
     throw new WorkflowError("Price is required for sold transactions.");
   }

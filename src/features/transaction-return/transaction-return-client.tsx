@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertCircle, ArrowLeft, CheckCircle2, Loader2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import type { AssetStatus } from "@prisma/client";
 import { AssetStatusBadge } from "@/components/status/asset-status-badge";
 
@@ -32,7 +32,6 @@ export type TransactionReturnRecord = {
 type ResolutionState = Record<
   string,
   {
-    note: string;
     toStatus: AssetStatus;
   }
 >;
@@ -54,7 +53,6 @@ function buildInitialState(items: TransactionReturnItem[]): ResolutionState {
       .map((item) => [
         item.itemId,
         {
-          note: "",
           toStatus: "READY" as AssetStatus,
         },
       ]),
@@ -72,7 +70,12 @@ export function TransactionReturnClient({
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [confirmationMode, setConfirmationMode] = useState<
+    "RETURN" | "SOLD" | null
+  >(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [price, setPrice] = useState("");
+  const [remark, setRemark] = useState("");
   const [resolutions, setResolutions] = useState<ResolutionState>(() =>
     buildInitialState(transaction.items),
   );
@@ -82,31 +85,49 @@ export function TransactionReturnClient({
     [transaction.items],
   );
 
-  function updateResolution(
-    itemId: string,
-    key: keyof ResolutionState[string],
-    value: string,
-  ) {
+  function updateResolution(itemId: string, value: string) {
     setResolutions((current) => ({
       ...current,
       [itemId]: {
         ...current[itemId],
-        [key]: value,
+        toStatus: value as AssetStatus,
       },
     }));
   }
 
-  async function handleSubmit() {
-    const items = openItems.map((item) => ({
-      itemId: item.itemId,
-      note: resolutions[item.itemId]?.note ?? null,
-      toStatus: resolutions[item.itemId]?.toStatus ?? "READY",
-    }));
-
-    if (items.length === 0) {
+  function handleSubmit() {
+    if (openItems.length === 0) {
       setError("This transaction has no open items.");
       return;
     }
+
+    setError(null);
+    setPrice("");
+    setRemark("");
+    setConfirmationMode(
+      openItems.some((item) => resolutions[item.itemId]?.toStatus === "SOLD")
+        ? "SOLD"
+        : "RETURN",
+    );
+  }
+
+  async function confirmSubmit() {
+    if (confirmationMode === "SOLD" && !price.trim()) {
+      setError("Please enter the sale price.");
+      return;
+    }
+
+    const cleanPrice = price.trim();
+    const cleanRemark = remark.trim();
+    const items = openItems.map((item) => {
+      const toStatus = resolutions[item.itemId]?.toStatus ?? "READY";
+
+      return {
+        itemId: item.itemId,
+        note: buildResolutionNote(toStatus, cleanRemark, cleanPrice),
+        toStatus,
+      };
+    });
 
     setError(null);
     setIsSubmitting(true);
@@ -125,6 +146,7 @@ export function TransactionReturnClient({
         throw new Error(data.message ?? "Unable to resolve transaction.");
       }
 
+      setConfirmationMode(null);
       router.push("/logs");
       router.refresh();
     } catch (caught) {
@@ -149,9 +171,9 @@ export function TransactionReturnClient({
             <Link className="text-brand-accent hover:underline" href="/logs">
               Logs
             </Link>
-            <span>/</span>
+            <span>&gt;</span>
             <span className="text-navy">{transaction.transactionNo}</span>
-            <span>/</span>
+            <span>&gt;</span>
             <span className="text-navy">Return</span>
           </nav>
           <h1 className="mt-3 text-3xl font-bold text-navy">
@@ -161,13 +183,6 @@ export function TransactionReturnClient({
             {transaction.type} request by {transaction.requestedBy}
           </p>
         </div>
-        <Link
-          className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-4 text-sm font-bold text-navy shadow-sm hover:bg-surface"
-          href="/logs"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Logs
-        </Link>
       </header>
 
       <section className="overflow-hidden rounded-md border border-border bg-white shadow-sm">
@@ -193,7 +208,6 @@ export function TransactionReturnClient({
                 <th className="w-[18%] px-5 py-4 font-bold">Serial No.</th>
                 <th className="w-[13%] px-5 py-4 font-bold">Current</th>
                 <th className="w-[18%] px-5 py-4 font-bold">Outcome</th>
-                <th className="w-[24%] px-5 py-4 font-bold">Note</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -231,11 +245,7 @@ export function TransactionReturnClient({
                         <select
                           className="h-10 w-full rounded-md border border-border bg-white px-3 text-sm font-bold text-navy outline-none ring-brand-accent/20 focus:ring-4"
                           onChange={(event) =>
-                            updateResolution(
-                              item.itemId,
-                              "toStatus",
-                              event.target.value,
-                            )
+                            updateResolution(item.itemId, event.target.value)
                           }
                           value={state?.toStatus ?? "READY"}
                         >
@@ -245,26 +255,6 @@ export function TransactionReturnClient({
                             </option>
                           ))}
                         </select>
-                      )}
-                    </td>
-                    <td className="px-5 py-4">
-                      {isResolved ? (
-                        <span className="line-clamp-2 text-sm font-medium text-muted-foreground">
-                          {fallback(item.resolutionNote)}
-                        </span>
-                      ) : (
-                        <input
-                          className="h-10 w-full rounded-md border border-border bg-white px-3 text-sm font-medium text-ink outline-none ring-brand-accent/20 focus:ring-4"
-                          onChange={(event) =>
-                            updateResolution(
-                              item.itemId,
-                              "note",
-                              event.target.value,
-                            )
-                          }
-                          placeholder="Optional note"
-                          value={state?.note ?? ""}
-                        />
                       )}
                     </td>
                   </tr>
@@ -303,6 +293,99 @@ export function TransactionReturnClient({
           Save Outcomes
         </button>
       </div>
+
+      {confirmationMode ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <section className="w-full max-w-md rounded-md border border-border bg-white p-5 shadow-xl">
+            <h2 className="text-xl font-bold text-navy">
+              {confirmationMode === "SOLD" ? "Confirm Sale" : "Confirm Return"}
+            </h2>
+            <p className="mt-2 text-sm font-medium text-muted-foreground">
+              {confirmationMode === "SOLD"
+                ? "Please enter the sale price and confirm that these assets should be sold."
+                : "Confirm that these assets have been returned."}
+            </p>
+
+            {error ? (
+              <p className="mt-4 flex gap-2 rounded-md bg-status-fail/10 p-3 text-sm font-semibold text-status-fail">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {error}
+              </p>
+            ) : null}
+
+            <div className="mt-5 flex flex-col gap-4">
+              {confirmationMode === "SOLD" ? (
+                <label className="flex flex-col gap-2">
+                  <span className="text-xs font-bold uppercase text-ink">
+                    Price
+                  </span>
+                  <input
+                    className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold text-ink outline-none ring-brand-accent/20 focus:ring-4"
+                    inputMode="decimal"
+                    onChange={(event) => setPrice(event.target.value)}
+                    placeholder="Enter sale price"
+                    value={price}
+                  />
+                </label>
+              ) : null}
+
+              <label className="flex flex-col gap-2">
+                <span className="text-xs font-bold uppercase text-ink">
+                  Remark
+                </span>
+                <textarea
+                  className="min-h-28 rounded-md border border-border bg-white px-3 py-2 text-sm font-medium text-ink outline-none ring-brand-accent/20 focus:ring-4"
+                  onChange={(event) => setRemark(event.target.value)}
+                  placeholder="Optional remark"
+                  value={remark}
+                />
+              </label>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                className="h-10 rounded-md border border-border bg-white px-4 text-sm font-bold text-navy hover:bg-surface"
+                disabled={isSubmitting}
+                onClick={() => setConfirmationMode(null)}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="inline-flex h-10 items-center gap-2 rounded-md bg-navy px-4 text-sm font-bold text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isSubmitting}
+                onClick={confirmSubmit}
+                type="button"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4" />
+                )}
+                Confirm
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
+}
+
+function buildResolutionNote(
+  toStatus: AssetStatus,
+  remark: string,
+  price: string,
+) {
+  const parts: string[] = [];
+
+  if (toStatus === "SOLD" && price) {
+    parts.push(`Sold price: ${price}`);
+  }
+
+  if (remark) {
+    parts.push(remark);
+  }
+
+  return parts.length ? parts.join("\n") : null;
 }

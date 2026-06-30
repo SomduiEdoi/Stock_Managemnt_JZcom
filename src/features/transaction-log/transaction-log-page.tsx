@@ -6,9 +6,9 @@ import {
   BadgeCheck,
   Clock3,
   FileText,
-  Filter,
   Search,
 } from "lucide-react";
+import { AssetStatus } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
 import { requireCurrentUser } from "@/lib/auth";
 import {
@@ -18,13 +18,11 @@ import {
   getTransactionLogForUser,
   normalizeTransactionLogFilters,
   transactionLogStatusChoices,
-  transactionLogTypeChoices,
 } from "@/lib/transaction-log";
 import { getRequestQueueForLog, type RequestCartAsset } from "@/lib/request-cart";
-import { assetStatusLabels } from "@/lib/status-style";
+import { assetStatusHexColors } from "@/lib/status-style";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { InventoryDataUnavailable } from "@/components/inventory/inventory-data-unavailable";
-import { TransactionStatusBadge } from "@/components/status/transaction-status-badge";
 import { TransactionRowActions } from "@/features/transaction-log/transaction-row-actions";
 
 type TransactionLogPageProps = {
@@ -181,14 +179,14 @@ function Controls({ filters }: { filters: TransactionLogFilters }) {
     >
       <input name="scope" type="hidden" value={filters.scope} />
 
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_180px_180px_auto]">
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_180px]">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             className="h-11 w-full rounded-md border border-border bg-white pl-10 pr-3 text-sm font-medium outline-none ring-brand-accent/20 transition focus:ring-4"
             defaultValue={filters.search}
             name="q"
-            placeholder="Search transaction id, asset, borrower"
+            placeholder="Search transaction id, borrower, serial no."
           />
         </div>
 
@@ -200,30 +198,13 @@ function Controls({ filters }: { filters: TransactionLogFilters }) {
           <option value="ALL">All status</option>
           {transactionLogStatusChoices.map((status) => (
             <option key={status} value={status}>
-              {assetStatusLabels[status]}
+              {logStatusLabels[status]}
             </option>
           ))}
         </select>
 
-        <select
-          className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold text-navy"
-          defaultValue={filters.type}
-          name="type"
-        >
-          <option value="ALL">All type</option>
-          {transactionLogTypeChoices.map((type) => (
-            <option key={type} value={type}>
-              {type.charAt(0) + type.slice(1).toLowerCase()}
-            </option>
-          ))}
-        </select>
-
-        <button
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-border bg-white px-4 text-sm font-bold text-navy shadow-sm hover:bg-surface"
-          type="submit"
-        >
-          <Filter className="h-4 w-4" />
-          Filter
+        <button className="sr-only" type="submit">
+          Search
         </button>
       </div>
     </form>
@@ -370,6 +351,44 @@ function RequestQueueTable({
   );
 }
 
+type LogDisplayStatus = "BORROW" | "USING" | "SOLD" | "RETURN";
+
+const logStatusLabels = {
+  BORROW: "Borrow",
+  USING: "Using",
+  SOLD: "Sold",
+  RETURN: "Return",
+} as const satisfies Record<LogDisplayStatus, string>;
+
+const logStatusColors = {
+  BORROW: assetStatusHexColors[AssetStatus.BORROW],
+  USING: assetStatusHexColors[AssetStatus.USING],
+  SOLD: assetStatusHexColors[AssetStatus.SOLD],
+  RETURN: assetStatusHexColors[AssetStatus.READY],
+} as const satisfies Record<LogDisplayStatus, string>;
+
+function getLogDisplayStatus(row: TransactionLogRow): LogDisplayStatus {
+  const allItemsReturned =
+    row.items.length > 0 && row.items.every((item) => Boolean(item.returnedAt));
+
+  if (row.returnedAt || allItemsReturned) {
+    return "RETURN";
+  }
+
+  return row.type as LogDisplayStatus;
+}
+
+function LogStatusBadge({ status }: { status: LogDisplayStatus }) {
+  return (
+    <span
+      className="inline-flex min-w-[96px] items-center justify-center whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-bold text-white shadow-sm"
+      style={{ backgroundColor: logStatusColors[status] }}
+    >
+      {logStatusLabels[status]}
+    </span>
+  );
+}
+
 function TransactionTable({
   rows,
 }: {
@@ -377,6 +396,9 @@ function TransactionTable({
 }) {
   return (
     <section className="overflow-hidden rounded-md border border-border bg-white shadow-sm">
+      <div className="border-b border-border px-5 py-4">
+        <h2 className="text-xl font-bold text-navy">Transaction History</h2>
+      </div>
       <div className="overflow-x-auto">
         <table className="min-w-full border-collapse text-left text-sm">
           <thead className="bg-surface text-xs uppercase text-muted-foreground">
@@ -417,7 +439,7 @@ function TransactionTable({
                 </td>
                 <td className="px-5 py-4">
                   <TransactionLink transactionId={row.id}>
-                    <TransactionStatusBadge status={row.status} />
+                    <LogStatusBadge status={getLogDisplayStatus(row)} />
                   </TransactionLink>
                 </td>
                 <td className="px-5 py-4">
@@ -511,10 +533,10 @@ export function TransactionLogPage({
   return (
     <div className="flex flex-col gap-6">
       <SummaryCards filters={filters} metrics={metrics} />
-      <Controls filters={filters} />
       {filters.scope !== "COMPLETED" ? (
         <RequestQueueTable assets={requestQueueAssets} />
       ) : null}
+      <Controls filters={filters} />
       <TransactionTable rows={rows} />
       <Pagination filters={filters} page={filters.page} total={total} totalPages={totalPages} />
     </div>
