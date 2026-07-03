@@ -1,325 +1,336 @@
-# Product Requirements Document (PRD)
+# PRD: Asset Flow Management System
 
-## Project Name
+Last updated: 2026-07-02
 
-Stock Management System
+## 1. Product Summary
 
-## Document Purpose
+ระบบ Asset Flow Management System ใช้สำหรับจัดการคลังอุปกรณ์ขององค์กรแบบ project-based โดยรองรับการเพิ่ม/แก้ไขอุปกรณ์, จัดการ domain, category, type, user, project, team member, request cart, approval, borrow/return, using, sold, transaction history, asset status history และ export เอกสารที่เกี่ยวข้อง
 
-เอกสารนี้สรุปความเข้าใจล่าสุดของระบบ Stock Management System ในระดับ product requirement เพื่อให้ทีมใช้เป็น baseline เดียวกันก่อนออกแบบ schema, API, UI และ task implementation
+ระบบปัจจุบันมี domain หลัก 2 กลุ่มคือ `Server` และ `Network` แต่โครงสร้างต้องรองรับการสร้าง domain เพิ่มในอนาคตสำหรับฝ่ายอื่น ๆ ได้
 
-## Product Overview
+## 2. Source of Truth
 
-Stock Management System คือเว็บแอปสำหรับจัดการอุปกรณ์แบบ serialized asset โดยยึดหลัก 1 physical item = 1 asset record และติดตามด้วย serial no. เป็นหลัก ระบบนี้รองรับทั้งการดู stock, การ request อุปกรณ์, การ submit ธุรกรรมยืม/ใช้ภายใน/ขาย, การติดตามสถานะ asset, และการเก็บ transaction log เพื่อ audit ย้อนหลัง
+- ไฟล์ CSV/SharePoint ใช้เป็น mockup/bootstrap data และใช้สำหรับ migrate ข้อมูลตั้งต้นเท่านั้น
+- เมื่อ migrate สำเร็จแล้ว ข้อมูลทั้งหมดต้องถูกเก็บถาวรใน PostgreSQL
+- Runtime ของระบบยืม-คืนเวอร์ชันใหม่ต้องคุยกับ PostgreSQL โดยตรงเท่านั้น
+- หลัง migrate แล้วระบบไม่ควรอ่าน CSV หรือ SharePoint ซ้ำใน workflow ปกติ
+- การแก้ไข เพิ่ม ลบเชิงตรรกะ และเปลี่ยนสถานะทั้งหมดต้องเกิดใน PostgreSQL
 
-ระบบไม่ได้เป็น stock quantity system แบบนับจำนวนรวม แต่เป็น asset-by-asset system ที่แต่ละชิ้นมีสถานะของตัวเอง และอาจถูกอ้างอิงอยู่ใน transaction หลายประเภทตาม workflow จริงของบริษัท
+## 3. Current Login Scope
 
-CSV export จาก SharePoint ใช้เป็น mockup/bootstrap data และเป็น one-time migration input เท่านั้น หลังจาก import สำเร็จ ข้อมูลทั้งหมดต้องถูกเก็บถาวรใน PostgreSQL และระบบเวอร์ชันใหม่ต้องอ่าน/เขียนข้อมูลจาก PostgreSQL โดยตรง ไม่กลับไปอ่าน SharePoint หรือไฟล์ CSV ใน runtime ปกติ
+- ใช้ login แบบเดิมของระบบไปก่อน
+- ยังไม่ทำ Microsoft 365, Azure AD, LDAP หรือ SSO ใน scope ปัจจุบัน
+- LDAP/SSO สามารถเก็บเป็น future enhancement ได้
+- ทุก API ที่อ่าน/แก้ไขข้อมูลต้องตรวจ session และ permission ฝั่ง server เสมอ
 
-## Current Situation
+## 4. Goals
 
-- ข้อมูลอุปกรณ์เดิมอยู่บน SharePoint และต้อง migrate เข้าระบบใหม่
-- ไฟล์ CSV ใช้เพื่อย้ายข้อมูลตั้งต้นเข้าฐานข้อมูลเท่านั้น ไม่ใช่ data source ถาวรของระบบใหม่
-- อุปกรณ์แบ่งความรับผิดชอบหลักเป็น 2 domain คือ `Server` และ `Network`
-- ผู้ใช้งานมีทั้ง admin, owner ของแต่ละ domain และ staff ทั่วไป
-- การยืม/คืน/ขาย/เบิกใช้ยังมีเอกสารจริงในโลกงาน แต่ระบบต้องเก็บ operational state และ transaction history ให้ชัด
+- จัดการ asset จาก PostgreSQL เป็นแหล่งข้อมูลหลัก
+- รองรับ asset ทั้งแบบ serial number และแบบ quantity/count
+- รองรับ request หลายรายการใน request เดียว เหมือนใส่สินค้าไว้ในตะกร้าก่อน submit
+- กันการ request ซ้ำด้วย asset status `REQUEST` หรือ quantity reservation
+- รองรับ approval workflow ที่มี BSD อนุมัติทุกคำขอและทุกการคืน
+- แสดง transaction history/log ให้ผู้ใช้ภายในเห็นทุก transaction พร้อม filter
+- มี asset detail page ที่แสดงข้อมูลทั้งหมดของอุปกรณ์, status history, transaction history และ export PDF ได้
+- ไม่ลบ asset ออกจากระบบเมื่อถูกยืม ใช้งาน ขาย เสีย หาย หรือรอตรวจสอบ แต่ใช้การเปลี่ยนสถานะและเก็บ history
 
-## Goals
+## 5. Non-Goals for Current Scope
 
-- สร้างระบบจัดการ asset รายชิ้นด้วย serial no.
-- แยกสิทธิ์การดูและจัดการตาม role และ domain
-- รองรับการ login ด้วย Microsoft 365 account
-- รองรับ staff request แบบหลายรายการใน transaction เดียว
-- ป้องกันการ request ซ้ำโดยใช้ `REQUEST` เป็น asset status ชั่วคราว
-- รองรับ workflow หลัก `BORROW`, `USING`, `SOLD`
-- ติดตาม transaction status เช่น `BORROWED`, `RETURNED`, `OVERDUE`
-- เก็บ asset status history และ transaction log สำหรับ audit
-- migrate ข้อมูลจาก SharePoint/CSV เข้า PostgreSQL ให้เป็นแหล่งข้อมูลถาวรของระบบใหม่
+- ยังไม่ทำ Microsoft 365 / LDAP / SSO
+- ยังไม่ finalize format ใบยืม/คืนราย transaction เนื่องจากจะมีการเปลี่ยน format template เอกสารจริง
+- ยังไม่ทำ digital signature เต็มรูปแบบ ยกเว้นเก็บ requirement ไว้รองรับภายหลัง
+- ยังไม่เชื่อม runtime กลับไปอ่าน SharePoint/CSV หลัง migrate
 
-## Non-Goals
+## 6. Roles, Tags, and Organization Mapping
 
-สิ่งต่อไปนี้ยังไม่อยู่ในขอบเขต MVP:
+### System Roles
 
-- stock quantity model
-- digital signature
-- upload เอกสารจริงหรือไฟล์ PDF ที่เซ็นแล้ว
-- approval workflow แบบหลายขั้น
-- purchase order / accounting / invoice
-- การอ่านข้อมูลจาก SharePoint หรือ CSV เป็น runtime data source หลัง migration
-- export รายงาน Excel
-- barcode / QR workflow
+ระบบมี system role เพียง 3 แบบเท่านั้น:
 
-## Users and Roles
+- `ADMIN`: บัญชีผู้ดูแลระบบส่วนกลาง ใช้จัดการ master data, user, permission, domain, category, type, project และระบบหลังบ้าน ไม่ใช้เป็น role สำหรับเบิก/ยืมทั่วไป
+- `STOCK_CONTROLLER`: ผู้ดูแลคลัง ใช้ร่วมกับ domain permission เช่น `SERVER`, `NETWORK` เพื่อระบุว่าดูแลคลังใด
+- `USER`: ผู้ใช้งานฝั่งธุรกิจ/พนักงาน ใช้ร่วมกับ organization tag และ project tag เพื่อระบุบริบทการอนุมัติ
 
-### Admin
+### Stock Controller Domain Tags
 
-- เห็นและจัดการทุก domain
-- จัดการ users และ permissions ได้
-- เปลี่ยนสถานะ asset ได้ทุก domain
-- ดู dashboard, log, request, report ได้ทั้งหมด
+- Stock Controller หนึ่งคนสามารถดูแลได้เพียง domain เดียว
+- ตัวอย่าง domain tag: `SERVER`, `NETWORK`
+- ถ้า transaction มี asset หลาย domain ระบบต้องสร้าง approval step ให้ Stock Controller ของทุก domain ที่เกี่ยวข้อง
+- Stock Controller approval ของหลาย domain สามารถ approve แบบ parallel ได้ และ workflow ไปต่อได้เมื่อทุก domain approve ครบ
 
-### Server Stock Controller
+### User Organization Tags
 
-- จัดการ asset ใน domain `Server`
-- ดู `Network` ได้แบบ read-only
-- เปลี่ยนสถานะ asset ใน domain `Server`
-- ดู log และ dashboard ได้
+User ต้องมี organization context เพื่อใช้หา approver ตามสายงาน:
 
-### Network Stock Controller
+- Organization level: `EXECUTIVE`, `MANAGER`, `SUPERVISOR`, `STAFF`
+- Organization unit/team tag:
+  - Business Support Dept. (`BSD`): `BSD_MANAGER`, `BSD_STAFF`
+  - System Network and Cloud (`SCN`): `SCN_MANAGER`, `S1_SUPERVISOR`, `S1_STAFF`, `N1_SUPERVISOR`, `N1_STAFF`, `C1_SUPERVISOR`, `C1_STAFF`
+  - Delivery & Client (`DL`): `DL_MANAGER`, `DL_STAFF`
+  - Engineering (`EN`): `EN_MANAGER`, `CMS_SUPERVISOR`, `CMS_STAFF`, `SD_SUPERVISOR`, `SD_STAFF`
 
-- จัดการ asset ใน domain `Network`
-- ดู `Server` ได้แบบ read-only
-- เปลี่ยนสถานะ asset ใน domain `Network`
-- ดู log และ dashboard ได้
+### Project Tags
 
-### Staff
+- Project membership ใช้ tag `LEAD_PROJECT` และ `TEAM_MEMBER`
+- User คนใดก็สามารถเป็น `LEAD_PROJECT` หรือ `TEAM_MEMBER` ได้ ไม่ว่าจะมี organization level เป็น manager, supervisor หรือ staff
+- Project-bound request ใช้ project tag ในการหา business approver เช่น `TEAM_MEMBER -> LEAD_PROJECT`
 
-- ดู asset ได้ทั้ง `Server` และ `Network`
-- request asset ได้
-- สร้าง draft request แบบหลาย asset ต่อ transaction ได้
-- submit transaction ได้โดยระบุว่าจะ `BORROW`, `USING` หรือ `SOLD`
-- ไม่สามารถจัดการ master data หรือเปลี่ยนสถานะ asset โดยตรงนอก flow request
+### BSD Approval Tags
 
-## Core Concepts
+- BSD เป็นฝ่ายหนึ่งในองค์กร ไม่ใช่ system role แยก
+- `BSD_STAFF` approve ได้ใน transaction ประเภท `BORROW` และ `USING`
+- `RETURN` และ `SOLD` ต้องผ่าน `BSD_STAFF -> BSD_MANAGER`
+- หาก BSD reject ต้องใส่เหตุผล
 
-### Serialized Asset
+## 7. Core Entities
 
-- 1 asset record เท่ากับของจริง 1 ชิ้น
-- ทุก asset ใน MVP ต้องมี `serial no.`
-- `QTY` และ `FG` จาก SharePoint เป็น legacy/reference only
+- `domains`: กลุ่มคลัง เช่น Server, Network และ domain ในอนาคต
+- `asset_categories`: หมวดหมู่ภายใน domain
+- `asset_types`: ประเภท asset ภายใน category
+- `assets`: ข้อมูลอุปกรณ์หรือ stock item
+- `users`: ผู้ใช้งานและ tag สำหรับ permission/approval
+- `projects`: project/service ที่ผูกกับ transaction
+- `project_members`: สมาชิก project พร้อม tag เช่น Lead Project หรือ Team Member
+- `transactions`: หัวรายการ request/borrow/using/sold/return
+- `transaction_items`: รายการ asset หรือ quantity ที่อยู่ใน transaction
+- `transaction_approvals`: approval step ของแต่ละ transaction
+- `asset_status_history`: ประวัติการเปลี่ยนสถานะของ asset
 
-### Asset Status
+## 8. Asset Tracking Model
 
-สถานะปัจจุบันของ asset:
+### SERIAL
 
-- `READY`: พร้อมใช้งาน อยู่ในคลัง
-- `REQUEST`: มีคน request แล้ว แต่ยังไม่ submit transaction
-- `BORROW`: ถูกยืมชั่วคราว
-- `USING`: ถูกเบิกใช้ภายในระยะยาว
-- `SOLD`: จำหน่ายแล้ว และเป็น terminal state
-- `FAIL`: เสียหาย และอาจกลับไป `READY` ได้ถ้าซ่อมเสร็จ
-- `LOST`: สูญหาย
-- `NEED_CHECK`: ต้องตรวจสอบเพิ่ม
+- ใช้กับอุปกรณ์ที่ต้อง track รายตัว เช่น server, switch, notebook
+- ต้องมี serial number หรือ identifier ที่ตรวจสอบซ้ำได้
+- quantity ของ asset แบบ serial เท่ากับ 1
+- การ request, borrow, using, sold, fail, lost และ need check กระทบ asset ตัวนั้นโดยตรง
 
-### Transaction
+### QUANTITY
 
-transaction คือเอกสารทางระบบที่รวม asset หลายชิ้นภายใต้เจตนาเดียวกัน เช่น ยืม, ใช้ภายใน, หรือขาย
+- ใช้กับของที่นับจำนวนได้ เช่น สาย, module, accessory, consumable หรือ item ที่ไม่ต้อง track serial รายตัว
+- ไม่จำเป็นต้องมี serial number
+- ต้องมี `asset_quantity`
+- `transaction_items` ต้องเก็บ `requested_quantity`
+- ระบบต้องคำนวณจำนวนที่ available, requested/reserved, borrowed/using/sold และ returned ได้
+- การ request ต้องกันไม่ให้จำนวนที่ถูกขอเกินจำนวนที่ available
 
-transaction ต้องมีอย่างน้อย:
+## 9. Stock Code and Requisition Number
 
-- requester
-- purpose / note
-- transaction type
-- หลาย transaction items
-- timestamps สำคัญ
+### Stock Code
 
-### Transaction Type
+รูปแบบเบื้องต้น:
 
-- `BORROW`
-- `USING`
-- `SOLD`
+```text
+xx-yy0000
+```
 
-### Transaction Status
+- `xx` = domain prefix เช่น `SV`, `NW` และ prefix ของ domain ในอนาคต
+- `yy` = type code
+- `0000` = running sequence
 
-- ถ้า `BORROW`: `BORROWED`, `RETURNED`, `OVERDUE`
-- ถ้า `USING`: `ACTIVE`, `RETURNED`
-- ถ้า `SOLD`: `COMPLETED`
+### Requisition Number
 
-## Workflow Summary
+รูปแบบเบื้องต้น:
 
-### Request and Submit
+```text
+REQ-yyyymmdd-00
+```
 
-1. Staff เลือก asset จากหน้า Server หรือ Network
-2. เมื่อ request แล้ว asset เปลี่ยนเป็น `REQUEST` ทันที
-3. ระหว่างเป็น `REQUEST` คนอื่นยังเห็น asset ได้ แต่ request ซ้ำไม่ได้
-4. Staff สามารถสะสมหลาย asset ไว้ใน request เดียวได้ แม้จะข้าม domain
-5. ตอน submit staff ต้องระบุว่าจะ `BORROW`, `USING`, หรือ `SOLD`
-6. หลัง submit ระบบสร้าง transaction และเปลี่ยน asset ทุกชิ้นไปเป็นสถานะปลายทางทันที
+- `yyyy` = year
+- `mm` = month
+- `dd` = day
+- ใช้กับ request/transaction
+- sequence ต้องไม่ซ้ำ และควรรองรับ policy reset ตามปี
 
-### Borrow
+## 10. Asset Status
 
-1. Staff submit transaction type `BORROW`
-2. ระบบตั้ง `asset.status = BORROW`
-3. transaction status เริ่มต้นเป็น `BORROWED`
-4. ต้องมี `due_date`
-5. เมื่อคืนของแล้ว transaction เปลี่ยนเป็น `RETURNED`
-6. asset เปลี่ยนจาก `BORROW` กลับเป็น `READY`
-7. หากเกิน `due_date` และยังไม่คืน ระบบเปลี่ยน transaction status เป็น `OVERDUE`
+| Status | Meaning | Rule |
+| --- | --- | --- |
+| `READY` | พร้อมใช้งาน อยู่ในคลัง | request, borrow, using, sold ได้ |
+| `REQUEST` | มีคน request แล้ว แต่ยังไม่เสร็จ approval | คนอื่นเห็นได้ แต่ request ซ้ำไม่ได้ |
+| `BORROW` | ถูกยืมชั่วคราว | เมื่อ return approved แล้วกลับเป็น `READY` |
+| `USING` | เบิกใช้ภายในองค์กร | กลับเป็น `READY` เมื่อ return approved |
+| `SOLD` | จำหน่ายแล้ว | terminal status ไม่กลับไป request/borrow/using |
+| `FAIL` | เสียหาย | อาจเปลี่ยนกลับเป็น `READY` หลังซ่อมหรือตรวจสอบ |
+| `LOST` | หายสาบสูญ | ไม่สามารถ request ได้ |
+| `NEED_CHECK` | ต้องตรวจสอบ | ใช้หลังคืน/ปิดงาน/พบปัญหา จนกว่าจะสรุปเป็น Ready/Fail/Lost |
 
-### Using
+## 11. Transaction Business Status
 
-1. Staff submit transaction type `USING`
-2. asset เปลี่ยนเป็น `USING`
-3. transaction status เป็น `ACTIVE`
-4. เมื่อคืนของหรือเลิกใช้งาน transaction เปลี่ยนเป็น `RETURNED`
-5. asset เปลี่ยนกลับเป็น `READY`
+Transaction มี `workflow/approval state` ที่เป็นสานะของคำขอ จะไม่ทำการเปลี่ยนแปลง สถานะของอุปกรณ์ เด็ดขาด!
 
-### Sold
+### Approval/Workflow State
 
-1. Staff submit transaction type `SOLD`
-2. asset เปลี่ยนเป็น `SOLD`
-3. transaction status เป็น `COMPLETED`
-4. asset ยังอยู่ในระบบเพื่อ audit แต่ห้ามกลับไปใช้ workflow ปกติ
+- `PENDING` = รออนุมัติ (อยู่ระหว่างการพิจารณา)
+- `APPROVED` = อนุมัติแล้ว
+- `REJECTED` = ปฏิเสธคำขอ
+- `IN_PROGRESS` = อยู่ระหว่างดำเนินการ (ใบคำขอนี้มีผลสัมฤทธิ์ ณ ปัจจุบัน)
+- `COMPLETED` = คำขอเสร็จสมบุรณ์ 
 
-## Business Rules
 
-- 1 physical item ต้องเป็น 1 asset record
-- ทุก asset ต้องมี serial no. และ serial no. ต้องไม่ซ้ำ
-- asset ที่อยู่สถานะ `REQUEST` ห้ามถูก request ซ้ำ
-- asset ที่อยู่สถานะ `SOLD` ห้ามถูก borrow, using, request หรือเปลี่ยนกลับใน workflow ปกติ
-- asset ที่อยู่สถานะ `FAIL`, `LOST`, `NEED_CHECK` ห้ามเข้าธุรกรรมใหม่จนกว่าจะถูก review
-- asset จะไม่ถูกลบออกจากระบบเพราะเหตุผลทางธุรกิจ เช่น ขาย, เสียหาย, สูญหาย, ถูกยืม
-- ทุกการเปลี่ยน asset status ต้องสร้าง `asset_status_history`
-- transaction 1 รายการมีหลาย asset items ได้
-- `OVERDUE` เป็น transaction status ไม่ใช่ asset status
-- `REQUEST` เป็น asset status สำหรับ lock ของก่อน submit
+## 12. Workflow: Setup and Master Data
 
-## Pages and Key Requirements
+### Add Asset
+
+1. Admin หรือ Stock Controller เข้าสู่ระบบ
+2. เลือก domain
+3. กด add asset
+4. กรอกข้อมูล asset ให้ครบ
+5. ระบบ validate required fields, duplicate serial/stock code และ type/category
+6. ระบบบันทึกลง PostgreSQL
+7. asset ใหม่แสดงใน table ด้วยสถานะเริ่มต้นที่เหมาะสม เช่น `READY`
+
+### Edit Asset
+
+1. Admin หรือ Stock Controller เลือก asset
+2. เปิด asset detail
+3. ถ้า asset อยู่ในสถานะ `BORROW`, `USING`, `SOLD`, `REQUEST` ต้องจำกัดการแก้ไขข้อมูลสำคัญ
+4. ถ้า asset อยู่ใน `READY`, `FAIL`, `LOST`, `NEED_CHECK` สามารถแก้ไขตาม permission ได้
+5. ทุกการเปลี่ยน status ต้องบันทึก `asset_status_history`
+
+### User, Project, Team
+
+- Admin จัดการ user ได้
+- Admin หรือผู้มีสิทธิ์ project จัดการ project ได้
+- Lead Project เพิ่ม/แก้ไข team member ใน project ที่รับผิดชอบได้
+- Project ต้องผูกกับ transaction ที่เป็น service/project workflow
+
+### Domain, Category, Type
+
+- ระบบต้องรองรับ domain แบบ dynamic
+- Admin สร้าง/แก้ไข domain ได้
+- Admin และ Stock Controller สร้าง/แก้ไข category/type ได้ตาม permission
+- Category/type ต้องผูกกับ domain เพื่อกันข้อมูลปนกัน
+
+## 13. Workflow: Request and Approval
+
+1. Requester เข้าสู่ระบบ
+2. ค้นหา/เลือก asset ที่ต้องการ
+3. ระบบตรวจ availability
+4. ถ้า asset พร้อมใช้งาน ผู้ใช้กด request
+5. สำหรับ serial asset ระบบเปลี่ยน asset status เป็น `REQUEST` ทันทีเพื่อ lock ไม่ให้คนอื่น request ซ้ำ
+6. สำหรับ quantity asset ระบบ reserve จำนวนตาม `requested_quantity`
+7. ระบบแสดง request page/cart ให้เพิ่มหรือลบ item ได้
+8. Requester ระบุ purpose ว่า `BORROW`, `USING` หรือ `SOLD`
+9. Requester กรอกรายละเอียด เช่น เหตุผลการใช้งาน, project, due date, quantity, remark
+10. เมื่อกด Submit ระบบสร้าง transaction, approval steps และ genarate เลขคำขอ 
+11. ระหว่างรอ approval asset ยังเป็น `REQUEST` หรือ quantity ยังถูก reserve
+12. Approval chain ต้องมี BSD ทุกครั้ง
+13. ถ้าทุก approver approve ระบบเปลี่ยน asset ตาม purpose:
+    - `BORROW` -> asset `BORROW`, transaction `IN_PROGRESS`
+    - `USING` -> asset `USING`, transaction `IN_PROGRESS`
+    - `SOLD` -> asset `SOLD`, transaction `COMPLETED`
+14. ถ้า reject ต้องใส่เหตุผล และ requester สามารถแก้ไขส่งใหม่หรือ cancel (กรณี cancel ไม่กลับไปแก้ไขคำขอ ระบบจะไม่เก็บ history)
+15. ถ้า cancel หรือ reject แล้วไม่ไปต่อ ระบบต้อง release asset lock/quantity reservation กลับสู่สถานะก่อน request
+
+### Approval Routing for Request Transactions
+
+Business approver tier:
+
+- ถ้า requester เป็น `STAFF`: ส่งไป `SUPERVISOR` ของทีมตัวเอง
+- ถ้า requester เป็น `SUPERVISOR`: ส่งไป `MANAGER` ของฝ่าย
+- ถ้า requester เป็น `MANAGER` หรือ `EXECUTIVE`: ข้าม business approver tier และส่งไป Stock Controller
+- ถ้าเป็น project-bound request: ส่งจาก `TEAM_MEMBER` ไป `LEAD_PROJECT` ของ project นั้นก่อน ถ้า requester เป็น `LEAD_PROJECT` ของ project นั้นอยู่แล้วให้ข้าม project approver tier
+
+Stock Controller tier:
+
+- ระบบต้องหา domain ทั้งหมดจาก transaction items
+- ต้องสร้าง approval ให้ Stock Controller ของทุก domain ที่เกี่ยวข้อง เช่น Server + Network ต้องผ่านทั้ง Server Stock Controller และ Network Stock Controller
+- Stock Controller approval หลาย domain สามารถ approve แบบ parallel ได้
+- Workflow ไปต่อได้เมื่อ Stock Controller ของทุก domain approve ครบ
+
+BSD tier:
+
+- `BORROW` และ `USING`: หลัง Stock Controller ครบแล้วส่งไป `BSD_STAFF`
+- `SOLD`: หลัง Stock Controller ครบแล้วส่งไป `BSD_STAFF -> BSD_MANAGER`
+- ทุก reject ต้องระบุ reason และเก็บใน transaction approval history
+
+### 14. Workflow: Return and Close Outcome
+
+1. Requester เปิด log page
+2. เลือก transaction หรือ item ที่ต้องการคืน/ปิดผล
+3. เลือก outcome: return, sold, fail, lost 
+4. กรอก remark, condition, quantity, price หรือข้อมูลที่เกี่ยวข้อง
+5. ระบบบันทึก transaction history และตั้ง asset เป็น `NEED_CHECK` ระหว่างรออนุมัติ
+6. ระบบสร้าง approval chain โดยรวม Stock Controller ของทุก domain ที่เกี่ยวข้อง และต้องจบด้วย `BSD_STAFF -> BSD_MANAGER`
+7. หาก approved:
+    - Return ของ borrow/using -> transaction `RETURNED`, asset `READY` หรือคืน quantity
+    - Sold outcome -> transaction `COMPLETED`, asset `SOLD`
+    - Lost outcome -> transaction `COMPLETED`, asset `LOST`, ระบบ genarate text ในช่อง remark ว่า Lost from ...(เลขคำขอ)
+    - Fail outcome -> transaction `COMPLETED`, asset `FAIL`, ระบบ genarate text ในช่อง remark ว่า Fail from ...(เลขคำขอ)
+8. หาก rejected ต้องใส่เหตุผล และ requester สามารถแก้ไขส่งใหม่หรือ cancel
+
+## 15. Pages and UX Requirements
 
 ### Dashboard
 
-- KPI: `Total Assets`, `Ready`, `Borrow`, `Sold`
-- Problem items: `Fail`, `Lost`, `Need Check`
-- Activity feed ของ asset ใหม่และ status change ล่าสุด
-- Recently table แยกกลุ่มตาม `Registered`, `Borrow`, `Using`, `Sold`
-- เปรียบเทียบจำนวน asset ระหว่าง `Server` และ `Network`
-- ข้อมูลต้องถูก scope ตามสิทธิ์ผู้ใช้
+- แสดงภาพรวม stock, problem item และ activity ตาม permission
+- Staff ทั่วไปไม่ต้องเห็น problem item section
 
-### Server Page
+### Domain Page
 
-- dashboard ย่อยของอุปกรณ์ Server
-- table แสดงอย่างน้อย: `Model`, `Brand`, `Category`, `Types`, `Serial No.`, `Status`
-- quick search by category
-- filter และ search
-- Admin / Server Stock Controller จัดการ add/edit ได้
-- Staff และ Network Stock Controller เห็นแบบ read-only
-- ถ้า asset เป็น `REQUEST` ต้องแสดงสถานะนี้ในตาราง
-
-### Network Page
-
-- dashboard ย่อยของอุปกรณ์ Network
-- table แสดงอย่างน้อย: `Model`, `Brand`, `Category`, `Types`, `Serial No.`, `Status`
-- quick search by types
-- filter และ search
-- Admin / Network Stock Controller จัดการ add/edit ได้
-- Staff และ Server Stock Controller เห็นแบบ read-only
-- ถ้า asset เป็น `REQUEST` ต้องแสดงสถานะนี้ในตาราง
+- แสดงภาพรวมของอุปกรณ์ใน domain นั้นๆ
+- มี table ของแต่ละ domain เช่น Server, Network และ domain อื่นในอนาคต
+- ทุก column ควร sort ได้
+- หัว column มี dropdown เช่น A-Z, Z-A หรือ filter ตามชนิดข้อมูล
+- มี search และ filter สำหรับ status, category, type, brand
+- active button ใช้สี orange ตาม UI requirement
+- แสดง status `REQUEST` ใน table เมื่อมีคน request แล้ว
 
 ### Asset Detail Page
 
-- แสดงข้อมูลทั้งหมดของอุปกรณ์ชิ้นนั้นจาก PostgreSQL
-- แสดงข้อมูล asset name, model, brand, category, type, serial no., stock code, location, status, note, image/reference, asset description และข้อมูล legacy ที่จำเป็น เช่น `QTY` และ `FG`
-- แสดง status history เฉพาะของอุปกรณ์ชิ้นนั้น โดยเรียงตามเวลาล่าสุดหรือ timeline
-- แสดง transaction ที่เกี่ยวข้องกับอุปกรณ์ชิ้นนั้น ถ้ามี เช่น borrow, using, sold หรือ returned history
-- สามารถ export ข้อมูลอุปกรณ์ชิ้นนั้นเป็น PDF ได้
-- PDF ราย asset ต้องเป็นข้อมูลจาก PostgreSQL และไม่อ่าน CSV/SharePoint
-
-### Log Page
-
-log page เป็น transaction log เป็นหลัก ไม่ใช่แค่ asset history
-
-- dashboard log: `All Requests`, `In Progress`, `Completed`
-- table แสดงอย่างน้อย: `Transaction ID`, `Asset`, `Borrower/Requester`, `Borrow Date`, `Transaction Type`, `Transaction Status`
-- transaction status ที่รองรับใน log ได้แก่ `BORROWED`, `RETURNED`, `OVERDUE`, `ACTIVE`, `COMPLETED`
-- ใช้ filter และ search ได้
+- แสดงข้อมูลทั้งหมดของ asset นั้น
+- แสดง current status และ availability
+- แสดง status history ของ asset
 
 ### Request Page
 
-- Staff เห็น request list ของตัวเอง
-- เปิด draft request ได้
-- เพิ่ม/ลบ asset item ก่อน submit ได้
-- submit transaction พร้อม purpose, type และ due date ถ้าจำเป็น
-- PDF ใบยืม/คืนอยู่ใน backlog ระยะใกล้จบระบบ
+- ทำงานเหมือน cart
+- เพิ่ม asset ได้หลายตัวใน request เดียว
+- request ข้าม domain ได้หาก permission และ availability ถูกต้อง
+- ต้อง validate required fields ก่อน submit
 
-### User Page
+### Log / Transaction History
 
-- เฉพาะ Admin
-- dashboard user: `Total`, `Owner`, `Staff`, `Active`
-- table แสดง `Name`, `Mail`, `Role`, `Position`, `Action`, `Last Login`
-- block/unblock user ได้
-- add/edit user ได้
+- Transaction History เป็น internal public view
+- ผู้ใช้ทุกคนเห็นสถานะของทุกคำขอในตาราง `PENDING`, `APPROVED` , `REJECTED`, `IN_PROGRESS`, `COMPLETED` และ history ของทุก project/ทุกคนได้
+- ต้องมี search เพื่อค้นหาและ filter เพื่อแยกข้อมูลของตัวเอง, project ที่รับผิดชอบ, status, transaction type, domain
+- Action column มีให้กด return
 
-## Authentication and Authorization
+### PDF Export
 
-- ใช้ Microsoft 365 account สำหรับ login
-- ระบบต้อง map account เข้ากับ role และ permission ภายใน
-- API ทุกจุดที่แก้ข้อมูลต้องตรวจทั้ง role และ domain permission
+- ใบยืม/คืนราย transaction อยู่ใน backlog จนกว่าจะได้รับ format จริง
+- ระบบควรเตรียม requisition number และ signature fields ไว้รองรับเอกสารอนาคต
 
-## SharePoint Migration
+## 16. Validation Rules
 
-- CSV export เป็น input สำหรับ migration ครั้งแรกหรือรอบ import ที่ admin สั่งเท่านั้น
-- เมื่อ import สำเร็จ ข้อมูล asset, master data, migration rows และ status history ต้องถูกบันทึกลง PostgreSQL
-- หลัง migration ระบบ dashboard, Server page, Network page, Log page, Request page และ API ทั้งหมดต้องคุยกับ PostgreSQL โดยตรง
-- SharePoint และ CSV ไม่ใช่ runtime dependency ของระบบยืม-คืนเวอร์ชันใหม่
-- source files คือ `src/data/Network.csv` และ `src/data/Server.csv`
-- CSV มีบรรทัดแรกเป็น `ListSchema=...` ที่ต้อง skip
-- import ต้อง map domain จากชื่อไฟล์
-- `QTY` และ `FG` ใช้เก็บเป็น legacy/reference เท่านั้น
-- import ต้องสร้าง asset, master data ที่จำเป็น, migration batch, migration rows และ initial asset status history
+- ห้าม request serial asset ที่ไม่ใช่ `READY`
+- ห้าม request quantity เกิน available quantity
+- ห้าม request ซ้ำ asset ที่อยู่ใน `REQUEST`
+- ห้ามเปลี่ยน `SOLD` กลับไป status ใช้งานทั่วไป
+- การเปลี่ยน status ทุกครั้งต้องมี history
+- Reject ทุก approval ต้องมี reason
+- `BORROW` / `USING` request ต้องผ่าน `BSD_STAFF`
+- `RETURN` / `SOLD` ต้องผ่าน `BSD_STAFF -> BSD_MANAGER`
+- Transaction ที่มีหลาย domain ต้องผ่าน Stock Controller ของทุก domain ที่เกี่ยวข้อง
+- Category/type ต้องอยู่ใน domain เดียวกับ asset
+- Stock code และ requisition no. ต้อง unique
 
-## Data Entities
+## 17. Acceptance Criteria
 
-PRD ระบุ entity หลักในระดับ product:
-
-- User
-- Role
-- Domain Permission
-- Asset Domain
-- Asset Category
-- Asset Model
-- Location
-- Asset
-- Asset Status History
-- Transaction
-- Transaction Item
-- Migration Batch
-- Migration Row
-
-## Success Metrics
-
-- ผู้ใช้ login ด้วย Microsoft 365 ได้
-- staff request และ submit transaction แบบหลาย asset ได้
-- asset ที่ถูก request ถูก lock ไม่ให้คนอื่น request ซ้ำ
-- asset สามารถถูกติดตามตาม serial no. ได้
-- asset detail page แสดงข้อมูลทั้งหมดของอุปกรณ์, status history และ export PDF ราย asset ได้
-- transaction log ดูย้อนหลังได้
-- `OVERDUE` ทำงานอัตโนมัติสำหรับ borrow
-- owner เห็นและจัดการเฉพาะ domain ของตัวเอง
-- sold asset ยังอยู่ในระบบเพื่อ audit
-- หลัง migration ระบบใช้งานจาก PostgreSQL ได้โดยไม่ต้องพึ่ง SharePoint หรือ CSV
-
-## Acceptance Criteria for MVP
-
-MVP ถือว่าใช้งานได้เมื่อ:
-
-- login ด้วย Microsoft 365 ได้
-- รองรับ role `Admin`, `Server Stock Controller`, `Network Stock Controller`, `Staff`
-- staff สร้าง request และ submit transaction ได้
-- asset เปลี่ยนเป็น `REQUEST` เมื่อถูกเลือกไว้ก่อน submit
-- คนอื่น request asset ที่อยู่ `REQUEST` ซ้ำไม่ได้
-- transaction 1 รายการมีหลาย asset items ได้
-- borrow flow รองรับ `due_date`, `RETURNED`, `OVERDUE`
-- using flow รองรับ `ACTIVE`, `RETURNED`
-- sold flow รองรับ `COMPLETED`
-- ทุก asset status change มี history
-- asset detail page แสดงข้อมูลทั้งหมดของอุปกรณ์และ status history เฉพาะอุปกรณ์นั้น
-- export PDF ข้อมูลอุปกรณ์รายชิ้นได้จาก asset detail page
-- log page แสดง transaction ได้ตาม type/status
-- import ข้อมูลจาก SharePoint ได้
-- imported data ถูก persist ใน PostgreSQL และ runtime features ไม่อ่าน CSV/SharePoint อีก
-
-## Open Questions
-
-- จะมี approval step เพิ่มภายหลังหรือไม่
-- format PDF ใบยืม/คืนจะมี field อะไรบ้างเมื่อเริ่มทำ
-- using transaction ต้องรองรับ owner reassignment ใน MVP หรือหลัง MVP
-
-## Future Enhancements
-
-- generate PDF ใบยืม/คืนราย transaction
-- approval workflow
-- upload เอกสารจริงหรือไฟล์แนบ
-- digital signature
-- export Excel
-- notifications สำหรับ overdue หรือ need check
-- mobile-friendly stock check
+- ระบบ migrate CSV เข้า PostgreSQL ได้ และ runtime ไม่อ่าน CSV/SharePoint ซ้ำ
+- Login แบบเดิมใช้งานได้ตาม permission ปัจจุบัน
+- Admin เห็นและจัดการทุก domain ได้
+- Stock Controller จัดการ asset/category/type ใน domain ของตัวเองได้ และเห็น domain อื่น read-only
+- User เห็น asset/log ทั้งระบบแบบ read-only และ request ได้
+- Request asset แล้ว status เป็น `REQUEST` หรือ quantity ถูก reserve ทันที
+- คนอื่นเห็น asset ที่ถูก request แต่ request ซ้ำไม่ได้
+- Submit request แล้วรอ approval โดย asset ยัง locked จนจบ workflow
+- `BORROW` / `USING` ต้องผ่าน `BSD_STAFF`
+- `RETURN` / `SOLD` ต้องผ่าน `BSD_STAFF -> BSD_MANAGER`
+- Transaction ที่มีหลาย domain ต้องผ่าน Stock Controller ของทุก domain ที่เกี่ยวข้องก่อนถึง BSD
+- Approved borrow/using/sold เปลี่ยน asset และ transaction status ถูกต้อง
+- Return approved แล้ว asset กลับ `READY` หรือ quantity กลับเข้าคลัง
+- Sold final แล้ว asset เป็น `SOLD`
+- Asset Detail Page แสดงข้อมูลครบ, history ครบ
+- Transaction History เห็นทุก transaction พร้อม filter
