@@ -1,120 +1,208 @@
-# Decision Log
+# บันทึกการตัดสินใจ
 
-## 2026-06-09: MVP Technical and Product Decisions
+อัปเดตล่าสุด: 2026-07-03
 
-Status: Accepted
+## 2026-06-09: Baseline แรกของ Asset Flow
 
-Decisions:
+การตัดสินใจ:
 
-- Use PostgreSQL as the primary database.
-- Use TypeScript for frontend and backend code.
-- Use Next.js full-stack monolith for MVP speed and simpler deployment.
-- Use `assets.status` as the current state of each asset.
-- Use `asset_status_histories` as the audit trail for every asset status change.
-- Use domain permission to separate Server and Network responsibilities.
-- Use manual CSV/Excel import from SharePoint for MVP migration.
-- Treat SharePoint CSV/Excel files as migration input only; PostgreSQL is the runtime source of truth after import.
-- Store signed paper document references as note/reference only; do not upload files in MVP.
+- เริ่มสร้าง Asset Flow จาก inventory ของ Server และ Network ก่อน
+- Track asset status แทนการลบ assets
+- เก็บ status history เพื่อให้ audit ได้
+- ใช้ role/permission checks สำหรับ management actions
 
-Rationale:
+เหตุผล:
 
-- The system manages serialized assets, not quantity-based inventory.
-- Next.js full-stack keeps the MVP compact and easier to iterate.
-- `assets.status` makes asset list/search/report queries simple.
-- `asset_status_histories` preserves auditability for asset state changes.
-- Domain permission directly matches the real workflow: Server Stock Controller manages Server, Network Stock Controller manages Network, and Admin manages all.
-- SharePoint migration is needed, but real-time SharePoint sync is not needed in MVP.
-- After import, normal app workflows must not read SharePoint or CSV files again.
-- Paper documents remain the legal/operational source for signatures, while the system tracks references and operational status.
+- ระบบต้อง trace การเคลื่อนย้ายและการเปลี่ยนสถานะของอุปกรณ์ได้
+- Server และ Network เป็น domains แรก แต่ไม่ควรถูกจำกัดให้มีได้แค่นี้ตลอดไป
 
-## 2026-06-09: Source Data and Policy Decisions
+## 2026-06-12: แนวทาง CSV Migration
 
-Status: Accepted
+การตัดสินใจ:
 
-Decisions:
+- CSV files เป็น mock/bootstrap data
+- CSV ใช้สำหรับ migrate initial data เข้า PostgreSQL
+- หลัง migration แล้ว PostgreSQL เป็น source of truth ถาวร
+- Runtime ห้ามอ่าน CSV หรือ SharePoint อีกหลัง migration
 
-- Use `D:\Internship\Stock_Management\src\data\Network.csv` and `D:\Internship\Stock_Management\src\data\Server.csv` as the source data files for migration.
-- `src/data/Network.csv` maps to the Network domain.
-- `src/data/Server.csv` maps to the Server domain.
-- All MVP assets must have serial no.; do not support serial-less assets in MVP.
-- Current source files have no blank serial no. and no duplicate serial no.
-- Use simple location text/location records in MVP.
-- Store SharePoint `QTY` and `FG` as legacy/reference fields only. They must not drive stock balance logic.
-- Persist imported source rows and mapped records into PostgreSQL; do not use CSV as runtime mock data after migration.
-- Do not export reports to Excel in MVP; keep it in backlog.
+เหตุผล:
 
-Source data profile:
+- การมี database source เดียวช่วยลดความไม่สอดคล้องของข้อมูล และทำให้ approval/history workflows เชื่อถือได้
 
-- `src/data/Network.csv`: 594 rows, columns are Image, Category, Types, Brand, Model, Comment, Part No., Serial No., Stock Code, QTY, FG, Status, Location, Remark.
-- `src/data/Server.csv`: 551 rows, columns are Image, Category, Types, Brand, Model, Part No., Serial No., Description, Stock Code, QTY, FG, Status, Location, Remark, Comment.
-- Both CSV files include a first-line SharePoint `ListSchema=...` record before the actual CSV header.
+## 2026-06-12: พฤติกรรม Request Cart
 
-Rationale:
+การตัดสินใจ:
 
-- The data confirms the product should stay serialized by serial no. rather than quantity-based.
-- Legacy `QTY`/`FG` fields are useful for traceability but should not reintroduce quantity stock logic.
+- Staff/user สามารถ request หลาย assets ใน request เดียวได้
+- Request ทำงานเหมือน cart ก่อน submit
+- เมื่อคลิก request ต้อง lock serial asset ทันทีโดยเปลี่ยน asset status เป็น `REQUEST`
+- User คนอื่นยังเห็น asset ได้ แต่ request ซ้ำไม่ได้
 
-## 2026-06-12: Asset Request and Transaction Workflow
+เหตุผล:
 
-Status: Accepted
+- ป้องกัน double booking แต่ยังให้ requester รวมหลาย items ก่อน submit ได้
 
-Decisions:
+## 2026-06-12: Asset Status Model
 
-- Use Microsoft 365 account login.
-- Use roles `ADMIN`, `SERVER_OWNER`, `NETWORK_OWNER`, and `STAFF`.
-- Replace the previous read-only `VIEWER` concept with `STAFF`, where Staff can view assets and create requests.
-- Use asset statuses `READY`, `REQUEST`, `BORROW`, `USING`, `SOLD`, `FAIL`, `LOST`, and `NEED_CHECK`.
-- Remove `WAIT` from the latest baseline.
-- Use `REQUEST` as a temporary asset lock when a staff user selects an asset before submit.
-- Prevent duplicate requests for an asset while `assets.status = REQUEST`.
-- Add `transactions` and `transaction_items` for business workflow.
-- Use transaction types `BORROW`, `USING`, and `SOLD`.
-- Use transaction statuses by type: `BORROW` uses `BORROWED`, `RETURNED`, `OVERDUE`; `USING` uses `ACTIVE`, `RETURNED`; `SOLD` uses `COMPLETED`.
-- Treat `OVERDUE` as a transaction status, not an asset status.
-- Keep sold, failed, lost, borrowed, and used assets in the database; business workflow changes status rather than deleting records.
-- Defer PDF borrow/return document format until the system is closer to completion.
+การตัดสินใจ:
 
-Rationale:
+- Asset statuses คือ `READY`, `REQUEST`, `BORROW`, `USING`, `SOLD`, `FAIL`, `LOST`, `NEED_CHECK`
+- Assets จะไม่ถูกลบจริงสำหรับ outcome เช่น borrow, using, sold, fail, lost หรือ need-check
+- `SOLD` เป็น terminal status สำหรับ normal workflow
+- `FAIL` และ `NEED_CHECK` ภายหลังสามารถเปลี่ยนเป็น `READY`, `FAIL`, หรือ `LOST` ได้ตามผลตรวจสอบ
 
-- Staff needs a cart-like request flow before submit, and `REQUEST` prevents two people from taking the same physical asset.
-- A transaction can include multiple assets across Server and Network, so the workflow needs transaction header and item records.
-- Asset status should describe where the physical item is now; transaction status should describe the state of the business record.
-- Sold assets must remain searchable for audit and must not return to normal reuse workflows.
+เหตุผล:
 
-## 2026-06-12: PostgreSQL Source of Truth After Migration
+- ธุรกิจต้องการ traceability และ audit history ระยะยาว
 
-Status: Accepted
+## 2026-06-12: Transaction Business Status Model
 
-Decisions:
+การตัดสินใจ:
 
-- CSV files are temporary mock/bootstrap data and migration inputs.
-- Migration must move all valid CSV/SharePoint data into PostgreSQL permanent tables.
-- After migration, the new borrow/return system must communicate directly with PostgreSQL only.
-- Dashboards, asset tables, request flow, transaction logs, reports, and status updates must not read SharePoint or CSV files at runtime.
-- Source CSV metadata may remain in `migration_batches` and `migration_rows` for audit and troubleshooting.
+- Borrow ใช้ `BORROWED`, `RETURNED`, `OVERDUE`
+- Using ใช้ `ACTIVE`, `RETURNED`
+- Sold ใช้ `COMPLETED`
+- Approval/workflow state ต้องแยกจาก transaction business status
 
-Rationale:
+เหตุผล:
 
-- Runtime behavior must be stable even if SharePoint exports or CSV files are removed, renamed, or stale.
-- PostgreSQL needs to be the single source of truth for request locks, asset statuses, transaction logs, and audit history.
-- Keeping CSV in the runtime path would risk conflicting data and make borrow/return state unreliable.
+- Approval state ตอบว่า “คำขออยู่ตรงไหนของ workflow”
+- Business status ตอบว่า “เกิดอะไรขึ้นกับ asset”
 
-## 2026-06-12: Asset Detail and Asset PDF Export
+## 2026-07-02: Authentication Scope Update
 
-Status: Accepted
+การตัดสินใจ:
 
-Decisions:
+- ใช้ login flow เดิมสำหรับ current scope
+- ตอนนี้ยังไม่ implement Microsoft 365, Azure AD, LDAP หรือ SSO
+- เก็บ LDAP/SSO/Microsoft login เป็น future enhancement
 
-- Asset Detail Page must show all available information for the selected asset.
-- Asset Detail Page must show status history scoped to that asset.
-- Asset Detail Page should show related transaction history for that asset when available.
-- Asset Detail Page must support exporting that asset's information as PDF.
-- Asset PDF export is part of the asset detail MVP.
-- Borrow/return transaction PDF remains a later backlog item until the document format is provided.
-- Asset detail and asset PDF export must read from PostgreSQL only.
+เหตุผล:
 
-Rationale:
+- Priority ปัจจุบันคือทำให้ stock, migration, request, approval และ return workflows เสถียรก่อน
+- หลีกเลี่ยงการผสม authentication migration เข้ากับ business workflow redesign
 
-- Users need a single page to inspect a physical asset by serial no. before changing status or making operational decisions.
-- Asset PDF export is a simple asset information report and is separate from formal borrow/return paperwork.
-- Keeping the PDF data source in PostgreSQL preserves the source-of-truth rule after migration.
+## 2026-07-02: Role and Tag Model
+
+การตัดสินใจ:
+
+- Primary roles คือ `ADMIN`, `STOCK_CONTROLLER`, และ `USER`
+- ห้ามมี system roles อื่นนอกเหนือจาก `ADMIN`, `STOCK_CONTROLLER`, และ `USER`
+- Stock Controller permission scope กำหนดด้วย domain tags เช่น `SERVER` และ `NETWORK`
+- User organization level tags คือ `EXECUTIVE`, `MANAGER`, `SUPERVISOR`, และ `STAFF`
+- User organization unit tags ได้แก่ `BSD_MANAGER`, `BSD_STAFF`, `SCN_MANAGER`, `S1_SUPERVISOR`, `S1_STAFF`, `N1_SUPERVISOR`, `N1_STAFF`, `C1_SUPERVISOR`, `C1_STAFF`, `DL_MANAGER`, `DL_STAFF`, `EN_MANAGER`, `CMS_SUPERVISOR`, `CMS_STAFF`, `SD_SUPERVISOR`, และ `SD_STAFF`
+- User project tags ถูก assign ผ่าน project membership เป็น `LEAD_PROJECT` หรือ `TEAM_MEMBER`
+- User คนใดก็สามารถเป็น `LEAD_PROJECT` หรือ `TEAM_MEMBER` ได้ ไม่ขึ้นกับ organization level
+- BSD เป็น organization/approval context ไม่ใช่ system role แยก
+
+เหตุผล:
+
+- Primary role ควรบอกความสามารถหลักในระบบ
+- Tags ใช้อธิบาย approval responsibility และ project/organization context
+
+## 2026-07-02: BSD Approval Requirement
+
+การตัดสินใจ:
+
+- `BORROW` และ `USING` ต้องผ่าน `BSD_STAFF`
+- `RETURN` และ `SOLD` ต้องผ่าน `BSD_STAFF -> BSD_MANAGER`
+- Rejected approval ต้องมี reason
+
+เหตุผล:
+
+- BSD เป็น final business control point ทั้งตอนจ่ายของและตอนคืน/ปิดรายการ
+
+## 2026-07-02: Context-Aware Approval Routing
+
+การตัดสินใจ:
+
+- ถ้า requester เป็น `STAFF` ให้ approval route ไปที่ `SUPERVISOR` ของทีม requester
+- ถ้า requester เป็น `SUPERVISOR` ให้ approval route ไปที่ department `MANAGER`
+- ถ้า requester เป็น `MANAGER` หรือ `EXECUTIVE` ให้ skip business approver tier
+- ถ้า request ผูกกับ project และ requester เป็น `TEAM_MEMBER` ให้ route ไปที่ project `LEAD_PROJECT`
+- ถ้า requester เป็น `LEAD_PROJECT` ของ project นั้นอยู่แล้ว ให้ skip project approver tier
+- Transaction ที่มีหลาย domains ต้อง generate Stock Controller approval สำหรับทุก domain ที่เกี่ยวข้อง
+- Multi-domain Stock Controller approvals สามารถ run parallel ได้
+- Workflow จะไป BSD ได้หลังจาก Stock Controller approvals ที่จำเป็นทั้งหมด complete แล้ว
+
+เหตุผล:
+
+- Approval ต้องวิ่งตามบริบทของ requester และ domain owner ทุกส่วนที่ได้รับผลกระทบจาก transaction
+
+## 2026-07-02: Dynamic Domain Direction
+
+การตัดสินใจ:
+
+- Domain ต้องเป็น data-driven
+- Initial domains คือ Server และ Network
+- อนาคตฝ่ายอื่นสามารถเพิ่ม domains ใหม่ได้โดยไม่ต้องเปลี่ยน core workflow code
+- Category/type ต้อง belong to domain
+- Admin และ Stock Controller สามารถ create/edit category/type ตาม permission ได้
+
+เหตุผล:
+
+- ระบบปัจจุบันเริ่มจาก Server และ Network แต่ควรรองรับการเติบโตขององค์กร
+
+## 2026-07-02: Mixed Serial and Quantity Tracking
+
+การตัดสินใจ:
+
+- รองรับ tracking methods ทั้ง `SERIAL` และ `QUANTITY`
+- Serialized asset ต้องมี serial identity และ quantity 1
+- Quantity asset ไม่จำเป็นต้องมี serial และใช้ `asset_quantity`
+- `transactions_items` เก็บ `requested_quantity`
+- Quantity requests ต้อง reserve available quantity ก่อน submit/approval complete
+
+เหตุผล:
+
+- Stock บางอย่าง track เป็นรายชิ้น และบางอย่าง track เป็นจำนวน
+
+## 2026-07-02: Transaction History Visibility
+
+การตัดสินใจ:
+
+- Transaction History เป็น internal public view
+- Authenticated users เห็นทุก queue, pending approvals, rejected/cancelled items, completed transactions, ทุก projects และทุก users
+- ต้องมี filtering เพื่อให้ global view ใช้งานได้จริง
+
+เหตุผล:
+
+- ทีมต้องเห็นภาพรวมข้าม project และ stock movement โดยใช้ filters แทนการซ่อน history
+
+## 2026-07-02: Asset Detail Page
+
+การตัดสินใจ:
+
+- Asset Detail Page ต้องแสดง asset data ทั้งหมด
+- ต้องแสดง asset status history
+- ต้องแสดง related transaction history
+- ต้อง export asset detail เป็น PDF ได้
+
+เหตุผล:
+
+- ต้องมี asset-level traceability สำหรับ audit, inspection และ operational handoff
+
+## 2026-07-02: Transaction PDF Timing
+
+การตัดสินใจ:
+
+- Asset detail PDF อยู่ใน current scope
+- Borrow/return transaction PDF รอจนกว่าจะได้ final document format
+
+เหตุผล:
+
+- สามารถ build workflow ก่อนได้ ระหว่างที่ document layout ยัง finalize ภายหลัง
+
+## 2026-07-03: ER Naming Baseline
+
+การตัดสินใจ:
+
+- ใช้ ER diagram ล่าสุดเป็น schema naming baseline
+- Core entities คือ `USER`, `DOMAINS`, `ASSETS_CATEGORIES`, `ASSETS_TYPES`, `ASSETS`, `PROJECT`, `PROJECT_MEMBERS`, `TRANSACTIONS`, `TRANSACTIONS_ITEMS`, `TRANSACTIONS_APPROVALS`, และ `ASSET_STATUS_HISTORY`
+- `transactions_approvals` แทน parallel approvals ด้วยหลาย rows ที่มี `approval_step_sequence` เดียวกัน
+- `user.organization_tag` เป็น field ใน ER สำหรับ organization context และต้องรองรับทั้ง level tags และ concrete unit tags
+- `due_date` และ `requisition_no` ยังเป็น workflow fields ที่ต้องมี แม้ไม่ได้แสดงใน ER ปัจจุบัน
+
+เหตุผล:
+
+- Markdown ต้องตรงกับ ER ล่าสุด และยังต้องคง workflow rules ที่ยืนยันแล้วสำหรับ overdue และ document numbering

@@ -1,6 +1,6 @@
-# Stock Management System
+# Asset Flow Management System
 
-Serialized asset stock management system for tracking Server and Network items by serial no., status, domain permission, and status history.
+Internal asset flow system for managing Server, Network, and future warehouse items with request, approval, status history, and PDF export support.
 
 ## Stack
 
@@ -35,9 +35,9 @@ npm run db:seed
 Seed users:
 
 ```text
-oak@example.com
-arm@example.com
-mek@example.com
+admin@example.com
+server@example.com
+network@example.com
 viewer@example.com
 ```
 
@@ -66,15 +66,15 @@ npm run build
 - Use domain permission to separate Server and Network ownership.
 - Use manual CSV/Excel import from SharePoint.
 - Store signed paper document references as note/reference only in MVP.
-- Use `data/Network.csv` and `data/Server.csv` as the initial migration source files.
+- Use `src/data/Network.csv` and `src/data/Server.csv` as the initial migration source files.
 - Require serial no. for every MVP asset.
 - Treat rent and borrow as the same `Borrow` workflow.
 - Give Viewer users read-only access.
 
 ## Source Data
 
-- `data/Network.csv`: 594 rows, no blank serial no., no duplicate serial no.
-- `data/Server.csv`: 551 rows, no blank serial no., no duplicate serial no.
+- `src/data/Network.csv`: 594 rows, no blank serial no., no duplicate serial no.
+- `src/data/Server.csv`: 551 rows, no blank serial no., no duplicate serial no.
 - CSV files include a first-line SharePoint `ListSchema=...` record before the real header.
 
 ## Documents
