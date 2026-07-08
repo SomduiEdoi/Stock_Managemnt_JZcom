@@ -1,4 +1,4 @@
-import {
+﻿import {
   AssetCreateForbidden,
   AssetCreatePage,
 } from "@/features/assets/asset-edit-page";
@@ -15,7 +15,7 @@ export default async function AssetCreateRoute({
   const params = await searchParams;
   const rawDomain = params.domain;
   const domain = Array.isArray(rawDomain) ? rawDomain[0] : rawDomain;
-  const lockDomain = domain === "SERVER" || domain === "NETWORK";
+  const lockDomain = Boolean(domain);
 
   const user = await requireCurrentUser("/dashboard/assets/new");
   const result = await getAssetCreateForUser(user, domain);
@@ -33,3 +33,4 @@ export default async function AssetCreateRoute({
     />
   );
 }
+

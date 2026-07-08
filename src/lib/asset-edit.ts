@@ -1,6 +1,5 @@
-import {
+﻿import {
   AssetActionType,
-  AssetDomainCode,
   AssetTrackMethod,
   AssetStatus,
   Prisma,
@@ -11,7 +10,6 @@ import {
   assertCanDeleteAssets,
   assertCanManageDomain,
   canManageDomainForUser,
-  domainCodes,
   hasRole,
 } from "@/lib/permissions";
 import { canTransitionAssetStatus, getManualStatusAction } from "@/lib/workflow-rules";
@@ -56,11 +54,11 @@ export type AssetEditRecord = Prisma.AssetGetPayload<{
 }>;
 
 export type AssetEditOptions = {
-  categories: Array<{ domainCode: AssetDomainCode; name: string }>;
-  domains: Array<{ code: AssetDomainCode; name: string }>;
+  categories: Array<{ domainCode: string; name: string }>;
+  domains: Array<{ code: string; name: string }>;
   locations: Array<{ code: string | null; name: string }>;
   statuses: AssetStatus[];
-  types: Array<{ domainCode: AssetDomainCode; name: string }>;
+  types: Array<{ code: string | null; domainCode: string; name: string; trackMethod: AssetTrackMethod }>;
 };
 
 export type AssetEditResult =
@@ -76,7 +74,7 @@ export type AssetEditResult =
 export type AssetCreateResult =
   | {
       canChangeDomain: boolean;
-      initialDomainCode: AssetDomainCode;
+      initialDomainCode: string;
       kind: "ok";
       options: AssetEditOptions;
     }
@@ -87,7 +85,7 @@ export type UpdateAssetInput = {
   brand?: string | null;
   categoryName?: string | null;
   description?: string | null;
-  domainCode: AssetDomainCode;
+  domainCode: string;
   imageRef?: string | null;
   isActive?: boolean;
   legacyFg?: number | null;
@@ -99,7 +97,7 @@ export type UpdateAssetInput = {
   modelNo?: string | null;
   note?: string | null;
   partNo?: string | null;
-  serialNo: string;
+  serialNo?: string | null;
   sourceRecordId?: string | null;
   sourceSystem?: string | null;
   status: AssetStatus;
@@ -124,12 +122,99 @@ function requireText(value: string | null | undefined, label: string) {
   return trimmed;
 }
 
-function requirePositiveInteger(value: number | null | undefined, label: string) {
-  if (!Number.isInteger(value) || (value ?? 0) <= 0) {
-    throw new WorkflowError(`${label} must be greater than 0.`);
+
+function assertAscii(value: string, label: string) {
+  if (/[^\x00-\x7F]/.test(value)) {
+    throw new WorkflowError(`${label} must use English letters, numbers, or allowed symbols only.`);
+  }
+}
+
+function requirePatternText(
+  value: string | null | undefined,
+  label: string,
+  options: { max: number; min: number; pattern: RegExp },
+) {
+  const text = requireText(value, label);
+
+  assertAscii(text, label);
+
+  if (text.length < options.min || text.length > options.max) {
+    throw new WorkflowError(`${label} must be ${options.min}-${options.max} characters.`);
   }
 
-  return value as number;
+  if (!options.pattern.test(text)) {
+    throw new WorkflowError(`${label} contains invalid characters.`);
+  }
+
+  return text;
+}
+
+function validateSerialNo(
+  value: string | null | undefined,
+  trackMethod: AssetTrackMethod,
+) {
+  const serialNo = cleanText(value);
+
+  if (trackMethod === AssetTrackMethod.QUANTITY) {
+    if (serialNo) {
+      throw new WorkflowError("Serial no. must be empty for quantity assets.");
+    }
+
+    return null;
+  }
+
+  return requirePatternText(serialNo, "Serial no.", {
+    max: 255,
+    min: 1,
+    pattern: /^[A-Za-z0-9-]+$/,
+  });
+}
+
+const fallbackDomainStockPrefixes: Record<string, string> = {
+  NETWORK: "NW",
+  SERVER: "SV",
+};
+
+function stockTypeCode(assetType: { code: string | null; name: string }) {
+  const source = cleanText(assetType.code) ?? assetType.name;
+  const normalized = source.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+
+  return (normalized || "XX").padEnd(2, "X").slice(0, 2);
+}
+
+async function generateStockCode(
+  tx: Prisma.TransactionClient,
+  domainCode: string,
+  assetType: { code: string | null; name: string },
+) {
+  const domain = await tx.assetDomain.findUnique({
+    select: { prefix: true },
+    where: { code: domainCode },
+  });
+  const domainPrefix = cleanText(domain?.prefix) ?? fallbackDomainStockPrefixes[domainCode] ?? domainCode.replace(/[^A-Za-z0-9]/g, "").toUpperCase().padEnd(2, "X").slice(0, 2);
+  const prefix = `${domainPrefix}-${stockTypeCode(assetType)}`;
+  const latest = await tx.asset.findFirst({
+    orderBy: { stockCode: "desc" },
+    select: { stockCode: true },
+    where: { stockCode: { startsWith: prefix } },
+  });
+  const latestSequence = latest?.stockCode?.slice(prefix.length).match(/^\d{4}$/)
+    ? Number.parseInt(latest.stockCode.slice(prefix.length), 10)
+    : 0;
+
+  for (let sequence = latestSequence + 1; sequence <= 9999; sequence += 1) {
+    const stockCode = `${prefix}${String(sequence).padStart(4, "0")}`;
+    const duplicate = await tx.asset.findFirst({
+      select: { id: true },
+      where: { stockCode },
+    });
+
+    if (!duplicate) {
+      return stockCode;
+    }
+  }
+
+  throw new WorkflowError("Unable to generate stock code.", 409, "STOCK_CODE_EXHAUSTED");
 }
 
 function editableStatuses(currentStatus: AssetStatus) {
@@ -153,15 +238,22 @@ function editableStatuses(currentStatus: AssetStatus) {
 }
 
 async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus) {
-  const manageableDomainCodes = domainCodes.filter((domainCode) =>
-    canManageDomainForUser(user, domainCode),
-  );
+  const manageableDomainCodes = hasRole(user, "ADMIN")
+    ? null
+    : user.permissions
+        .filter((permission) => permission.canManage)
+        .map((permission) => permission.domainCode);
+
+  const domainWhere = {
+    isActive: true,
+    ...(manageableDomainCodes ? { code: { in: manageableDomainCodes } } : {}),
+  };
 
   const [domains, categories, locations, types] = await Promise.all([
     db.assetDomain.findMany({
       orderBy: { name: "asc" },
       select: { code: true, name: true },
-      where: { code: { in: manageableDomainCodes }, isActive: true },
+      where: domainWhere,
     }),
     db.assetCategory.findMany({
       orderBy: [{ name: "asc" }],
@@ -170,7 +262,7 @@ async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus
         name: true,
       },
       where: {
-        domain: { code: { in: manageableDomainCodes } },
+        domain: domainWhere,
         isActive: true,
       },
     }),
@@ -187,10 +279,12 @@ async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus
             domain: { select: { code: true } },
           },
         },
+        code: true,
         name: true,
+        trackMethod: true,
       },
       where: {
-        category: { domain: { code: { in: manageableDomainCodes } } },
+        category: { domain: domainWhere },
         isActive: true,
       },
     }),
@@ -202,8 +296,10 @@ async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus
         .map((type) => [
           `${type.category.domain.code}:${type.name}`,
           {
+            code: type.code,
             domainCode: type.category.domain.code,
             name: type.name,
+            trackMethod: type.trackMethod,
           },
         ]),
     ).values(),
@@ -256,11 +352,7 @@ export async function getAssetCreateForUser(
     return { kind: "forbidden" };
   }
 
-  const requestedDomainCode =
-    preferredDomainCode === AssetDomainCode.SERVER ||
-    preferredDomainCode === AssetDomainCode.NETWORK
-      ? preferredDomainCode
-      : null;
+  const requestedDomainCode = cleanText(preferredDomainCode);
 
   const initialDomainCode =
     requestedDomainCode &&
@@ -363,6 +455,12 @@ async function resolveAssetType(
       name: typeName,
       trackMethod: AssetTrackMethod.SERIAL,
     },
+    select: {
+      code: true,
+      id: true,
+      name: true,
+      trackMethod: true,
+    },
   });
 }
 
@@ -420,20 +518,34 @@ export async function updateAssetForUser(
   assetId: string,
   input: UpdateAssetInput,
 ) {
-  const serialNo = requireText(input.serialNo, "Serial no.");
-  const modelName = requireText(input.modelName, "Asset model");
-  const brand = cleanText(input.brand);
-  const categoryName = cleanText(input.categoryName);
+  const modelName = requirePatternText(input.modelName, "Asset model", {
+    max: 30,
+    min: 2,
+    pattern: /^[A-Za-z0-9 \-\/()+.]+$/,
+  });
+  const brand = requirePatternText(input.brand, "Brand", {
+    max: 30,
+    min: 2,
+    pattern: /^[A-Za-z0-9 \-\/()+.]+$/,
+  });
+  const categoryName = requireText(input.categoryName, "Category");
   const description = cleanText(input.description);
-  const locationText = cleanText(input.locationText);
+  const locationText = requirePatternText(input.locationText, "Location", {
+    max: 30,
+    min: 2,
+    pattern: /^[A-Za-z0-9 ,\-.\/]+$/,
+  });
   const modelNo = cleanText(input.modelNo);
   const note = cleanText(input.note);
-  const partNo = cleanText(input.partNo);
+  const partNo = requirePatternText(input.partNo, "Part no.", {
+    max: 20,
+    min: 2,
+    pattern: /^[A-Za-z0-9\-\/.]+$/,
+  });
   const sourceRecordId = cleanText(input.sourceRecordId);
   const sourceSystem = cleanText(input.sourceSystem);
-  const stockCode = cleanText(input.stockCode);
   const imageRef = cleanText(input.imageRef);
-  const typeName = cleanText(input.typeName);
+  const typeName = requireText(input.typeName, "Type");
   const assetNo = cleanText(input.assetNo);
 
   return db.$transaction(
@@ -481,7 +593,7 @@ export async function updateAssetForUser(
         !canTransitionAssetStatus(asset.status, input.status)
       ) {
         throw new WorkflowError(
-          `Cannot change ${asset.serialNo} from ${asset.status} to ${input.status}.`,
+          `Cannot change ${asset.serialNo ?? asset.id} from ${asset.status} to ${input.status}.`,
           409,
           "INVALID_STATUS_TRANSITION",
         );
@@ -489,22 +601,6 @@ export async function updateAssetForUser(
 
       if (input.status !== asset.status && !note) {
         throw new WorkflowError("Remark is required when changing status.");
-      }
-
-      const duplicateSerial = await tx.asset.findFirst({
-        select: { id: true },
-        where: {
-          id: { not: asset.id },
-          serialNo,
-        },
-      });
-
-      if (duplicateSerial) {
-        throw new WorkflowError(
-          "Serial no. already exists.",
-          409,
-          "DUPLICATE_SERIAL_NO",
-        );
       }
 
       const targetDomain = await tx.assetDomain.findFirst({
@@ -521,12 +617,37 @@ export async function updateAssetForUser(
         category?.id ?? null,
         typeName,
       );
+
+      if (!assetType) {
+        throw new WorkflowError("Type is required.");
+      }
+
+      const serialNo = validateSerialNo(input.serialNo, assetType.trackMethod);
+
+      if (serialNo) {
+        const duplicateSerial = await tx.asset.findFirst({
+          select: { id: true },
+          where: {
+            id: { not: asset.id },
+            serialNo,
+          },
+        });
+
+        if (duplicateSerial) {
+          throw new WorkflowError(
+            "Serial no. already exists.",
+            409,
+            "DUPLICATE_SERIAL_NO",
+          );
+        }
+      }
+
       const location = await resolveLocation(tx, {
-        locationCode: input.locationCode,
-        locationName: input.locationName,
+        locationCode: null,
+        locationName: locationText,
       });
       const assetModel = await resolveAssetModel(tx, {
-        assetTypeId: assetType?.id ?? null,
+        assetTypeId: assetType.id,
         brand,
         categoryId: category?.id ?? null,
         description,
@@ -541,12 +662,11 @@ export async function updateAssetForUser(
         data: {
           assetModelId: assetModel.id,
           assetNo,
-          assetQuantity: input.legacyQty ?? undefined,
           domainId: targetDomain.id,
           imageRef,
           isActive: input.isActive ?? true,
-          legacyFg: input.legacyFg ?? null,
-          legacyQty: input.legacyQty ?? null,
+          legacyFg: null,
+          legacyQty: null,
           locationId: location?.id ?? null,
           locationText,
           note,
@@ -556,7 +676,6 @@ export async function updateAssetForUser(
           sourceRecordId,
           sourceSystem,
           status: input.status,
-          stockCode,
           updatedById: user.id,
         },
         select: assetEditSelect,
@@ -581,7 +700,6 @@ export async function updateAssetForUser(
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
 }
-
 export async function deleteAssetForUser(user: CurrentUser, assetId: string) {
   return db.$transaction(
     async (tx) => {
@@ -632,23 +750,35 @@ export async function deleteAssetForUser(user: CurrentUser, assetId: string) {
 }
 
 export async function createAssetForUser(user: CurrentUser, input: CreateAssetInput) {
-  const serialNo = requireText(input.serialNo, "Serial no.");
-  const modelName = requireText(input.modelName, "Asset model");
-  const brand = requireText(input.brand, "Brand");
+  const modelName = requirePatternText(input.modelName, "Asset model", {
+    max: 30,
+    min: 2,
+    pattern: /^[A-Za-z0-9 \-\/()+.]+$/,
+  });
+  const brand = requirePatternText(input.brand, "Brand", {
+    max: 30,
+    min: 2,
+    pattern: /^[A-Za-z0-9 \-\/()+.]+$/,
+  });
   const categoryName = requireText(input.categoryName, "Category");
   const description = cleanText(input.description);
-  const locationText = requireText(input.locationText, "Location");
+  const locationText = requirePatternText(input.locationText, "Location", {
+    max: 30,
+    min: 2,
+    pattern: /^[A-Za-z0-9 ,\-.\/]+$/,
+  });
   const modelNo = cleanText(input.modelNo);
   const note = cleanText(input.note);
-  const partNo = requireText(input.partNo, "Part no.");
+  const partNo = requirePatternText(input.partNo, "Part no.", {
+    max: 20,
+    min: 2,
+    pattern: /^[A-Za-z0-9\-\/.]+$/,
+  });
   const sourceRecordId = cleanText(input.sourceRecordId);
   const sourceSystem = cleanText(input.sourceSystem);
-  const stockCode = requireText(input.stockCode, "Stock code");
-  const imageRef = requireText(input.imageRef, "Asset image");
+  const imageRef = cleanText(input.imageRef);
   const typeName = requireText(input.typeName, "Type");
   const assetNo = cleanText(input.assetNo);
-  const legacyQty = requirePositiveInteger(input.legacyQty, "QTY");
-  const legacyFg = requirePositiveInteger(input.legacyFg, "FG");
 
   if (input.status === AssetStatus.REQUEST) {
     throw new WorkflowError(
@@ -662,19 +792,6 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
 
   return db.$transaction(
     async (tx) => {
-      const duplicateSerial = await tx.asset.findFirst({
-        select: { id: true },
-        where: { serialNo },
-      });
-
-      if (duplicateSerial) {
-        throw new WorkflowError(
-          "Serial no. already exists.",
-          409,
-          "DUPLICATE_SERIAL_NO",
-        );
-      }
-
       const targetDomain = await tx.assetDomain.findFirst({
         where: { code: input.domainCode, isActive: true },
       });
@@ -689,12 +806,35 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
         category?.id ?? null,
         typeName,
       );
+
+      if (!assetType) {
+        throw new WorkflowError("Type is required.");
+      }
+
+      const serialNo = validateSerialNo(input.serialNo, assetType.trackMethod);
+
+      if (serialNo) {
+        const duplicateSerial = await tx.asset.findFirst({
+          select: { id: true },
+          where: { serialNo },
+        });
+
+        if (duplicateSerial) {
+          throw new WorkflowError(
+            "Serial no. already exists.",
+            409,
+            "DUPLICATE_SERIAL_NO",
+          );
+        }
+      }
+
+      const stockCode = await generateStockCode(tx, input.domainCode, assetType);
       const location = await resolveLocation(tx, {
-        locationCode: input.locationCode,
-        locationName: input.locationName,
+        locationCode: null,
+        locationName: locationText,
       });
       const assetModel = await resolveAssetModel(tx, {
-        assetTypeId: assetType?.id ?? null,
+        assetTypeId: assetType.id,
         brand,
         categoryId: category?.id ?? null,
         description,
@@ -709,13 +849,13 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
         data: {
           assetModelId: assetModel.id,
           assetNo,
-          assetQuantity: legacyQty,
+          assetQuantity: 1,
           createdById: user.id,
           domainId: targetDomain.id,
           imageRef,
           isActive: input.isActive ?? true,
-          legacyFg,
-          legacyQty,
+          legacyFg: null,
+          legacyQty: null,
           locationId: location?.id ?? null,
           locationText,
           note,
@@ -747,4 +887,8 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
 }
+
+
+
+
 

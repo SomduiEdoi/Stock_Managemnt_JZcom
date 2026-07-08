@@ -1,4 +1,4 @@
-import { AssetStatus, Prisma } from "@prisma/client";
+﻿import { AssetStatus, Prisma } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
@@ -9,7 +9,7 @@ import {
   type PermissionUser,
 } from "@/lib/permissions";
 
-export const assetDomainOptions = domainCodes;
+export const assetDomainOptions: string[] = [...domainCodes];
 export const assetStatusOptions = [
   "READY",
   "REQUEST",
@@ -87,7 +87,7 @@ function firstParam(value: string | string[] | undefined) {
 }
 
 function isDomainCode(value: string | undefined): value is DomainCode {
-  return assetDomainOptions.includes(value as DomainCode);
+  return value !== undefined && assetDomainOptions.includes(value);
 }
 
 function isAssetStatus(
@@ -309,3 +309,5 @@ export async function getAssetOverviewForUser(user: CurrentUser) {
     total,
   };
 }
+
+

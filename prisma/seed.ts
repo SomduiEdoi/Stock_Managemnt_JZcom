@@ -1,6 +1,5 @@
-import bcrypt from "bcryptjs";
+﻿import bcrypt from "bcryptjs";
 import {
-  type AssetDomainCode,
   PrismaClient,
   type RoleCode,
 } from "@prisma/client";
@@ -16,7 +15,7 @@ type SeedUser = {
   roleCode: RoleCode;
   azureAdObjectId?: string;
   permissions: Array<{
-    domainCode: AssetDomainCode;
+    domainCode: string;
     canView: boolean;
     canManage: boolean;
   }>;
@@ -154,7 +153,7 @@ async function upsertSeedUser(
   user: SeedUser,
   passwordHash: string,
   roleByCode: Map<RoleCode, string>,
-  domainByCode: Map<AssetDomainCode, string>,
+  domainByCode: Map<string, string>,
 ) {
   const identityData = user.azureAdObjectId
     ? { azureAdObjectId: user.azureAdObjectId }
@@ -260,3 +259,4 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+

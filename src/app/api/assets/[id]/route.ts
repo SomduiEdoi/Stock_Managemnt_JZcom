@@ -1,4 +1,4 @@
-import { AssetDomainCode, AssetStatus } from "@prisma/client";
+﻿import { AssetStatus } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
@@ -20,7 +20,7 @@ const updateAssetSchema = z.object({
   brand: nullableString(255),
   categoryName: nullableString(255),
   description: nullableString(2000),
-  domainCode: z.nativeEnum(AssetDomainCode),
+  domainCode: z.string().trim().min(1).max(32),
   imageRef: z.string().trim().max(2_000_000).optional().nullable(),
   isActive: z.boolean().optional(),
   legacyFg: z.number().int().nullable().optional(),
@@ -32,7 +32,7 @@ const updateAssetSchema = z.object({
   modelNo: nullableString(255),
   note: z.string().trim().max(2000).optional().nullable(),
   partNo: nullableString(255),
-  serialNo: z.string().trim().min(1).max(255),
+  serialNo: nullableString(255),
   sourceRecordId: nullableString(255),
   sourceSystem: nullableString(255),
   status: z.nativeEnum(AssetStatus),
@@ -66,3 +66,5 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     return apiErrorResponse(error);
   }
 }
+
+

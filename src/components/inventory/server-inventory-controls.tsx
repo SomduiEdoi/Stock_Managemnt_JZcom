@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -27,6 +27,7 @@ type ServerInventoryControlFilters = {
 
 type ServerInventoryControlsProps = {
   addAssetHref?: string | null;
+  baseHref?: string;
   categories: string[];
   filters: ServerInventoryControlFilters;
   statuses: StatusOption[];
@@ -46,6 +47,7 @@ function appendValues(params: URLSearchParams, key: string, values: string[]) {
 }
 
 function buildHref(
+  baseHref: string,
   filters: ServerInventoryControlFilters,
   overrides: Partial<ServerInventoryControlFilters>,
 ) {
@@ -68,7 +70,7 @@ function buildHref(
     params.set("dir", nextFilters.sortDirection);
   }
 
-  return `/dashboard/server${params.size ? `?${params.toString()}` : ""}`;
+  return `${baseHref}${params.size ? `?${params.toString()}` : ""}`;
 }
 
 function HiddenFilters({ filters }: { filters: ServerInventoryControlFilters }) {
@@ -90,9 +92,11 @@ function HiddenFilters({ filters }: { filters: ServerInventoryControlFilters }) 
 }
 
 function CategoryChips({
+  baseHref,
   categories,
   filters,
 }: {
+  baseHref: string;
   categories: string[];
   filters: ServerInventoryControlFilters;
 }) {
@@ -104,7 +108,7 @@ function CategoryChips({
             ? "bg-brand-accent text-white"
             : "bg-surface text-muted-foreground hover:text-navy"
         }`}
-        href={buildHref(filters, { categories: [] })}
+        href={buildHref(baseHref, filters, { categories: [] })}
       >
         All Server Categories
       </Link>
@@ -118,7 +122,7 @@ function CategoryChips({
                 ? "bg-brand-accent text-white"
                 : "bg-surface text-muted-foreground hover:text-navy"
             }`}
-            href={buildHref(filters, { categories: isActive ? [] : [category] })}
+            href={buildHref(baseHref, filters, { categories: isActive ? [] : [category] })}
             key={category}
           >
             {category}
@@ -243,6 +247,7 @@ function StatusCheckboxes({
 }
 
 function FilterDrawer({
+  baseHref = "/dashboard/server",
   categories,
   filters,
   isOpen,
@@ -266,7 +271,7 @@ function FilterDrawer({
           </button>
         </div>
 
-        <form action="/dashboard/server" className="mt-6" method="get">
+        <form action={baseHref ?? "/dashboard/server"} className="mt-6" method="get">
           <input name="q" type="hidden" value={filters.search} />
           <input name="page" type="hidden" value="1" />
           <input name="sort" type="hidden" value={filters.sortBy} />
@@ -286,7 +291,7 @@ function FilterDrawer({
           <div className="sticky bottom-0 -mx-6 mt-4 flex gap-3 border-t border-border bg-white px-6 py-4">
             <Link
               className="flex h-10 flex-1 items-center justify-center rounded-md border border-border text-sm font-bold text-navy"
-              href="/dashboard/server"
+              href={baseHref}
             >
               Reset
             </Link>
@@ -303,6 +308,7 @@ function FilterDrawer({
 
 export function ServerInventoryControls({
   addAssetHref,
+  baseHref = "/dashboard/server",
   categories,
   filters,
   statuses,
@@ -316,10 +322,10 @@ export function ServerInventoryControls({
 
   return (
     <div className="flex flex-col gap-4">
-      <CategoryChips categories={categories} filters={filters} />
+      <CategoryChips baseHref={baseHref} categories={categories} filters={filters} />
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <form action="/dashboard/server" className="relative flex-1" method="get">
+        <form action={baseHref} className="relative flex-1" method="get">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             className="h-11 w-full rounded-md border border-border bg-white pl-10 pr-11 text-sm font-medium outline-none ring-brand-accent/20 transition focus:ring-4"
@@ -331,7 +337,7 @@ export function ServerInventoryControls({
             <Link
               aria-label="Clear search and filters"
               className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition hover:bg-surface hover:text-navy"
-              href="/dashboard/server"
+              href={baseHref}
             >
               <X className="h-4 w-4" />
             </Link>
@@ -371,5 +377,9 @@ export function ServerInventoryControls({
     </div>
   );
 }
+
+
+
+
 
 

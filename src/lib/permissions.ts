@@ -1,15 +1,9 @@
-import type {
-  AssetDomainCode,
-  RoleCode as PrismaRoleCode,
-} from "@prisma/client";
+﻿import type { RoleCode as PrismaRoleCode } from "@prisma/client";
 
-export type DomainCode = AssetDomainCode;
+export type DomainCode = string;
 export type RoleCode = PrismaRoleCode;
 
-export const domainCodes = [
-  "SERVER",
-  "NETWORK",
-] as const satisfies readonly DomainCode[];
+export const domainCodes = ["SERVER", "NETWORK"] as const satisfies readonly DomainCode[];
 export const requestRoleCodes = ["USER"] as const satisfies readonly RoleCode[];
 
 export type DomainPermission = {
@@ -82,8 +76,8 @@ export function canRequestDomainForUser(
 }
 
 export function canRequestAssetsForUser(user: PermissionUser) {
-  return domainCodes.some((domainCode) =>
-    canRequestDomainForUser(user, domainCode),
+  return user.permissions.some((permission) =>
+    canRequestDomainForUser(user, permission.domainCode),
   );
 }
 
@@ -153,3 +147,5 @@ export function canViewDomain(
       (permission.canView || permission.canManage),
   );
 }
+
+

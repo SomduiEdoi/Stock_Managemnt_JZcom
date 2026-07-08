@@ -1,6 +1,7 @@
-import type { ReactNode } from "react";
+﻿import type { ReactNode } from "react";
 import type { CurrentUser } from "@/lib/auth";
 import { getRequestCartForUser } from "@/lib/request-cart";
+import { getSidebarDomainsForUser, getStockControllersForDomainForm } from "@/lib/domains";
 import { AppSidebar } from "./app-sidebar";
 import { AppShellTitle } from "./app-shell-title";
 import { UserProfileMenu } from "./user-profile-menu";
@@ -12,12 +13,16 @@ type AppShellProps = {
 };
 
 export async function AppShell({ children, title, user }: AppShellProps) {
-  const requestCart = await getRequestCartForUser(user as CurrentUser);
+  const [requestCart, domains, stockControllers] = await Promise.all([
+    getRequestCartForUser(user as CurrentUser),
+    getSidebarDomainsForUser(user),
+    user.roles.includes("ADMIN") ? getStockControllersForDomainForm() : Promise.resolve([]),
+  ]);
   const requestCount = requestCart.canRequest ? requestCart.assets.length : 0;
 
   return (
     <main className="min-h-screen bg-background text-foreground lg:grid lg:grid-cols-[240px_1fr]">
-      <AppSidebar requestCount={requestCount} roles={user.roles} />
+      <AppSidebar domains={domains} requestCount={requestCount} roles={user.roles} stockControllers={stockControllers} />
 
       <section className="min-w-0">
         <header className="border-b border-border bg-white">
@@ -37,3 +42,6 @@ export async function AppShell({ children, title, user }: AppShellProps) {
     </main>
   );
 }
+
+
+

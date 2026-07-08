@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import { AssetDomainCode, AssetStatus } from "@prisma/client";
+import { AssetStatus } from "@prisma/client";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -18,7 +18,7 @@ import { AssetStatusBadge } from "@/components/status/asset-status-badge";
 
 type AssetEditFormProps = {
   canChangeDomain: boolean;
-  initialDomainCode?: AssetDomainCode;
+  initialDomainCode?: string;
   lockDomain?: boolean;
   mode: "create" | "edit";
   options: AssetEditOptions;
@@ -37,17 +37,14 @@ type AssetEditFormState = {
   brand: string;
   categoryName: string;
   description: string;
-  domainCode: AssetDomainCode;
+  domainCode: string;
   imageRef: string;
-  legacyFg: string;
-  legacyQty: string;
   location: string;
   modelName: string;
   note: string;
   partNo: string;
   serialNo: string;
   status: AssetStatus;
-  stockCode: string;
   typeName: string;
 };
 
@@ -55,75 +52,110 @@ type AssetEditFieldKey =
   | "brand"
   | "categoryName"
   | "domainCode"
-  | "imageRef"
-  | "legacyFg"
-  | "legacyQty"
   | "location"
   | "modelName"
   | "partNo"
   | "serialNo"
-  | "stockCode"
   | "status"
   | "typeName";
 
 type AssetEditFieldErrors = Partial<Record<AssetEditFieldKey, string>>;
 
 function domainHref(code: string) {
-  return code === "SERVER" ? "/dashboard/server" : "/dashboard/network";
-}
-
-function normalizeNumber(value: string) {
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return null;
-  }
-
-  const parsed = Number.parseInt(trimmed, 10);
-  return Number.isFinite(parsed) ? parsed : null;
+  if (code === "SERVER") return "/dashboard/server";
+  if (code === "NETWORK") return "/dashboard/network";
+  return `/dashboard/inventory/${encodeURIComponent(code)}`;
 }
 
 function hasText(value: string) {
   return value.trim().length > 0;
 }
 
-function validateCreateForm(form: AssetEditFormState) {
+function isAscii(value: string) {
+  return !/[^\x00-\x7F]/.test(value);
+}
+
+function validatePattern(
+  value: string,
+  label: string,
+  options: { allowed: string; max: number; min: number; pattern: RegExp },
+) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return `${label} is required.`;
+  }
+
+  if (!isAscii(trimmed)) {
+    return `${label} must not contain Thai characters. English only.`;
+  }
+
+  if (trimmed.length < options.min || trimmed.length > options.max) {
+    return `${label} must be ${options.min}-${options.max} characters.`;
+  }
+
+  if (!options.pattern.test(trimmed)) {
+    return `${label} contains invalid characters. Allowed symbols: ${options.allowed}.`;
+  }
+
+  return null;
+}
+
+function validateAssetForm(
+  form: AssetEditFormState,
+  trackMethod: "SERIAL" | "QUANTITY",
+) {
   const fieldErrors: AssetEditFieldErrors = {};
+  const modelError = validatePattern(form.modelName, "Asset model", {
+    allowed: "space - / ( ) + .",
+    max: 30,
+    min: 2,
+    pattern: /^[A-Za-z0-9 \-\/()+.]+$/,
+  });
+  const brandError = validatePattern(form.brand, "Brand", {
+    allowed: "space - / ( ) + .",
+    max: 30,
+    min: 2,
+    pattern: /^[A-Za-z0-9 \-\/()+.]+$/,
+  });
+  const locationError = validatePattern(form.location, "Location", {
+    allowed: "space - . / ,",
+    max: 30,
+    min: 2,
+    pattern: /^[A-Za-z0-9 ,\-.\/]+$/,
+  });
+  const partNoError = validatePattern(form.partNo, "Part no.", {
+    allowed: "- / .",
+    max: 20,
+    min: 2,
+    pattern: /^[A-Za-z0-9\-\/.]+$/,
+  });
 
-  if (!hasText(form.modelName)) {
-    fieldErrors.modelName = "Asset model is required.";
-  }
+  if (modelError) fieldErrors.modelName = modelError;
+  if (brandError) fieldErrors.brand = brandError;
+  if (locationError) fieldErrors.location = locationError;
+  if (partNoError) fieldErrors.partNo = partNoError;
 
-  if (!hasText(form.serialNo)) {
-    fieldErrors.serialNo = "Serial no. is required.";
-  }
+  if (trackMethod === "SERIAL") {
+    const serialNo = form.serialNo.trim();
 
-  if (!hasText(form.stockCode)) {
-    fieldErrors.stockCode = "Stock code is required.";
+    if (!serialNo) {
+      fieldErrors.serialNo = "Serial no. is required.";
+    } else if (!isAscii(serialNo)) {
+      fieldErrors.serialNo = "Serial no. must not contain Thai characters. English only.";
+    } else if (!/^[A-Za-z0-9-]+$/.test(serialNo)) {
+      fieldErrors.serialNo = "Serial no. allows letters, numbers, and - only. No spaces or other symbols.";
+    }
+  } else if (form.serialNo.trim()) {
+    fieldErrors.serialNo = "Serial no. must be empty for quantity assets.";
   }
 
   if (!hasText(form.categoryName)) {
     fieldErrors.categoryName = "Category is required.";
   }
 
-  if (!hasText(form.brand)) {
-    fieldErrors.brand = "Brand is required.";
-  }
-
   if (!hasText(form.typeName)) {
     fieldErrors.typeName = "Type is required.";
-  }
-
-  if (!hasText(form.partNo)) {
-    fieldErrors.partNo = "Part no. is required.";
-  }
-
-  if (!hasText(form.location)) {
-    fieldErrors.location = "Location is required.";
-  }
-
-  if (!form.imageRef) {
-    fieldErrors.imageRef = "Asset image is required.";
   }
 
   if (!hasText(form.domainCode)) {
@@ -134,21 +166,8 @@ function validateCreateForm(form: AssetEditFormState) {
     fieldErrors.status = "Status is required.";
   }
 
-  const qty = normalizeNumber(form.legacyQty);
-
-  if (qty === null || qty <= 0) {
-    fieldErrors.legacyQty = "QTY must be greater than 0.";
-  }
-
-  const fg = normalizeNumber(form.legacyFg);
-
-  if (fg === null || fg <= 0) {
-    fieldErrors.legacyFg = "FG must be greater than 0.";
-  }
-
   return fieldErrors;
 }
-
 function toFormState(asset: AssetEditRecord): AssetEditFormState {
   return {
     brand: asset.assetModel.brand ?? "",
@@ -156,35 +175,29 @@ function toFormState(asset: AssetEditRecord): AssetEditFormState {
     description: asset.assetModel.description ?? "",
     domainCode: asset.domain.code,
     imageRef: asset.imageRef ?? "",
-    legacyFg: asset.legacyFg === null ? "" : String(asset.legacyFg),
-    legacyQty: asset.legacyQty === null ? "" : String(asset.legacyQty),
     location: asset.location?.name ?? asset.locationText ?? "",
     modelName: asset.assetModel.name,
     note: asset.note ?? "",
     partNo: asset.assetModel.partNo ?? "",
     serialNo: asset.serialNo ?? "",
     status: asset.status,
-    stockCode: asset.stockCode ?? "",
     typeName: asset.assetModel.typeName ?? "",
   };
 }
 
-function createFormState(initialDomainCode: AssetDomainCode): AssetEditFormState {
+function createFormState(initialDomainCode: string): AssetEditFormState {
   return {
     brand: "",
     categoryName: "",
     description: "",
     domainCode: initialDomainCode,
     imageRef: "",
-    legacyFg: "1",
-    legacyQty: "1",
     location: "",
     modelName: "",
     note: "",
     partNo: "",
     serialNo: "",
     status: AssetStatus.READY,
-    stockCode: "",
     typeName: "",
   };
 }
@@ -275,7 +288,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
   const [form, setForm] = useState<AssetEditFormState>(() =>
     mode === "edit"
       ? toFormState(props.asset)
-      : createFormState(initialDomainCode ?? AssetDomainCode.SERVER),
+      : createFormState(initialDomainCode ?? "SERVER"),
   );
   const [isSaving, setIsSaving] = useState(false);
 
@@ -320,15 +333,15 @@ export function AssetEditForm(props: AssetEditFormProps) {
   async function handleSave() {
     setError(null);
 
-    if (mode === "create") {
-      const nextFieldErrors = validateCreateForm(form);
-      const missingFields = Object.values(nextFieldErrors);
+    const nextFieldErrors = validateAssetForm(form, trackMethod);
+    const invalidFields = Object.values(nextFieldErrors);
 
-      if (missingFields.length > 0) {
-        setFieldErrors(nextFieldErrors);
-        setError(`Please complete these fields: ${missingFields.join(", ")}`);
-        return;
-      }
+    if (invalidFields.length > 0) {
+      const message = `Please fix these fields:\n${invalidFields.map((field) => `- ${field}`).join("\n")}`;
+      setFieldErrors(nextFieldErrors);
+      setError(message);
+      window.alert(message);
+      return;
     }
 
     setFieldErrors({});
@@ -341,18 +354,15 @@ export function AssetEditForm(props: AssetEditFormProps) {
           categoryName: form.categoryName,
           description: form.description,
           domainCode: form.domainCode,
-          imageRef: form.imageRef,
-          legacyFg: normalizeNumber(form.legacyFg),
-          legacyQty: normalizeNumber(form.legacyQty),
+          imageRef: form.imageRef || null,
           locationCode: null,
           locationName: form.location,
           locationText: form.location,
           modelName: form.modelName,
           note: form.note,
           partNo: form.partNo,
-          serialNo: form.serialNo,
+          serialNo: isQuantityAsset ? null : form.serialNo,
           status: form.status,
-          stockCode: form.stockCode,
           typeName: form.typeName,
         }),
         headers: { "Content-Type": "application/json" },
@@ -388,6 +398,9 @@ export function AssetEditForm(props: AssetEditFormProps) {
   const visibleTypes = options.types.filter(
     (type) => type.domainCode === form.domainCode,
   );
+  const selectedType = visibleTypes.find((type) => type.name === form.typeName) ?? null;
+  const trackMethod = selectedType?.trackMethod ?? "SERIAL";
+  const isQuantityAsset = trackMethod === "QUANTITY";
   const selectedDomain =
     options.domains.find((domain) => domain.code === form.domainCode) ??
     options.domains[0] ??
@@ -462,9 +475,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
 
       <section className="grid items-stretch gap-6 xl:grid-cols-[360px_1fr]">
         <div className="rounded-md border border-border bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-bold text-navy">
-            Asset Image <span className="text-status-fail">*</span>
-          </h2>
+          <h2 className="text-xl font-bold text-navy">Asset Image</h2>
           <div className="mt-4">
             {form.imageRef ? (
               <div className="relative aspect-square overflow-hidden rounded-md border border-border bg-white">
@@ -505,11 +516,6 @@ export function AssetEditForm(props: AssetEditFormProps) {
               Remove
             </button>
           </div>
-          {fieldErrors.imageRef ? (
-            <p className="mt-2 text-xs font-semibold text-status-fail">
-              {fieldErrors.imageRef}
-            </p>
-          ) : null}
 
           <input
             accept="image/*"
@@ -523,28 +529,31 @@ export function AssetEditForm(props: AssetEditFormProps) {
         <section className="rounded-md border border-border bg-white p-5 shadow-sm">
           <h2 className="text-xl font-bold text-navy">Asset Details</h2>
           <div className="mt-5 grid gap-4 md:grid-cols-2">
-            <Field error={fieldErrors.modelName} label="Asset Model" required>
+            <Field
+              error={fieldErrors.modelName}
+              label="Asset Name/Model"
+              required
+            >
               <Input
-                required={mode === "create"}
+                required
                 aria-invalid={Boolean(fieldErrors.modelName)}
                 onChange={(event) => setField("modelName", event.target.value)}
+                placeholder="Enter model name (Symbols allowed: - / ( ) + .)"
                 value={form.modelName}
               />
             </Field>
-            <Field error={fieldErrors.serialNo} label="Serial No." required>
+            <Field
+              error={fieldErrors.serialNo}
+              label="Serial Number"
+              required={!isQuantityAsset}
+            >
               <Input
-                required={mode === "create"}
                 aria-invalid={Boolean(fieldErrors.serialNo)}
+                disabled={isQuantityAsset}
                 onChange={(event) => setField("serialNo", event.target.value)}
-                value={form.serialNo}
-              />
-            </Field>
-            <Field error={fieldErrors.stockCode} label="Stock Code" required>
-              <Input
-                required={mode === "create"}
-                aria-invalid={Boolean(fieldErrors.stockCode)}
-                onChange={(event) => setField("stockCode", event.target.value)}
-                value={form.stockCode}
+                placeholder={isQuantityAsset ? "Not used for quantity assets" : "SN-XXXX-XXXX"}
+                required={!isQuantityAsset}
+                value={isQuantityAsset ? "" : form.serialNo}
               />
             </Field>
             <Field error={fieldErrors.domainCode} label="Domain" required>
@@ -554,10 +563,10 @@ export function AssetEditForm(props: AssetEditFormProps) {
                 </p>
               ) : (
                 <Select
-                  required={mode === "create"}
+                  required
                   aria-invalid={Boolean(fieldErrors.domainCode)}
                   onChange={(event) =>
-                    setField("domainCode", event.target.value as AssetDomainCode)
+                    setField("domainCode", event.target.value)
                   }
                   value={form.domainCode}
                 >
@@ -571,7 +580,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
             </Field>
             <Field error={fieldErrors.categoryName} label="Category" required>
               <Select
-                required={mode === "create"}
+                required
                 aria-invalid={Boolean(fieldErrors.categoryName)}
                 onChange={(event) => setField("categoryName", event.target.value)}
                 value={form.categoryName}
@@ -584,19 +593,32 @@ export function AssetEditForm(props: AssetEditFormProps) {
                 ))}
               </Select>
             </Field>
-            <Field error={fieldErrors.brand} label="Brand" required>
+            <Field
+              error={fieldErrors.brand}
+              label="Brand"
+              required
+            >
               <Input
-                required={mode === "create"}
+                required
                 aria-invalid={Boolean(fieldErrors.brand)}
                 onChange={(event) => setField("brand", event.target.value)}
+                placeholder="Enter brand (Symbols allowed: - / ( ) + .)"
                 value={form.brand}
               />
             </Field>
             <Field error={fieldErrors.typeName} label="Type" required>
               <Select
-                required={mode === "create"}
                 aria-invalid={Boolean(fieldErrors.typeName)}
-                onChange={(event) => setField("typeName", event.target.value)}
+                onChange={(event) => {
+                  const nextTypeName = event.target.value;
+                  const nextType = visibleTypes.find((type) => type.name === nextTypeName);
+                  setForm((current) => ({
+                    ...current,
+                    serialNo: nextType?.trackMethod === "QUANTITY" ? "" : current.serialNo,
+                    typeName: nextTypeName,
+                  }));
+                }}
+                required
                 value={form.typeName}
               >
                 <option value="">Select type</option>
@@ -607,30 +629,17 @@ export function AssetEditForm(props: AssetEditFormProps) {
                 ))}
               </Select>
             </Field>
-            <Field error={fieldErrors.partNo} label="Part No." required>
+            <Field
+              error={fieldErrors.partNo}
+              label="Part No."
+              required
+            >
               <Input
-                required={mode === "create"}
+                required
                 aria-invalid={Boolean(fieldErrors.partNo)}
                 onChange={(event) => setField("partNo", event.target.value)}
+                placeholder="Enter part no. (Symbols allowed: - / .)"
                 value={form.partNo}
-              />
-            </Field>
-            <Field error={fieldErrors.legacyQty} label="QTY" required>
-              <Input
-                inputMode="numeric"
-                required={mode === "create"}
-                aria-invalid={Boolean(fieldErrors.legacyQty)}
-                onChange={(event) => setField("legacyQty", event.target.value)}
-                value={form.legacyQty}
-              />
-            </Field>
-            <Field error={fieldErrors.legacyFg} label="FG" required>
-              <Input
-                inputMode="numeric"
-                required={mode === "create"}
-                aria-invalid={Boolean(fieldErrors.legacyFg)}
-                onChange={(event) => setField("legacyFg", event.target.value)}
-                value={form.legacyFg}
               />
             </Field>
           </div>
@@ -645,7 +654,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
               onChange={(event) =>
                 setField("status", event.target.value as AssetStatus)
               }
-              required={mode === "create"}
+              required
               aria-invalid={Boolean(fieldErrors.status)}
               value={form.status}
             >
@@ -656,11 +665,16 @@ export function AssetEditForm(props: AssetEditFormProps) {
               ))}
             </Select>
           </Field>
-          <Field error={fieldErrors.location} label="Location" required>
+          <Field
+            error={fieldErrors.location}
+            label="Location"
+            required
+          >
             <Input
-              required={mode === "create"}
+              required
               aria-invalid={Boolean(fieldErrors.location)}
               onChange={(event) => setField("location", event.target.value)}
+              placeholder="Enter location (Symbols allowed: space - . / ,)"
               value={form.location}
             />
           </Field>
@@ -687,3 +701,14 @@ export function AssetEditForm(props: AssetEditFormProps) {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+

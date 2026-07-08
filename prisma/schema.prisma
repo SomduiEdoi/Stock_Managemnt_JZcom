@@ -13,11 +13,6 @@ enum RoleCode {
   USER
 }
 
-enum AssetDomainCode {
-  SERVER
-  NETWORK
-}
-
 enum AssetTrackMethod {
   SERIAL
   QUANTITY
@@ -154,7 +149,7 @@ model UserRole {
 
 model AssetDomain {
   id          String                 @id @default(uuid()) @db.Uuid
-  code        AssetDomainCode        @unique
+  code        String                 @unique
   name        String
   prefix      String                 @default("") @map("domain_prefix")
   description String?

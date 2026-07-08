@@ -1,5 +1,4 @@
-import { Lock } from "lucide-react";
-import { AssetDomainCode } from "@prisma/client";
+﻿import { Lock } from "lucide-react";
 import type { AssetEditOptions, AssetEditRecord } from "@/lib/asset-edit";
 import { AssetEditForm } from "./asset-edit-form";
 
@@ -27,7 +26,7 @@ export function AssetEditPage({
 
 type AssetCreatePageProps = {
   canChangeDomain: boolean;
-  initialDomainCode: AssetDomainCode;
+  initialDomainCode: string;
   lockDomain?: boolean;
   options: AssetEditOptions;
 };
@@ -72,3 +71,4 @@ export function AssetCreateForbidden() {
     </section>
   );
 }
+

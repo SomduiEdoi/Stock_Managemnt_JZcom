@@ -1,4 +1,4 @@
-import type { AssetActionType, AssetStatus } from "@prisma/client";
+﻿import type { AssetActionType, AssetStatus } from "@prisma/client";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -16,7 +16,6 @@ import {
   UserRound,
 } from "lucide-react";
 import type { AssetDetailRecord } from "@/lib/asset-detail";
-import { ExportPdfButton } from "@/features/asset-detail/export-pdf-button";
 import { AssetStatusBadge } from "@/components/status/asset-status-badge";
 
 const actionLabels = {
@@ -69,7 +68,9 @@ function fallback(value: number | string | null | undefined) {
 }
 
 function domainHref(code: string) {
-  return code === "SERVER" ? "/dashboard/server" : "/dashboard/network";
+  if (code === "SERVER") return "/dashboard/server";
+  if (code === "NETWORK") return "/dashboard/network";
+  return `/dashboard/inventory/${encodeURIComponent(code)}`;
 }
 
 function domainLabel(asset: AssetDetailRecord) {
@@ -169,7 +170,6 @@ function AssetHeader({ asset, canManage }: AssetDetailPageProps) {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <ExportPdfButton />
         {canManage ? (
           <Link
             className="inline-flex h-10 items-center gap-2 rounded-md bg-navy px-4 text-sm font-bold text-white"
@@ -190,8 +190,6 @@ function buildPrimaryDetails(asset: AssetDetailRecord): DetailItem[] {
     { label: "Category", value: fallback(asset.assetModel.category?.name) },
     { label: "Type", value: fallback(asset.assetModel.typeName) },
     { label: "Part No.", value: fallback(asset.assetModel.partNo) },
-    { label: "QTY", value: fallback(asset.legacyQty) },
-    { label: "FG", value: fallback(asset.legacyFg) },
   ];
 }
 
@@ -388,3 +386,5 @@ export function AssetDetailPage({ asset, canManage }: AssetDetailPageProps) {
     </div>
   );
 }
+
+

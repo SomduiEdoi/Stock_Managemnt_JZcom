@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -30,7 +30,7 @@ export type RequestCartAssetClient = {
     typeName: string | null;
   };
   availableQuantity: number;
-  domain: { code: "SERVER" | "NETWORK"; name: string };
+  domain: { code: string; name: string };
   id: string;
   location: { name: string } | null;
   locationText: string | null;
@@ -699,3 +699,4 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
     </div>
   );
 }
+
