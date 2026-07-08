@@ -162,7 +162,7 @@ function toFormState(asset: AssetEditRecord): AssetEditFormState {
     modelName: asset.assetModel.name,
     note: asset.note ?? "",
     partNo: asset.assetModel.partNo ?? "",
-    serialNo: asset.serialNo,
+    serialNo: asset.serialNo ?? "",
     status: asset.status,
     stockCode: asset.stockCode ?? "",
     typeName: asset.assetModel.typeName ?? "",

@@ -188,6 +188,22 @@ function buildVisibleLogWhere(
   const clauses = [...buildStatusWhere(filters)];
   const searchWhere = buildSearchWhere(filters.search);
 
+  if (filters.scope === "COMPLETED") {
+    clauses.push({
+      OR: [
+        { status: TransactionStatus.COMPLETED },
+        { status: TransactionStatus.RETURNED },
+        { returnedAt: { not: null } },
+        {
+          AND: [
+            { items: { some: {} } },
+            { items: { every: { returnedAt: { not: null } } } },
+          ],
+        },
+      ],
+    });
+  }
+
   if (searchWhere) {
     clauses.push(searchWhere);
   }
@@ -245,15 +261,29 @@ async function getTransactionLogMetrics() {
     requestLockedById: { not: null },
     status: AssetStatus.REQUEST,
   } satisfies Prisma.AssetWhereInput;
+  const completedWhere = {
+    OR: [
+      { status: TransactionStatus.COMPLETED },
+      { status: TransactionStatus.RETURNED },
+      { returnedAt: { not: null } },
+      {
+        AND: [
+          { items: { some: {} } },
+          { items: { every: { returnedAt: { not: null } } } },
+        ],
+      },
+    ],
+  } satisfies Prisma.TransactionWhereInput;
 
-  const [submittedRequests, requestCount] = await Promise.all([
+  const [submittedRequests, requestCount, completed] = await Promise.all([
     db.transaction.count(),
     db.asset.count({ where: requestWhere }),
+    db.transaction.count({ where: completedWhere }),
   ]);
 
   return {
     allRequests: submittedRequests + requestCount,
-    completed: submittedRequests,
+    completed,
     inProgress: requestCount,
   };
 }

@@ -63,9 +63,12 @@ function buildVisibleAssetWhere(user: CurrentUser): Prisma.AssetWhereInput {
 
 function buildVisibleHistoryWhere(
   user: CurrentUser,
+  options: { includeInactive?: boolean } = {},
 ): Prisma.AssetStatusHistoryWhereInput {
   return {
-    asset: buildVisibleAssetWhere(user),
+    asset: options.includeInactive
+      ? { domain: { code: { in: getVisibleDomainCodes(user) } } }
+      : buildVisibleAssetWhere(user),
   };
 }
 
@@ -100,7 +103,7 @@ export async function getDashboardOverviewForUser(
   recentTab: DashboardRecentTab,
 ) {
   const assetWhere = buildVisibleAssetWhere(user);
-  const historyWhere = buildVisibleHistoryWhere(user);
+  const historyWhere = buildVisibleHistoryWhere(user, { includeInactive: true });
   const [statusGroups, activity, recentRows] = await Promise.all([
     db.asset.groupBy({
       _count: { _all: true },
@@ -142,3 +145,4 @@ export async function getDashboardOverviewForUser(
     recentTab,
   };
 }
+

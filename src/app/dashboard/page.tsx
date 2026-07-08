@@ -55,15 +55,18 @@ function formatTime(value: Date) {
   }).format(value);
 }
 
-function describeActivity(activity: RecentAssetActivity) {
-  if (
-    activity.actionType === AssetActionType.CREATE ||
-    activity.actionType === AssetActionType.IMPORT
-  ) {
-    return "New Asset registered";
-  }
+function formatAssetName(activity: RecentAssetActivity) {
+  const serialNo = activity.asset.serialNo ?? "-";
 
-  return activity.asset.serialNo;
+  return `${activity.asset.assetModel.name} (${serialNo})`;
+}
+
+function isDeleteActivity(activity: RecentAssetActivity) {
+  return activity.note?.startsWith("Asset deleted") ?? false;
+}
+
+function describeActivity(activity: RecentAssetActivity) {
+  return formatAssetName(activity);
 }
 
 function getActivityBadge(activity: RecentAssetActivity) {
@@ -76,6 +79,15 @@ function getActivityBadge(activity: RecentAssetActivity) {
       dotColor: "#6366F1",
       helperText: null,
       label: "Register",
+    };
+  }
+
+  if (isDeleteActivity(activity)) {
+    return {
+      badgeColor: "#4B5563",
+      dotColor: "#4B5563",
+      helperText: "updated to",
+      label: "Deleted",
     };
   }
 
@@ -285,13 +297,17 @@ function RecentTabs({ activeTab }: { activeTab: DashboardRecentTab }) {
 
 function RecentTable({
   activeTab,
+  isExpanded = false,
   rows,
 }: {
   activeTab: DashboardRecentTab;
+  isExpanded?: boolean;
   rows: RecentAssetActivity[];
 }) {
   return (
-    <section className="flex h-[580px] min-h-0 flex-col rounded-md border border-border bg-white shadow-sm">
+    <section
+      className={`flex ${isExpanded ? "h-[717px]" : "h-[580px]"} min-h-0 flex-col rounded-md border border-border bg-white shadow-sm`}
+    >
       <div className="flex shrink-0 flex-col gap-3 border-b border-border px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h3 className="text-xl font-bold text-navy">Recently</h3>
@@ -324,7 +340,7 @@ function RecentTable({
                   {row.asset.serialNo}
                 </td>
                 <td className="px-5 py-4">
-                  <AssetStatusBadge status={row.asset.status} />
+                  <AssetStatusBadge status={row.toStatus} />
                 </td>
               </tr>
             ))}
@@ -347,6 +363,8 @@ export default async function DashboardPage({
   const params = await searchParams;
   const recentTab = normalizeDashboardRecentTab(params.recent);
   const overview = await getDashboardOverviewForUser(user, recentTab);
+  const canSeeProblemItems =
+    user.roles.includes("ADMIN") || user.roles.includes("STOCK_CONTROLLER");
   const readyPercent =
     overview.metrics.totalAssets > 0
       ? Math.round(
@@ -389,18 +407,29 @@ export default async function DashboardPage({
 
       <section className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-[23px]">
-          <ProblemItems
-            fail={overview.problems.failAssets}
-            lost={overview.problems.lostAssets}
-            needCheck={overview.problems.needCheckAssets}
+          {canSeeProblemItems ? (
+            <ProblemItems
+              fail={overview.problems.failAssets}
+              lost={overview.problems.lostAssets}
+              needCheck={overview.problems.needCheckAssets}
+            />
+          ) : null}
+          <RecentTable
+            activeTab={overview.recentTab}
+            isExpanded={!canSeeProblemItems}
+            rows={overview.recentRows}
           />
-          <RecentTable activeTab={overview.recentTab} rows={overview.recentRows} />
         </div>
         <ActivityFeed activity={overview.activity} />
       </section>
     </div>
   );
 }
+
+
+
+
+
 
 
 

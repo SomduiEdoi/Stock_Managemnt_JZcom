@@ -1,5 +1,6 @@
 import { AssetStatus, Prisma } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
+import { getAvailabilityByAssetId } from "@/lib/asset-availability";
 import { db } from "@/lib/db";
 import { canViewDomainForUser } from "@/lib/permissions";
 
@@ -14,11 +15,16 @@ export const serverInventoryStatusOptions = [
   AssetStatus.NEED_CHECK,
 ] as const satisfies readonly AssetStatus[];
 
+export type InventorySortBy = "availability" | "brand" | "category" | "model" | "serialNo" | "status" | "stockCode" | "type";
+export type InventorySortDirection = "asc" | "desc";
+
 export type ServerInventoryFilters = {
   categories: string[];
   page: number;
   pageSize: number;
   search: string;
+  sortBy: InventorySortBy;
+  sortDirection: InventorySortDirection;
   statuses: AssetStatus[];
   types: string[];
 };
@@ -30,19 +36,24 @@ const defaultFilters: ServerInventoryFilters = {
   page: 1,
   pageSize: 25,
   search: "",
+  sortBy: "model",
+  sortDirection: "asc",
   statuses: [],
   types: [],
 };
 
 const serverAssetSelect = Prisma.validator<Prisma.AssetSelect>()({
+  assetQuantity: true,
   id: true,
   locationText: true,
+  requestLockedById: true,
   serialNo: true,
   status: true,
   stockCode: true,
   updatedAt: true,
   assetModel: {
     select: {
+      assetType: { select: { trackMethod: true } },
       brand: true,
       category: { select: { name: true } },
       name: true,
@@ -54,7 +65,11 @@ const serverAssetSelect = Prisma.validator<Prisma.AssetSelect>()({
 
 export type ServerInventoryRow = Prisma.AssetGetPayload<{
   select: typeof serverAssetSelect;
-}>;
+}> & {
+  availableQuantity: number;
+  reservedQuantity: number;
+  totalQuantity: number;
+};
 
 function arrayParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value : value ? [value] : [];
@@ -76,6 +91,40 @@ function parsePage(value: string | undefined) {
   const page = Number.parseInt(value ?? "", 10);
 
   return Number.isFinite(page) && page > 0 ? page : defaultFilters.page;
+}
+
+function parseSortBy(value: string | undefined): InventorySortBy {
+  const allowed = ["availability", "brand", "category", "model", "serialNo", "status", "stockCode", "type"] as const;
+
+  return allowed.includes(value as InventorySortBy) ? (value as InventorySortBy) : defaultFilters.sortBy;
+}
+
+function parseSortDirection(value: string | undefined): InventorySortDirection {
+  return value === "desc" ? "desc" : defaultFilters.sortDirection;
+}
+
+function buildInventoryOrderBy(filters: ServerInventoryFilters): Prisma.AssetOrderByWithRelationInput[] {
+  const direction = filters.sortDirection;
+
+  switch (filters.sortBy) {
+    case "availability":
+      return [{ assetQuantity: direction }, { updatedAt: "desc" }];
+    case "brand":
+      return [{ assetModel: { brand: direction } }, { updatedAt: "desc" }];
+    case "category":
+      return [{ assetModel: { category: { name: direction } } }, { updatedAt: "desc" }];
+    case "serialNo":
+      return [{ serialNo: direction }, { updatedAt: "desc" }];
+    case "status":
+      return [{ status: direction }, { updatedAt: "desc" }];
+    case "stockCode":
+      return [{ stockCode: direction }, { updatedAt: "desc" }];
+    case "type":
+      return [{ assetModel: { typeName: direction } }, { updatedAt: "desc" }];
+    case "model":
+    default:
+      return [{ assetModel: { name: direction } }, { updatedAt: "desc" }];
+  }
 }
 
 function containsText(search: string) {
@@ -149,6 +198,8 @@ export function normalizeServerInventoryFilters(
     page: parsePage(firstParam(searchParams.page)),
     pageSize: defaultFilters.pageSize,
     search: firstParam(searchParams.q)?.trim() ?? defaultFilters.search,
+    sortBy: parseSortBy(firstParam(searchParams.sort)),
+    sortDirection: parseSortDirection(firstParam(searchParams.dir)),
     statuses,
     types: cleanValues(arrayParam(searchParams.type)),
   };
@@ -227,11 +278,11 @@ export async function getServerInventoryForUser(
 
   const where = buildServerInventoryWhere(filters);
   const skip = (filters.page - 1) * filters.pageSize;
-  const [filterOptions, metrics, rows, total] = await Promise.all([
+  const [filterOptions, metrics, rawRows, total] = await Promise.all([
     getServerFilterOptions(),
     getServerMetrics(baseWhere),
     db.asset.findMany({
-      orderBy: [{ updatedAt: "desc" }, { serialNo: "asc" }],
+      orderBy: buildInventoryOrderBy(filters),
       select: serverAssetSelect,
       skip,
       take: filters.pageSize,
@@ -239,6 +290,17 @@ export async function getServerInventoryForUser(
     }),
     db.asset.count({ where }),
   ]);
+  const availabilityById = await getAvailabilityByAssetId(rawRows, { userId: user.id });
+  const rows = rawRows.map((row) => {
+    const availability = availabilityById.get(row.id);
+
+    return {
+      ...row,
+      availableQuantity: availability?.availableQuantity ?? 0,
+      reservedQuantity: availability?.reservedQuantity ?? 0,
+      totalQuantity: availability?.totalQuantity ?? 1,
+    };
+  });
 
   return {
     canView,
@@ -250,3 +312,7 @@ export async function getServerInventoryForUser(
     totalPages: Math.max(1, Math.ceil(total / filters.pageSize)),
   };
 }
+
+
+
+

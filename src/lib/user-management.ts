@@ -60,9 +60,8 @@ export type UserManagementRow = Prisma.UserGetPayload<{
 
 export const userRoleOptions = [
   "ADMIN",
-  "SERVER_OWNER",
-  "NETWORK_OWNER",
-  "STAFF",
+  "STOCK_CONTROLLER",
+  "USER",
 ] as const satisfies readonly RoleCode[];
 
 function firstParam(value: string | string[] | undefined) {
@@ -131,13 +130,11 @@ async function getUserMetrics() {
     db.user.count({ where: { isActive: true } }),
     db.user.count({
       where: {
-        roles: {
-          some: { role: { code: { in: ["SERVER_OWNER", "NETWORK_OWNER"] } } },
-        },
+        roles: { some: { role: { code: "STOCK_CONTROLLER" } } },
       },
     }),
     db.user.count({
-      where: { roles: { some: { role: { code: "STAFF" } } } },
+      where: { roles: { some: { role: { code: "USER" } } } },
     }),
   ]);
 

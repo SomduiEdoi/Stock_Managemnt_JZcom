@@ -17,7 +17,7 @@ export type TransactionReturnItem = {
   resolvedAt: string | null;
   resolvedStatus: AssetStatus | null;
   resolutionNote: string | null;
-  serialNo: string;
+  serialNo: string | null;
   stockCode: string | null;
 };
 
@@ -232,8 +232,8 @@ export function TransactionReturnClient({
                     <td className="truncate px-5 py-4 font-medium text-ink" title={fallback(item.stockCode)}>
                       {fallback(item.stockCode)}
                     </td>
-                    <td className="truncate px-5 py-4 font-medium text-ink" title={item.serialNo}>
-                      {item.serialNo}
+                    <td className="truncate px-5 py-4 font-medium text-ink" title={fallback(item.serialNo)}>
+                      {fallback(item.serialNo)}
                     </td>
                     <td className="px-5 py-4">
                       <AssetStatusBadge status={item.currentStatus} />

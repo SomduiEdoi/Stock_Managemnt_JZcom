@@ -28,7 +28,7 @@ const requiredDateSchema = z
   });
 
 const submitTransactionSchema = z.object({
-  assetIds: z.array(z.string().uuid()).min(1).max(100),
+  assetIds: z.array(z.string().uuid()).max(100).optional(),
   documentRef: z.string().max(255).optional().nullable(),
   dueDate: optionalDateSchema,
   internalRequest: z.boolean().optional().default(false),
@@ -38,8 +38,20 @@ const submitTransactionSchema = z.object({
   requestDate: requiredDateSchema,
   serviceRequest: z.boolean().optional().default(false),
   soldPrice: z.string().trim().optional().nullable(),
+  items: z
+    .array(
+      z.object({
+        assetId: z.string().uuid(),
+        quantity: z.number().int().positive().optional().nullable(),
+      }),
+    )
+    .max(100)
+    .optional(),
   type: z.nativeEnum(TransactionType),
-});
+}).refine(
+  (value) => (value.assetIds?.length ?? 0) > 0 || (value.items?.length ?? 0) > 0,
+  { message: "Asset items are required." },
+);
 
 export async function POST(request: NextRequest) {
   try {

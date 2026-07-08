@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import {
   AssetActionType,
+  AssetTrackMethod,
   AssetStatus,
   MigrationRowStatus,
   MigrationStatus,
@@ -242,10 +243,31 @@ async function findOrCreateLocation(
   });
 }
 
+async function findOrCreateAssetType(
+  tx: Prisma.TransactionClient,
+  categoryId: string | null,
+  name: string | null,
+) {
+  if (!categoryId || !name) {
+    return null;
+  }
+
+  return tx.assetType.upsert({
+    where: { categoryId_name: { categoryId, name } },
+    update: { isActive: true },
+    create: {
+      categoryId,
+      name,
+      trackMethod: AssetTrackMethod.SERIAL,
+    },
+  });
+}
+
 async function findOrCreateModel(
   tx: Prisma.TransactionClient,
   domainId: string,
   categoryId: string | null,
+  assetTypeId: string | null,
   mapped: MappedRow,
 ) {
   const existing = await tx.assetModel.findFirst({
@@ -253,6 +275,7 @@ async function findOrCreateModel(
       brand: mapped.brand,
       categoryId,
       domainId,
+      assetTypeId,
       name: mapped.modelName,
       partNo: mapped.partNo,
       typeName: mapped.typeName,
@@ -270,6 +293,7 @@ async function findOrCreateModel(
     data: {
       brand: mapped.brand,
       categoryId,
+      assetTypeId,
       description: mapped.description,
       domainId,
       name: mapped.modelName,
@@ -283,6 +307,10 @@ function toJsonObject(value: Record<string, unknown>) {
   return value as Prisma.InputJsonObject;
 }
 
+function toAssetQuantity(mapped: MappedRow) {
+  return mapped.legacyQty && mapped.legacyQty > 0 ? mapped.legacyQty : 1;
+}
+
 function toAssetData(
   mapped: MappedRow,
   domainId: string,
@@ -294,6 +322,7 @@ function toAssetData(
 ) {
   return {
     assetModelId,
+    assetQuantity: toAssetQuantity(mapped),
     domainId,
     imageRef: mapped.imageRef,
     legacyFg: mapped.legacyFg,
@@ -341,8 +370,19 @@ async function upsertAssetFromRow(
   sourceRecordId: string,
 ) {
   const category = await findOrCreateCategory(tx, domainId, mapped.categoryName);
+  const assetType = await findOrCreateAssetType(
+    tx,
+    category?.id ?? null,
+    mapped.typeName,
+  );
   const location = await findOrCreateLocation(tx, mapped.locationText);
-  const model = await findOrCreateModel(tx, domainId, category?.id ?? null, mapped);
+  const model = await findOrCreateModel(
+    tx,
+    domainId,
+    category?.id ?? null,
+    assetType?.id ?? null,
+    mapped,
+  );
   const assetData = toAssetData(
     mapped,
     domainId,

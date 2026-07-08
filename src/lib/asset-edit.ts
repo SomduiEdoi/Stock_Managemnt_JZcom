@@ -1,6 +1,7 @@
 import {
   AssetActionType,
   AssetDomainCode,
+  AssetTrackMethod,
   AssetStatus,
   Prisma,
 } from "@prisma/client";
@@ -128,7 +129,7 @@ function requirePositiveInteger(value: number | null | undefined, label: string)
     throw new WorkflowError(`${label} must be greater than 0.`);
   }
 
-  return value;
+  return value as number;
 }
 
 function editableStatuses(currentStatus: AssetStatus) {
@@ -178,16 +179,19 @@ async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus
       select: { code: true, name: true },
       where: { isActive: true },
     }),
-    db.assetModel.findMany({
-      orderBy: [{ typeName: "asc" }],
+    db.assetType.findMany({
+      orderBy: [{ name: "asc" }],
       select: {
-        domain: { select: { code: true } },
-        typeName: true,
+        category: {
+          select: {
+            domain: { select: { code: true } },
+          },
+        },
+        name: true,
       },
       where: {
-        domain: { code: { in: manageableDomainCodes } },
+        category: { domain: { code: { in: manageableDomainCodes } } },
         isActive: true,
-        NOT: { typeName: null },
       },
     }),
   ]);
@@ -195,12 +199,11 @@ async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus
   const uniqueTypes = Array.from(
     new Map(
       types
-        .filter((type) => type.typeName)
         .map((type) => [
-          `${type.domain.code}:${type.typeName}`,
+          `${type.category.domain.code}:${type.name}`,
           {
-            domainCode: type.domain.code,
-            name: type.typeName as string,
+            domainCode: type.category.domain.code,
+            name: type.name,
           },
         ]),
     ).values(),
@@ -343,9 +346,30 @@ async function resolveLocation(
   });
 }
 
+async function resolveAssetType(
+  tx: Prisma.TransactionClient,
+  categoryId: string | null,
+  typeName: string | null,
+) {
+  if (!categoryId || !typeName) {
+    return null;
+  }
+
+  return tx.assetType.upsert({
+    where: { categoryId_name: { categoryId, name: typeName } },
+    update: { isActive: true },
+    create: {
+      categoryId,
+      name: typeName,
+      trackMethod: AssetTrackMethod.SERIAL,
+    },
+  });
+}
+
 async function resolveAssetModel(
   tx: Prisma.TransactionClient,
   input: {
+    assetTypeId: string | null;
     brand: string | null;
     categoryId: string | null;
     description: string | null;
@@ -361,6 +385,7 @@ async function resolveAssetModel(
       brand: input.brand,
       categoryId: input.categoryId,
       domainId: input.domainId,
+      assetTypeId: input.assetTypeId,
       modelNo: input.modelNo,
       name: input.modelName,
       partNo: input.partNo,
@@ -379,6 +404,7 @@ async function resolveAssetModel(
     data: {
       brand: input.brand,
       categoryId: input.categoryId,
+      assetTypeId: input.assetTypeId,
       description: input.description,
       domainId: input.domainId,
       modelNo: input.modelNo,
@@ -490,11 +516,17 @@ export async function updateAssetForUser(
       }
 
       const category = await resolveCategory(tx, targetDomain.id, categoryName);
+      const assetType = await resolveAssetType(
+        tx,
+        category?.id ?? null,
+        typeName,
+      );
       const location = await resolveLocation(tx, {
         locationCode: input.locationCode,
         locationName: input.locationName,
       });
       const assetModel = await resolveAssetModel(tx, {
+        assetTypeId: assetType?.id ?? null,
         brand,
         categoryId: category?.id ?? null,
         description,
@@ -509,6 +541,7 @@ export async function updateAssetForUser(
         data: {
           assetModelId: assetModel.id,
           assetNo,
+          assetQuantity: input.legacyQty ?? undefined,
           domainId: targetDomain.id,
           imageRef,
           isActive: input.isActive ?? true,
@@ -557,6 +590,7 @@ export async function deleteAssetForUser(user: CurrentUser, assetId: string) {
           domain: { select: { code: true } },
           id: true,
           isActive: true,
+          status: true,
         },
         where: { id: assetId },
       });
@@ -567,7 +601,7 @@ export async function deleteAssetForUser(user: CurrentUser, assetId: string) {
 
       assertCanDeleteAssets(user, asset.domain.code);
 
-      return tx.asset.update({
+      const deletedAsset = await tx.asset.update({
         data: {
           isActive: false,
           requestLockedAt: null,
@@ -579,6 +613,19 @@ export async function deleteAssetForUser(user: CurrentUser, assetId: string) {
         },
         where: { id: asset.id },
       });
+
+      await tx.assetStatusHistory.create({
+        data: {
+          actionType: AssetActionType.STATUS_CHANGE,
+          assetId: asset.id,
+          changedById: user.id,
+          fromStatus: asset.status,
+          note: "Asset deleted from inventory.",
+          toStatus: asset.status,
+        },
+      });
+
+      return deletedAsset;
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
@@ -637,11 +684,17 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
       }
 
       const category = await resolveCategory(tx, targetDomain.id, categoryName);
+      const assetType = await resolveAssetType(
+        tx,
+        category?.id ?? null,
+        typeName,
+      );
       const location = await resolveLocation(tx, {
         locationCode: input.locationCode,
         locationName: input.locationName,
       });
       const assetModel = await resolveAssetModel(tx, {
+        assetTypeId: assetType?.id ?? null,
         brand,
         categoryId: category?.id ?? null,
         description,
@@ -656,6 +709,7 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
         data: {
           assetModelId: assetModel.id,
           assetNo,
+          assetQuantity: legacyQty,
           createdById: user.id,
           domainId: targetDomain.id,
           imageRef,
@@ -693,3 +747,4 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
 }
+

@@ -231,7 +231,7 @@ function AssetDetails({ asset }: { asset: AssetDetailRecord }) {
 function SummaryTiles({ asset }: { asset: AssetDetailRecord }) {
   return (
     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      <SummaryTile icon={Hash} label="Serial No." value={asset.serialNo} />
+      <SummaryTile icon={Hash} label="Serial No." value={fallback(asset.serialNo)} />
       <SummaryTile
         icon={Tag}
         label="Stock Code"

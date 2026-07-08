@@ -47,7 +47,7 @@ const scopeLabels = {
 
 const scopeDetails = {
   ALL: "Submitted plus request queue",
-  COMPLETED: "Submitted requests",
+  COMPLETED: "Finished transactions",
   IN_PROGRESS: "Request queue",
 } as const;
 
@@ -328,7 +328,7 @@ function RequestQueueTable({
                     {asset.assetModel.name}
                   </Link>
                   <p className="mt-1 text-xs font-medium text-muted-foreground">
-                    {asset.assetModel.brand ?? "-"} / SN {asset.serialNo}
+                    {asset.assetModel.brand ?? "-"} / SN {asset.serialNo ?? "-"}
                   </p>
                 </td>
                 <td className="px-5 py-4 font-medium text-ink">

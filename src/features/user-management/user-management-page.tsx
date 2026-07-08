@@ -40,9 +40,8 @@ type MetricCardProps = {
 
 const roleLabels = {
   ADMIN: "Admin",
-  NETWORK_OWNER: "Network Stock Controller",
-  SERVER_OWNER: "Server Stock Controller",
-  STAFF: "Staff",
+  STOCK_CONTROLLER: "Stock Controller",
+  USER: "User",
 } as const;
 
 function formatNumber(value: number) {
@@ -106,15 +105,15 @@ function Metrics({ metrics }: Pick<UserManagementPageProps, "metrics">) {
         value={metrics.total}
       />
       <MetricCard
-        detail="Server and network owners"
+        detail="Domain-managed controllers"
         icon={ShieldCheck}
-        label="Owner"
+        label="Stock Controller"
         value={metrics.owners}
       />
       <MetricCard
-        detail="Read-only operational users"
+        detail="Can view and submit requests"
         icon={UserCog}
-        label="Staff"
+        label="User"
         value={metrics.staff}
       />
       <MetricCard

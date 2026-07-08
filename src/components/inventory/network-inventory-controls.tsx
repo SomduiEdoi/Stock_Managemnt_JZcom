@@ -19,6 +19,8 @@ type StatusOption = {
 type NetworkInventoryControlFilters = {
   categories: string[];
   search: string;
+  sortBy: string;
+  sortDirection: string;
   statuses: string[];
   types: string[];
 };
@@ -58,6 +60,14 @@ function buildHref(
   appendValues(params, "type", nextFilters.types);
   appendValues(params, "status", nextFilters.statuses);
 
+  if (nextFilters.sortBy) {
+    params.set("sort", nextFilters.sortBy);
+  }
+
+  if (nextFilters.sortDirection) {
+    params.set("dir", nextFilters.sortDirection);
+  }
+
   return `/dashboard/network${params.size ? `?${params.toString()}` : ""}`;
 }
 
@@ -70,6 +80,8 @@ function HiddenFilters({ filters }: { filters: NetworkInventoryControlFilters })
       {filters.types.map((type) => (
         <input key={`type-${type}`} name="type" type="hidden" value={type} />
       ))}
+      <input name="sort" type="hidden" value={filters.sortBy} />
+      <input name="dir" type="hidden" value={filters.sortDirection} />
       {filters.statuses.map((status) => (
         <input key={`status-${status}`} name="status" type="hidden" value={status} />
       ))}
@@ -89,7 +101,7 @@ function TypeChips({
       <Link
         className={`shrink-0 rounded-full px-4 py-2 text-xs font-bold transition ${
           filters.types.length === 0
-            ? "bg-navy text-white"
+            ? "bg-brand-accent text-white"
             : "bg-surface text-muted-foreground hover:text-navy"
         }`}
         href={buildHref(filters, { types: [] })}
@@ -103,7 +115,7 @@ function TypeChips({
           <Link
             className={`shrink-0 rounded-full px-4 py-2 text-xs font-bold transition ${
               isActive
-                ? "bg-navy text-white"
+                ? "bg-brand-accent text-white"
                 : "bg-surface text-muted-foreground hover:text-navy"
             }`}
             href={buildHref(filters, { types: isActive ? [] : [type] })}
@@ -257,6 +269,8 @@ function FilterDrawer({
         <form action="/dashboard/network" className="mt-6" method="get">
           <input name="q" type="hidden" value={filters.search} />
           <input name="page" type="hidden" value="1" />
+          <input name="sort" type="hidden" value={filters.sortBy} />
+          <input name="dir" type="hidden" value={filters.sortDirection} />
           <p className="mb-5 text-sm font-medium text-muted-foreground">
             {total.toLocaleString("en-US")} matching items
           </p>
@@ -323,6 +337,8 @@ export function NetworkInventoryControls({
             </Link>
           ) : null}
           <input name="page" type="hidden" value="1" />
+          <input name="sort" type="hidden" value={filters.sortBy} />
+          <input name="dir" type="hidden" value={filters.sortDirection} />
           <HiddenFilters filters={filters} />
         </form>
 
@@ -355,3 +371,5 @@ export function NetworkInventoryControls({
     </div>
   );
 }
+
+

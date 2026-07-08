@@ -62,7 +62,7 @@ function getRoleNavItems(roles: RoleCode[]) {
     ];
   }
 
-  if (roles.includes("STAFF")) {
+  if (roles.includes("USER")) {
     return [
       dashboardItem,
       ...baseItems,

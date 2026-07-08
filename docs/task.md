@@ -39,7 +39,7 @@
 ## Phase 1: Database Foundation
 
 - [ ] Create หรือ update `domains` table
-- [ ] Seed initial domains: Server และ Network
+- [x] Seed initial domains: Server และ Network
 - [ ] เพิ่ม domain prefix สำหรับ stock code generation
 - [ ] Create หรือ update `assets_categories`
 - [ ] Create หรือ update `assets_types`
@@ -340,3 +340,26 @@
 - Dynamic domain support อาจพังถ้า code ยัง hardcode Server/Network
 - Approval routes ต้องมี fallback ที่ชัดเจนเมื่อ required approver ไม่อยู่
 - Existing login ต้องถูก preserve ระหว่าง refactor user/role schema
+# Implementation Update: 2026-07-06
+
+- [x] Prisma schema aligned with backend foundation: `AssetType`, asset `assetQuantity`, nullable `serialNo`, domain prefix, project/project member, transaction workflow status, transaction item requested quantity, and transaction approvals.
+- [x] PostgreSQL migration applied successfully: `20260706090000_backend_foundation`.
+- [x] Seed data synced for roles/users: `ADMIN`, `STOCK_CONTROLLER`, `USER`, plus `organizationTag` values for admin/server/network/viewer users.
+- [x] CSV import now normalizes category/type into `asset_types` and writes `assetQuantity`.
+- [x] Asset create/edit service now resolves `AssetType` and writes `assetQuantity`.
+- [x] Transaction submit/return service now writes `workflowStatus`, `requestedQuantity`, and marks completed returns as `RETURNED`.
+- [x] Verification passed: `npm run typecheck`, `npm run lint`, `npm test`.
+- [ ] Remaining backend gap: true quantity reservation/availability calculation is still not implemented in request cart workflow.
+- [ ] Remaining backend gap: approval generation/routing APIs are still not implemented.
+- [ ] Remaining backend gap: fully dynamic domain support still has some UI/service paths tied to `SERVER`/`NETWORK`.
+# Implementation Update: 2026-07-06 Quantity Reservation
+
+- [x] Added `asset_reservations` for draft cart reservations on quantity-tracked assets.
+- [x] Quantity assets now calculate availability from `assetQuantity - draft reservations - open borrow/using transaction quantities`.
+- [x] Serial assets still use `REQUEST` status and request lock fields.
+- [x] Request hold/release/submit APIs support `items: [{ assetId, quantity }]` while preserving old `assetIds` compatibility.
+- [x] Request cart shows requested quantity and submits quantity into `transaction_items.requested_quantity`.
+- [x] Server/Network inventory rows expose available/reserved/total quantity and request popup supports quantity input.
+- [x] Transaction PDF/export uses `requestedQuantity` instead of hardcoded `1`.
+- [x] PostgreSQL migration applied successfully: `20260706100000_add_asset_reservations`.
+- [x] Verification passed: `npm run typecheck`, `npm run lint`, `npm test`.

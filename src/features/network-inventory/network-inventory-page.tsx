@@ -51,6 +51,15 @@ function formatNumber(value: number) {
   return value.toLocaleString("en-US");
 }
 
+type InventorySortKey =
+  | "brand"
+  | "category"
+  | "model"
+  | "serialNo"
+  | "status"
+  | "stockCode"
+  | "type";
+
 function appendValues(params: URLSearchParams, key: string, values: string[]) {
   values.forEach((value) => params.append(key, value));
 }
@@ -65,9 +74,43 @@ function buildNetworkPageHref(page: number, filters: NetworkInventoryFilters) {
   appendValues(params, "category", filters.categories);
   appendValues(params, "type", filters.types);
   appendValues(params, "status", filters.statuses);
+  params.set("sort", filters.sortBy);
+  params.set("dir", filters.sortDirection);
   params.set("page", String(page));
 
   return `/dashboard/network?${params.toString()}`;
+}
+
+function buildNetworkSortLinks(filters: NetworkInventoryFilters) {
+  const keys: InventorySortKey[] = [
+    "model",
+    "brand",
+    "category",
+    "type",
+    "stockCode",
+    "serialNo",
+    "status",
+  ];
+
+  return Object.fromEntries(
+    keys.map((sortKey) => [
+      sortKey,
+      {
+        asc: buildNetworkPageHref(1, {
+          ...filters,
+          page: 1,
+          sortBy: sortKey,
+          sortDirection: "asc",
+        }),
+        desc: buildNetworkPageHref(1, {
+          ...filters,
+          page: 1,
+          sortBy: sortKey,
+          sortDirection: "desc",
+        }),
+      },
+    ]),
+  ) as Partial<Record<InventorySortKey, { asc: string; desc: string }>>;
 }
 
 function MetricCard({ detail, icon: Icon, label, tone, value }: MetricCardProps) {
@@ -241,6 +284,8 @@ export default async function NetworkInventoryPage({
         filters={{
           categories: filters.categories,
           search: filters.search,
+          sortBy: filters.sortBy,
+          sortDirection: filters.sortDirection,
           statuses: filters.statuses,
           types: filters.types,
         }}
@@ -253,11 +298,14 @@ export default async function NetworkInventoryPage({
       />
 
       <RequestableInventoryTable
+        activeSort={{ by: filters.sortBy, direction: filters.sortDirection }}
         canChangeStatus={canChangeAssetStatusForUser(user, "NETWORK")}
         canDelete={canDeleteAssetsForUser(user, "NETWORK")}
         canRequest={canRequestDomainForUser(user, "NETWORK")}
         domainLabel="Network"
+        inventoryFamily="SERIAL"
         rows={result.rows}
+        sortLinks={buildNetworkSortLinks(filters)}
       />
       <Pagination
         filters={filters}
@@ -267,3 +315,10 @@ export default async function NetworkInventoryPage({
     </div>
   );
 }
+
+
+
+
+
+
+

@@ -21,7 +21,7 @@ export type PrintableTransaction = {
   dueDate?: Date | string | null;
   id?: string;
   internalRequest?: boolean;
-  items?: Array<{ asset?: PrintableAsset | null }>;
+  items?: Array<{ asset?: PrintableAsset | null; requestedQuantity?: number | null }>;
   note?: string | null;
   projectRequest?: boolean;
   purpose?: string | null;
@@ -133,7 +133,11 @@ function filledRows(
   options: {
     columns: number;
     minRows: number;
-    row: (asset: PrintableAsset, index: number) => string;
+    row: (
+      asset: PrintableAsset,
+      index: number,
+      item: NonNullable<PrintableTransaction["items"]>[number],
+    ) => string;
   },
 ) {
   const items = transaction.items ?? [];
@@ -141,7 +145,8 @@ function filledRows(
 
   return Array.from({ length: rowCount }, (_, index) => {
     const asset = items[index]?.asset;
-    return asset ? options.row(asset, index) : emptyRow(options.columns);
+    const item = items[index];
+    return asset && item ? options.row(asset, index, item) : emptyRow(options.columns);
   }).join("");
 }
 
@@ -149,14 +154,14 @@ function borrowRows(transaction: PrintableTransaction) {
   return filledRows(transaction, {
     columns: 7,
     minRows: 10,
-    row: (asset, index) => `
+    row: (asset, index, item) => `
       <tr>
         <td class="center">${cell(index + 1)}</td>
         <td>${cell(asset.assetModel?.brand)}</td>
         <td>${cell(asset.stockCode)}</td>
         <td>${cell(assetDetail(asset))}</td>
         <td>${cell(asset.serialNo)}</td>
-        <td class="center">${cell("1")}</td>
+        <td class="center">${cell(item.requestedQuantity ?? 1)}</td>
         <td>${cell("")}</td>
       </tr>
     `,
@@ -166,25 +171,36 @@ function borrowRows(transaction: PrintableTransaction) {
 function soldRows(transaction: PrintableTransaction) {
   const price = formatMoney(transaction.soldPrice);
   const soldDate = formatFormDate(transaction.requestDate ?? transaction.createdAt);
-  const total = price && transaction.items?.length
-    ? formatMoney(Number(price.replaceAll(",", "")) * transaction.items.length)
+  const quantityTotal =
+    transaction.items?.reduce(
+      (totalQuantity, item) => totalQuantity + (item.requestedQuantity ?? 1),
+      0,
+    ) ?? 0;
+  const total = price && quantityTotal
+    ? formatMoney(Number(price.replaceAll(",", "")) * quantityTotal)
     : "";
 
   return {
     rows: filledRows(transaction, {
       columns: 10,
       minRows: 8,
-      row: (asset, index) => `
+      row: (asset, index, item) => `
         <tr>
           <td class="center">${cell(index + 1)}</td>
           <td>${cell(asset.stockCode)}</td>
           <td>${cell(assetDetail(asset))}</td>
           <td>${cell(asset.serialNo)}</td>
-          <td class="center">${cell("1")}</td>
+          <td class="center">${cell(item.requestedQuantity ?? 1)}</td>
           <td class="center">${cell("")}</td>
           <td>${cell(soldDate)}</td>
           <td class="right">${cell(price)}</td>
-          <td class="right">${cell(price)}</td>
+          <td class="right">${cell(
+            price
+              ? formatMoney(
+                  Number(price.replaceAll(",", "")) * (item.requestedQuantity ?? 1),
+                )
+              : "",
+          )}</td>
           <td>${cell("")}</td>
         </tr>
       `,

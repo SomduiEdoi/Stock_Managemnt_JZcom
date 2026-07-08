@@ -10,7 +10,7 @@ export const domainCodes = [
   "SERVER",
   "NETWORK",
 ] as const satisfies readonly DomainCode[];
-export const requestRoleCodes = ["STAFF"] as const satisfies readonly RoleCode[];
+export const requestRoleCodes = ["USER"] as const satisfies readonly RoleCode[];
 
 export type DomainPermission = {
   domainCode: DomainCode;
@@ -98,11 +98,7 @@ export function canChangeAssetStatusForUser(
   user: PermissionUser,
   domainCode: DomainCode,
 ) {
-  return (
-    hasRole(user, "ADMIN") ||
-    (domainCode === "SERVER" && hasRole(user, "SERVER_OWNER")) ||
-    (domainCode === "NETWORK" && hasRole(user, "NETWORK_OWNER"))
-  );
+  return canManageDomainForUser(user, domainCode);
 }
 
 export function assertCanManageDomain(

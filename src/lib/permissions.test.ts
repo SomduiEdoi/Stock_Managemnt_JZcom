@@ -41,9 +41,9 @@ describe("domain permissions", () => {
     expect(canManageDomainForUser(admin, "NETWORK")).toBe(true);
   });
 
-  it("keeps staff read-only", () => {
+  it("keeps users read-only", () => {
     const staff: PermissionUser = {
-      roles: ["STAFF"],
+      roles: ["USER"],
       permissions: [
         { domainCode: "SERVER", canView: true, canManage: false },
         { domainCode: "NETWORK", canView: true, canManage: false },
@@ -57,7 +57,7 @@ describe("domain permissions", () => {
 
   it("throws for forbidden manage actions", () => {
     const arm: PermissionUser = {
-      roles: ["SERVER_OWNER"],
+      roles: ["STOCK_CONTROLLER"],
       permissions,
     };
 
@@ -66,9 +66,9 @@ describe("domain permissions", () => {
     );
   });
 
-  it("keeps stock owners out of request flow while allowing managed-domain actions", () => {
+  it("keeps stock controllers out of request flow while allowing managed-domain actions", () => {
     const arm: PermissionUser = {
-      roles: ["SERVER_OWNER"],
+      roles: ["STOCK_CONTROLLER"],
       permissions,
     };
 
@@ -93,7 +93,7 @@ describe("domain permissions", () => {
 
   it("blocks requests when a user cannot view the domain", () => {
     const serverOnlyStaff: PermissionUser = {
-      roles: ["STAFF"],
+      roles: ["USER"],
       permissions: [{ domainCode: "SERVER", canView: true, canManage: false }],
     };
 

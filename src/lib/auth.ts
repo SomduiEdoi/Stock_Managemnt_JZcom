@@ -10,6 +10,7 @@ export type CurrentUser = {
   email: string;
   lastLoginAt: Date | null;
   name: string;
+  organizationTag: string;
   position: string | null;
   roles: RoleCode[];
   permissions: DomainPermission[];
@@ -27,6 +28,7 @@ async function findActiveUser(userId: string) {
       email: true,
       lastLoginAt: true,
       name: true,
+      organizationTag: true,
       position: true,
       roles: {
         select: {
@@ -61,6 +63,7 @@ function toCurrentUser(
     email: user.email,
     lastLoginAt: user.lastLoginAt,
     name: user.name,
+    organizationTag: user.organizationTag,
     position: user.position,
     roles: user.roles.map(({ role }) => role.code as RoleCode),
     permissions: user.domainPermissions.map((permission) => ({

@@ -23,19 +23,24 @@ type TransactionTypeCode = "BORROW" | "USING" | "SOLD";
 
 export type RequestCartAssetClient = {
   assetModel: {
+    assetType?: { trackMethod: "SERIAL" | "QUANTITY" } | null;
     brand: string | null;
     category: { name: string } | null;
     name: string;
     typeName: string | null;
   };
+  availableQuantity: number;
   domain: { code: "SERVER" | "NETWORK"; name: string };
   id: string;
   location: { name: string } | null;
   locationText: string | null;
   requestLockedAt: string | null;
-  serialNo: string;
+  requestedQuantity: number;
+  reservedQuantity: number;
+  serialNo: string | null;
   status: string;
   stockCode: string | null;
+  totalQuantity: number;
 };
 
 type RequestCartClientProps = {
@@ -95,14 +100,17 @@ function RequestItemCard({
           </span>
         </div>
         <p className="mt-2 text-sm font-medium text-muted-foreground">
-          {asset.assetModel.brand ?? "-"} / SN {asset.serialNo}
+          {asset.assetModel.brand ?? "-"} / SN {asset.serialNo ?? "-"}
         </p>
         <p className="mt-1 text-xs font-semibold text-muted-foreground">
           Location: {assetLocation(asset)}
         </p>
+        <p className="mt-1 text-xs font-semibold text-muted-foreground">
+          Qty: {asset.requestedQuantity.toLocaleString("en-US")}
+        </p>
       </div>
       <button
-        aria-label={`Remove ${asset.serialNo}`}
+        aria-label={`Remove ${asset.serialNo ?? asset.assetModel.name}`}
         className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-status-fail hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
         disabled={isRemoving}
         onClick={() => onRemove(asset.id)}
@@ -520,9 +528,13 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
   }
 
   async function releaseAssets(assetIds: string[]) {
+    const selectedAssets = assets.filter((asset) => assetIds.includes(asset.id));
     const response = await fetch("/api/requests/release", {
       body: JSON.stringify({
-        assetIds,
+        items: selectedAssets.map((asset) => ({
+          assetId: asset.id,
+          quantity: asset.requestedQuantity,
+        })),
         note: "Removed from request page.",
       }),
       headers: { "Content-Type": "application/json" },
@@ -617,7 +629,10 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
     try {
       const response = await fetch("/api/transactions", {
         body: JSON.stringify({
-          assetIds: assets.map((asset) => asset.id),
+          items: assets.map((asset) => ({
+            assetId: asset.id,
+            quantity: asset.requestedQuantity,
+          })),
           dueDate: null,
           internalRequest,
           note,

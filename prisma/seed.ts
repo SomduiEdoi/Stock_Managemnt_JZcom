@@ -11,6 +11,7 @@ const defaultPassword = "ChangeMe123!";
 type SeedUser = {
   name: string;
   email: string;
+  organizationTag: string;
   position: string;
   roleCode: RoleCode;
   azureAdObjectId?: string;
@@ -25,6 +26,7 @@ const seedUsers: SeedUser[] = [
   {
     name: "Admin",
     email: "admin@example.com",
+    organizationTag: "EXECUTIVE",
     position: "Administrator",
     roleCode: "ADMIN",
     permissions: [
@@ -35,8 +37,9 @@ const seedUsers: SeedUser[] = [
   {
     name: "Server Stock Controller",
     email: "server@example.com",
+    organizationTag: "S1_STAFF",
     position: "Server Stock Controller",
-    roleCode: "SERVER_OWNER",
+    roleCode: "STOCK_CONTROLLER",
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: true },
       { domainCode: "NETWORK", canView: true, canManage: false },
@@ -45,8 +48,9 @@ const seedUsers: SeedUser[] = [
   {
     name: "Network Stock Controller",
     email: "network@example.com",
+    organizationTag: "N1_STAFF",
     position: "Network Stock Controller",
-    roleCode: "NETWORK_OWNER",
+    roleCode: "STOCK_CONTROLLER",
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: false },
       { domainCode: "NETWORK", canView: true, canManage: true },
@@ -55,8 +59,9 @@ const seedUsers: SeedUser[] = [
   {
     name: "Staff User",
     email: "viewer@example.com",
+    organizationTag: "STAFF",
     position: "Staff",
-    roleCode: "STAFF",
+    roleCode: "USER",
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: false },
       { domainCode: "NETWORK", canView: true, canManage: false },
@@ -65,8 +70,9 @@ const seedUsers: SeedUser[] = [
   {
     name: "Viewer 2",
     email: "viewer2@example.com",
+    organizationTag: "STAFF",
     position: "Staff",
-    roleCode: "STAFF",
+    roleCode: "USER",
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: false },
       { domainCode: "NETWORK", canView: true, canManage: false },
@@ -86,18 +92,13 @@ async function upsertRoles() {
       description: "Can manage all domains, users, imports, and settings.",
     },
     {
-      code: "SERVER_OWNER",
-      name: "Server Stock Controller",
-      description: "Can manage Server assets and view assigned domains.",
+      code: "STOCK_CONTROLLER",
+      name: "Stock Controller",
+      description: "Can manage assigned inventory domains and view other allowed domains.",
     },
     {
-      code: "NETWORK_OWNER",
-      name: "Network Stock Controller",
-      description: "Can manage Network assets and view assigned domains.",
-    },
-    {
-      code: "STAFF",
-      name: "Staff",
+      code: "USER",
+      name: "User",
       description: "Can view assets and submit asset requests.",
     },
   ];
@@ -122,11 +123,13 @@ async function upsertDomains() {
       where: { code: "SERVER" },
       update: {
         name: "Server",
+        prefix: "SV",
         description: "Server hardware, parts, and accessories.",
       },
       create: {
         code: "SERVER",
         name: "Server",
+        prefix: "SV",
         description: "Server hardware, parts, and accessories.",
       },
     }),
@@ -134,11 +137,13 @@ async function upsertDomains() {
       where: { code: "NETWORK" },
       update: {
         name: "Network",
+        prefix: "NW",
         description: "Network hardware, modules, cables, and accessories.",
       },
       create: {
         code: "NETWORK",
         name: "Network",
+        prefix: "NW",
         description: "Network hardware, modules, cables, and accessories.",
       },
     }),
@@ -160,6 +165,7 @@ async function upsertSeedUser(
     update: {
       isActive: true,
       name: user.name,
+      organizationTag: user.organizationTag,
       passwordHash,
       position: user.position,
       ...identityData,
@@ -168,6 +174,7 @@ async function upsertSeedUser(
       email: user.email,
       isActive: true,
       name: user.name,
+      organizationTag: user.organizationTag,
       passwordHash,
       position: user.position,
       ...identityData,

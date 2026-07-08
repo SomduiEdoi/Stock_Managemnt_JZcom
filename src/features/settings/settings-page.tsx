@@ -42,11 +42,11 @@ function roleLabel(role: string) {
     return "Administrator";
   }
 
-  if (role === "STAFF") {
-    return "Staff";
+  if (role === "USER") {
+    return "User";
   }
 
-  if (role === "OWNER") {
+  if (role === "STOCK_CONTROLLER") {
     return "Stock Controller";
   }
 
@@ -84,7 +84,7 @@ function quickActionHref(user: CurrentUser) {
     return "/user";
   }
 
-  if (user.roles.includes("STAFF")) {
+  if (user.roles.includes("USER")) {
     return "/request";
   }
 
@@ -96,7 +96,7 @@ function quickActionLabel(user: CurrentUser) {
     return "Manage Users";
   }
 
-  if (user.roles.includes("STAFF")) {
+  if (user.roles.includes("USER")) {
     return "Open Request";
   }
 

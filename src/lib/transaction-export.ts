@@ -24,6 +24,7 @@ const transactionExportSelect = Prisma.validator<Prisma.TransactionSelect>()({
     orderBy: { createdAt: "asc" },
     select: {
       id: true,
+      requestedQuantity: true,
       asset: {
         select: {
           id: true,
