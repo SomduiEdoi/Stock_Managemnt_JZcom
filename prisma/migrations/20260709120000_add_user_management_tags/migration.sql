@@ -1,0 +1,32 @@
+CREATE TYPE "OrganizationLevel" AS ENUM ('EXECUTIVE', 'MANAGER', 'SUPERVISOR', 'STAFF');
+
+CREATE TYPE "OrganizationTag" AS ENUM (
+  'BSD_MANAGER',
+  'BSD_STAFF',
+  'SCN_MANAGER',
+  'S1_SUPERVISOR',
+  'S1_STAFF',
+  'N1_SUPERVISOR',
+  'N1_STAFF',
+  'C1_SUPERVISOR',
+  'C1_STAFF',
+  'DL_MANAGER',
+  'DL_STAFF',
+  'EN_MANAGER',
+  'CMS_SUPERVISOR',
+  'CMS_STAFF',
+  'SD_SUPERVISOR',
+  'SD_STAFF'
+);
+
+CREATE TYPE "ProjectTag" AS ENUM ('LEAD_PROJECT', 'TEAM_MEMBER');
+
+ALTER TYPE "RoleCode" ADD VALUE IF NOT EXISTS 'STOCK_CONTROLLER';
+ALTER TYPE "RoleCode" ADD VALUE IF NOT EXISTS 'USER';
+
+ALTER TABLE "users" DROP COLUMN IF EXISTS "organization_tag";
+
+ALTER TABLE "users"
+ADD COLUMN "organization_level" "OrganizationLevel",
+ADD COLUMN "organization_tag" "OrganizationTag",
+ADD COLUMN "project_tag" "ProjectTag";

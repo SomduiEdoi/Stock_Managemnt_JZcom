@@ -1,16 +1,44 @@
-import { Prisma, type RoleCode } from "@prisma/client";
+import bcrypt from "bcryptjs";
+import {
+  OrganizationLevel,
+  OrganizationTag,
+  Prisma,
+  ProjectTag,
+  RoleCode,
+} from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { hasRole } from "@/lib/permissions";
+import { WorkflowError } from "@/lib/workflow";
+import {
+  UserStatusFilter,
+  UserSystemRole,
+  UserManagementFilters,
+  UserManagementRow,
+  UserManagementMetrics,
+  DomainOption,
+  userRoleOptions,
+  organizationLevelOptions,
+  organizationUnitOptions,
+  projectTagOptions,
+  buildUserManagementHref,
+} from "./user-management-shared";
 
-export type UserStatusFilter = "ACTIVE" | "ALL" | "BLOCKED";
+export type {
+  UserStatusFilter,
+  UserSystemRole,
+  UserManagementFilters,
+  UserManagementRow,
+  UserManagementMetrics,
+  DomainOption,
+};
 
-export type UserManagementFilters = {
-  page: number;
-  pageSize: number;
-  role: RoleCode | "ALL";
-  search: string;
-  status: UserStatusFilter;
+export {
+  userRoleOptions,
+  organizationLevelOptions,
+  organizationUnitOptions,
+  projectTagOptions,
+  buildUserManagementHref,
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -23,13 +51,18 @@ const defaultFilters: UserManagementFilters = {
   status: "ALL",
 };
 
+const defaultPassword = "ChangeMe123!";
+
 const userRowSelect = Prisma.validator<Prisma.UserSelect>()({
   email: true,
   id: true,
   isActive: true,
   lastLoginAt: true,
   name: true,
+  organizationLevel: true,
+  organizationTag: true,
   position: true,
+  projectTag: true,
   roles: {
     select: {
       role: {
@@ -47,6 +80,7 @@ const userRowSelect = Prisma.validator<Prisma.UserSelect>()({
       domain: {
         select: {
           code: true,
+          id: true,
           name: true,
         },
       },
@@ -54,15 +88,18 @@ const userRowSelect = Prisma.validator<Prisma.UserSelect>()({
   },
 });
 
-export type UserManagementRow = Prisma.UserGetPayload<{
+type UserRecord = Prisma.UserGetPayload<{
   select: typeof userRowSelect;
 }>;
 
-export const userRoleOptions = [
-  "ADMIN",
-  "STOCK_CONTROLLER",
-  "USER",
-] as const satisfies readonly RoleCode[];
+export type UpsertManagedUserInput = {
+  domainId?: string | null;
+  email: string;
+  name: string;
+  organizationLevel?: OrganizationLevel | null;
+  organizationTag?: OrganizationTag | null;
+  role: UserSystemRole;
+};
 
 function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -74,10 +111,6 @@ function parsePage(value: string | undefined) {
   return Number.isFinite(page) && page > 0 ? page : defaultFilters.page;
 }
 
-function isRoleCode(value: string | undefined): value is RoleCode {
-  return userRoleOptions.includes(value as RoleCode);
-}
-
 function parseStatus(value: string | undefined): UserStatusFilter {
   if (value === "ACTIVE" || value === "BLOCKED") {
     return value;
@@ -86,59 +119,241 @@ function parseStatus(value: string | undefined): UserStatusFilter {
   return defaultFilters.status;
 }
 
-function containsText(search: string) {
+function isUserSystemRole(value: string | undefined): value is UserSystemRole {
+  return userRoleOptions.includes(value as UserSystemRole);
+}
+
+function containsText(value: string, search: string) {
+  return value.toLowerCase().includes(search.toLowerCase());
+}
+
+function inferSystemRole(user: UserRecord): UserSystemRole {
+  const roleCodes = user.roles.map(({ role }) => role.code);
+
+  if (roleCodes.includes("ADMIN")) {
+    return "ADMIN";
+  }
+
+  if (
+    roleCodes.includes("STOCK_CONTROLLER") ||    user.domainPermissions.some((permission) => permission.canManage)
+  ) {
+    return "STOCK_CONTROLLER";
+  }
+
+  return "USER";
+}
+
+function toRow(user: UserRecord): UserManagementRow {
   return {
-    contains: search,
-    mode: Prisma.QueryMode.insensitive,
+    domainPermissions: user.domainPermissions,
+    email: user.email,
+    id: user.id,
+    isActive: user.isActive,
+    lastLoginAt: user.lastLoginAt,
+    name: user.name,
+    organizationLevel: user.organizationLevel,
+    organizationTag: user.organizationTag,
+    position: user.position,
+    projectTag: user.projectTag,
+    roleCodes: user.roles.map(({ role }) => role.code),
+    systemRole: inferSystemRole(user),
   };
 }
 
-function buildUserWhere(filters: UserManagementFilters): Prisma.UserWhereInput {
-  const clauses: Prisma.UserWhereInput[] = [];
-
-  if (filters.search) {
-    const contains = containsText(filters.search);
-    const roleCodeClause = isRoleCode(filters.search)
-      ? [{ roles: { some: { role: { code: filters.search } } } }]
-      : [];
-
-    clauses.push({
-      OR: [
-        { email: contains },
-        { name: contains },
-        { position: contains },
-        { roles: { some: { role: { name: contains } } } },
-        ...roleCodeClause,
-      ],
-    });
+function matchesUserFilters(user: UserManagementRow, filters: UserManagementFilters) {
+  if (filters.role !== "ALL" && user.systemRole !== filters.role) {
+    return false;
   }
 
-  if (filters.role !== "ALL") {
-    clauses.push({ roles: { some: { role: { code: filters.role } } } });
+  if (filters.status === "ACTIVE" && !user.isActive) {
+    return false;
   }
 
-  if (filters.status !== "ALL") {
-    clauses.push({ isActive: filters.status === "ACTIVE" });
+  if (filters.status === "BLOCKED" && user.isActive) {
+    return false;
   }
 
-  return clauses.length > 0 ? { AND: clauses } : {};
+  if (!filters.search) {
+    return true;
+  }
+
+  const search = filters.search.toLowerCase();
+  const haystacks = [
+    user.email,
+    user.name,
+    user.position ?? "",
+    user.systemRole,
+    user.organizationLevel ?? "",
+    user.organizationTag ?? "",
+    user.projectTag ?? "",
+    ...user.domainPermissions.map((permission) => permission.domain.name),
+    ...user.domainPermissions.map((permission) => permission.domain.code),
+  ];
+
+  return haystacks.some((value) => containsText(value, search));
 }
 
-async function getUserMetrics() {
-  const [total, active, owners, staff] = await Promise.all([
-    db.user.count(),
-    db.user.count({ where: { isActive: true } }),
-    db.user.count({
-      where: {
-        roles: { some: { role: { code: "STOCK_CONTROLLER" } } },
-      },
-    }),
-    db.user.count({
-      where: { roles: { some: { role: { code: "USER" } } } },
-    }),
-  ]);
+function sortUsers(users: UserManagementRow[]) {
+  return [...users].sort((left, right) => {
+    if (left.isActive !== right.isActive) {
+      return left.isActive ? -1 : 1;
+    }
 
-  return { active, owners, staff, total };
+    return left.name.localeCompare(right.name, "en");
+  });
+}
+
+async function loadAllUsers() {
+  const users = await db.user.findMany({
+    where: {
+      roles: {
+        none: {
+          role: {
+            code: "ADMIN",
+          },
+        },
+      },
+    },
+    orderBy: [{ isActive: "desc" }, { name: "asc" }],
+    select: userRowSelect,
+  });
+
+  return users.map(toRow);
+}
+
+async function getUserMetrics(allUsers: UserManagementRow[]): Promise<UserManagementMetrics> {
+  return {
+    active: allUsers.filter((user) => user.isActive).length,
+    owners: allUsers.filter((user) => user.systemRole === "STOCK_CONTROLLER")
+      .length,
+    staff: allUsers.filter((user) => user.systemRole === "USER").length,
+    total: allUsers.length,
+  };
+}
+
+function ensureAdmin(user: CurrentUser) {
+  if (!hasRole(user, "ADMIN")) {
+    throw new WorkflowError("Only admin users can manage system accounts.", 403);
+  }
+}
+
+async function getRoleId(roleCode: RoleCode) {
+  const role = await db.role.findUnique({
+    where: { code: roleCode },
+    select: { id: true },
+  });
+
+  if (!role) {
+    throw new WorkflowError(`Missing role configuration for ${roleCode}.`, 500);
+  }
+
+  return role.id;
+}
+
+async function getDomainOptions() {
+  return db.assetDomain.findMany({
+    orderBy: { name: "asc" },
+    select: { code: true, id: true, name: true },
+  });
+}
+
+async function syncRole(userId: string, nextRoleCode: RoleCode) {
+  const roleId = await getRoleId(nextRoleCode);
+
+  await db.userRole.deleteMany({ where: { userId } });
+  await db.userRole.create({
+    data: {
+      roleId,
+      userId,
+    },
+  });
+}
+
+async function syncDomainPermissionsForUser(
+  userId: string,
+  systemRole: UserSystemRole,
+  selectedDomainId?: string | null,
+) {
+  const domains = await getDomainOptions();
+
+  await db.userDomainPermission.deleteMany({ where: { userId } });
+
+  if (systemRole === "ADMIN") {
+    return;
+  }
+
+  const permissionRows = domains.map((domain) => ({
+    canManage:
+      systemRole === "STOCK_CONTROLLER" && selectedDomainId === domain.id,
+    canView: true,
+    domainId: domain.id,
+    userId,
+  }));
+
+  await db.userDomainPermission.createMany({ data: permissionRows });
+}
+
+function validateManagedUserInput(input: UpsertManagedUserInput) {
+  if (!input.email.trim()) {
+    throw new WorkflowError("Email is required.");
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(input.email.trim())) {
+    throw new WorkflowError("Email must be a valid email address.");
+  }
+
+  if (!input.name.trim()) {
+    throw new WorkflowError("Name is required.");
+  }
+
+  if (input.role === "STOCK_CONTROLLER" && !input.domainId) {
+    throw new WorkflowError("Domain tag is required for Stock Controller.");
+  }
+
+  if (input.role === "USER") {
+    if (!input.organizationLevel) {
+      throw new WorkflowError("Organization level is required for User.");
+    }
+
+    if (!input.organizationTag) {
+      throw new WorkflowError("Organization unit/team tag is required for User.");
+    }
+  }
+}
+
+function validateManagedUserUpdateInput(
+  input: Omit<UpsertManagedUserInput, "email">,
+) {
+  if (!input.name.trim()) {
+    throw new WorkflowError("Name is required.");
+  }
+
+  if (input.role === "STOCK_CONTROLLER" && !input.domainId) {
+    throw new WorkflowError("Domain tag is required for Stock Controller.");
+  }
+
+  if (input.role === "USER") {
+    if (!input.organizationLevel) {
+      throw new WorkflowError("Organization level is required for User.");
+    }
+
+    if (!input.organizationTag) {
+      throw new WorkflowError("Organization unit/team tag is required for User.");
+    }
+  }
+}
+
+function normalizeRoleCode(systemRole: UserSystemRole): RoleCode {
+  if (systemRole === "ADMIN") {
+    return "ADMIN";
+  }
+
+  if (systemRole === "STOCK_CONTROLLER") {
+    return "STOCK_CONTROLLER";
+  }
+
+  return "USER";
 }
 
 export function normalizeUserManagementFilters(
@@ -149,37 +364,13 @@ export function normalizeUserManagementFilters(
   return {
     page: parsePage(firstParam(searchParams.page)),
     pageSize: defaultFilters.pageSize,
-    role: isRoleCode(role) ? role : defaultFilters.role,
+    role: isUserSystemRole(role) ? role : defaultFilters.role,
     search: firstParam(searchParams.q)?.trim() ?? defaultFilters.search,
     status: parseStatus(firstParam(searchParams.status)),
   };
 }
 
-export function buildUserManagementHref(
-  filters: UserManagementFilters,
-  overrides: Partial<UserManagementFilters> = {},
-) {
-  const nextFilters = { ...filters, ...overrides };
-  const params = new URLSearchParams();
 
-  if (nextFilters.search) {
-    params.set("q", nextFilters.search);
-  }
-
-  if (nextFilters.role !== "ALL") {
-    params.set("role", nextFilters.role);
-  }
-
-  if (nextFilters.status !== "ALL") {
-    params.set("status", nextFilters.status);
-  }
-
-  if (nextFilters.page > 1) {
-    params.set("page", String(nextFilters.page));
-  }
-
-  return `/user${params.size ? `?${params.toString()}` : ""}`;
-}
 
 export async function getUserManagementForAdmin(
   user: CurrentUser,
@@ -189,22 +380,18 @@ export async function getUserManagementForAdmin(
     return { canManage: false as const };
   }
 
-  const where = buildUserWhere(filters);
+  const [allUsers, domains] = await Promise.all([loadAllUsers(), getDomainOptions()]);
+  const filteredUsers = sortUsers(allUsers).filter((entry) =>
+    matchesUserFilters(entry, filters),
+  );
+  const total = filteredUsers.length;
   const skip = (filters.page - 1) * filters.pageSize;
-  const [metrics, users, total] = await Promise.all([
-    getUserMetrics(),
-    db.user.findMany({
-      orderBy: [{ isActive: "desc" }, { name: "asc" }],
-      select: userRowSelect,
-      skip,
-      take: filters.pageSize,
-      where,
-    }),
-    db.user.count({ where }),
-  ]);
+  const users = filteredUsers.slice(skip, skip + filters.pageSize);
+  const metrics = await getUserMetrics(allUsers);
 
   return {
     canManage: true as const,
+    domains,
     filters,
     metrics,
     total,
@@ -212,3 +399,138 @@ export async function getUserManagementForAdmin(
     users,
   };
 }
+
+export async function createUserForAdmin(
+  user: CurrentUser,
+  input: UpsertManagedUserInput,
+) {
+  ensureAdmin(user);
+  validateManagedUserInput(input);
+
+  const email = input.email.trim().toLowerCase();
+  const name = input.name.trim();
+  const existing = await db.user.findUnique({
+    where: { email },
+    select: { id: true },
+  });
+
+  if (existing) {
+    throw new WorkflowError("Email already exists in the system.");
+  }
+
+  const passwordHash = await bcrypt.hash(defaultPassword, 10);
+  const createdUser = await db.user.create({
+    data: {
+      email,
+      isActive: true,
+      name,
+      organizationLevel: input.role === "USER" ? input.organizationLevel : null,
+      organizationTag: input.role === "USER" ? input.organizationTag : null,
+      passwordHash,
+      projectTag: null,
+    },
+    select: { id: true },
+  });
+
+  await syncRole(createdUser.id, normalizeRoleCode(input.role));
+  await syncDomainPermissionsForUser(createdUser.id, input.role, input.domainId);
+
+  return {
+    defaultPassword,
+    id: createdUser.id,
+  };
+}
+
+export async function updateUserForAdmin(
+  user: CurrentUser,
+  userId: string,
+  input: Omit<UpsertManagedUserInput, "email">,
+) {
+  ensureAdmin(user);
+  validateManagedUserUpdateInput(input);
+
+  const existing = await db.user.findUnique({
+    where: { id: userId },
+    select: { id: true, projectTag: true },
+  });
+
+  if (!existing) {
+    throw new WorkflowError("User not found.", 404);
+  }
+
+  await db.user.update({
+    where: { id: userId },
+    data: {
+      name: input.name.trim(),
+      organizationLevel: input.role === "USER" ? input.organizationLevel : null,
+      organizationTag: input.role === "USER" ? input.organizationTag : null,
+      projectTag: input.role === "USER" ? existing.projectTag : null,
+    },
+  });
+
+  await syncRole(userId, normalizeRoleCode(input.role));
+  await syncDomainPermissionsForUser(userId, input.role, input.domainId);
+}
+
+export async function deleteUserForAdmin(user: CurrentUser, userId: string) {
+  ensureAdmin(user);
+
+  if (user.id === userId) {
+    throw new WorkflowError("You cannot delete your own admin account.");
+  }
+
+  await db.user.delete({ where: { id: userId } });
+}
+
+export async function setUserBlockedStateForAdmin(
+  user: CurrentUser,
+  userId: string,
+  isActive: boolean,
+) {
+  ensureAdmin(user);
+
+  if (user.id === userId && !isActive) {
+    throw new WorkflowError("You cannot block your own admin account.");
+  }
+
+  await db.user.update({
+    where: { id: userId },
+    data: { isActive },
+  });
+}
+
+export async function assignProjectTagForAdmin(
+  user: CurrentUser,
+  userId: string,
+  projectTag: ProjectTag | null,
+) {
+  ensureAdmin(user);
+
+  const existing = await db.user.findUnique({
+    where: { id: userId },
+    select: userRowSelect,
+  });
+
+  if (!existing) {
+    throw new WorkflowError("User not found.", 404);
+  }
+
+  const systemRole = inferSystemRole(existing);
+  if (systemRole !== "USER") {
+    throw new WorkflowError("Project assignment is available only for User accounts.");
+  }
+
+  await db.user.update({
+    where: { id: userId },
+    data: { projectTag },
+  });
+}
+
+export async function getUserManagementOptions(user: CurrentUser) {
+  ensureAdmin(user);
+
+  return {
+    domains: await getDomainOptions(),
+  };
+}
+

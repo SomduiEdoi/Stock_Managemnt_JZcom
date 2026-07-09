@@ -1,9 +1,9 @@
-﻿import type { RoleCode as PrismaRoleCode } from "@prisma/client";
+import type { RoleCode as PrismaRoleCode } from "@prisma/client";
 
 export type DomainCode = string;
 export type RoleCode = PrismaRoleCode;
 
-export const domainCodes = ["SERVER", "NETWORK"] as const satisfies readonly DomainCode[];
+export const domainCodes = ["SERVER", "NETWORK"] as const;
 export const requestRoleCodes = ["USER"] as const satisfies readonly RoleCode[];
 
 export type DomainPermission = {
@@ -65,10 +65,6 @@ export function canRequestDomainForUser(
   user: PermissionUser,
   domainCode: DomainCode,
 ) {
-  if (hasRole(user, "ADMIN")) {
-    return false;
-  }
-
   return (
     hasAnyRole(user, requestRoleCodes) &&
     canViewDomainForUser(user, domainCode)
@@ -76,8 +72,8 @@ export function canRequestDomainForUser(
 }
 
 export function canRequestAssetsForUser(user: PermissionUser) {
-  return user.permissions.some((permission) =>
-    canRequestDomainForUser(user, permission.domainCode),
+  return domainCodes.some((domainCode) =>
+    canRequestDomainForUser(user, domainCode),
   );
 }
 
@@ -104,24 +100,6 @@ export function assertCanManageDomain(
   }
 }
 
-export function assertCanChangeAssetStatus(
-  user: PermissionUser,
-  domainCode: DomainCode,
-) {
-  if (!canChangeAssetStatusForUser(user, domainCode)) {
-    throw new PermissionError(`Cannot change ${domainCode} asset status.`);
-  }
-}
-
-export function assertCanDeleteAssets(
-  user: PermissionUser,
-  domainCode: DomainCode,
-) {
-  if (!canDeleteAssetsForUser(user, domainCode)) {
-    throw new PermissionError(`Cannot delete ${domainCode} assets.`);
-  }
-}
-
 export function assertCanViewDomain(user: PermissionUser, domainCode: DomainCode) {
   if (!canViewDomainForUser(user, domainCode)) {
     throw new PermissionError(`Cannot view ${domainCode} assets.`);
@@ -137,6 +115,24 @@ export function assertCanRequestDomain(
   }
 }
 
+export function assertCanDeleteAssets(
+  user: PermissionUser,
+  domainCode: DomainCode,
+) {
+  if (!canDeleteAssetsForUser(user, domainCode)) {
+    throw new PermissionError(`Cannot delete ${domainCode} assets.`);
+  }
+}
+
+export function assertCanChangeAssetStatus(
+  user: PermissionUser,
+  domainCode: DomainCode,
+) {
+  if (!canChangeAssetStatusForUser(user, domainCode)) {
+    throw new PermissionError(`Cannot change ${domainCode} asset status.`);
+  }
+}
+
 export function canViewDomain(
   permissions: DomainPermission[],
   domainCode: DomainCode,
@@ -147,5 +143,3 @@ export function canViewDomain(
       (permission.canView || permission.canManage),
   );
 }
-
-

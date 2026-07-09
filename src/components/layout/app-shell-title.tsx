@@ -23,6 +23,10 @@ function resolveTitle(pathname: string) {
     return "Network Inventory";
   }
 
+  if (pathname.startsWith("/dashboard/inventory/")) {
+    return "Inventory";
+  }
+
   if (pathname === "/dashboard/assets") {
     return resolveAssetTitle();
   }

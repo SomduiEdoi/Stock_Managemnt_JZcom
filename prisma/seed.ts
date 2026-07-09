@@ -1,5 +1,6 @@
-﻿import bcrypt from "bcryptjs";
-import {
+import bcrypt from "bcryptjs";
+import {  type OrganizationLevel,
+  type OrganizationTag,
   PrismaClient,
   type RoleCode,
 } from "@prisma/client";
@@ -10,9 +11,10 @@ const defaultPassword = "ChangeMe123!";
 type SeedUser = {
   name: string;
   email: string;
-  organizationTag: string;
   position: string;
   roleCode: RoleCode;
+  organizationLevel?: OrganizationLevel;
+  organizationTag?: OrganizationTag;
   azureAdObjectId?: string;
   permissions: Array<{
     domainCode: string;
@@ -23,11 +25,12 @@ type SeedUser = {
 
 const seedUsers: SeedUser[] = [
   {
-    name: "Admin",
+    name: "Admin User",
     email: "admin@example.com",
-    organizationTag: "EXECUTIVE",
     position: "Administrator",
     roleCode: "ADMIN",
+    organizationLevel: "EXECUTIVE",
+    organizationTag: "BSD_MANAGER",
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: true },
       { domainCode: "NETWORK", canView: true, canManage: true },
@@ -36,9 +39,10 @@ const seedUsers: SeedUser[] = [
   {
     name: "Server Stock Controller",
     email: "server@example.com",
-    organizationTag: "S1_STAFF",
     position: "Server Stock Controller",
     roleCode: "STOCK_CONTROLLER",
+    organizationLevel: "STAFF",
+    organizationTag: "S1_STAFF",
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: true },
       { domainCode: "NETWORK", canView: true, canManage: false },
@@ -47,31 +51,34 @@ const seedUsers: SeedUser[] = [
   {
     name: "Network Stock Controller",
     email: "network@example.com",
-    organizationTag: "N1_STAFF",
     position: "Network Stock Controller",
     roleCode: "STOCK_CONTROLLER",
+    organizationLevel: "STAFF",
+    organizationTag: "N1_STAFF",
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: false },
       { domainCode: "NETWORK", canView: true, canManage: true },
     ],
   },
   {
-    name: "Staff User",
+    name: "Viewer User",
     email: "viewer@example.com",
-    organizationTag: "STAFF",
     position: "Staff",
     roleCode: "USER",
+    organizationLevel: "STAFF",
+    organizationTag: "BSD_STAFF",
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: false },
       { domainCode: "NETWORK", canView: true, canManage: false },
     ],
   },
   {
-    name: "Viewer 2",
+    name: "Viewer Two",
     email: "viewer2@example.com",
-    organizationTag: "STAFF",
     position: "Staff",
     roleCode: "USER",
+    organizationLevel: "STAFF",
+    organizationTag: "DL_STAFF",
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: false },
       { domainCode: "NETWORK", canView: true, canManage: false },
@@ -164,18 +171,22 @@ async function upsertSeedUser(
     update: {
       isActive: true,
       name: user.name,
+      organizationLevel: user.organizationLevel,
       organizationTag: user.organizationTag,
       passwordHash,
       position: user.position,
+      projectTag: null,
       ...identityData,
     },
     create: {
       email: user.email,
       isActive: true,
       name: user.name,
+      organizationLevel: user.organizationLevel,
       organizationTag: user.organizationTag,
       passwordHash,
       position: user.position,
+      projectTag: null,
       ...identityData,
     },
   });
@@ -259,4 +270,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-
