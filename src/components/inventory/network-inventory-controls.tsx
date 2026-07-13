@@ -89,27 +89,27 @@ function HiddenFilters({ filters }: { filters: NetworkInventoryControlFilters })
   );
 }
 
-function TypeChips({
+function CategoryChips({
+  categories,
   filters,
-  types,
 }: {
+  categories: string[];
   filters: NetworkInventoryControlFilters;
-  types: string[];
 }) {
   return (
     <div className="flex gap-2 overflow-x-auto pb-1">
       <Link
         className={`shrink-0 rounded-full px-4 py-2 text-xs font-bold transition ${
-          filters.types.length === 0
+          filters.categories.length === 0
             ? "bg-brand-accent text-white"
             : "bg-surface text-muted-foreground hover:text-navy"
         }`}
-        href={buildHref(filters, { types: [] })}
+        href={buildHref(filters, { categories: [] })}
       >
-        All Network Types
+        All Network Categories
       </Link>
-      {types.map((type) => {
-        const isActive = filters.types.includes(type);
+      {categories.map((category) => {
+        const isActive = filters.categories.includes(category);
 
         return (
           <Link
@@ -118,10 +118,10 @@ function TypeChips({
                 ? "bg-brand-accent text-white"
                 : "bg-surface text-muted-foreground hover:text-navy"
             }`}
-            href={buildHref(filters, { types: isActive ? [] : [type] })}
-            key={type}
+            href={buildHref(filters, { categories: isActive ? [] : [category] })}
+            key={category}
           >
-            {type}
+            {category}
           </Link>
         );
       })}
@@ -316,7 +316,7 @@ export function NetworkInventoryControls({
 
   return (
     <div className="flex flex-col gap-4">
-      <TypeChips filters={filters} types={types} />
+      <CategoryChips categories={categories} filters={filters} />
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <form action="/dashboard/network" className="relative flex-1" method="get">

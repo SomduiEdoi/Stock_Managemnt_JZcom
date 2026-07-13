@@ -38,7 +38,7 @@ Next task: Validate asset edit page manually and connect image workflow to produ
 - [x] Use CSV/Excel only as one-time migration input
 - [x] Use PostgreSQL as the runtime source of truth after migration
 - [x] Store paper document references as note/reference only in MVP
-- [x] Use `data/Network.csv` and `data/Server.csv` as source migration files
+- [x] Use `data/Network_reclassified.csv` and `data/Server_reclassified.csv` as source migration files
 - [x] Support both `SERIAL` and `QUANTITY` assets
 - [x] Use `REQUEST` as temporary lock status before submit
 - [x] Use transaction type `BORROW | USING | SOLD`
@@ -252,8 +252,8 @@ Acceptance checks:
 ## Phase 7: SharePoint Migration
 
 - [x] Define expected SharePoint export fields
-- [x] Confirm `data/Network.csv` has 594 rows, no blank serial no., no duplicate serial no.
-- [x] Confirm `data/Server.csv` has 551 rows, no blank serial no., no duplicate serial no.
+- [x] Confirm `data/Network_reclassified.csv` has 594 rows, no blank serial no., no duplicate serial no.
+- [x] Confirm `data/Server_reclassified.csv` has 551 rows, no blank serial no., no duplicate serial no.
 - [x] Build CSV parser
 - [x] Skip SharePoint `ListSchema=...` first line before parsing CSV header
 - [ ] Build Excel parser

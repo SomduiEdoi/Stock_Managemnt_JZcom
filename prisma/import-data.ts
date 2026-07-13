@@ -40,12 +40,13 @@ type MappedRow = {
   serialNo: string;
   status: AssetStatus;
   stockCode: string | null;
+  typeCode: string | null;
   typeName: string | null;
 };
 
 const sourceFiles: SourceFile[] = [
-  { domainCode: "NETWORK", fileName: "Network.csv" },
-  { domainCode: "SERVER", fileName: "Server.csv" },
+  { domainCode: "NETWORK", fileName: "Network_reclassified.csv" },
+  { domainCode: "SERVER", fileName: "Server_reclassified.csv" },
 ];
 
 const statusMap = new Map<string, AssetStatus>([
@@ -58,6 +59,85 @@ const statusMap = new Map<string, AssetStatus>([
   ["using", AssetStatus.USING],
   ["wait", AssetStatus.NEED_CHECK],
 ]);
+
+const typeCodeByDomain: Record<DomainCode, Record<string, string>> = {
+  NETWORK: {
+    "access point": "APC",
+    "aoc cable": "AOC",
+    "dac cable": "DAC",
+    "expansion module": "EXM",
+    "fiber cable": "FCB",
+    firewall: "FWL",
+    gateway: "GTW",
+    gbic: "GBC",
+    "mounting kit": "MKT",
+    "network module": "NMD",
+    "poe injector": "POE",
+    "power adapter": "PAD",
+    "power module": "PWM",
+    "power supply": "PSU",
+    qsfp: "QSF",
+    "rack kit": "RKT",
+    router: "RTR",
+    sfp: "SFP",
+    "stack data cable": "SDC",
+    "stack module": "STM",
+    "stack power cable": "SPC",
+    switch: "SWT",
+    transceiver: "TRX",
+    "wireless controller": "WLC",
+  },
+  SERVER: {
+    "bay hdd": "BAY",
+    "blade server": "BLD",
+    cable: "CAB",
+    fan: "FAN",
+    "hba card": "HBA",
+    "hdd sas": "HDS",
+    "hdd sata": "HDT",
+    hyperconverged: "HCI",
+    memory: "MEM",
+    "network card": "NIC",
+    "power supply unit": "PSU",
+    "rack server": "RAK",
+    "raid card": "RAD",
+    "sfp module": "SFP",
+    "spare part": "SPR",
+    "ssd sas": "SDS",
+    "ssd sata": "SDT",
+    "tower server": "TWR",
+  },
+};
+
+function normalizeKey(value: string) {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function fallbackTypeCode(value: string | null) {
+  const normalized = (value ?? "XX").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+
+  return (normalized || "XX").padEnd(3, "X").slice(0, 3);
+}
+
+function typeCodeFor(domainCode: DomainCode, typeName: string | null) {
+  if (!typeName) {
+    return null;
+  }
+
+  return typeCodeByDomain[domainCode][normalizeKey(typeName)] ?? fallbackTypeCode(typeName);
+}
+
+function nextImportedStockCode(
+  domainPrefix: string,
+  typeCode: string | null,
+  counters: Map<string, number>,
+) {
+  const prefix = `${domainPrefix}-${typeCode ?? "UNK"}`;
+  const next = (counters.get(prefix) ?? 0) + 1;
+  counters.set(prefix, next);
+
+  return `${prefix}${String(next).padStart(4, "0")}`;
+}
 
 function clean(value: string | undefined) {
   const trimmed = value?.replace(/^\uFEFF/, "").trim();
@@ -187,12 +267,14 @@ function combineNote(row: CsvRecord) {
   return parts.length > 0 ? parts.join("\n") : null;
 }
 
-function mapRow(row: CsvRecord): MappedRow {
+function mapRow(domainCode: DomainCode, row: CsvRecord): MappedRow {
   const serialNo = clean(row["Serial No."]);
 
   if (!serialNo) {
     throw new Error("Serial No. is required.");
   }
+
+  const typeName = clean(row.Types);
 
   return {
     brand: clean(row.Brand),
@@ -207,8 +289,9 @@ function mapRow(row: CsvRecord): MappedRow {
     partNo: clean(row["Part No."]),
     serialNo,
     status: mapStatus(row.Status),
-    stockCode: clean(row["Stock Code"]),
-    typeName: clean(row.Types),
+    stockCode: null,
+    typeCode: typeCodeFor(domainCode, typeName),
+    typeName,
   };
 }
 
@@ -247,6 +330,7 @@ async function findOrCreateAssetType(
   tx: Prisma.TransactionClient,
   categoryId: string | null,
   name: string | null,
+  code: string | null,
 ) {
   if (!categoryId || !name) {
     return null;
@@ -254,9 +338,10 @@ async function findOrCreateAssetType(
 
   return tx.assetType.upsert({
     where: { categoryId_name: { categoryId, name } },
-    update: { isActive: true },
+    update: { code, isActive: true },
     create: {
       categoryId,
+      code,
       name,
       trackMethod: AssetTrackMethod.SERIAL,
     },
@@ -374,6 +459,7 @@ async function upsertAssetFromRow(
     tx,
     category?.id ?? null,
     mapped.typeName,
+    mapped.typeCode,
   );
   const location = await findOrCreateLocation(tx, mapped.locationText);
   const model = await findOrCreateModel(
@@ -440,8 +526,12 @@ async function importParsedRow(
   domainId: string,
   userId: string,
   seenSerials: Set<string>,
+  domainCode: DomainCode,
+  domainPrefix: string,
+  stockCodeCounters: Map<string, number>,
 ) {
-  const mapped = mapRow(row.data);
+  const mapped = mapRow(domainCode, row.data);
+  mapped.stockCode = nextImportedStockCode(domainPrefix, mapped.typeCode, stockCodeCounters);
   const serialKey = mapped.serialNo.toLowerCase();
 
   if (seenSerials.has(serialKey)) {
@@ -498,24 +588,42 @@ async function importFile(
     },
   });
 
-  return importRowsForBatch(sourceFile, batch.id, domain.id, userId, seenSerials);
+  return importRowsForBatch(
+    sourceFile,
+    batch.id,
+    domain.id,
+    domain.prefix,
+    userId,
+    seenSerials,
+  );
 }
 
 async function importRowsForBatch(
   sourceFile: SourceFile,
   batchId: string,
   domainId: string,
+  domainPrefix: string,
   userId: string,
   seenSerials: Set<string>,
 ) {
   const filePath = path.join(process.cwd(), "data", sourceFile.fileName);
   const rows = await readCsvRows(filePath);
+  const stockCodeCounters = new Map<string, number>();
   let successRows = 0;
   let failedRows = 0;
 
   for (const row of rows) {
     try {
-      await importParsedRow(batchId, row, domainId, userId, seenSerials);
+      await importParsedRow(
+        batchId,
+        row,
+        domainId,
+        userId,
+        seenSerials,
+        sourceFile.domainCode,
+        domainPrefix,
+        stockCodeCounters,
+      );
       successRows += 1;
     } catch (error) {
       failedRows += 1;

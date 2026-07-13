@@ -9,11 +9,11 @@ type CsvRecord = Record<string, string>;
 const sourceFiles = [
   {
     descriptionColumn: "Comment",
-    fileName: "Network.csv",
+    fileName: "Network_reclassified.csv",
   },
   {
     descriptionColumn: "Description",
-    fileName: "Server.csv",
+    fileName: "Server_reclassified.csv",
   },
 ] as const;
 

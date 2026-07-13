@@ -1,35 +1,36 @@
-﻿Image,Category,Types,Brand,Model,Comment,Part No.,Serial No.,Stock Code,QTY,FG,Status,Location,Remark
-,Cable & Connectivity,Patch Cable,Cisco,Stack Data Cable,,,Stackdata01,,1,0,Sold,,ขาย Project PRT-CH
-,Cable & Connectivity,Patch Cable,Cisco,Stack Data Cable,,,Stackdata02,,1,0,Sold,,ขาย Project PRT-CH
-,Cable & Connectivity,Patch Cable,Cisco,Stack Data Cable,,,Stackdata03,,1,0,Sold,,Project Thai Nippon
-,Cable & Connectivity,Stack Cable,Cisco,Stack Data Cable,,STACK-T1-50CM,MOC2031AA6D,,1,1,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Stack Cable,Cisco,Stack Data Cable,,STACK-T1-50CM,MOC2031AB0K,,1,0,Sold,A3,Sold Project : SLI 05/09/2025
-,Cable & Connectivity,Stack Cable,Cisco,Stack Data Cable,,STACK-T1-50CM,Stackcable7,,1,1,Need Check,A3,
-,Cable & Connectivity,Stack Cable,Cisco,Stack Data Cable,,STACK-T1-50CM,Stackcable8,,1,1,Need Check,A3,
-,Cable & Connectivity,Stack Cable,Cisco,Stack Data Cable,,STACK-T1-50CM,MOC2529A5US,,1,1,Ready,Rack A3,"Check Stock 17/02/2026
+﻿ListSchema={"schemaXmlList":["<Field ID=\"{fa564e0f-0c70-4ab9-b863-0177e6ddd247}\" Type=\"Text\" Name=\"Title\" DisplayName=\"Title\" Required=\"FALSE\" SourceID=\"http://schemas.microsoft.com/sharepoint/v3\" StaticName=\"Title\" FromBaseType=\"TRUE\" MaxLength=\"255\" />","<Field ClientSideComponentId=\"00000000-0000-0000-0000-000000000000\" DisplayName=\"Serial No.\" EnforceUniqueValues=\"TRUE\" Format=\"Dropdown\" Indexed=\"TRUE\" MaxLength=\"255\" Name=\"S_x002f_N\" Required=\"TRUE\" Title=\"Serial No.\" Type=\"Text\" ID=\"{27dd5e0f-ced9-4eb2-9ef6-d4f5122b4c35}\" StaticName=\"S_x002f_N\" Hidden=\"FALSE\" PITarget=\"\" PrimaryPITarget=\"\" PIAttribute=\"\" PrimaryPIAttribute=\"\" Aggregation=\"\" Node=\"\" />","<Field ClientSideComponentId=\"00000000-0000-0000-0000-000000000000\" DisplayName=\"Stock Code\" Format=\"Dropdown\" MaxLength=\"255\" Name=\"StockCode\" Title=\"Stock Code\" Type=\"Text\" ID=\"{ddc77b56-ea21-4e40-9746-b1e990ae3601}\" StaticName=\"StockCode\" PITarget=\"\" PrimaryPITarget=\"\" PIAttribute=\"\" PrimaryPIAttribute=\"\" Aggregation=\"\" Node=\"\" />","<Field ClientSideComponentId=\"00000000-0000-0000-0000-000000000000\" DisplayName=\"Brand\" EnforceUniqueValues=\"FALSE\" Indexed=\"FALSE\" InternalName=\"Brand\" MaxLength=\"255\" Name=\"Brand\" Required=\"FALSE\" StaticName=\"Brand\" Title=\"Brand\" Type=\"Text\" ID=\"{e7b49de0-9d00-402a-9097-450199d1ade7}\" PITarget=\"\" PrimaryPITarget=\"\" PIAttribute=\"\" PrimaryPIAttribute=\"\" Aggregation=\"\" Node=\"\" />","<Field ClientSideComponentId=\"00000000-0000-0000-0000-000000000000\" DisplayName=\"Model\" Format=\"Dropdown\" MaxLength=\"255\" Name=\"Model\" Required=\"TRUE\" Title=\"Model\" Type=\"Text\" ID=\"{ca437812-70db-49f0-8e05-84bc3f0ca9d2}\" StaticName=\"Model\" Hidden=\"FALSE\" PITarget=\"\" PrimaryPITarget=\"\" PIAttribute=\"\" PrimaryPIAttribute=\"\" Aggregation=\"\" Node=\"\" />","<Field AppendOnly=\"FALSE\" DisplayName=\"Location\" Format=\"Dropdown\" IsModern=\"TRUE\" IsolateStyles=\"FALSE\" Name=\"Location\" RichText=\"FALSE\" RichTextMode=\"Compatible\" Title=\"Location\" Type=\"Note\" ID=\"{34a7c10e-aa36-4aa2-a7d6-4489ae290835}\" StaticName=\"Location\" Required=\"FALSE\" Hidden=\"FALSE\" Customization=\"\" ReadOnly=\"FALSE\" PITarget=\"\" PrimaryPITarget=\"\" PIAttribute=\"\" PrimaryPIAttribute=\"\" Aggregation=\"\" Node=\"\" />","<Field ClientSideComponentId=\"00000000-0000-0000-0000-000000000000\" CommaSeparator=\"TRUE\" CustomUnitOnRight=\"TRUE\" DisplayName=\"QTY\" EnforceUniqueValues=\"FALSE\" Indexed=\"FALSE\" InternalName=\"Total\" Max=\"1.7976931348623157e+308\" Min=\"-1.7976931348623157e+308\" Name=\"Total\" Percentage=\"FALSE\" Required=\"TRUE\" StaticName=\"Total\" Title=\"QTY\" Type=\"Number\" Unit=\"None\" ID=\"{40813833-5f77-4c9f-9f73-9fa710c10767}\" PITarget=\"\" PrimaryPITarget=\"\" PIAttribute=\"\" PrimaryPIAttribute=\"\" Aggregation=\"\" Node=\"\" />","<Field ClientSideComponentId=\"00000000-0000-0000-0000-000000000000\" CustomFormatter=\"{&quot;elmType&quot;:&quot;div&quot;,&quot;style&quot;:{&quot;flex-wrap&quot;:&quot;wrap&quot;,&quot;display&quot;:&quot;flex&quot;},&quot;children&quot;:[{&quot;elmType&quot;:&quot;div&quot;,&quot;style&quot;:{&quot;box-sizing&quot;:&quot;border-box&quot;,&quot;padding&quot;:&quot;4px 8px 5px 8px&quot;,&quot;overflow&quot;:&quot;hidden&quot;,&quot;text-overflow&quot;:&quot;ellipsis&quot;,&quot;display&quot;:&quot;flex&quot;,&quot;border-radius&quot;:&quot;16px&quot;,&quot;height&quot;:&quot;24px&quot;,&quot;align-items&quot;:&quot;center&quot;,&quot;white-space&quot;:&quot;nowrap&quot;,&quot;margin&quot;:&quot;4px 4px 4px 4px&quot;},&quot;attributes&quot;:{&quot;class&quot;:{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Borrow&quot;]},&quot;sp-css-backgroundColor-BgGold sp-css-borderColor-GoldFont sp-css-color-GoldFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Fail&quot;]},&quot;sp-css-backgroundColor-BgRed sp-css-borderColor-WhiteFont sp-css-color-WhiteFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Using&quot;]},&quot;sp-css-backgroundColor-BgCyan sp-css-borderColor-CyanFont sp-css-color-CyanFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;&quot;]},&quot;&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Lost&quot;]},&quot;sp-css-backgroundColor-BgGray sp-css-borderColor-WhiteFont sp-css-color-WhiteFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Ready&quot;]},&quot;sp-css-backgroundColor-BgGreen sp-css-borderColor-WhiteFont sp-css-color-WhiteFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Sold&quot;]},&quot;sp-css-backgroundColor-BgDarkRed sp-css-borderColor-WhiteFont sp-css-color-WhiteFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Wait&quot;]},&quot;sp-css-backgroundColor-BgLavender sp-css-borderColor-WhiteFont sp-css-color-WhiteFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Need Check&quot;]},&quot;sp-css-backgroundColor-BgDarkPink sp-css-borderColor-WhiteFont sp-css-color-WhiteFont&quot;,&quot;sp-field-borderAllRegular sp-field-borderAllSolid sp-css-borderColor-neutralSecondary&quot;]}]}]}]}]}]}]}]}]}},&quot;children&quot;:[{&quot;elmType&quot;:&quot;span&quot;,&quot;style&quot;:{&quot;overflow&quot;:&quot;hidden&quot;,&quot;text-overflow&quot;:&quot;ellipsis&quot;,&quot;padding&quot;:&quot;0 3px&quot;},&quot;txtContent&quot;:&quot;[$Status]&quot;,&quot;attributes&quot;:{&quot;class&quot;:{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Borrow&quot;]},&quot;sp-css-color-GoldFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Fail&quot;]},&quot;sp-css-color-WhiteFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Using&quot;]},&quot;sp-css-color-CyanFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;&quot;]},&quot;&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Lost&quot;]},&quot;sp-css-color-WhiteFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Ready&quot;]},&quot;sp-css-color-WhiteFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Sold&quot;]},&quot;sp-css-color-WhiteFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Wait&quot;]},&quot;sp-css-color-WhiteFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Status]&quot;,&quot;Need Check&quot;]},&quot;sp-css-color-WhiteFont&quot;,&quot;&quot;]}]}]}]}]}]}]}]}]}}}]}],&quot;templateId&quot;:&quot;BgColorChoicePill&quot;}\" DisplayName=\"Status\" EnforceUniqueValues=\"FALSE\" FillInChoice=\"FALSE\" Format=\"Dropdown\" Indexed=\"FALSE\" InternalName=\"Status\" Name=\"Status\" Required=\"TRUE\" StaticName=\"Status\" Title=\"Status\" Type=\"Choice\" UnlimitedLengthInDocumentLibrary=\"FALSE\" ID=\"{dc6a7cee-382b-4f36-a654-c4f1df84e10f}\" PITarget=\"\" PrimaryPITarget=\"\" PIAttribute=\"\" PrimaryPIAttribute=\"\" Aggregation=\"\" Node=\"\"><CHOICES><CHOICE>Borrow</CHOICE><CHOICE>Fail</CHOICE><CHOICE>Using</CHOICE><CHOICE>Lost</CHOICE><CHOICE>Ready</CHOICE><CHOICE>Sold</CHOICE><CHOICE>Wait</CHOICE><CHOICE>Need Check</CHOICE></CHOICES></Field>","<Field AppendOnly=\"FALSE\" ClientSideComponentId=\"00000000-0000-0000-0000-000000000000\" DisplayName=\"Remark\" Format=\"Dropdown\" IsolateStyles=\"FALSE\" Name=\"Remark\" RichText=\"FALSE\" RichTextMode=\"Compatible\" Title=\"Remark\" Type=\"Note\" ID=\"{efe3d7a5-8565-454b-b98b-b52e5ba90e38}\" StaticName=\"Remark\" PITarget=\"\" PrimaryPITarget=\"\" PIAttribute=\"\" PrimaryPIAttribute=\"\" Aggregation=\"\" Node=\"\" />","<Field DisplayName=\"Part No.\" Format=\"Dropdown\" IsModern=\"TRUE\" MaxLength=\"255\" Name=\"PartNo_x002e_\" Title=\"Part No.\" Type=\"Text\" ID=\"{f06c99b3-66b2-42ab-bfd3-73012478fc9b}\" StaticName=\"PartNo_x002e_\" Required=\"FALSE\" Hidden=\"FALSE\" Customization=\"\" ReadOnly=\"FALSE\" PITarget=\"\" PrimaryPITarget=\"\" PIAttribute=\"\" PrimaryPIAttribute=\"\" Aggregation=\"\" Node=\"\" />","<Field AppendOnly=\"FALSE\" ClientSideComponentId=\"00000000-0000-0000-0000-000000000000\" DisplayName=\"Image\" EnforceUniqueValues=\"FALSE\" Indexed=\"FALSE\" InternalName=\"Image\" Name=\"Image\" Required=\"FALSE\" RichText=\"FALSE\" StaticName=\"Image\" Title=\"Image\" Type=\"Thumbnail\" UnlimitedLengthInDocumentLibrary=\"FALSE\" ID=\"{1a8d3179-c62d-49e9-b388-293769df426e}\" PITarget=\"\" PrimaryPITarget=\"\" PIAttribute=\"\" PrimaryPIAttribute=\"\" Aggregation=\"\" Node=\"\" />","<Field ClientSideComponentId=\"00000000-0000-0000-0000-000000000000\" CustomFormatter=\"{&quot;elmType&quot;:&quot;div&quot;,&quot;style&quot;:{&quot;flex-wrap&quot;:&quot;wrap&quot;,&quot;display&quot;:&quot;flex&quot;},&quot;children&quot;:[{&quot;elmType&quot;:&quot;div&quot;,&quot;style&quot;:{&quot;box-sizing&quot;:&quot;border-box&quot;,&quot;padding&quot;:&quot;4px 8px 5px 8px&quot;,&quot;overflow&quot;:&quot;hidden&quot;,&quot;text-overflow&quot;:&quot;ellipsis&quot;,&quot;display&quot;:&quot;flex&quot;,&quot;border-radius&quot;:&quot;16px&quot;,&quot;height&quot;:&quot;24px&quot;,&quot;align-items&quot;:&quot;center&quot;,&quot;white-space&quot;:&quot;nowrap&quot;,&quot;margin&quot;:&quot;4px 4px 4px 4px&quot;},&quot;attributes&quot;:{&quot;class&quot;:{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Category]&quot;,&quot;Network&quot;]},&quot;sp-css-backgroundColor-BgCornflowerBlue sp-css-color-CornflowerBlueFont sp-css-color-CornflowerBlueFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Category]&quot;,&quot;Connector&quot;]},&quot;sp-css-backgroundColor-BgGold sp-css-borderColor-GoldFont sp-css-color-GoldFont sp-css-color-GoldFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Category]&quot;,&quot;&quot;]},&quot;&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Category]&quot;,&quot;Accessory&quot;]},&quot;sp-css-backgroundColor-BgLilac sp-css-borderColor-LilacFont sp-css-color-LilacFont sp-css-color-LilacFont&quot;,&quot;sp-field-borderAllRegular sp-field-borderAllSolid sp-css-borderColor-neutralSecondary&quot;]}]}]}]}},&quot;children&quot;:[{&quot;elmType&quot;:&quot;span&quot;,&quot;style&quot;:{&quot;overflow&quot;:&quot;hidden&quot;,&quot;text-overflow&quot;:&quot;ellipsis&quot;,&quot;padding&quot;:&quot;0 3px&quot;},&quot;txtContent&quot;:&quot;[$Category]&quot;,&quot;attributes&quot;:{&quot;class&quot;:{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Category]&quot;,&quot;Network&quot;]},&quot;sp-css-color-CornflowerBlueFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Category]&quot;,&quot;Connector&quot;]},&quot;sp-css-color-GoldFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Category]&quot;,&quot;&quot;]},&quot;&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Category]&quot;,&quot;Accessory&quot;]},&quot;sp-css-color-LilacFont&quot;,&quot;&quot;]}]}]}]}}}]}],&quot;templateId&quot;:&quot;BgColorChoicePill&quot;}\" DisplayName=\"Category\" EnforceUniqueValues=\"FALSE\" FillInChoice=\"FALSE\" Format=\"Dropdown\" Indexed=\"FALSE\" InternalName=\"Category\" Name=\"Category\" Required=\"FALSE\" StaticName=\"Category\" Title=\"Category\" Type=\"Choice\" UnlimitedLengthInDocumentLibrary=\"FALSE\" ID=\"{6b3c983f-873f-4d37-b8f6-cf3c9cf8a895}\"><CHOICES><CHOICE>Network</CHOICE><CHOICE>Connector</CHOICE><CHOICE>Accessory</CHOICE></CHOICES></Field>","<Field ClientSideComponentId=\"00000000-0000-0000-0000-000000000000\" CustomFormatter=\"{&quot;elmType&quot;:&quot;div&quot;,&quot;style&quot;:{&quot;flex-wrap&quot;:&quot;wrap&quot;,&quot;display&quot;:&quot;flex&quot;},&quot;children&quot;:[{&quot;elmType&quot;:&quot;div&quot;,&quot;style&quot;:{&quot;box-sizing&quot;:&quot;border-box&quot;,&quot;padding&quot;:&quot;4px 8px 5px 8px&quot;,&quot;overflow&quot;:&quot;hidden&quot;,&quot;text-overflow&quot;:&quot;ellipsis&quot;,&quot;display&quot;:&quot;flex&quot;,&quot;border-radius&quot;:&quot;16px&quot;,&quot;height&quot;:&quot;24px&quot;,&quot;align-items&quot;:&quot;center&quot;,&quot;white-space&quot;:&quot;nowrap&quot;,&quot;margin&quot;:&quot;4px 4px 4px 4px&quot;},&quot;attributes&quot;:{&quot;class&quot;:{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Cable&quot;]},&quot;sp-css-backgroundColor-BgLightBlue sp-css-borderColor-LightBlueFont sp-css-color-LightBlueFont sp-css-color-LightBlueFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Injector&quot;]},&quot;sp-css-backgroundColor-BgMintGreen sp-css-borderColor-MintGreenFont sp-css-color-MintGreenFont sp-css-color-MintGreenFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Power Supply Swtich&quot;]},&quot;sp-css-backgroundColor-BgGold sp-css-color-GoldFont sp-css-color-GoldFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;&quot;]},&quot;&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Module&quot;]},&quot;sp-css-backgroundColor-BgPeach sp-css-borderColor-PeachFont sp-css-color-PeachFont sp-css-color-PeachFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Firewall&quot;]},&quot;sp-css-backgroundColor-BgCyan sp-css-borderColor-CyanFont sp-css-color-CyanFont sp-css-color-CyanFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Switch&quot;]},&quot;sp-css-backgroundColor-BgBlue sp-css-borderColor-WhiteFont sp-css-color-WhiteFont sp-css-color-WhiteFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;AccessPoint&quot;]},&quot;sp-css-backgroundColor-BgViolet sp-css-borderColor-VioletFont sp-css-color-VioletFont sp-css-color-VioletFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;SparePart&quot;]},&quot;sp-css-backgroundColor-BgSage sp-css-color-SageFont sp-css-color-SageFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Router&quot;]},&quot;sp-css-backgroundColor-BgGreen sp-css-borderColor-WhiteFont sp-css-color-WhiteFont sp-css-color-WhiteFont&quot;,&quot;sp-field-borderAllRegular sp-field-borderAllSolid sp-css-borderColor-neutralSecondary&quot;]}]}]}]}]}]}]}]}]}]}},&quot;children&quot;:[{&quot;elmType&quot;:&quot;span&quot;,&quot;style&quot;:{&quot;overflow&quot;:&quot;hidden&quot;,&quot;text-overflow&quot;:&quot;ellipsis&quot;,&quot;padding&quot;:&quot;0 3px&quot;},&quot;txtContent&quot;:&quot;[$Types]&quot;,&quot;attributes&quot;:{&quot;class&quot;:{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Cable&quot;]},&quot;sp-css-color-LightBlueFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Injector&quot;]},&quot;sp-css-color-MintGreenFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Power Supply Swtich&quot;]},&quot;sp-css-color-GoldFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;&quot;]},&quot;&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Module&quot;]},&quot;sp-css-color-PeachFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Firewall&quot;]},&quot;sp-css-color-CyanFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Switch&quot;]},&quot;sp-css-color-WhiteFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;AccessPoint&quot;]},&quot;sp-css-color-VioletFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;SparePart&quot;]},&quot;sp-css-color-SageFont&quot;,{&quot;operator&quot;:&quot;:&quot;,&quot;operands&quot;:[{&quot;operator&quot;:&quot;==&quot;,&quot;operands&quot;:[&quot;[$Types]&quot;,&quot;Router&quot;]},&quot;sp-css-color-WhiteFont&quot;,&quot;&quot;]}]}]}]}]}]}]}]}]}]}}}]}],&quot;templateId&quot;:&quot;BgColorChoicePill&quot;}\" DisplayName=\"Types\" EnforceUniqueValues=\"FALSE\" FillInChoice=\"FALSE\" Format=\"Dropdown\" Indexed=\"FALSE\" InternalName=\"Types\" Name=\"Types\" Required=\"FALSE\" StaticName=\"Types\" Title=\"Types\" Type=\"Choice\" UnlimitedLengthInDocumentLibrary=\"FALSE\" ID=\"{b074bd76-1fb4-4666-a603-1be176a1cfb8}\"><CHOICES><CHOICE>Cable</CHOICE><CHOICE>Injector</CHOICE><CHOICE>Power Supply Swtich</CHOICE><CHOICE>Module</CHOICE><CHOICE>Firewall</CHOICE><CHOICE>Switch</CHOICE><CHOICE>AccessPoint</CHOICE><CHOICE>SparePart</CHOICE><CHOICE>Router</CHOICE></CHOICES></Field>","<Field CommaSeparator=\"TRUE\" CustomUnitOnRight=\"TRUE\" Decimals=\"0\" DisplayName=\"FG\" Format=\"Dropdown\" IsModern=\"TRUE\" Name=\"FG\" Percentage=\"FALSE\" Title=\"FG\" Type=\"Number\" Unit=\"None\" ID=\"{3edfda42-8f10-4e5c-9358-a24f38ca8375}\" StaticName=\"FG\" />","<Field ClientSideComponentId=\"00000000-0000-0000-0000-000000000000\" DisplayName=\"Comment\" Format=\"Dropdown\" MaxLength=\"255\" Name=\"Comment\" Title=\"Comment\" Type=\"Text\" ID=\"{ca9ecf48-1ae9-47f8-9109-e6cd96cca953}\" StaticName=\"Comment\" />","<Field ID=\"{82642ec8-ef9b-478f-acf9-31f7d45fbc31}\" ReadOnly=\"TRUE\" Type=\"Computed\" Name=\"LinkTitle\" DisplayName=\"Title\" DisplayNameSrcField=\"Title\" ClassInfo=\"Menu\" AuthoringInfo=\"(linked to item with edit menu)\" ListItemMenuAllowed=\"Required\" LinkToItemAllowed=\"Prohibited\" SourceID=\"http://schemas.microsoft.com/sharepoint/v3\" StaticName=\"LinkTitle\" FromBaseType=\"TRUE\"><FieldRefs><FieldRef Name=\"Title\" /><FieldRef Name=\"LinkTitleNoMenu\" /><FieldRef Name=\"_EditMenuTableStart2\" /><FieldRef Name=\"_EditMenuTableEnd\" /></FieldRefs><DisplayPattern><FieldSwitch><Expr><GetVar Name=\"FreeForm\" /></Expr><Case Value=\"TRUE\"><Field Name=\"LinkTitleNoMenu\" /></Case><Default><HTML><![CDATA[<div class=\"ms-vb itx\" onmouseover=\"OnItem(this)\" CTXName=\"ctx]]></HTML><Field Name=\"_EditMenuTableStart2\" /><HTML><![CDATA[\">]]></HTML><Field Name=\"LinkTitleNoMenu\" /><HTML><![CDATA[</div>]]></HTML><HTML><![CDATA[<div class=\"s4-ctx\" onmouseover=\"OnChildItem(this.parentNode); return false;\">]]></HTML><HTML><![CDATA[<span>&nbsp;</span>]]></HTML><HTML><![CDATA[<a onfocus=\"OnChildItem(this.parentNode.parentNode); return false;\" onclick=\"PopMenuFromChevron(event); return false;\" href=\"javascript:;\" title=\"Open Menu\"></a>]]></HTML><HTML><![CDATA[<span>&nbsp;</span>]]></HTML><HTML><![CDATA[</div>]]></HTML></Default></FieldSwitch></DisplayPattern></Field>"]}
+Image,Category,Types,Brand,Model,Comment,Part No.,Serial No.,Stock Code,QTY,FG,Status,Location,Remark
+,Cable & Connectivity,Stack Data Cable,Cisco,Stack Data Cable,,,Stackdata01,,1,0,Sold,,ขาย Project PRT-CH
+,Cable & Connectivity,Stack Data Cable,Cisco,Stack Data Cable,,,Stackdata02,,1,0,Sold,,ขาย Project PRT-CH
+,Cable & Connectivity,Stack Data Cable,Cisco,Stack Data Cable,,,Stackdata03,,1,0,Sold,,Project Thai Nippon
+,Cable & Connectivity,Stack Data Cable,Cisco,Stack Data Cable,,STACK-T1-50CM,MOC2031AA6D,,1,1,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Stack Data Cable,Cisco,Stack Data Cable,,STACK-T1-50CM,MOC2031AB0K,,1,0,Sold,A3,Sold Project : SLI 05/09/2025
+,Cable & Connectivity,Stack Data Cable,Cisco,Stack Data Cable,,STACK-T1-50CM,Stackcable7,,1,1,Need Check,A3,
+,Cable & Connectivity,Stack Data Cable,Cisco,Stack Data Cable,,STACK-T1-50CM,Stackcable8,,1,1,Need Check,A3,
+,Cable & Connectivity,Stack Data Cable,Cisco,Stack Data Cable,,STACK-T1-50CM,MOC2529A5US,,1,1,Ready,Rack A3,"Check Stock 17/02/2026
 
 Return: Project Clicxbank 27/05/2026"
-,Cable & Connectivity,Power Cable,Cisco,Stack Power Cable,,,Stackpower1,,1,0,Sold,,ขาย Project PRT-CH
-,Cable & Connectivity,Power Cable,Cisco,Stack Power Cable,,,Stackpower2,,1,0,Sold,,ขาย Project PRT-CH
-,Cable & Connectivity,Power Cable,Cisco,Stack Power Cable,,37-1122-01,Stackpower3,,1,0,Sold,A3,Sold Project : SLI 05/09/2025
-,Cable & Connectivity,Power Cable,Cisco,Stack Power Cable,,37-1122-01,Stackpower4,,1,0,Sold,A3,Sold Project : SLI 05/09/2025
-,Cable & Connectivity,Power Cable,Cisco,Stack Power Cable,,37-1122-01,Stackpower05,,1,1,Lost,A3,
-,Cable & Connectivity,Power Cable,Cisco,Stack Power Cable,,37-1122-01,Stackpower001,,1,1,Ready,Rack A3,"Check Stock 17/02/2026
+,Cable & Connectivity,Stack Power Cable,Cisco,Stack Power Cable,,,Stackpower1,,1,0,Sold,,ขาย Project PRT-CH
+,Cable & Connectivity,Stack Power Cable,Cisco,Stack Power Cable,,,Stackpower2,,1,0,Sold,,ขาย Project PRT-CH
+,Cable & Connectivity,Stack Power Cable,Cisco,Stack Power Cable,,37-1122-01,Stackpower3,,1,0,Sold,A3,Sold Project : SLI 05/09/2025
+,Cable & Connectivity,Stack Power Cable,Cisco,Stack Power Cable,,37-1122-01,Stackpower4,,1,0,Sold,A3,Sold Project : SLI 05/09/2025
+,Cable & Connectivity,Stack Power Cable,Cisco,Stack Power Cable,,37-1122-01,Stackpower05,,1,1,Lost,A3,
+,Cable & Connectivity,Stack Power Cable,Cisco,Stack Power Cable,,37-1122-01,Stackpower001,,1,1,Ready,Rack A3,"Check Stock 17/02/2026
 
 Return: Project Clickbank 27/05/2026"
-,Cable & Connectivity,Power Cable,Cisco,Stack Power Cable,,37-1122-01,Stackpower002,,1,1,Ready,Rack A3,"Check Stock 17/02/2026
+,Cable & Connectivity,Stack Power Cable,Cisco,Stack Power Cable,,37-1122-01,Stackpower002,,1,1,Ready,Rack A3,"Check Stock 17/02/2026
 
 Return: Project Clicxbank 27/05/2026"
-,Cable & Connectivity,Power Cable,Cisco,Stack Power Cable,,37-1122-01,Stackpower003,,1,1,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Power Cable,Cisco,Stack Power Cable,,37-1122-01,Stackpower004,,1,1,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Stack Power Cable,Cisco,Stack Power Cable,,37-1122-01,Stackpower003,,1,1,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Stack Power Cable,Cisco,Stack Power Cable,,37-1122-01,Stackpower004,,1,1,Ready,Rack A3,Check Stock 17/02/2026
 ,Power,PoE Injector,RoHs,Injector,,,Injecter001,,1,0,Sold,,
 ,Power,PoE Injector,RoHs,Injector,,,Injecter002,,1,1,Ready,StockRoom,
 ,Power,PoE Injector,RoHs,Injector,,,Injecter003,,1,1,Ready,StockRoom,
 ,Power,PoE Injector,RoHs,Injector,,,Injecter004,,1,1,Ready,StockRoom,
-,Power,PoE Injector,TP-Link,Injector,,???,4.24415E+12,,1,0,Sold,,ขาย Project PRT-BKK
-,Power,PoE Injector,TP-Link,Injector,,???,4.24415E+12,,1,0,Sold,,ขาย Project PRT-BKK
-,Power,PoE Injector,TP-Link,Injector,,???,4.24415E+12,,1,0,Sold,,ขาย Project PRT-BKK
-,Power,PoE Injector,TP-Link,Injector,,???,4.24415E+12,,1,0,Sold,,ขาย Project PRT-CH
+,Power,PoE Injector,TP-Link,Injector,,???,4244145003353,,1,0,Sold,,ขาย Project PRT-BKK
+,Power,PoE Injector,TP-Link,Injector,,???,4244145000180,,1,0,Sold,,ขาย Project PRT-BKK
+,Power,PoE Injector,TP-Link,Injector,,???,4244145000169,,1,0,Sold,,ขาย Project PRT-BKK
+,Power,PoE Injector,TP-Link,Injector,,???,4244145000176,,1,0,Sold,,ขาย Project PRT-CH
 ,Power,PoE Injector,Cisco,Injector,,,SER1628ZU7G,,1,1,Ready,StockRoom,
 ,Power,Power Supply,Cisco,Cisco 3560x - EDPS-1100AB/B,,,DTN2132V0X02,,1,1,Need Check,,
 ,Power,Power Supply,Cisco,EDPS-3SOCB A,,341-0394-01,DTN1640L16G,,1,1,Ready,Rack B4,Check Stock 04/02/2026
@@ -40,16 +41,16 @@ Reserved_ImageAttachment_[5]_[Image][32]_[a9501207a77b4907966013e4861c5126][1]_[
 ,Power,Power Supply,Cisco,PWR-C1-1100WAC,,,LIT22353K6T,,1,1,Need Check,,
 ,Power,Power Supply,Cisco,PWR-C1-1100WAC,,PWR-C1-1100WAC,LIT22353KC9,,1,0,Sold,ขาย ติดตั้ง IDC,
 ,Power,Power Supply,Cisco,PWR-C1-1100WAC,,PWR-C1-1100WAC,DTN2021V3Q5,,1,0,Sold,ขาย ติดตั้ง IDC,
-,Cable & Connectivity,Stack Cable,Cisco,Stack Cable 2960X,,37-0891-01,M190100193623,,1,1,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Stack Cable,RoHs,Stack Cable 2960X,,37-0891-01,M190100193085,,1,,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Stack Cable,Cisco,"Stack Cable 3750, 3650",,72-2632-01,Stackcable1,,1,,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Stack Cable,Cisco,"Stack Cable 3750, 3650",,72-2632-01,Stackcable2,,1,,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Stack Cable,Cisco,"Stack Cable 3750, 3650",,72-2632-01,Stackcable3,,1,,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Stack Cable,Cisco,"Stack Cable 3750, 3650",,72-2632-01,Stackcable4,,1,,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Stack Data Cable,Cisco,Stack Cable 2960X,,37-0891-01,M190100193623,,1,1,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Stack Data Cable,RoHs,Stack Cable 2960X,,37-0891-01,M190100193085,,1,,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Stack Data Cable,Cisco,"Stack Cable 3750, 3650",,72-2632-01,Stackcable1,,1,,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Stack Data Cable,Cisco,"Stack Cable 3750, 3650",,72-2632-01,Stackcable2,,1,,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Stack Data Cable,Cisco,"Stack Cable 3750, 3650",,72-2632-01,Stackcable3,,1,,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Stack Data Cable,Cisco,"Stack Cable 3750, 3650",,72-2632-01,Stackcable4,,1,,Ready,Rack A3,Check Stock 17/02/2026
 ,Cable & Connectivity,AOC Cable,Crealights,10G 850nm SFP+ AOC 7M,,,AOC1,,1,,Sold,a2,Sold - PRT(CH) 14/2/25 Few
 ,Cable & Connectivity,AOC Cable,Crealights,10G 850nm SFP+ AOC 7M,,CLAOC-10G-7M,CUAC00720515225,,1,,Ready,Rack A2,Check Stock 17/02/2026
-,Cable & Connectivity,Patch Cable,Cisco,40G QSFP To 4x10G 2M,,,AOC3,,1,,Using,,IDC - First
-,Cable & Connectivity,Patch Cable,Cisco,40G QSFP To 4x10G 2M,,10-2931-02,HL210611005,,1,,Ready,Rack A2,"Check Stock 17/02/2026
+,Cable & Connectivity,AOC Cable,Cisco,40G QSFP To 4x10G 2M,,,AOC3,,1,,Using,,IDC - First
+,Optic & Transceiver,QSFP,Cisco,40G QSFP To 4x10G 2M,,10-2931-02,HL210611005,,1,,Ready,Rack A2,"Check Stock 17/02/2026
 "
 ,Cable & Connectivity,DAC Cable,RoHs,DAG Cable SFP-H10GB-CU2M,,SFP-H10GB-CU2M,HL210308014,,1,,Ready,Rack A2,Check Stock 17/02/2026
 ,Cable & Connectivity,DAC Cable,RoHs,DAG Cable SFP-H10GB-CU2M,,SFP-H10GB-CU2M,HL210308019,,1,,Ready,Rack A2,Check Stock 17/02/2026
@@ -57,17 +58,17 @@ Reserved_ImageAttachment_[5]_[Image][32]_[a9501207a77b4907966013e4861c5126][1]_[
 ,Cable & Connectivity,DAC Cable,RoHs,DAG Cable SFP-H10GB-CU2M,,SFP-H10GB-CU2M,HL210308018,,1,,Ready,Rack A2,Check Stock 17/02/2026
 ,Cable & Connectivity,DAC Cable,Cisco,DAG Cable QSFP-H40G-CU3M,,37-1317-03,TED2514K11R,,1,,Ready,Rack A2,Check Stock 17/02/2026
 ,Cable & Connectivity,DAC Cable,Cisco,DAG Cable QSFP-H40G-CU3M,,37-1317-03,APF2536111N,,1,,Ready,Rack A2,Check Stock 17/02/2026
-,Cable & Connectivity,Patch Cable,Amphenol,12G HD Mini-SAS to HD Mini-SAS,,038-004-379-01,APF372116927J1,,1,,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Fiber Cable,Amphenol,12G HD Mini-SAS to HD Mini-SAS,,038-004-379-01,APF372116927J1,,1,,Ready,Rack A3,Check Stock 17/02/2026
 ,Power,Power Supply,Cisco,Power Supply 3850 ,,PWR-C1-350WAC,DTN2132V0XZ,,1,1,Need Check,B4,
-Reserved_ImageAttachment_[5]_[Image][32]_[9f04845192c645c29a273b0e6b309758][1]_[3].jpg,Power,Power Supply,Cisco,Sparepart For Switch Cisco 2960,,341-0328-02,LIT15270M63,,1,1,Ready,Rack B4,Check Stock 04/02/2026
+Reserved_ImageAttachment_[5]_[Image][32]_[9f04845192c645c29a273b0e6b309758][1]_[3].jpg,Network Device,Switch,Cisco,Sparepart For Switch Cisco 2960,,341-0328-02,LIT15270M63,,1,1,Ready,Rack B4,Check Stock 04/02/2026
 Reserved_ImageAttachment_[5]_[Image][32]_[4719b569690b4b6cbd8a5d2eb278e6f6][1]_[3].jpg,Module & Expansion,Network Module,Cisco,Cisco Module: C3KX-NM-1G,,73-12298-04,FD0190612VM,,1,1,Ready,Rack B4,Check Stock 04/02/2026
-Reserved_ImageAttachment_[5]_[Image][32]_[a6a43585126c41a58124c00cd1d3346a][1]_[3].jpg,Module & Expansion,Network Module,Cisco,Cisco3850-NM-2-10G Expension Module,,73-12734-06,F0C20087UJ7,,1,1,Ready,Rack B4,"Check Stock 04/02/2026
+Reserved_ImageAttachment_[5]_[Image][32]_[a6a43585126c41a58124c00cd1d3346a][1]_[3].jpg,Module & Expansion,Expansion Module,Cisco,Cisco3850-NM-2-10G Expension Module,,73-12734-06,F0C20087UJ7,,1,1,Ready,Rack B4,"Check Stock 04/02/2026
 
 Return: Project Clicxbank 27/05/2026"
-Reserved_ImageAttachment_[5]_[Image][32]_[fc6d85aecbcd4e20b010c41641b18945][1]_[3].jpg,Module & Expansion,Network Module,Cisco,Cisco3850-NM-4-1G Expension Module,,73-12735-07,F0C191159YE,,1,1,Ready,Rack B4,Check Stock 04/02/2026
-Reserved_ImageAttachment_[5]_[Image][32]_[0bef5bba61a246a6b1fa8afcc30d53d8][1]_[4].jpg,Module & Expansion,Network Module,Cisco,Cisco3850-NM-4-1G Expension Module,,73-12735-07,F0C191727H0,,1,1,Ready,Rack B4,Check Stock 04/02/2026
-Reserved_ImageAttachment_[5]_[Image][32]_[5d408b8b9ed24c298c2910263b774aae][1]_[3].jpg,Module & Expansion,Network Module,Cisco,Module Stack Cisco For 2960,,C2960X-STACK,F0G18526H7G,,1,1,Ready,Rack B4,Check Stock 04/02/2026
-,Cable & Connectivity,Patch Cable,Amphenol,12G HD Mini-SAS to HD Mini-SAS,,038-004-379-01,"APF37211190VAC
+Reserved_ImageAttachment_[5]_[Image][32]_[fc6d85aecbcd4e20b010c41641b18945][1]_[3].jpg,Module & Expansion,Expansion Module,Cisco,Cisco3850-NM-4-1G Expension Module,,73-12735-07,F0C191159YE,,1,1,Ready,Rack B4,Check Stock 04/02/2026
+Reserved_ImageAttachment_[5]_[Image][32]_[0bef5bba61a246a6b1fa8afcc30d53d8][1]_[4].jpg,Module & Expansion,Expansion Module,Cisco,Cisco3850-NM-4-1G Expension Module,,73-12735-07,F0C191727H0,,1,1,Ready,Rack B4,Check Stock 04/02/2026
+Reserved_ImageAttachment_[5]_[Image][32]_[5d408b8b9ed24c298c2910263b774aae][1]_[3].jpg,Network Device,Switch,Cisco,Module Stack Cisco For 2960,,C2960X-STACK,F0G18526H7G,,1,1,Ready,Rack B4,Check Stock 04/02/2026
+,Cable & Connectivity,Fiber Cable,Amphenol,12G HD Mini-SAS to HD Mini-SAS,,038-004-379-01,"APF37211190VAC
 
 ",,1,1,Ready,Rack A3,Check Stock 17/02/2026
 ,Cable & Connectivity,DAC Cable,Mellanox,DAC Cable 10G SFP+,In Stock : 09/04/2025,MCP2104-X001B,MT1411VS02242,,1,0,Sold,,Sold - Project ITTC
@@ -116,47 +117,47 @@ Reserved_ImageAttachment_[5]_[Image][32]_[5d408b8b9ed24c298c2910263b774aae][1]_[
 ,Module & Expansion,Network Module,Cisco,Cisco Catalyst 9300 Series,,C9300-NM-8X ,FOC24135AD4,,1,0,Sold,,
 ,Module & Expansion,Network Module,Cisco,Cisco Catalyst 9300 Series,,C9300-NM-8X ,"FJZ23461GKD
 ",,1,0,Sold,,
-Reserved_ImageAttachment_[5]_[Image][32]_[a9ede090c8494fc1beebda3189167e5b][1]_[2].jpg,Module & Expansion,Network Module,Cisco,C9300-NM-8X V03 Expension Module,,73-16295-07,FOC25381FUM,,1,1,Ready,Rack B4,Check Stock 04/02/2026
-Reserved_ImageAttachment_[5]_[Image][32]_[2eb03b706e264514aa1be48dd2171dda][1]_[2].jpg,Module & Expansion,Network Module,Cisco,C9300-NM-8X V03 Expension Module,,73-16295-07,FOC253818EJ,,1,1,Ready,Rack B4,Check Stock 04/02/2026
-,Cable & Connectivity,Patch Cable,RoHS,40G QSFP To 4x10G 2M,,,AVE2047200U,,1,1,Ready,Rack A2,Check Stock 17/02/2026
-,Cable & Connectivity,Stack Cable,Cisco,STACK-T1-1M,,800-40404-01,LCC2222GR0K,,1,1,Ready,Rack A3,"Check Stock 17/02/2026
+Reserved_ImageAttachment_[5]_[Image][32]_[a9ede090c8494fc1beebda3189167e5b][1]_[2].jpg,Module & Expansion,Expansion Module,Cisco,C9300-NM-8X V03 Expension Module,,73-16295-07,FOC25381FUM,,1,1,Ready,Rack B4,Check Stock 04/02/2026
+Reserved_ImageAttachment_[5]_[Image][32]_[2eb03b706e264514aa1be48dd2171dda][1]_[2].jpg,Module & Expansion,Expansion Module,Cisco,C9300-NM-8X V03 Expension Module,,73-16295-07,FOC253818EJ,,1,1,Ready,Rack B4,Check Stock 04/02/2026
+,Optic & Transceiver,QSFP,RoHS,40G QSFP To 4x10G 2M,,,AVE2047200U,,1,1,Ready,Rack A2,Check Stock 17/02/2026
+,Cable & Connectivity,Stack Data Cable,Cisco,STACK-T1-1M,,800-40404-01,LCC2222GR0K,,1,1,Ready,Rack A3,"Check Stock 17/02/2026
 
 Return: Project Clicxbank 27/05/2026"
-,Cable & Connectivity,Patch Cable,AMPHENOL,"SAS Cable, MINI SAS Cable 3M",,038-000-208-00,APF20220882RCK,,1,1,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Patch Cable,AMPHENOL,"SAS Cable, MINI SAS Cable 3M",,038-000-208-00,APF20220882NVN,,1,1,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Patch Cable,Super Micro,"SAS Cable, MINI SAS Cable",,CBL-SAST-0573,4489113I321B,,1,1,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Patch Cable,Super Micro,"SAS Cable, MINI SAS Cable",,CBL-SAST-0573,4489113I30E2,,1,1,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Stack Cable,Cisco,Stack Cable 2960X,,37-0891-01,"M180802154376
+,Cable & Connectivity,Fiber Cable,AMPHENOL,"SAS Cable, MINI SAS Cable 3M",,038-000-208-00,APF20220882RCK,,1,1,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Fiber Cable,AMPHENOL,"SAS Cable, MINI SAS Cable 3M",,038-000-208-00,APF20220882NVN,,1,1,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Fiber Cable,Super Micro,"SAS Cable, MINI SAS Cable",,CBL-SAST-0573,4489113I321B,,1,1,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Fiber Cable,Super Micro,"SAS Cable, MINI SAS Cable",,CBL-SAST-0573,4489113I30E2,,1,1,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Stack Data Cable,Cisco,Stack Cable 2960X,,37-0891-01,"M180802154376
 ",,1,1,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Stack Cable,Cisco,Stack Cable 2960X,,,LSC2204G571,,1,1,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Patch Cable,AMPHENOL,"SAS Cable, MINI SAS Cable",,,APF19506772LD8,,1,1,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Patch Cable,AMPHENOL,"SAS Cable, MINI SAS Cable",,,APF19506772LCT,,1,1,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Patch Cable,Molex,MINI SAS Cable P/N: 430066-001,,,MINISAS01,,1,1,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Patch Cable,Molex,MINI SAS Cable P/N: 430066-001,,,MINISAS02,,1,1,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Patch Cable,AMPHENOL,"MINI SAS Cable P/N: 95P4494
+,Cable & Connectivity,Stack Data Cable,Cisco,Stack Cable 2960X,,,LSC2204G571,,1,1,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Fiber Cable,AMPHENOL,"SAS Cable, MINI SAS Cable",,,APF19506772LD8,,1,1,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Fiber Cable,AMPHENOL,"SAS Cable, MINI SAS Cable",,,APF19506772LCT,,1,1,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Fiber Cable,Molex,MINI SAS Cable P/N: 430066-001,,,MINISAS01,,1,1,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Fiber Cable,Molex,MINI SAS Cable P/N: 430066-001,,,MINISAS02,,1,1,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Fiber Cable,AMPHENOL,"MINI SAS Cable P/N: 95P4494
 ",,,"MINISAS03
 ",,1,1,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Patch Cable,Foxconn,Mini-SAS HD to Mini-SAS HD,,,2GFPGGJA01JDF,,1,1,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Patch Cable,Foxconn,Mini-SAS HD to Mini-SAS HD,,,78091615005K,,1,1,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Patch Cable,Foxconn,Mini-SAS HD to Mini-SAS HD,,,742103CN013F,,1,1,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Patch Cable,Foxconn,Mini-SAS HD to Mini-SAS HD,,,742103CN013H,,1,1,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Patch Cable,HPE,Internal Mini-SAS Cable P/N :407344-001,,,SASCOPPER01,,1,1,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Patch Cable,HPE,"Internal Mini-SAS Cable P/N :407344-001
+,Cable & Connectivity,Fiber Cable,Foxconn,Mini-SAS HD to Mini-SAS HD,,,2GFPGGJA01JDF,,1,1,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Fiber Cable,Foxconn,Mini-SAS HD to Mini-SAS HD,,,78091615005K,,1,1,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Fiber Cable,Foxconn,Mini-SAS HD to Mini-SAS HD,,,742103CN013F,,1,1,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Fiber Cable,Foxconn,Mini-SAS HD to Mini-SAS HD,,,742103CN013H,,1,1,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Fiber Cable,HPE,Internal Mini-SAS Cable P/N :407344-001,,,SASCOPPER01,,1,1,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Fiber Cable,HPE,"Internal Mini-SAS Cable P/N :407344-001
 ",,,SASCOPPER02,,1,1,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Patch Cable,HPE,Internal Mini-SAS Cable P/N :407344-002,,,SASCOPPER03,,1,1,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Patch Cable,HPE,Internal Mini-SAS Cable P/N :407344-002,,,SASCOPPER04,,1,1,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Patch Cable,HPE,Internal Mini-SAS Cable P/N :407344-002,,,SASCOPPER05,,1,1,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Patch Cable,HPE,Internal Mini-SAS Cable P/N :407344-002,,,SASCOPPER06,,1,1,Ready,Rack A3,Check Stock 17/02/2026
-,Cable & Connectivity,Patch Cable,HPE,Mini SAS to Mini SAS,,,YL10AK71E852,,1,1,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Fiber Cable,HPE,Internal Mini-SAS Cable P/N :407344-002,,,SASCOPPER03,,1,1,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Fiber Cable,HPE,Internal Mini-SAS Cable P/N :407344-002,,,SASCOPPER04,,1,1,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Fiber Cable,HPE,Internal Mini-SAS Cable P/N :407344-002,,,SASCOPPER05,,1,1,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Fiber Cable,HPE,Internal Mini-SAS Cable P/N :407344-002,,,SASCOPPER06,,1,1,Ready,Rack A3,Check Stock 17/02/2026
+,Cable & Connectivity,Fiber Cable,HPE,Mini SAS to Mini SAS,,,YL10AK71E852,,1,1,Ready,Rack A3,Check Stock 17/02/2026
 Reserved_ImageAttachment_[5]_[Image][32]_[8bf28ca34a214cb1ace0157a6d4979a3][1]_[1].png,Network Device,Router,TP-Link,NX510v,,1756500073,225A623000253,,1,1,Ready,E,
-Reserved_ImageAttachment_[5]_[Image][32]_[634347a87f6b407384a57dc71fc1743b][1]_[1].png,Network Device,Router,HUAWEI,HG8145V,,-,485754430FE40B9B,,1,1,Ready,E,No Adapter
+Reserved_ImageAttachment_[5]_[Image][32]_[634347a87f6b407384a57dc71fc1743b][1]_[1].png,Power,Power Adapter,HUAWEI,HG8145V,,-,485754430FE40B9B,,1,1,Ready,E,No Adapter
 ,Network Device,Switch,Cisco,Catalyst 4948E Switch WS-C4948E-E,,,CAT1723S2L7,,1,1,Ready,E,Return: Project Clicxbank 27/05/2026
 ,Optic & Transceiver,SFP,3COM,3Com 1000Base-SX Class1,Multimode (MMF),3CSFP91,M1RQ9T0000463,,1,1,Ready,Rack A1,Check Stock 27/01/2026
 ,Optic & Transceiver,SFP,3COM,3Com 100 Base-FX,Multimode (MMF),3CSFP81,LRZP050006046,,1,1,Ready,Rack A1,Check Stock 27/01/2026
 ,Optic & Transceiver,SFP,3COM,3Com 1000Base-SX Class1,Multimode (MMF),3CSFP91,M1RQ8T0003214,,1,1,Ready,Rack A1,Check Stock 27/01/2026
 ,Optic & Transceiver,SFP,3COM,3Com 1000Base-SX Class1,Multimode (MMF),3CSFP91,M1RQ7G0006216,,1,1,Ready,Rack A1,Check Stock 27/01/2026
 Reserved_ImageAttachment_[5]_[Image][32]_[9cfff46a4763434bab57356dedca27fb][1]_[3].jpg,Optic & Transceiver,SFP,Bismon ,Bismon 1.25G 850nm BSFP-MM850 SFP 550M,Multimode (MMF),BSFP-MM850,SG85M1400013,,1,1,Ready,Rack A1,Check Stock 27/01/2026
-Reserved_ImageAttachment_[5]_[Image][32]_[5d72a105812340338df34695a9b148fc][1]_[3].jpg,Module & Expansion,Network Module,Bellcomms,BELLCOMMS сTм-LC0500-MM,Multimode (MMF),CTM-LC0500-MM,1205140163,,1,1,Ready,Rack A1,Check Stock 27/01/2026
+Reserved_ImageAttachment_[5]_[Image][32]_[5d72a105812340338df34695a9b148fc][1]_[3].jpg,Cable & Connectivity,Fiber Cable,Bellcomms,BELLCOMMS сTм-LC0500-MM,Multimode (MMF),CTM-LC0500-MM,1205140163,,1,1,Ready,Rack A1,Check Stock 27/01/2026
 Reserved_ImageAttachment_[5]_[Image][32]_[619a3ad6c0a94d8daed5c98bf0da936f][1]_[3].png,Optic & Transceiver,SFP,Cisco,SFP-10G-SR,Multimode (MMF),10-2415-03,FNS2516064K,,1,0,Sold,,ขาย Project ITTC 10G
 Reserved_ImageAttachment_[5]_[Image][32]_[c62c3ce3808b4f2cb5fa2ed7f057cb89][1]_[3].png,Optic & Transceiver,SFP,Cisco,SFP-10G-SR,Multimode (MMF),10-2415-03,AVD243591AZ,,1,0,Sold,,ขาย Project ITTC 10G
 Reserved_ImageAttachment_[5]_[Image][32]_[c5a903dc1c204914ba3dc1be241a5124][1]_[3].png,Optic & Transceiver,SFP,Cisco,SFP-10G-SR,Multimode (MMF),10-2415-03,ACW23460CCF,,1,0,Sold,,ขาย Project ITTC 10G
@@ -388,22 +389,22 @@ Reserved_ImageAttachment_[5]_[Image][32]_[49470634329b4d54b23bfa30439500be][1]_[
 ,Optic & Transceiver,SFP,Fortinet,FN-TRAN-SX 1000Base-SX SFP,Multimode (MMF),FTLF8519P3BNLFTN ,N4DAW9P,MDN-FTN-001,1,1,Ready,Rack A1,Check Stock 27/01/2026
 ,Optic & Transceiver,SFP,Fortinet,FN-TRAN-SX 1000Base-SX SFP,Multimode (MMF),FTLF8519P3BNLFTN ,N4KA9JB,MDN-FTN-001,1,1,Ready,Rack A1,Check Stock 27/01/2026
 ,Optic & Transceiver,SFP,Fortinet,FN-TRAN-SX 1000Base-SX SFP,Multimode (MMF),FTLF8519P3BNLFTN ,N4DAF8J,MDN-FTN-001,1,1,Ready,Rack A1,Check Stock 27/01/2026
-Reserved_ImageAttachment_[5]_[Image][32]_[f10e9810c3074f53b868e02ee44bf683][1]_[3].jpg,Module & Expansion,Network Module,Bellcomms,CTM-LCHP50-MM 1000-Base-SX/550m,Multimode (MMF),CTM-LC02KM-MM,81015083,MDN-BEL-001,1,1,Ready,Rack A1,Check Stock 27/01/2026
-,Optic & Transceiver,SFP,Aruba ,Aruba 1G SFP LC LX 10KM SME XCVR ,Single Mode (SMF),1990-3656,CN97KC69TK,MDN-ARB-002,1,1,Ready,Rack A1,Check Stock 27/01/2026
-,Optic & Transceiver,SFP,Aruba ,Aruba 1G SFP LC LX 10KM SME XCVR ,Single Mode (SMF),1990-3656,CN97KC69TJ,MDN-ARB-002,1,1,Ready,Rack A1,Check Stock 27/01/2026
-,Optic & Transceiver,SFP,Aruba ,Aruba 1G SFP LC LX 10KM SME XCVR ,Single Mode (SMF),1990-3656,CN97KC69X8,MDN-ARB-002,1,1,Ready,Rack A1,Check Stock 27/01/2026
-,Optic & Transceiver,SFP,Aruba ,Aruba 1G SFP LC SX 500M MMF XCVR,Multimode (MMF),1990-4415,CN7BKC5B02,MDN-ARB-001,1,1,Ready,Rack A1,Check Stock 27/01/2026
-Reserved_ImageAttachment_[5]_[Image][32]_[ff8c01cd419342f59316bd02cb07e2b0][1]_[7].png,Optic & Transceiver,SFP,Aruba ,Aruba 1G SFP LC SX 500M MMF XCVR,Multimode (MMF),1990-4415,CN85KGY2X4,MDN-ARB-001,1,1,Sold,Rack A1," [S26041924]  GS - Yuasa - AP Offline  Replace Aruba Instant On 1930 24p   
+Reserved_ImageAttachment_[5]_[Image][32]_[f10e9810c3074f53b868e02ee44bf683][1]_[3].jpg,Cable & Connectivity,Fiber Cable,Bellcomms,CTM-LCHP50-MM 1000-Base-SX/550m,Multimode (MMF),CTM-LC02KM-MM,81015083,MDN-BEL-001,1,1,Ready,Rack A1,Check Stock 27/01/2026
+,Cable & Connectivity,Fiber Cable,Aruba ,Aruba 1G SFP LC LX 10KM SME XCVR ,Single Mode (SMF),1990-3656,CN97KC69TK,MDN-ARB-002,1,1,Ready,Rack A1,Check Stock 27/01/2026
+,Cable & Connectivity,Fiber Cable,Aruba ,Aruba 1G SFP LC LX 10KM SME XCVR ,Single Mode (SMF),1990-3656,CN97KC69TJ,MDN-ARB-002,1,1,Ready,Rack A1,Check Stock 27/01/2026
+,Cable & Connectivity,Fiber Cable,Aruba ,Aruba 1G SFP LC LX 10KM SME XCVR ,Single Mode (SMF),1990-3656,CN97KC69X8,MDN-ARB-002,1,1,Ready,Rack A1,Check Stock 27/01/2026
+,Cable & Connectivity,Fiber Cable,Aruba ,Aruba 1G SFP LC SX 500M MMF XCVR,Multimode (MMF),1990-4415,CN7BKC5B02,MDN-ARB-001,1,1,Ready,Rack A1,Check Stock 27/01/2026
+Reserved_ImageAttachment_[5]_[Image][32]_[ff8c01cd419342f59316bd02cb07e2b0][1]_[7].png,Cable & Connectivity,Fiber Cable,Aruba ,Aruba 1G SFP LC SX 500M MMF XCVR,Multimode (MMF),1990-4415,CN85KGY2X4,MDN-ARB-001,1,1,Sold,Rack A1," [S26041924]  GS - Yuasa - AP Offline  Replace Aruba Instant On 1930 24p   
 
 "
-,Module & Expansion,Network Module,Linksys,Gigabit Ethernet 1000 SX 1GB,Multimode (MMF),MGBSX1,FFX20GB01236,MUN-LIS-001,1,1,Ready,Rack A1,Check Stock 27/01/2026
-,Module & Expansion,Network Module,Linksys,Gigabit Ethernet 1000 SX 1GB,Multimode (MMF),MGBSX1,FFX20GB01240,MUN-LIS-001,1,1,Ready,Rack A1,Check Stock 27/01/2026
-,Module & Expansion,Network Module,Linksys,Gigabit Ethernet 1000 SX 1GB,Multimode (MMF),MGBSX1,FFX20G800286,MUN-LIS-001,1,1,Ready,Rack A1,Check Stock 27/01/2026
-,Module & Expansion,Network Module,Linksys,Gigabit Ethernet 1000 SX 1GB,Multimode (MMF),MGBSX1,FFX20GB00667,MUN-LIS-001,1,1,Ready,Rack A1,Check Stock 27/01/2026
-,Security Device,Firewall,WT,FortiGate WT-10G-SFP+-T-FN,Copper SFP (RJ-45),WT-10G-SFP+-T-FN,FN210312021,MUN-WT-001,1,1,Ready,Rack A1,Check Stock 27/01/2026
-,Security Device,Firewall,WT,FortiGate WT-10G-SFP+-T-FN,Copper SFP (RJ-45),WT-10G-SFP+-T-FN,FN210312022,MUN-WT-001,1,1,Ready,Rack A1,Check Stock 27/01/2026
-,Security Device,Firewall,WT,FortiGate WT-10G-SFP+-T-FN,Copper SFP (RJ-45),WT-10G-SFP+-T-FN,FN210312023,MUN-WT-001,1,1,Ready,Rack A1,Check Stock 27/01/2026
-,Security Device,Firewall,WT,FortiGate WT-10G-SFP+-T-FN,Copper SFP (RJ-45),WT-10G-SFP+-T-FN,FN210312026,MUN-WT-001,1,1,Ready,Rack A1,Check Stock 27/01/2026
+,Optic & Transceiver,SFP,Linksys,Gigabit Ethernet 1000 SX 1GB,Multimode (MMF),MGBSX1,FFX20GB01236,MUN-LIS-001,1,1,Ready,Rack A1,Check Stock 27/01/2026
+,Optic & Transceiver,SFP,Linksys,Gigabit Ethernet 1000 SX 1GB,Multimode (MMF),MGBSX1,FFX20GB01240,MUN-LIS-001,1,1,Ready,Rack A1,Check Stock 27/01/2026
+,Optic & Transceiver,SFP,Linksys,Gigabit Ethernet 1000 SX 1GB,Multimode (MMF),MGBSX1,FFX20G800286,MUN-LIS-001,1,1,Ready,Rack A1,Check Stock 27/01/2026
+,Optic & Transceiver,SFP,Linksys,Gigabit Ethernet 1000 SX 1GB,Multimode (MMF),MGBSX1,FFX20GB00667,MUN-LIS-001,1,1,Ready,Rack A1,Check Stock 27/01/2026
+,Optic & Transceiver,SFP,WT,FortiGate WT-10G-SFP+-T-FN,Copper SFP (RJ-45),WT-10G-SFP+-T-FN,FN210312021,MUN-WT-001,1,1,Ready,Rack A1,Check Stock 27/01/2026
+,Optic & Transceiver,SFP,WT,FortiGate WT-10G-SFP+-T-FN,Copper SFP (RJ-45),WT-10G-SFP+-T-FN,FN210312022,MUN-WT-001,1,1,Ready,Rack A1,Check Stock 27/01/2026
+,Optic & Transceiver,SFP,WT,FortiGate WT-10G-SFP+-T-FN,Copper SFP (RJ-45),WT-10G-SFP+-T-FN,FN210312023,MUN-WT-001,1,1,Ready,Rack A1,Check Stock 27/01/2026
+,Optic & Transceiver,SFP,WT,FortiGate WT-10G-SFP+-T-FN,Copper SFP (RJ-45),WT-10G-SFP+-T-FN,FN210312026,MUN-WT-001,1,1,Ready,Rack A1,Check Stock 27/01/2026
 ,Optic & Transceiver,SFP,ZyXEL, SFP-SX-D 1000BaseSX,Multimode (MMF),SFP-SX-D,S071136000306,,1,,Ready,,
 ,Optic & Transceiver,SFP,Aruba,Aruba 10G SFP+ LR 10KM SMF XCVR,Single Mode (SMF),1990-3883,CN94KCCKFC,MDN-ARB-002,1,1,Ready,Rack A1,Check Stock 27/01/2026
 ,Optic & Transceiver,SFP,Aruba,Aruba 10G SFP+ LR 10KM SMF XCVR,Single Mode (SMF),1990-3883,CN94KCCKBC,MDN-ARB-002,1,1,Ready,Rack A1,Check Stock 27/01/2026
@@ -563,46 +564,46 @@ Return: Project Clicxbank 27/05/2026"
 Reserved_ImageAttachment_[5]_[Image][32]_[83f33c3176824b90b4af223e60055013][1]_[3].jpg,Network Device,Switch,3Com,5 port,,,CN00BT838V,,1,0,Using,,ใต้โต๊ะ BSD
 ,Network Device,Switch,3com,3Com baseline Switch 2024,,3C16471BS,BA/9N3QBP0213652,,1,1,Need Check,,
 ,Network Device,Switch,HP,HP Procurve switch 2848,,J4904A,SG816SK23Z,,1,1,Ready,Rack D4,Check Stock 04/02/2026
-,Wireless Device,Access Point,TP-Link,TP-Link TL-SF1016D,,TL-SF1016D,2.17413E+12,,1,1,Ready,Rack E1,Check Stock 04/02/2026
-,Security Device,Firewall,Fortinet,Fortigate 60C,7x 10/100/1000 Ports /1x WAN Port/ 2x USB,FG-60C,FGT60C3G12010134,,1,1,Ready,Rack B2,Check List 22/01/2026
-,Security Device,Firewall,Fortinet,Fortigate 60D,• 7x GE RJ45 (LAN) • 2x GE RJ45 (WAN) • 1x GE RJ45 DMZ • 1x Console Port • 2x USB Ports,FG-60D,FGT60D4613015071,,1,0,Ready,Rack B2,Check List 22/01/2026
-,Security Device,Firewall,Fortinet,Fortigate 40F,• 5x GE RJ45 (LAN) • 1x GE RJ45 (WAN) • 1x GE RJ45 (DMZ),FG-40F,FGT40FTK23037321,,1,1,Ready,Rack B1,Check List 22/01/2026
-,Security Device,Firewall,Fortinet,Fortigate 40F,• 5x GE RJ45 (LAN) • 1x GE RJ45 (WAN) • 1x GE RJ45 (DMZ),FG-40F,FGT40FTK23099WS5,,1,1,Ready,Rack B1,Check List 22/01/2026
-,Security Device,Firewall,Fortinet,Fortigate 40F,• 5x GE RJ45 (LAN) • 1x GE RJ45 (WAN) • 1x GE RJ45 (DMZ),FG-40F,FGT40FTK23099Y0R,,1,0,Sold,,Sold - Project KW
-,Security Device,Firewall,Fortinet,FortiGate 50E+Adapter 12V 2.0A,• 5x GE RJ45 (LAN) • 2x GE RJ45 (WAN) • 1x GE RJ45 DMZ,FG-50E,FGT50E3U17026717,,1,1,Ready,Rack B2,
-,Security Device,Firewall,Fortinet,FortiGate 50E+Adapter 12V 2.0A,• 7x GE RJ45 (LAN) • 2x GE RJ45 (WAN) • 1x GE RJ45 DMZ,FG-50E,FGT50E3U16009911,,1,0,Sold,Sold ABT 26/01/2023,
-,Security Device,Firewall,Fortinet,FortiGate 50E+Adapter 12V 2.0A,• 7x GE RJ45 (LAN) • 2x GE RJ45 (WAN) • 1x GE RJ45 DMZ,FG-50E,FGT50E3U17007757,,1,1,Borrow,Rack B2,Check List 22/01/2026
-,Security Device,Firewall,Fortinet,Fortigate FG-200B,• 12x GE RJ45 • 2x GE SFP • 2x USB • 1x Console,FG-200B,FG200B3912606927,,1,1,Ready,Rack B2,Check List 22/01/2026
-,Security Device,Firewall,Juniper,SRX 240,firewall with 16 10/100/1000 Ethernet LAN ports and 4 Mini-PIM slots.,SRX240H,AG3811AA0072,,1,1,Ready,Rack B3,Check List 22/01/2026
-,Security Device,Firewall,Juniper,SRX 240,"• 16x GE RJ45 Ports • 2x Mini-PIM Slots • 1x Console • 1x AUX, USB",SRX240H2,BU4215AK0059,,1,1,Ready,Rack B3,Check List 22/01/2026
-,Security Device,Firewall,Juniper,SRX 650,• Modular (ใส่ I/O card ได้) • รองรับ 5 slots (Mini-PIM / GPIM / XPIM),,AJ3210AA0001,,1,1,Ready,Rack B3,Check List 22/01/2026
-,Security Device,Firewall,Juniper,SRX300 Gateway includes hardware,"• 6x GE RJ45 Ports (0–5) • 2x GE SFP (port 6–7, shared with 2x Combo RJ45)",SRX300-SYS-JB,CV2920AF0609,,1,1,Ready,Rack B1,Check List 22/01/2026
-,Security Device,Firewall,Astaro,Firewall Security gateway  ASG110/120,6x GE RJ45,Astaro ASG 120,A00003069546D53,,1,1,Ready,Rack B3,Check List 22/01/2026
-,Security Device,Firewall,Cisco,Cisco PIX 501 Firewall Appliance,,PIX 501,88808282272,,1,1,Ready,Rack B3,Check List 22/01/2026
-,Security Device,Firewall,Fortinet,Fortigate 300D,,FG-300D,FGT3HD3915809259,,1,1,Ready,Rack B2,Check List 22/01/2026
-,Security Device,Firewall,Fortinet,Fortigate 300D,,FG-300D,FGT3HD3917800839,,1,1,Ready,Rack B2,Check List 22/01/2026
-,Security Device,Firewall,Fortinet,Fortiwifi 60D,,FWF-60D,FWF60D4Q16004453,,1,1,Ready,Rack B2,Check List 22/01/2026
-,Security Device,Firewall,Fortinet,Fortigate 300C,,FG-300C,FG300C3913603599,,1,1,Ready,Rack B2,Check List 22/01/2026
-,Security Device,Firewall,Fortinet,Fortigate 200D,,FG-200D,FG200D3916813611,,1,0,Sold, IDC,
-,Security Device,Firewall,Fortinet,Fortigate 60C,,FG-60C,FGT60C3G10008001,,1,1,Ready,Rack B2,Check List 22/01/2026
-,Security Device,Firewall,Fortinet,Fortigate 300C,,FG-300C,FG300C3914600330,,1,1,Ready,Rack B2,Check List 22/01/2026
-,Security Device,Firewall,Fortigate,Fortigate 200E,,FG-200E,FG200E4Q17902342,,1,1,Borrow,,"Waiting for the process summary.
+,Network Device,Switch,TP-Link,TP-Link TL-SF1016D,,TL-SF1016D,2174131004909,,1,1,Ready,Rack E1,Check Stock 04/02/2026
+,Network Device,Firewall,Fortinet,Fortigate 60C,7x 10/100/1000 Ports /1x WAN Port/ 2x USB,FG-60C,FGT60C3G12010134,,1,1,Ready,Rack B2,Check List 22/01/2026
+,Network Device,Firewall,Fortinet,Fortigate 60D,• 7x GE RJ45 (LAN) • 2x GE RJ45 (WAN) • 1x GE RJ45 DMZ • 1x Console Port • 2x USB Ports,FG-60D,FGT60D4613015071,,1,0,Ready,Rack B2,Check List 22/01/2026
+,Network Device,Firewall,Fortinet,Fortigate 40F,• 5x GE RJ45 (LAN) • 1x GE RJ45 (WAN) • 1x GE RJ45 (DMZ),FG-40F,FGT40FTK23037321,,1,1,Ready,Rack B1,Check List 22/01/2026
+,Network Device,Firewall,Fortinet,Fortigate 40F,• 5x GE RJ45 (LAN) • 1x GE RJ45 (WAN) • 1x GE RJ45 (DMZ),FG-40F,FGT40FTK23099WS5,,1,1,Ready,Rack B1,Check List 22/01/2026
+,Network Device,Firewall,Fortinet,Fortigate 40F,• 5x GE RJ45 (LAN) • 1x GE RJ45 (WAN) • 1x GE RJ45 (DMZ),FG-40F,FGT40FTK23099Y0R,,1,0,Sold,,Sold - Project KW
+,Power,Power Adapter,Fortinet,FortiGate 50E+Adapter 12V 2.0A,• 5x GE RJ45 (LAN) • 2x GE RJ45 (WAN) • 1x GE RJ45 DMZ,FG-50E,FGT50E3U17026717,,1,1,Ready,Rack B2,
+,Power,Power Adapter,Fortinet,FortiGate 50E+Adapter 12V 2.0A,• 7x GE RJ45 (LAN) • 2x GE RJ45 (WAN) • 1x GE RJ45 DMZ,FG-50E,FGT50E3U16009911,,1,0,Sold,Sold ABT 26/01/2023,
+,Power,Power Adapter,Fortinet,FortiGate 50E+Adapter 12V 2.0A,• 7x GE RJ45 (LAN) • 2x GE RJ45 (WAN) • 1x GE RJ45 DMZ,FG-50E,FGT50E3U17007757,,1,1,Borrow,Rack B2,Check List 22/01/2026
+,Optic & Transceiver,SFP,Fortinet,Fortigate FG-200B,• 12x GE RJ45 • 2x GE SFP • 2x USB • 1x Console,FG-200B,FG200B3912606927,,1,1,Ready,Rack B2,Check List 22/01/2026
+,Network Device,Firewall,Juniper,SRX 240,firewall with 16 10/100/1000 Ethernet LAN ports and 4 Mini-PIM slots.,SRX240H,AG3811AA0072,,1,1,Ready,Rack B3,Check List 22/01/2026
+,Network Device,Firewall,Juniper,SRX 240,"• 16x GE RJ45 Ports • 2x Mini-PIM Slots • 1x Console • 1x AUX, USB",SRX240H2,BU4215AK0059,,1,1,Ready,Rack B3,Check List 22/01/2026
+,Network Device,Firewall,Juniper,SRX 650,• Modular (ใส่ I/O card ได้) • รองรับ 5 slots (Mini-PIM / GPIM / XPIM),,AJ3210AA0001,,1,1,Ready,Rack B3,Check List 22/01/2026
+,Optic & Transceiver,SFP,Juniper,SRX300 Gateway includes hardware,"• 6x GE RJ45 Ports (0–5) • 2x GE SFP (port 6–7, shared with 2x Combo RJ45)",SRX300-SYS-JB,CV2920AF0609,,1,1,Ready,Rack B1,Check List 22/01/2026
+,Network Device,Firewall,Astaro,Firewall Security gateway  ASG110/120,6x GE RJ45,Astaro ASG 120,A00003069546D53,,1,1,Ready,Rack B3,Check List 22/01/2026
+,Network Device,Firewall,Cisco,Cisco PIX 501 Firewall Appliance,,PIX 501,88808282272,,1,1,Ready,Rack B3,Check List 22/01/2026
+,Network Device,Firewall,Fortinet,Fortigate 300D,,FG-300D,FGT3HD3915809259,,1,1,Ready,Rack B2,Check List 22/01/2026
+,Network Device,Firewall,Fortinet,Fortigate 300D,,FG-300D,FGT3HD3917800839,,1,1,Ready,Rack B2,Check List 22/01/2026
+,Network Device,Firewall,Fortinet,Fortiwifi 60D,,FWF-60D,FWF60D4Q16004453,,1,1,Ready,Rack B2,Check List 22/01/2026
+,Network Device,Firewall,Fortinet,Fortigate 300C,,FG-300C,FG300C3913603599,,1,1,Ready,Rack B2,Check List 22/01/2026
+,Network Device,Firewall,Fortinet,Fortigate 200D,,FG-200D,FG200D3916813611,,1,0,Sold, IDC,
+,Network Device,Firewall,Fortinet,Fortigate 60C,,FG-60C,FGT60C3G10008001,,1,1,Ready,Rack B2,Check List 22/01/2026
+,Network Device,Firewall,Fortinet,Fortigate 300C,,FG-300C,FG300C3914600330,,1,1,Ready,Rack B2,Check List 22/01/2026
+,Network Device,Firewall,Fortigate,Fortigate 200E,,FG-200E,FG200E4Q17902342,,1,1,Borrow,,"Waiting for the process summary.
 "
-,Security Device,Firewall,Fortinet,FortiGate 50E+Adapter 12V 2.0A,,FG-50E,FGT50E5618043601,,1,0,Sold,,Project : BKG
-,Security Device,Firewall,Fortinet,FortiGate 50E+Adapter 12V 2.0A,,FG-50E,FGT50E5618051528,,1,1,Borrow,Rack B2,"Check List 22/01/2026
+,Power,Power Adapter,Fortinet,FortiGate 50E+Adapter 12V 2.0A,,FG-50E,FGT50E5618043601,,1,0,Sold,,Project : BKG
+,Power,Power Adapter,Fortinet,FortiGate 50E+Adapter 12V 2.0A,,FG-50E,FGT50E5618051528,,1,1,Borrow,Rack B2,"Check List 22/01/2026
 
 Fluke Lab Test : JZ Com"
-,Security Device,Firewall,Fortinet,FortiGate 50E+Adapter 12V 2.0A,,FG-50E,FGT50E5618041041,,1,1,Ready,Rack B2,Check List 22/01/2026
-Reserved_ImageAttachment_[5]_[Image][32]_[a631cd00db63414d84d739739c4f271d][1]_[5].jpg,Security Device,Firewall,Fortinet,FortiGate 50E+Adapter 12V 2.0A,,FG-50E,FGT50E5618038054,,1,1,Ready,RACK B2,
-,Security Device,Firewall,Fortinet,Fortigate 100D,,FG-100D,FG100D3G17809607,,1,1,Ready,,
-,Security Device,Firewall,Fortigate,FG-60C,,FG-60C,FGT60C3G11000824,,1,1,Ready,Rack B2,Check List 22/01/2026
-,Network Device,Router,TP-LINK,AC1200 Wireless Dual Band Gigabit VoIP VDSL/ADSL Modem router / Archer VR1200V,,,3.19205E+12,,1,0,Sold,,Sold - Customer KW
+,Power,Power Adapter,Fortinet,FortiGate 50E+Adapter 12V 2.0A,,FG-50E,FGT50E5618041041,,1,1,Ready,Rack B2,Check List 22/01/2026
+Reserved_ImageAttachment_[5]_[Image][32]_[a631cd00db63414d84d739739c4f271d][1]_[5].jpg,Power,Power Adapter,Fortinet,FortiGate 50E+Adapter 12V 2.0A,,FG-50E,FGT50E5618038054,,1,1,Ready,RACK B2,
+,Network Device,Firewall,Fortinet,Fortigate 100D,,FG-100D,FG100D3G17809607,,1,1,Ready,,
+,Network Device,Firewall,Fortigate,FG-60C,,FG-60C,FGT60C3G11000824,,1,1,Ready,Rack B2,Check List 22/01/2026
+,Network Device,Router,TP-LINK,AC1200 Wireless Dual Band Gigabit VoIP VDSL/ADSL Modem router / Archer VR1200V,,,3192052003991,,1,0,Sold,,Sold - Customer KW
 ,Wireless Device,Access Point,Cisco,Cisco 1040 Series / AIR-LAP1041N-E-K9,,AIR-LAP1041N-E-K9,FCZ1634W2QU,,1,1,Ready,E2,Check list
 ,Wireless Device,Access Point,Cisco,Cisco Air-LAP 1141N-E-K9,,AIR-LAP1141N-E-K9,FGL1541S1HF,,1,1,Ready,E2,Check List 22/01/2026
-,Wireless Device,Access Point,Cisco,Cisco Aironet 1142 Controller / AIR-LAP1142N-E-K9,,AIR-LAP1142N-A-K9,FGL1453S09N,E2,1,1,Ready,,Check List 22/01/2026
-,Wireless Device,Access Point,Cisco,Cisco Aironet 1142 Controller / AIR-LAP1142N-E-K9,,AIR-LAP1142N-A-K9,FGL1453S09T,E2,1,1,Ready,,Check List 22/01/2026
-,Wireless Device,Access Point,Cisco,Cisco Aironet 1142 Controller / AIR-LAP1142N-E-K9,,AIR-LAP1142N-A-K9,FGL1518S07Z,E2,1,1,Ready,,Check List 22/01/2026
-,Wireless Device,Access Point,Cisco,Cisco Aironet 1142 Controller / AIR-LAP1142N-A-K9,,AIR-LAP1142N-A-K9,FTX1616K3R2,E2,1,1,Ready,,Check List 22/01/2026
+,Wireless Device,Wireless Controller,Cisco,Cisco Aironet 1142 Controller / AIR-LAP1142N-E-K9,,AIR-LAP1142N-A-K9,FGL1453S09N,E2,1,1,Ready,,Check List 22/01/2026
+,Wireless Device,Wireless Controller,Cisco,Cisco Aironet 1142 Controller / AIR-LAP1142N-E-K9,,AIR-LAP1142N-A-K9,FGL1453S09T,E2,1,1,Ready,,Check List 22/01/2026
+,Wireless Device,Wireless Controller,Cisco,Cisco Aironet 1142 Controller / AIR-LAP1142N-E-K9,,AIR-LAP1142N-A-K9,FGL1518S07Z,E2,1,1,Ready,,Check List 22/01/2026
+,Wireless Device,Wireless Controller,Cisco,Cisco Aironet 1142 Controller / AIR-LAP1142N-A-K9,,AIR-LAP1142N-A-K9,FTX1616K3R2,E2,1,1,Ready,,Check List 22/01/2026
 ,Wireless Device,Access Point,Cisco,Cisco Aironet 1600 Series Dual Band / AIR-CAP1602I-E-K9,,AIR-CAP1602I-E-K9,FCW1836J0PY,E2,1,1,Ready,,Check List 22/01/2026
 ,Wireless Device,Access Point,Cisco,Cisco Aironet 1600 Series Dual Band / AIR-CAP1602I-E-K9,,AIR-CAP1602I-E-K9,FCW1836J0ST,E2,1,1,Ready,,Check List 22/01/2026
 ,Wireless Device,Access Point,Cisco,Cisco Small Business WAP321,,WAP321-E-K9,SER174602TK,,1,1,Ready,E2,Check List 22/01/2026
@@ -614,10 +615,10 @@ Reserved_ImageAttachment_[5]_[Image][32]_[a631cd00db63414d84d739739c4f271d][1]_[
 ,Wireless Device,Access Point,Cisco,Cisco Aironet 3502i AIR-CAP3502I-A-K9,,AIR-CAP3502I-A-K9,FTX1517E1LC,,1,1,Ready,E2,Check List 22/01/2026
 ,Wireless Device,Access Point,Ubiquit,"UBI NanoStation M5 Indoor/Outdoor 5GHz, 16 dBi airmax",,NanoStation M5,788A209EAC4F,,1,1,Ready,E1,Check List 22/01/2026
 ,Wireless Device,Access Point,Cisco,Cisco Meraki MR18 / MR18-HW,,MR18-HW,Q2GD-FHSB-PL4D,,1,1,Ready,E2,Check List 22/01/2026
-,Network Device,Router,TP-LINK,300Mbps Wireless N USB VDSL/ADSL Modem router / TD-W9970(EU),,,2.17319E+12,,1,1,Ready,"E1
+,Network Device,Router,TP-LINK,300Mbps Wireless N USB VDSL/ADSL Modem router / TD-W9970(EU),,,2173186002023,,1,1,Ready,"E1
 ",Check List 22/01/2026
-,Network Device,Router,TP-LINK,300Mbps Wireless N USB VDSL/ADSL Modem router / TD-W9970(EU),,,3.18104E+12,,1,1,Ready,E1,Check List 22/01/2026
-,Wireless Device,Access Point,TRUE,ADSL 4Port,,,"30003521506512461
+,Network Device,Router,TP-LINK,300Mbps Wireless N USB VDSL/ADSL Modem router / TD-W9970(EU),,,3181040000676,,1,1,Ready,E1,Check List 22/01/2026
+,Network Device,Router,TRUE,ADSL 4Port,,,"30003521506512461
 ",,1,1,Ready,,Check List 22/01/2026
 ,Wireless Device,Access Point,Aruba,Aruba APINH205 Wireless Access Point,,,CN5AHHZ166,,0,0,Sold,,
 ,Network Device,Switch,Cisco,Cisco Catalyst 1600 Series,,AIR-SAP1602I-E-K9,FGL1947X212,,1,1,Ready,E2,Check List 22/01/2026
@@ -630,7 +631,7 @@ Reserved_ImageAttachment_[5]_[Image][32]_[a631cd00db63414d84d739739c4f271d][1]_[
 ,Wireless Device,Access Point,Aruba,AP Aruba 207 Series,,APIN0207,CNHMJST04R,,1,1,Ready,E1,Check List 22/01/2026
 ,Wireless Device,Access Point,Aruba,AP Aruba 207 Series,,APIN0207,CNGHJSTCHH,,1,1,Ready,E1,Check List 22/01/2026
 ,Wireless Device,Access Point,Aruba,AP Aruba 207 Series,,APIN0207,CNDPJST0W0,,1,1,Ready,E1,Check List 22/01/2026
-,Wireless Device,Access Point,Cisco,Cisco Aironet 1702i Controller-Based Access Point,,AIR-CAP1702I-E-K9,FGL2027X2TE,E2,1,1,Ready,,Check List 22/01/2026
+,Wireless Device,Wireless Controller,Cisco,Cisco Aironet 1702i Controller-Based Access Point,,AIR-CAP1702I-E-K9,FGL2027X2TE,E2,1,1,Ready,,Check List 22/01/2026
 ,Wireless Device,Access Point,Cisco,Cisco Aironet 2702i Universal AP,,AIR-AP2702I-UX-K9,FCW2024N9L6,,1,1,Ready,Shelf CMS,Check List 22/01/2026
 ,Wireless Device,Access Point,Cisco,Cisco Aironet 2702i Universal AP,,AIR-AP2702I-UX-K9,FCW2024N9LF,,1,1,Ready,Shelf CMS,Check List 22/01/2026
 ,Wireless Device,Access Point,Cisco,Cisco Aironet 1815W Series Access Point,,AIR-AP1815W-B-K9,FGL2333L6Z2,E2,1,1,Ready,,Check List 22/01/2026
@@ -643,23 +644,23 @@ Reserved_ImageAttachment_[5]_[Image][32]_[a631cd00db63414d84d739739c4f271d][1]_[
 ,Wireless Device,Access Point,Cisco,Cisco Aironet 1815W Series Access Point,,AIR-AP1815W-B-K9,FGL2333L71U,,1,0,Sold,,
 ,Wireless Device,Access Point,Cisco,Cisco Aironet 1815W Series Access Point,,AIR-AP1815W-B-K9,FGL2333L4W2,,1,1,Ready,E2,Check List 22/01/2026
 ,Wireless Device,Access Point,Cisco,Cisco Aironet 1815W Series Access Point,,AIR-AP1815W-B-K9,FGL2333L6ZB,,1,1,Ready,E2,Check List 22/01/2026
-,Wireless Device,Access Point,Buffalo,AirStation HighPower,,,4.4072E+13,,1,1,Ready,E1,Check List 22/01/2026
-,Wireless Device,Access Point,,WG1602,,,2.02205E+11,,1,1,Ready,E1,Check List 22/01/2026
-,Wireless Device,Access Point,Zyxel,Zyxel VMG1302-T10G,,VMG1302-T10G,3.00106E+17,,1,1,Ready,E1,Check List 22/01/2026
-,Wireless Device,Access Point,D-link,Dir-842,,,SY6K1H6002887,,1,1,Ready,E1,Check List 22/01/2026
-,Network Device,Gateway,Zyxel,Zyxel P-660HW-T1 v2 Wireless ADSL2+ Gateway Router,,P-660HW-T1,S080Y47015109,,1,1,Ready,E1,Check List 22/01/2026
-,Wireless Device,Access Point,Peplink,Peplink Balance 30,,BPL-031,1824-39A0-44E0,,1,1,Ready,E1,Check List 22/01/2026
-,Wireless Device,Access Point,Cisco,Cisco RV042,,RV042-K9-NA,NKS17180974,,1,1,Ready,E2,Check List 22/01/2026
-,Wireless Device,Access Point,Cisco,cisco RV042G,,RV042-K9-NA,NKS18430865,,1,1,Ready,E2,Check List 22/01/2026
+,Wireless Device,Access Point,Buffalo,AirStation HighPower,,,44072001108324,,1,1,Ready,E1,Check List 22/01/2026
+,Wireless Device,Access Point,,WG1602,,,202205120001,,1,1,Ready,E1,Check List 22/01/2026
+,Network Device,Router,Zyxel,Zyxel VMG1302-T10G,,VMG1302-T10G,300105515110005068,,1,1,Ready,E1,Check List 22/01/2026
+,Network Device,Router,D-link,Dir-842,,,SY6K1H6002887,,1,1,Ready,E1,Check List 22/01/2026
+,Network Device,Router,Zyxel,Zyxel P-660HW-T1 v2 Wireless ADSL2+ Gateway Router,,P-660HW-T1,S080Y47015109,,1,1,Ready,E1,Check List 22/01/2026
+,Network Device,Router,Peplink,Peplink Balance 30,,BPL-031,1824-39A0-44E0,,1,1,Ready,E1,Check List 22/01/2026
+,Network Device,Router,Cisco,Cisco RV042,,RV042-K9-NA,NKS17180974,,1,1,Ready,E2,Check List 22/01/2026
+,Network Device,Router,Cisco,cisco RV042G,,RV042-K9-NA,NKS18430865,,1,1,Ready,E2,Check List 22/01/2026
 ,Wireless Device,Access Point,Ruijie,Ruijie RG-AP110-L,,RG-AP110-L,CAN603V016636,,1,1,Ready,E1,Check List 22/01/2026
 ,Wireless Device,Access Point,Kuwfi,HGZ-9531,,,21110800013,,1,1,Ready,E1,Check List 22/01/2026
 ,Wireless Device,Access Point,Cisco,Cisco Aironet 1815W Series Access Point,,AIR-AP1815W-B-K9,FGL2224B3Z2,,1,1,Ready,E2,Check List 22/01/2026
 ,Wireless Device,Access Point,Cisco,Cisco Catalyst 9115AX Series Access Point,,C9115AXI-S,FGL2611L0A9,,1,1,Ready,E2,Check List 22/01/2026
-,Security Device,Firewall,SANGFOR,NGAF M5100-Q-I,,M5100-Q,5015000277,,1,1,Ready,Rack B1,Check List 22/01/2026
-Reserved_ImageAttachment_[5]_[Image][32]_[d65205848cfd4eb88f4d8a9c44f8e2b0][1]_[5].jpg,Security Device,Firewall,Fortinet,Fortigate200E,,FG-200E,FG200E4Q17902297,,1,1,Using,Server Room Rack1-U35,
-,Security Device,Firewall,Fortinet,Fortigate 100D,,FG-100D,FG100D3G15812322,,1,1,Ready,Rack B2,Check List 22/01/2026
-,Security Device,Firewall,SANGFOR,NGAF M5100-Q-I,,M5100-Q,5053000084,,1,1,Ready,Rack B1,Check List 22/01/2026
-,Security Device,Firewall,FortiGate,FortiGate 200E,, FG-200E,FG200ETK19915136,,1,1,Ready,Rack B2,Check List 22/01/2026
+,Network Device,Firewall,SANGFOR,NGAF M5100-Q-I,,M5100-Q,5015000277,,1,1,Ready,Rack B1,Check List 22/01/2026
+Reserved_ImageAttachment_[5]_[Image][32]_[d65205848cfd4eb88f4d8a9c44f8e2b0][1]_[5].jpg,Network Device,Firewall,Fortinet,Fortigate200E,,FG-200E,FG200E4Q17902297,,1,1,Using,Server Room Rack1-U35,
+,Network Device,Firewall,Fortinet,Fortigate 100D,,FG-100D,FG100D3G15812322,,1,1,Ready,Rack B2,Check List 22/01/2026
+,Network Device,Firewall,SANGFOR,NGAF M5100-Q-I,,M5100-Q,5053000084,,1,1,Ready,Rack B1,Check List 22/01/2026
+,Network Device,Firewall,FortiGate,FortiGate 200E,, FG-200E,FG200ETK19915136,,1,1,Ready,Rack B2,Check List 22/01/2026
 Reserved_ImageAttachment_[5]_[Image][32]_[9ebc00240e9c45c1b09d365be961664d][1]_[1].jpg,Network Device,Switch,Cisco,Catalyst 3850 24P,,,FCW2151C07U,,1,1,Ready,Rack D2,Check Stock 04/02/2026
 Reserved_ImageAttachment_[5]_[Image][32]_[b2d581d4421045349e004e36893fc479][1]_[1].png,Optic & Transceiver,SFP,3Com,BaseLine Switch 2920 SFP+,,,925FDHS54C561,,1,1,Using,"Server Room Rack3-U29
 ",Check Stock 04/02/2026
@@ -689,8 +690,8 @@ Return: Project Clicxbank 27/05/2026"
 ,Wireless Device,Access Point,Aruba,APIN0503,HPE ANW AP-503-RW,R8M98A,CNTKLGQ0DV,,0,1,Ready,,Sold Anucha - Home
 ,Optic & Transceiver,SFP,3Com,4800G 24 x10/100/1000 + 4xSFP,,,9S4F9XMBE2E00,,1,1,Ready,Rack Floor 1,Check Stock 04/02/2026
 ,Network Device,Switch,Cisco,WS-C2960S-24TS-L,,,FOC1618W059,,1,1,Ready,Rack C4,Check Stock 04/02/2026
-,Security Device,Firewall,Fortinet,FortiGate 200E,,,FG200ETK18904843,,1,1,Ready,Rack B2,Check List 22/01/2026
-,Security Device,Firewall,Fortinet,Fortigate 100D,,,FG100D3G15809313,,1,1,Ready,Rack B2,Check List 22/01/2026
+,Network Device,Firewall,Fortinet,FortiGate 200E,,,FG200ETK18904843,,1,1,Ready,Rack B2,Check List 22/01/2026
+,Network Device,Firewall,Fortinet,Fortigate 100D,,,FG100D3G15809313,,1,1,Ready,Rack B2,Check List 22/01/2026
 ,Wireless Device,Wireless Controller,Cisco,Cisco 2500 series Wireless Controller,,,PSZ19281MSP,,1,1,Ready,Rack B3,Check Stock 04/02/2026
 ,Optic & Transceiver,SFP,3com,Baseline Switch 2916-SFP Plus,,,2TEG993M014B80,,1,1,Ready,Rack C4,Check Stock 04/02/2026
 ,Network Device,Switch,Cisco,WS-C3850-12X48U-L,,,FCW2134D15P,,0,1,Using,"Server Room Rack1-U31
@@ -711,16 +712,16 @@ Return: Project Clicxbank 27/05/2026"
 ,Wireless Device,Access Point,Cisco,AIR-AP11221G-A-K9,,,FHK0827V11C,,1,1,Ready,E2,Check List 22/01/2026
 ,Wireless Device,Access Point,Cisco,AIR-AP1815I-S-K9,,,FGL2516L6TG,,1,1,Ready,E2,Check List 22/01/2026
 ,Network Device,Switch,Cisco,Catalyst 3850 24P,,,FCW2151FC4U,,1,1,Ready,Rack D2,Check Stock 04/02/2026
-,Wireless Device,Access Point,RUCKUS,R320 Access Point,,5912A-R320,3.81909E+11,,1,1,Ready,E2,
-,Wireless Device,Access Point,RUCKUS,R320 Access Point,,5912A-R320,3.81909E+11,,1,1,Ready,E2,
-,Wireless Device,Access Point,RUCKUS,R320 Access Point,,5912A-R320,4.91909E+11,,1,1,Ready,E2,
+,Wireless Device,Access Point,RUCKUS,R320 Access Point,,5912A-R320,381909000362,,1,1,Ready,E2,
+,Wireless Device,Access Point,RUCKUS,R320 Access Point,,5912A-R320,381909000154,,1,1,Ready,E2,
+,Wireless Device,Access Point,RUCKUS,R320 Access Point,,5912A-R320,491909004354,,1,1,Ready,E2,
 ,Wireless Device,Access Point,Aruba,APIN0503,HPE ANW AP-503-RW,R8M98A,CNW2LGQ0HW,,1,1,Ready,,Return: Project Clicxbank 27/05/2026
 ,Wireless Device,Access Point,Aruba,APIN0503,HPE ANW AP-503-RW,R8M98A,CNW2LGQ0K0,,1,1,Ready,,Return: Project Clicxbank 27/05/2026
 ,Wireless Device,Access Point,Aruba,APIN0503,HPE ANW AP-503-RW,R8M98A,CNW2LGQ0K4,,1,1,Ready,,Return: Project Clicxbank 27/05/2026
-,Wireless Device,Access Point,RUCKUS,R510 Access Point,,5912A-R510,2.52072E+11,,1,1,Ready,E2,
-,Wireless Device,Access Point,RUCKUS,R510 Access Point,,5912A-R510,2.52072E+11,,1,1,Ready,E2,
-,Wireless Device,Access Point,RUCKUS,R510 Access Point,,5912A-R510,2.52072E+11,,1,1,Ready,E2,
-,Wireless Device,Access Point,RUCKUS,R510 Access Point,,5912A-R510,2.52072E+11,,1,1,Ready,E2,
+,Wireless Device,Access Point,RUCKUS,R510 Access Point,,5912A-R510,252072013584,,1,1,Ready,E2,
+,Wireless Device,Access Point,RUCKUS,R510 Access Point,,5912A-R510,252072013603,,1,1,Ready,E2,
+,Wireless Device,Access Point,RUCKUS,R510 Access Point,,5912A-R510,252072012675,,1,1,Ready,E2,
+,Wireless Device,Access Point,RUCKUS,R510 Access Point,,5912A-R510,252072013559,,1,1,Ready,E2,
 ,Network Device,Switch,Cisco,Cisco Catalyst C3850-12X48 UPOE,,WS-C3850-12X48U,FCW2313C0DL,,1,1,Ready,Rack D3,"Check Stock 04/02/2026
 
 Return: Project Clicxbank 27/05/2026"
