@@ -175,18 +175,19 @@ model UserRole {
 }
 
 model AssetDomain {
-  id          String                 @id @default(uuid()) @db.Uuid
-  code        String                 @unique
-  prefix      String                 @unique @map("domain_prefix")
-  name        String
-  description String?
-  isActive    Boolean                @default(true) @map("is_active")
-  createdAt   DateTime               @default(now()) @map("created_at")
-  updatedAt   DateTime               @updatedAt @map("updated_at")
-  permissions UserDomainPermission[]
-  categories  AssetCategory[]
-  models      AssetModel[]
-  assets      Asset[]
+  id              String                 @id @default(uuid()) @db.Uuid
+  code            String                 @unique
+  prefix          String                 @unique @map("domain_prefix")
+  name            String
+  inventoryFamily AssetTrackMethod       @default(SERIAL) @map("inventory_family")
+  description     String?
+  isActive        Boolean                @default(true) @map("is_active")
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+  permissions     UserDomainPermission[]
+  categories      AssetCategory[]
+  models          AssetModel[]
+  assets          Asset[]
 
   @@map("asset_domains")
 }

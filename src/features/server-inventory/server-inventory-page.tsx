@@ -280,7 +280,11 @@ export default async function ServerInventoryPage({
 
       <ServerInventoryControls
         addAssetHref={addAssetHref}
+        canManageCategories={canManageDomainForUser(user, "SERVER")}
         categories={result.filterOptions.categories}
+        categoryGroups={result.filterOptions.categoryGroups}
+        domainCode="SERVER"
+        domainLabel="Server"
         filters={{
           categories: filters.categories,
           search: filters.search,

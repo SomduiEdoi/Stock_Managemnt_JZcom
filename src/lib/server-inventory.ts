@@ -18,6 +18,13 @@ export const serverInventoryStatusOptions = [
 export type InventorySortBy = "availability" | "brand" | "category" | "model" | "serialNo" | "status" | "stockCode" | "type";
 export type InventorySortDirection = "asc" | "desc";
 
+export type ServerCategoryGroup = {
+  assetCount: number;
+  id: string;
+  name: string;
+  types: Array<{ assetCount: number; code: string | null; id: string; name: string }>;
+};
+
 export type ServerInventoryFilters = {
   categories: string[];
   page: number;
@@ -217,31 +224,63 @@ export function buildServerInventoryWhere(filters: ServerInventoryFilters) {
 }
 
 async function getServerFilterOptions() {
-  const [categories, types] = await Promise.all([
-    db.assetCategory.findMany({
-      orderBy: { name: "asc" },
-      select: { name: true },
-      where: { domain: { code: "SERVER" }, isActive: true },
-    }),
-    db.assetModel.findMany({
-      distinct: ["typeName"],
-      orderBy: { typeName: "asc" },
-      select: { typeName: true },
-      where: {
-        domain: { code: "SERVER" },
-        isActive: true,
-        typeName: { not: null },
+  const categories = await db.assetCategory.findMany({
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      types: {
+        orderBy: { name: "asc" },
+        select: { code: true, id: true, name: true },
+        where: { isActive: true },
       },
-    }),
-  ]);
+    },
+    where: { domain: { code: "SERVER" }, isActive: true },
+  });
+  const assetCounts = await db.asset.groupBy({
+    by: ["assetModelId"],
+    _count: true,
+    where: { domain: { code: "SERVER" }, isActive: true },
+  });
+  const models = await db.assetModel.findMany({
+    select: { assetTypeId: true, categoryId: true, id: true },
+    where: { domain: { code: "SERVER" }, isActive: true },
+  });
+  const countByModel = new Map(assetCounts.map((count) => [count.assetModelId, count._count]));
+  const categoryAssetCounts = new Map<string, number>();
+  const typeAssetCounts = new Map<string, number>();
+
+  models.forEach((model) => {
+    const count = countByModel.get(model.id) ?? 0;
+
+    if (model.categoryId) {
+      categoryAssetCounts.set(model.categoryId, (categoryAssetCounts.get(model.categoryId) ?? 0) + count);
+    }
+
+    if (model.assetTypeId) {
+      typeAssetCounts.set(model.assetTypeId, (typeAssetCounts.get(model.assetTypeId) ?? 0) + count);
+    }
+  });
+
+  const categoryGroups: ServerCategoryGroup[] = categories.map((category) => ({
+    assetCount: categoryAssetCounts.get(category.id) ?? 0,
+    id: category.id,
+    name: category.name,
+    types: category.types.map((type) => ({
+      assetCount: typeAssetCounts.get(type.id) ?? 0,
+      code: type.code,
+      id: type.id,
+      name: type.name,
+    })),
+  }));
 
   return {
-    categories: categories.map((category) => category.name),
+    categories: categoryGroups.map((category) => category.name),
+    categoryGroups,
     statuses: [...serverInventoryStatusOptions],
-    types: types.map((type) => type.typeName).filter(Boolean) as string[],
+    types: categoryGroups.flatMap((category) => category.types.map((type) => type.name)),
   };
 }
-
 async function getServerMetrics(baseWhere: Prisma.AssetWhereInput) {
   const [total, ready, borrowed, sold, request] = await Promise.all([
     db.asset.count({ where: baseWhere }),

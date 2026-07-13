@@ -237,7 +237,11 @@ export async function DomainInventoryPage({ domainCode, searchParams }: DomainIn
       <ServerInventoryControls
         addAssetHref={addAssetHref}
         baseHref={href}
+        canManageCategories={canManageDomainForUser(user, result.domain.code)}
         categories={result.filterOptions.categories}
+        categoryGroups={result.filterOptions.categoryGroups}
+        domainCode={result.domain.code}
+        domainLabel={domainName}
         filters={{
           categories: filters.categories,
           search: filters.search,

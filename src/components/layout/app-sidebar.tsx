@@ -131,6 +131,10 @@ function emptyDomainForm(): DomainFormState {
   };
 }
 
+function inventoryFamilyLabel(value: AssetTrackMethod) {
+  return value === AssetTrackMethod.QUANTITY ? "Quantity" : "Serial";
+}
+
 function AddDomainModal({
   onCreated,
   onClose,
@@ -291,7 +295,7 @@ function EditDomainModal({
     controllerId: domain.controllerId ?? "",
     domainName: domain.name,
     prefix: domain.prefix,
-    trackMethod: AssetTrackMethod.SERIAL,
+    trackMethod: domain.inventoryFamily,
   });
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -381,7 +385,12 @@ function EditDomainModal({
           </Field>
 
           <Field label="Inventory Family">
-            <input className={inputClass(true)} disabled type="text" value="Locked after creation" />
+            <input
+              className={inputClass(true)}
+              disabled
+              type="text"
+              value={inventoryFamilyLabel(form.trackMethod)}
+            />
           </Field>
         </div>
 

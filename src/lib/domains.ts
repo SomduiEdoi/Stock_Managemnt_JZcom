@@ -8,6 +8,7 @@ export type SidebarDomain = {
   assetCount: number;
   code: string;
   controllerId: string | null;
+  inventoryFamily: AssetTrackMethod;
   name: string;
   prefix: string;
 };
@@ -60,6 +61,7 @@ function requirePrefix(value: string | null | undefined) {
 const sidebarDomainSelect = {
   _count: { select: { assets: true } },
   code: true,
+  inventoryFamily: true,
   name: true,
   permissions: {
     select: { userId: true },
@@ -72,6 +74,7 @@ const sidebarDomainSelect = {
 type SidebarDomainRecord = {
   _count: { assets: number };
   code: string;
+  inventoryFamily: AssetTrackMethod;
   name: string;
   permissions: Array<{ userId: string }>;
   prefix: string;
@@ -122,6 +125,7 @@ function toSidebarDomain(domain: SidebarDomainRecord): SidebarDomain {
     assetCount: domain._count.assets,
     code: domain.code,
     controllerId: domain.permissions[0]?.userId ?? null,
+    inventoryFamily: domain.inventoryFamily,
     name: domain.name,
     prefix: domain.prefix,
   };
@@ -216,8 +220,8 @@ export async function createDomainForUser(user: CurrentUser, input: CreateDomain
     }
 
     const domain = await tx.assetDomain.create({
-      data: { code, name, prefix },
-      select: { code: true, id: true, name: true, prefix: true },
+      data: { code, inventoryFamily: input.trackMethod, name, prefix },
+      select: { code: true, id: true, inventoryFamily: true, name: true, prefix: true },
     });
 
     const nonAdminUsers = await tx.user.findMany({
@@ -246,6 +250,7 @@ export async function createDomainForUser(user: CurrentUser, input: CreateDomain
       assetCount: 0,
       code: domain.code,
       controllerId: controller.id,
+      inventoryFamily: domain.inventoryFamily,
       name: domain.name,
       prefix: domain.prefix,
     };

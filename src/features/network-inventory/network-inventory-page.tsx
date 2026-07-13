@@ -280,7 +280,9 @@ export default async function NetworkInventoryPage({
 
       <NetworkInventoryControls
         addAssetHref={addAssetHref}
+        canManageCategories={canManageDomainForUser(user, "NETWORK")}
         categories={result.filterOptions.categories}
+        categoryGroups={result.filterOptions.categoryGroups}
         filters={{
           categories: filters.categories,
           search: filters.search,
