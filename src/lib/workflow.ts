@@ -1,9 +1,12 @@
-import { randomUUID } from "node:crypto";
 import {
+  ApprovalStatus,
   AssetActionType,
   AssetTrackMethod,
   AssetStatus,
+  OrganizationLevel,
+  OrganizationTag,
   Prisma,
+  ProjectTag,
   TransactionStatus,
   TransactionWorkflowStatus,
   TransactionType,
@@ -67,6 +70,17 @@ const transactionDetailSelect = Prisma.validator<Prisma.TransactionSelect>()({
   status: true,
   transactionNo: true,
   type: true,
+  workflowStatus: true,
+  approvals: {
+    orderBy: [{ stepSequence: "asc" }, { createdAt: "asc" }],
+    select: {
+      actedAt: true,
+      requiredTag: true,
+      status: true,
+      stepSequence: true,
+      user: { select: { email: true, id: true, name: true } },
+    },
+  },
   requestedBy: { select: { email: true, id: true, name: true } },
   createdBy: { select: { email: true, id: true, name: true } },
   items: {
@@ -254,9 +268,16 @@ function assertHasItems(items: NormalizedRequestItem[], label: string) {
   }
 }
 
-function createTransactionNo(type: TransactionType, now: Date) {
+async function createRequisitionNo(tx: Prisma.TransactionClient, now: Date) {
   const datePart = now.toISOString().slice(0, 10).replaceAll("-", "");
-  return `${type}-${datePart}-${randomUUID().slice(0, 8).toUpperCase()}`;
+  const yearPart = datePart.slice(0, 4);
+  const prefix = `REQ-${yearPart}`;
+  const count = await tx.transaction.count({
+    where: { transactionNo: { startsWith: prefix } },
+  });
+  const sequence = String(count + 1).padStart(2, "0");
+
+  return `REQ-${datePart}-${sequence}`;
 }
 
 async function findAssets(
@@ -654,6 +675,235 @@ function assertTransactionInput(input: SubmitTransactionInput) {
   return { purpose, soldPrice };
 }
 
+type ApprovalCandidate = {
+  requiredTag: string;
+  stepSequence: number;
+  userId: string | null;
+  approverNameSnapshot: string | null;
+  approverTagSnapshot: string | null;
+};
+
+type ApprovalUser = {
+  id: string;
+  name: string;
+  organizationTag: OrganizationTag | null;
+  projectTag: ProjectTag | null;
+  domainPermissions: Array<{ canManage: boolean; domain: { code: string } }>;
+};
+
+function managerTagFor(tag: string | null) {
+  if (!tag) {
+    return null;
+  }
+
+  if (tag.startsWith("S1_") || tag.startsWith("N1_") || tag.startsWith("C1_")) {
+    return OrganizationTag.SCN_MANAGER;
+  }
+
+  if (tag.startsWith("CMS_") || tag.startsWith("SD_")) {
+    return OrganizationTag.EN_MANAGER;
+  }
+
+  if (tag.startsWith("BSD_")) {
+    return OrganizationTag.BSD_MANAGER;
+  }
+
+  if (tag.startsWith("DL_")) {
+    return OrganizationTag.DL_MANAGER;
+  }
+
+  return null;
+}
+
+function supervisorTagFor(tag: string | null) {
+  if (!tag?.endsWith("_STAFF")) {
+    return null;
+  }
+
+  const candidate = tag.replace(/_STAFF$/, "_SUPERVISOR") as OrganizationTag;
+  return Object.values(OrganizationTag).includes(candidate)
+    ? candidate
+    : managerTagFor(tag);
+}
+
+function candidateForUser(
+  user: ApprovalUser | null | undefined,
+  requiredTag: string,
+  stepSequence: number,
+): ApprovalCandidate {
+  return {
+    approverNameSnapshot: user?.name ?? null,
+    approverTagSnapshot: requiredTag,
+    requiredTag,
+    stepSequence,
+    userId: user?.id ?? null,
+  };
+}
+
+async function findOrganizationApprover(
+  tx: Prisma.TransactionClient,
+  tag: OrganizationTag | null,
+  requesterId: string,
+) {
+  if (!tag) {
+    return null;
+  }
+
+  return tx.user.findFirst({
+    orderBy: { name: "asc" },
+    select: {
+      domainPermissions: {
+        select: { canManage: true, domain: { select: { code: true } } },
+      },
+      id: true,
+      name: true,
+      organizationTag: true,
+      projectTag: true,
+    },
+    where: {
+      id: { not: requesterId },
+      isActive: true,
+      organizationTag: tag,
+    },
+  });
+}
+
+async function findProjectApprover(
+  tx: Prisma.TransactionClient,
+  requesterId: string,
+) {
+  return tx.user.findFirst({
+    orderBy: { name: "asc" },
+    select: {
+      domainPermissions: {
+        select: { canManage: true, domain: { select: { code: true } } },
+      },
+      id: true,
+      name: true,
+      organizationTag: true,
+      projectTag: true,
+    },
+    where: {
+      id: { not: requesterId },
+      isActive: true,
+      projectTag: ProjectTag.LEAD_PROJECT,
+    },
+  });
+}
+
+async function findStockControllerApprover(
+  tx: Prisma.TransactionClient,
+  domainCode: string,
+) {
+  return tx.user.findFirst({
+    orderBy: { name: "asc" },
+    select: {
+      domainPermissions: {
+        select: { canManage: true, domain: { select: { code: true } } },
+      },
+      id: true,
+      name: true,
+      organizationTag: true,
+      projectTag: true,
+    },
+    where: {
+      domainPermissions: {
+        some: { canManage: true, domain: { code: domainCode } },
+      },
+      isActive: true,
+    },
+  });
+}
+
+async function buildApprovalCandidates(
+  tx: Prisma.TransactionClient,
+  user: CurrentUser,
+  input: SubmitTransactionInput,
+  items: WorkflowRequestItem[],
+) {
+  const approvals: ApprovalCandidate[] = [];
+  let stepSequence = 1;
+
+  const organizationLevel = user.organizationLevel as OrganizationLevel | null;
+  const organizationTag = user.organizationTag as OrganizationTag | null;
+  const businessTag =
+    organizationLevel === OrganizationLevel.STAFF
+      ? supervisorTagFor(organizationTag)
+      : organizationLevel === OrganizationLevel.SUPERVISOR
+        ? managerTagFor(organizationTag)
+        : null;
+
+  if (businessTag) {
+    approvals.push(
+      candidateForUser(
+        await findOrganizationApprover(tx, businessTag, user.id),
+        businessTag,
+        stepSequence++,
+      ),
+    );
+  }
+
+  if (input.projectRequest && user.projectTag === ProjectTag.TEAM_MEMBER) {
+    approvals.push(
+      candidateForUser(
+        await findProjectApprover(tx, user.id),
+        ProjectTag.LEAD_PROJECT,
+        stepSequence++,
+      ),
+    );
+  }
+
+  const domainCodes = Array.from(new Set(items.map((item) => item.asset.domain.code))).sort();
+  const stockStep = stepSequence++;
+  for (const domainCode of domainCodes) {
+    approvals.push(
+      candidateForUser(
+        await findStockControllerApprover(tx, domainCode),
+        `STOCK_CONTROLLER:${domainCode}`,
+        stockStep,
+      ),
+    );
+  }
+
+  approvals.push(
+    candidateForUser(
+      await findOrganizationApprover(tx, OrganizationTag.BSD_STAFF, user.id),
+      OrganizationTag.BSD_STAFF,
+      stepSequence++,
+    ),
+  );
+
+  if (input.type === TransactionType.SOLD) {
+    approvals.push(
+      candidateForUser(
+        await findOrganizationApprover(tx, OrganizationTag.BSD_MANAGER, user.id),
+        OrganizationTag.BSD_MANAGER,
+        stepSequence++,
+      ),
+    );
+  }
+
+  return approvals;
+}
+
+function approvalMatchesUser(user: CurrentUser, approval: { requiredTag: string; userId: string | null }) {
+  if (approval.userId === user.id) {
+    return true;
+  }
+
+  if (approval.requiredTag.startsWith("STOCK_CONTROLLER:")) {
+    const domainCode = approval.requiredTag.split(":")[1];
+    return user.permissions.some(
+      (permission) => permission.domainCode === domainCode && permission.canManage,
+    );
+  }
+
+  return (
+    user.organizationTag === approval.requiredTag ||
+    user.projectTag === approval.requiredTag
+  );
+}
+
 async function updateSubmittedAsset(
   tx: Prisma.TransactionClient,
   asset: WorkflowAsset,
@@ -857,17 +1107,16 @@ export async function getTransactionResolutionForUser(
     throw new WorkflowError("Transaction not found.", 404);
   }
 
-  if (!isReturnableTransaction(transaction.type)) {
-    throw new WorkflowError("This transaction type cannot be resolved.");
-  }
-
-  assertCanResolveItems(user, transaction.items);
+  assertCanResolveTransaction(user, transaction);
 
   return transaction;
 }
 
-function assertCanResolveItems(user: CurrentUser, items: TransactionDetail["items"]) {
-  for (const item of items) {
+function assertCanResolveTransaction(
+  user: CurrentUser,
+  transaction: Pick<TransactionDetail, "items">,
+) {
+  for (const item of transaction.items) {
     assertCanViewDomain(user, item.asset.domain.code);
   }
 }
@@ -1092,10 +1341,10 @@ export async function submitTransaction(
         Boolean(input.items?.length),
       );
       assertAssetsCanSubmit(user, items);
-      const isSold = input.type === TransactionType.SOLD;
+      const approvals = await buildApprovalCandidates(tx, user, input, items);
       const transaction = await tx.transaction.create({
         data: {
-          completedAt: isSold ? now : null,
+          completedAt: null,
           createdById: user.id,
           documentRef: cleanText(input.documentRef),
           dueDate: input.dueDate ?? null,
@@ -1108,11 +1357,9 @@ export async function submitTransaction(
           serviceRequest: input.serviceRequest ?? false,
           soldPrice: soldPrice ? new Prisma.Decimal(soldPrice) : null,
           status: getInitialTransactionStatus(input.type),
-          transactionNo: createTransactionNo(input.type, now),
+          transactionNo: await createRequisitionNo(tx, now),
           type: input.type,
-          workflowStatus: isSold
-            ? TransactionWorkflowStatus.COMPLETED
-            : TransactionWorkflowStatus.IN_PROGRESS,
+          workflowStatus: TransactionWorkflowStatus.PENDING,
         },
       });
 
@@ -1127,12 +1374,17 @@ export async function submitTransaction(
         })),
       });
 
-      for (const item of items) {
-        if (isQuantityAsset(item.asset)) {
-          await updateSubmittedQuantityAsset(tx, item, user.id, toStatus);
-        } else {
-          await updateSubmittedAsset(tx, item.asset, user.id, toStatus);
-        }
+      if (approvals.length > 0) {
+        await tx.transactionApproval.createMany({
+          data: approvals.map((approval) => ({
+            approverNameSnapshot: approval.approverNameSnapshot,
+            approverTagSnapshot: approval.approverTagSnapshot,
+            requiredTag: approval.requiredTag,
+            stepSequence: approval.stepSequence,
+            transactionId: transaction.id,
+            userId: approval.userId,
+          })),
+        });
       }
 
       await tx.assetStatusHistory.createMany({
@@ -1142,14 +1394,130 @@ export async function submitTransaction(
           changedById: user.id,
           fromStatus: isQuantityAsset(asset) ? AssetStatus.READY : AssetStatus.REQUEST,
           note: isQuantityAsset(asset)
-            ? [note, `Submitted quantity: ${quantity}`].filter(Boolean).join("\n")
-            : note,
-          toStatus,
+            ? [note, `Submitted quantity: ${quantity}; pending approval`].filter(Boolean).join("\n")
+            : [note, "Pending approval"].filter(Boolean).join("\n"),
+          toStatus: AssetStatus.REQUEST,
           transactionId: transaction.id,
         })),
       });
 
       return findTransactionDetail(tx, transaction.id);
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
+}
+
+async function applyApprovedTransaction(
+  tx: Prisma.TransactionClient,
+  transactionId: string,
+  userId: string,
+  now: Date,
+) {
+  const transaction = await findTransactionDetail(tx, transactionId);
+  const toStatus = getTransactionAssetStatus(transaction.type);
+
+  for (const item of transaction.items) {
+    const workflowItem = { asset: item.asset as unknown as WorkflowAsset, quantity: item.requestedQuantity };
+    if (isQuantityTransactionItem(item)) {
+      await updateSubmittedQuantityAsset(tx, workflowItem, transaction.requestedBy.id, toStatus);
+    } else {
+      await updateSubmittedAsset(tx, workflowItem.asset, transaction.requestedBy.id, toStatus);
+    }
+  }
+
+  await tx.assetStatusHistory.createMany({
+    data: transaction.items.map((item) => ({
+      actionType: AssetActionType.REQUEST_SUBMIT,
+      assetId: item.assetId,
+      changedById: userId,
+      fromStatus: isQuantityTransactionItem(item) ? AssetStatus.READY : AssetStatus.REQUEST,
+      note: "Approved request",
+      toStatus,
+      transactionId,
+    })),
+  });
+
+  await tx.transaction.update({
+    where: { id: transactionId },
+    data: {
+      completedAt: transaction.type === TransactionType.SOLD ? now : null,
+      workflowStatus:
+        transaction.type === TransactionType.SOLD
+          ? TransactionWorkflowStatus.COMPLETED
+          : TransactionWorkflowStatus.IN_PROGRESS,
+    },
+  });
+}
+
+export async function approveTransaction(
+  user: CurrentUser,
+  transactionId: string,
+  comment?: string | null,
+) {
+  const now = new Date();
+
+  return db.$transaction(
+    async (tx) => {
+      const transaction = await tx.transaction.findUnique({
+        where: { id: transactionId },
+        select: {
+          id: true,
+          workflowStatus: true,
+          approvals: {
+            orderBy: [{ stepSequence: "asc" }, { createdAt: "asc" }],
+            select: {
+              id: true,
+              requiredTag: true,
+              status: true,
+              stepSequence: true,
+              userId: true,
+            },
+          },
+        },
+      });
+
+      if (!transaction) {
+        throw new WorkflowError("Transaction not found.", 404);
+      }
+
+      if (transaction.workflowStatus !== TransactionWorkflowStatus.PENDING) {
+        throw new WorkflowError("Transaction is not pending approval.", 409);
+      }
+
+      const pendingApprovals = transaction.approvals.filter(
+        (approval) => approval.status === ApprovalStatus.PENDING,
+      );
+      const currentStep = Math.min(...pendingApprovals.map((approval) => approval.stepSequence));
+      const currentApproval = pendingApprovals.find(
+        (approval) =>
+          approval.stepSequence === currentStep && approvalMatchesUser(user, approval),
+      );
+
+      if (!currentApproval) {
+        throw new WorkflowError("No approval is waiting for this user.", 403);
+      }
+
+      await tx.transactionApproval.update({
+        where: { id: currentApproval.id },
+        data: {
+          actedAt: now,
+          approverNameSnapshot: user.name,
+          approverTagSnapshot: currentApproval.requiredTag,
+          comment: cleanText(comment),
+          status: ApprovalStatus.APPROVED,
+          userId: user.id,
+        },
+      });
+
+      const remaining = await tx.transactionApproval.count({
+        where: { transactionId, status: ApprovalStatus.PENDING },
+      });
+
+      if (remaining === 0) {
+        await applyApprovedTransaction(tx, transactionId, user.id, now);
+      }
+
+      return findTransactionDetail(tx, transactionId);
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
@@ -1219,6 +1587,22 @@ export async function resolveTransactionItems(
         throw new WorkflowError("This transaction type cannot be returned.");
       }
 
+      if (transaction.workflowStatus !== TransactionWorkflowStatus.IN_PROGRESS) {
+        throw new WorkflowError(
+          "This transaction is still pending approval and cannot be returned.",
+          409,
+          "TRANSACTION_NOT_APPROVED",
+        );
+      }
+
+      if (transaction.requestedBy.id !== user.id) {
+        throw new WorkflowError(
+          "Only the requester can return this transaction.",
+          403,
+          "RETURN_REQUESTER_ONLY",
+        );
+      }
+
       const items = getOpenResolutionItems(
         transaction,
         Array.from(resolutionMap.values()),
@@ -1228,7 +1612,7 @@ export async function resolveTransactionItems(
         throw new WorkflowError("No open transaction items to resolve.", 409);
       }
 
-      assertCanResolveItems(user, items);
+      assertCanResolveTransaction(user, { items });
 
       for (const item of items) {
         const resolution = resolutionMap.get(item.id);
@@ -1376,3 +1760,6 @@ export async function markBorrowTransactionsOverdue(now = new Date()) {
 
   return { count: 0 };
 }
+
+
+

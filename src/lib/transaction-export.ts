@@ -13,13 +13,23 @@ const transactionExportSelect = Prisma.validator<Prisma.TransactionSelect>()({
   projectRequest: true,
   purpose: true,
   requestDate: true,
-  requestedBy: { select: { email: true, name: true } },
+  requestedBy: { select: { email: true, name: true, signatureDataUrl: true } },
   returnedAt: true,
   serviceRequest: true,
   soldPrice: true,
   status: true,
   transactionNo: true,
   type: true,
+  approvals: {
+    orderBy: [{ stepSequence: "asc" }, { createdAt: "asc" }],
+    select: {
+      actedAt: true,
+      requiredTag: true,
+      status: true,
+      stepSequence: true,
+      user: { select: { email: true, name: true, signatureDataUrl: true } },
+    },
+  },
   items: {
     orderBy: { createdAt: "asc" },
     select: {

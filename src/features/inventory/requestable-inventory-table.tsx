@@ -256,6 +256,12 @@ function InventoryDataCell({
   );
 }
 
+function getDisplayStatus(asset: RequestableInventoryRow) {
+  return asset.status === AssetStatus.READY && asset.reservedQuantity > 0
+    ? AssetStatus.REQUEST
+    : asset.status;
+}
+
 const manualStatusTransitions = {
   [AssetStatus.READY]: [
     AssetStatus.REQUEST,
@@ -609,9 +615,10 @@ function StatusMenuCell({
   onToggle: () => void;
 }) {
   const options = manualStatusTransitions[asset.status];
+  const displayStatus = getDisplayStatus(asset);
 
   if (!canChangeStatus || options.length === 0) {
-    return <AssetStatusBadge status={asset.status} />;
+    return <AssetStatusBadge status={displayStatus} />;
   }
 
   return (
@@ -624,7 +631,7 @@ function StatusMenuCell({
         }}
         type="button"
       >
-        <AssetStatusBadge status={asset.status} />
+        <AssetStatusBadge status={displayStatus} />
         <ChevronDown className="h-4 w-4 text-muted-foreground" />
       </button>
 

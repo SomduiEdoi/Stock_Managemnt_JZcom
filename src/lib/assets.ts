@@ -128,9 +128,13 @@ export function normalizeAssetListFilters(
 }
 
 export function getVisibleDomainCodes(user: PermissionUser) {
-  return assetDomainOptions.filter((domainCode) =>
-    canViewDomainForUser(user, domainCode),
-  );
+  if (user.roles.includes("ADMIN")) {
+    return assetDomainOptions;
+  }
+
+  return user.permissions
+    .filter((permission) => permission.canView || permission.canManage)
+    .map((permission) => permission.domainCode);
 }
 
 export function getDomainAccess(

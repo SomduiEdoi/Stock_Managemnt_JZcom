@@ -72,8 +72,8 @@ export function canRequestDomainForUser(
 }
 
 export function canRequestAssetsForUser(user: PermissionUser) {
-  return domainCodes.some((domainCode) =>
-    canRequestDomainForUser(user, domainCode),
+  return user.permissions.some((permission) =>
+    canRequestDomainForUser(user, permission.domainCode),
   );
 }
 

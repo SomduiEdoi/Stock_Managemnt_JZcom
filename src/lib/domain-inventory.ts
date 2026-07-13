@@ -243,15 +243,20 @@ async function getDomainFilterOptions(domainCode: string) {
 }
 
 async function getDomainMetrics(baseWhere: Prisma.AssetWhereInput) {
-  const [total, ready, borrowed, sold, request] = await Promise.all([
+  const [total, ready, borrowed, sold, request, reservedAssets] = await Promise.all([
     db.asset.count({ where: baseWhere }),
     db.asset.count({ where: { ...baseWhere, status: AssetStatus.READY } }),
     db.asset.count({ where: { ...baseWhere, status: AssetStatus.BORROW } }),
     db.asset.count({ where: { ...baseWhere, status: AssetStatus.SOLD } }),
     db.asset.count({ where: { ...baseWhere, status: AssetStatus.REQUEST } }),
+    db.assetReservation.findMany({
+      distinct: ["assetId"],
+      select: { assetId: true },
+      where: { asset: baseWhere },
+    }),
   ]);
 
-  return { borrowed, ready, request, sold, total };
+  return { borrowed, ready, request: request + reservedAssets.length, sold, total };
 }
 
 export async function getDomainInventoryForUser(

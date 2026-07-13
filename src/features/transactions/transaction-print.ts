@@ -26,7 +26,22 @@ export type PrintableTransaction = {
   projectRequest?: boolean;
   purpose?: string | null;
   requestDate?: Date | string | null;
-  requestedBy?: { email?: string | null; name?: string | null } | null;
+  requestedBy?: {
+  email?: string | null;
+  name?: string | null;
+  signatureDataUrl?: string | null;
+} | null;
+approvals?: Array<{
+  actedAt?: Date | string | null;
+  requiredTag?: string | null;
+  status?: string | null;
+  stepSequence?: number | null;
+  user?: {
+    email?: string | null;
+    name?: string | null;
+    signatureDataUrl?: string | null;
+  } | null;
+}>;
   returnedAt?: Date | string | null;
   serviceRequest?: boolean;
   soldPrice?: string | number | null;
@@ -61,6 +76,25 @@ function formatFormDate(value: Date | string | null | undefined) {
   }).format(date);
 }
 
+function formatFormDateTime(value: Date | string | null | undefined) {
+  if (!value) {
+    return "-";
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
 function formatMoney(value: string | number | null | undefined) {
   if (value === null || value === undefined || value === "") {
     return "";
@@ -209,13 +243,23 @@ function soldRows(transaction: PrintableTransaction) {
   };
 }
 
-function signature(title: string, role: string) {
+function signature(
+  title: string,
+  role: string,
+  imageDataUrl?: string | null,
+  signedAt?: Date | string | null,
+) {
+  const image = imageDataUrl
+    ? `<img alt="Signature" class="signature-image" src="${escapeHtml(imageDataUrl)}" />`
+    : "";
+
   return `
     <div class="signature">
       <span class="signature-label">${escapeHtml(title)}</span>
       <span class="signature-line"></span>
+      ${image}
       <div class="signature-role">${escapeHtml(role)}</div>
-      <div class="signature-date">Date :</div>
+      <div class="signature-date">Date : ${escapeHtml(formatFormDateTime(signedAt))}</div>
     </div>
   `;
 }
@@ -473,6 +517,14 @@ function documentStyles() {
         font-size: 7.4pt;
       }
       .signature-label { display: inline-block; width: 62pt; }
+      .signature-image {
+        position: absolute;
+        left: 62pt;
+        top: -9pt;
+        width: 92pt;
+        height: 28pt;
+        object-fit: contain;
+      }
       .signature-line {
         display: inline-block;
         width: 108pt;
@@ -547,6 +599,30 @@ function pageSuffix(pageIndex: number, pageTotal: number) {
   return pageTotal > 1 ? ` (${pageIndex + 1}/${pageTotal})` : "";
 }
 
+function approvedSignature(
+  transaction: PrintableTransaction,
+  matchesRequiredTag: (requiredTag: string) => boolean,
+) {
+  const approvals = transaction.approvals?.filter(
+    (item) =>
+      item.status === "APPROVED" &&
+      matchesRequiredTag(item.requiredTag ?? ""),
+  ) ?? [];
+  const approval = approvals.at(-1);
+
+  return {
+    signedAt: approval?.actedAt ?? null,
+    signatureDataUrl: approval?.user?.signatureDataUrl ?? null,
+  };
+}
+
+function isBusinessOrProjectApproval(requiredTag: string) {
+  return (
+    requiredTag === "LEAD_PROJECT" ||
+    (!requiredTag.startsWith("STOCK_CONTROLLER:") && !requiredTag.startsWith("BSD_"))
+  );
+}
+
 function buildPage(
   transaction: PrintableTransaction,
   options: {
@@ -560,6 +636,22 @@ function buildPage(
     options.pageIndex,
     options.pageTotal,
   )}`;
+  const requesterSignature = {
+    signedAt: transaction.requestDate ?? transaction.createdAt ?? null,
+    signatureDataUrl: transaction.requestedBy?.signatureDataUrl ?? null,
+  };
+  const projectSignature = approvedSignature(
+    transaction,
+    (requiredTag) => isBusinessOrProjectApproval(requiredTag),
+  );
+  const stockSignature = approvedSignature(
+    transaction,
+    (requiredTag) => requiredTag.startsWith("STOCK_CONTROLLER:"),
+  );
+  const bsdSignature = approvedSignature(
+    transaction,
+    (requiredTag) => requiredTag.startsWith("BSD_"),
+  );
 
   return `
     <main class="page">
@@ -574,16 +666,16 @@ function buildPage(
       <div class="meta-box flags">${requestFlags(transaction)}</div>
 
       ${borrowTable(transaction, options.isSold)}
-      <div class="sig-a">${signature("Requisition by :", "(____________________)")}</div>
-      <div class="sig-b">${signature("Requisition by :", "Lead of Project/Job")}</div>
-      <div class="sig-c">${signature("Inspector by :", "(Stock control)")}</div>
-      <div class="sig-d">${signature("Inspector by :", "(BSD)")}</div>
+      <div class="sig-a">${signature("Requisition by :", "(____________________)", requesterSignature.signatureDataUrl, requesterSignature.signedAt)}</div>
+      <div class="sig-b">${signature("Requisition by :", "Lead of Project/Job", projectSignature.signatureDataUrl, projectSignature.signedAt)}</div>
+      <div class="sig-c">${signature("Inspector by :", "(Stock control)", stockSignature.signatureDataUrl, stockSignature.signedAt)}</div>
+      <div class="sig-d">${signature("Inspector by :", "(BSD)", bsdSignature.signatureDataUrl, bsdSignature.signedAt)}</div>
 
       ${soldTable(transaction, options.isSold)}
-      <div class="sig-e">${signature("Requisition by :", "(____________________)")}</div>
-      <div class="sig-f">${signature("Requisition by :", "Lead of Project/Job")}</div>
-      <div class="sig-g">${signature("Inspector by :", "(Stock control)")}</div>
-      <div class="sig-h">${signature("Inspector by :", "(BSD)")}</div>
+      <div class="sig-e">${signature("Requisition by :", "(____________________)", requesterSignature.signatureDataUrl, requesterSignature.signedAt)}</div>
+      <div class="sig-f">${signature("Requisition by :", "Lead of Project/Job", projectSignature.signatureDataUrl, projectSignature.signedAt)}</div>
+      <div class="sig-g">${signature("Inspector by :", "(Stock control)", stockSignature.signatureDataUrl, stockSignature.signedAt)}</div>
+      <div class="sig-h">${signature("Inspector by :", "(BSD)", bsdSignature.signatureDataUrl, bsdSignature.signedAt)}</div>
       <div class="footer-code">FM-5300(2)-R.5</div>
     </main>
   `;
@@ -637,3 +729,4 @@ export function printTransaction(
   popup.focus();
   window.setTimeout(() => popup.print(), 450);
 }
+

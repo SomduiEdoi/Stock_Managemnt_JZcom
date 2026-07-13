@@ -4,14 +4,16 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
-import type { AssetStatus } from "@prisma/client";
+import type { AssetStatus, TransactionWorkflowStatus } from "@prisma/client";
 import { AssetStatusBadge } from "@/components/status/asset-status-badge";
 
 export type TransactionReturnItem = {
   assetId: string;
   brand: string | null;
+  currentStep: string;
   currentStatus: AssetStatus;
   itemId: string;
+  kindLabel: string;
   model: string;
   note: string | null;
   resolvedAt: string | null;
@@ -22,11 +24,14 @@ export type TransactionReturnItem = {
 };
 
 export type TransactionReturnRecord = {
+  canReturn: boolean;
   id: string;
   items: TransactionReturnItem[];
+  kindLabel: string;
   requestedBy: string;
   transactionNo: string;
   type: string;
+  workflowStatus: TransactionWorkflowStatus;
 };
 
 type ResolutionState = Record<
@@ -96,6 +101,11 @@ export function TransactionReturnClient({
   }
 
   function handleSubmit() {
+    if (!transaction.canReturn) {
+      setError("This transaction is still pending approval and cannot be returned.");
+      return;
+    }
+
     if (openItems.length === 0) {
       setError("This transaction has no open items.");
       return;
@@ -166,31 +176,43 @@ export function TransactionReturnClient({
         <div>
           <nav
             aria-label="Breadcrumb"
-            className="flex flex-wrap items-center gap-2 text-sm font-bold text-muted-foreground"
+            className="flex flex-wrap items-center gap-2 text-sm font-bold"
           >
-            <Link className="text-brand-accent hover:underline" href="/logs">
+            <Link className="text-navy hover:text-brand-accent" href="/logs">
               Logs
             </Link>
-            <span>&gt;</span>
-            <span className="text-navy">{transaction.transactionNo}</span>
-            <span>&gt;</span>
-            <span className="text-navy">Return</span>
+            <span className="text-muted-foreground">&gt;</span>
+            <Link
+              className="text-navy hover:text-brand-accent"
+              href={`/logs/${transaction.id}/return`}
+            >
+              {transaction.transactionNo}
+            </Link>
           </nav>
           <h1 className="mt-3 text-3xl font-bold text-navy">
             Resolve Transaction
           </h1>
           <p className="mt-2 text-sm font-semibold text-muted-foreground">
-            {transaction.type} request by {transaction.requestedBy}
+            {transaction.kindLabel} request by {transaction.requestedBy}
           </p>
         </div>
       </header>
+
+      {!transaction.canReturn ? (
+        <p className="flex gap-2 rounded-md bg-status-request/10 p-3 text-sm font-semibold text-navy">
+          <AlertCircle className="h-4 w-4 shrink-0 text-status-request" />
+          This request is not fully approved yet. You can review the request details, but return actions are disabled.
+        </p>
+      ) : null}
 
       <section className="overflow-hidden rounded-md border border-border bg-white shadow-sm">
         <div className="flex flex-col gap-2 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-xl font-bold text-navy">Request Items</h2>
             <p className="mt-1 text-sm font-medium text-muted-foreground">
-              Select the final outcome for each open asset.
+              {transaction.canReturn
+                ? "Select the final outcome for each open asset."
+                : "Review the approval step and requested assets."}
             </p>
           </div>
           <span className="text-sm font-bold text-navy">
@@ -202,12 +224,13 @@ export function TransactionReturnClient({
           <table className="min-w-full table-fixed border-collapse text-left text-sm">
             <thead className="bg-surface text-xs uppercase text-muted-foreground">
               <tr>
-                <th className="w-[26%] px-5 py-4 font-bold">Asset</th>
-                <th className="w-[15%] px-5 py-4 font-bold">Brand</th>
-                <th className="w-[16%] px-5 py-4 font-bold">Stock Code</th>
-                <th className="w-[18%] px-5 py-4 font-bold">Serial No.</th>
-                <th className="w-[13%] px-5 py-4 font-bold">Current</th>
-                <th className="w-[18%] px-5 py-4 font-bold">Outcome</th>
+                <th className="w-[22%] px-5 py-4 font-bold">Asset</th>
+                <th className="w-[12%] px-5 py-4 font-bold">Brand</th>
+                <th className="w-[13%] px-5 py-4 font-bold">Stock Code</th>
+                <th className="w-[15%] px-5 py-4 font-bold">Serial No.</th>
+                <th className="w-[14%] px-5 py-4 font-bold">Type</th>
+                <th className="w-[16%] px-5 py-4 font-bold">Current Step</th>
+                <th className="w-[14%] px-5 py-4 font-bold">Outcome</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -235,13 +258,16 @@ export function TransactionReturnClient({
                     <td className="truncate px-5 py-4 font-medium text-ink" title={fallback(item.serialNo)}>
                       {fallback(item.serialNo)}
                     </td>
-                    <td className="px-5 py-4">
-                      <AssetStatusBadge status={item.currentStatus} />
+                    <td className="truncate px-5 py-4 font-bold text-navy" title={item.kindLabel}>
+                      {item.kindLabel}
+                    </td>
+                    <td className="truncate px-5 py-4 font-semibold text-ink" title={item.currentStep}>
+                      {item.currentStep}
                     </td>
                     <td className="px-5 py-4">
                       {isResolved && item.resolvedStatus ? (
                         <AssetStatusBadge status={item.resolvedStatus} />
-                      ) : (
+                      ) : transaction.canReturn ? (
                         <select
                           className="h-10 w-full rounded-md border border-border bg-white px-3 text-sm font-bold text-navy outline-none ring-brand-accent/20 focus:ring-4"
                           onChange={(event) =>
@@ -255,6 +281,10 @@ export function TransactionReturnClient({
                             </option>
                           ))}
                         </select>
+                      ) : (
+                        <span className="text-sm font-bold text-muted-foreground">
+                          Awaiting approval
+                        </span>
                       )}
                     </td>
                   </tr>
@@ -281,7 +311,7 @@ export function TransactionReturnClient({
         </Link>
         <button
           className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-navy px-5 text-sm font-bold text-white shadow-sm hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={isSubmitting || openItems.length === 0}
+          disabled={isSubmitting || openItems.length === 0 || !transaction.canReturn}
           onClick={handleSubmit}
           type="button"
         >
@@ -389,3 +419,4 @@ function buildResolutionNote(
 
   return parts.length ? parts.join("\n") : null;
 }
+

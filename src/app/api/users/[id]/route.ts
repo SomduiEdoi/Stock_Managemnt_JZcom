@@ -11,7 +11,6 @@ type RouteContext = {
 const paramsSchema = z.object({ id: z.string().uuid() });
 
 const updateUserSchema = z.object({
-  domainId: z.string().uuid().nullable().optional(),
   name: z.string().trim().min(1),
   organizationLevel: z.nativeEnum(OrganizationLevel).nullable().optional(),
   organizationTag: z.nativeEnum(OrganizationTag).nullable().optional(),

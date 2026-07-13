@@ -18,14 +18,6 @@ const optionalDateSchema = z
     message: "Invalid date.",
   });
 
-const requiredDateSchema = z
-  .string()
-  .trim()
-  .min(1, "Request date is required.")
-  .transform((value) => new Date(value))
-  .refine((value) => !Number.isNaN(value.getTime()), {
-    message: "Invalid request date.",
-  });
 
 const submitTransactionSchema = z.object({
   assetIds: z.array(z.string().uuid()).max(100).optional(),
@@ -35,7 +27,6 @@ const submitTransactionSchema = z.object({
   note: z.string().max(1000).optional().nullable(),
   projectRequest: z.boolean().optional().default(false),
   purpose: z.string().min(1).max(1000),
-  requestDate: requiredDateSchema,
   serviceRequest: z.boolean().optional().default(false),
   soldPrice: z.string().trim().optional().nullable(),
   items: z
@@ -57,7 +48,10 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireApiUser(request);
     const input = submitTransactionSchema.parse(await readJsonBody(request));
-    const transaction = await submitTransaction(user, input);
+    const transaction = await submitTransaction(user, {
+      ...input,
+      requestDate: new Date(),
+    });
 
     return NextResponse.json({ transaction }, { status: 201 });
   } catch (error) {

@@ -7,13 +7,10 @@ import { PermissionError } from "@/lib/permissions";
 import { WorkflowError } from "@/lib/workflow";
 
 const createDomainSchema = z.object({
-  categoryName: z.string().trim().min(1),
   controllerId: z.string().uuid(),
   domainName: z.string().trim().min(1),
   prefix: z.string().trim().min(1),
   trackMethod: z.nativeEnum(AssetTrackMethod),
-  typeCode: z.string().trim().optional().nullable(),
-  typeName: z.string().trim().min(1),
 });
 
 export async function POST(request: Request) {

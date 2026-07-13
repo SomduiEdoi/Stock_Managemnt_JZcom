@@ -21,7 +21,6 @@ import {
   organizationLevelOptions,
   organizationUnitOptions,
   projectTagOptions,
-  type DomainOption,
   type UserManagementFilters,
   type UserManagementMetrics,
   type UserManagementRow,
@@ -31,7 +30,6 @@ import {
 import { UserActionMenu } from "@/features/user-management/user-action-menu";
 
 type UserManagementPageProps = {
-  domains: DomainOption[];
   filters: UserManagementFilters;
   metrics: UserManagementMetrics;
   total: number;
@@ -40,7 +38,6 @@ type UserManagementPageProps = {
 };
 
 type UserFormState = {
-  domainId: string;
   email: string;
   name: string;
   organizationLevel: string;
@@ -88,7 +85,6 @@ function getUserInitials(name: string) {
 
 function emptyFormState(): UserFormState {
   return {
-    domainId: "",
     email: "",
     name: "",
     organizationLevel: "",
@@ -98,10 +94,7 @@ function emptyFormState(): UserFormState {
 }
 
 function toFormState(user: UserManagementRow): UserFormState {
-  const managedDomain = user.domainPermissions.find((permission) => permission.canManage);
-
   return {
-    domainId: managedDomain?.domain.id ?? "",
     email: user.email,
     name: user.name,
     organizationLevel: user.organizationLevel ?? "",
@@ -246,13 +239,11 @@ function ModalShell({
 }
 
 function UserFormModal({
-  domains,
   initialState,
   mode,
   onClose,
   onSaved,
 }: {
-  domains: DomainOption[];
   initialState: UserFormState;
   mode: "ADD" | "EDIT";
   onClose: () => void;
@@ -263,7 +254,7 @@ function UserFormModal({
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const tagDisabled = !form.role || form.role === "ADMIN";
+  const tagDisabled = !form.role || form.role === "ADMIN" || form.role === "STOCK_CONTROLLER";
 
   function setField<Key extends keyof UserFormState>(key: Key, value: UserFormState[Key]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -284,10 +275,6 @@ function UserFormModal({
 
     if (!form.role) {
       return "Role is required.";
-    }
-
-    if (form.role === "STOCK_CONTROLLER" && !form.domainId) {
-      return "Tag is required. Please choose a domain for Stock Controller.";
     }
 
     if (form.role === "USER" && !form.organizationLevel) {
@@ -312,7 +299,6 @@ function UserFormModal({
     setIsSubmitting(true);
 
     const payload = {
-      domainId: form.role === "STOCK_CONTROLLER" ? form.domainId : null,
       email: form.email.trim(),
       name: form.name.trim(),
       organizationLevel: form.role === "USER" ? form.organizationLevel : null,
@@ -378,7 +364,6 @@ function UserFormModal({
               const role = event.target.value as UserSystemRole | "";
               setForm((current) => ({
                 ...current,
-                domainId: "",
                 organizationLevel: "",
                 organizationTag: "",
                 role,
@@ -395,22 +380,17 @@ function UserFormModal({
           </select>
         </Field>
 
-        <Field label="Tag" required={form.role === "STOCK_CONTROLLER"}>
-          <select
+        <Field label="Tag">
+          <input
             className={baseInputClass(tagDisabled)}
-            disabled={tagDisabled}
-            onChange={(event) => setField("domainId", event.target.value)}
-            value={form.role === "STOCK_CONTROLLER" ? form.domainId : ""}
-          >
-            <option value="">
-              {form.role === "STOCK_CONTROLLER" ? "Select Domain" : "Disabled"}
-            </option>
-            {domains.map((domain) => (
-              <option key={domain.id} value={domain.id}>
-                {domain.name}
-              </option>
-            ))}
-          </select>
+            disabled
+            type="text"
+            value={
+              form.role === "STOCK_CONTROLLER"
+                ? "Managed from Domain Management"
+                : "Disabled"
+            }
+          />
         </Field>
 
         <Field label="Organization Level" required={form.role === "USER"}>
@@ -630,12 +610,10 @@ function AssignModal({
 
 function ManagementDialogs({
   dialog,
-  domains,
   onClose,
   onSaved,
 }: {
   dialog: DialogMode | null;
-  domains: DomainOption[];
   onClose: () => void;
   onSaved: (message: string) => void;
 }) {
@@ -648,7 +626,6 @@ function ManagementDialogs({
   if (dialog.type === "ADD") {
     return (
       <UserFormModal
-        domains={domains}
         initialState={emptyFormState()}
         mode="ADD"
         onClose={onClose}
@@ -660,7 +637,6 @@ function ManagementDialogs({
   if (dialog.type === "EDIT") {
     return (
       <EditUserModal
-        domains={domains}
         onClose={onClose}
         onSaved={onSaved}
         user={dialog.user}
@@ -724,12 +700,10 @@ function ManagementDialogs({
 }
 
 function EditUserModal({
-  domains,
   onClose,
   onSaved,
   user,
 }: {
-  domains: DomainOption[];
   onClose: () => void;
   onSaved: (message: string) => void;
   user: UserManagementRow;
@@ -744,6 +718,8 @@ function EditUserModal({
   }
 
   const tagDisabled = !form.role || form.role === "ADMIN";
+  const tagText =
+    form.role === "STOCK_CONTROLLER" ? "Managed from Domain Management" : "Disabled";
 
   function validate() {
     if (!form.name.trim()) {
@@ -752,10 +728,6 @@ function EditUserModal({
 
     if (!form.role) {
       return "Role is required.";
-    }
-
-    if (form.role === "STOCK_CONTROLLER" && !form.domainId) {
-      return "Tag is required. Please choose a domain for Stock Controller.";
     }
 
     if (form.role === "USER" && !form.organizationLevel) {
@@ -784,7 +756,6 @@ function EditUserModal({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          domainId: form.role === "STOCK_CONTROLLER" ? form.domainId : null,
           name: form.name.trim(),
           organizationLevel: form.role === "USER" ? form.organizationLevel : null,
           organizationTag: form.role === "USER" ? form.organizationTag : null,
@@ -829,7 +800,6 @@ function EditUserModal({
               const role = event.target.value as UserSystemRole | "";
               setForm((current) => ({
                 ...current,
-                domainId: "",
                 organizationLevel: "",
                 organizationTag: "",
                 role,
@@ -846,22 +816,13 @@ function EditUserModal({
           </select>
         </Field>
 
-        <Field label="Tag" required={form.role === "STOCK_CONTROLLER"}>
-          <select
+        <Field label="Tag">
+          <input
             className={baseInputClass(tagDisabled)}
-            disabled={tagDisabled}
-            onChange={(event) => setField("domainId", event.target.value)}
-            value={form.role === "STOCK_CONTROLLER" ? form.domainId : ""}
-          >
-            <option value="">
-              {form.role === "STOCK_CONTROLLER" ? "Select Domain" : "Disabled"}
-            </option>
-            {domains.map((domain) => (
-              <option key={domain.id} value={domain.id}>
-                {domain.name}
-              </option>
-            ))}
-          </select>
+            disabled
+            type="text"
+            value={tagText}
+          />
         </Field>
 
         <Field label="Organization Level" required={form.role === "USER"}>
@@ -1025,7 +986,6 @@ function UserTable({
 }
 
 export function UserManagementPage({
-  domains,
   filters,
   metrics,
   total,
@@ -1164,7 +1124,6 @@ export function UserManagementPage({
 
       <ManagementDialogs
         dialog={dialog}
-        domains={domains}
         onClose={() => setDialog(null)}
         onSaved={(message) => {
           setDialog(null);

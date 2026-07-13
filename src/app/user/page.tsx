@@ -23,7 +23,6 @@ export default async function UserRoute({ searchParams }: UserRouteProps) {
 
   return (
     <UserManagementPage
-      domains={result.domains}
       filters={filters}
       metrics={result.metrics}
       total={result.total}

@@ -8,22 +8,25 @@ import {
   FileText,
   Search,
 } from "lucide-react";
-import { AssetStatus } from "@prisma/client";
+import { AssetStatus, TransactionWorkflowStatus } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
 import { requireCurrentUser } from "@/lib/auth";
 import {
   buildTransactionLogHref,
   type TransactionLogFilters,
   type TransactionLogRow,
+  getPendingApprovalsForUser,
   getTransactionLogForUser,
   normalizeTransactionLogFilters,
   transactionLogStatusChoices,
+  type TransactionApprovalQueueRow,
 } from "@/lib/transaction-log";
 import { getRequestQueueForLog, type RequestCartAsset } from "@/lib/request-cart";
 import { assetStatusHexColors } from "@/lib/status-style";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { InventoryDataUnavailable } from "@/components/inventory/inventory-data-unavailable";
 import { TransactionRowActions } from "@/features/transaction-log/transaction-row-actions";
+import { ApprovalRowActions } from "@/features/transaction-log/approval-row-actions";
 
 type TransactionLogPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -50,6 +53,39 @@ const scopeDetails = {
   COMPLETED: "Finished transactions",
   IN_PROGRESS: "Request queue",
 } as const;
+
+type TransactionLogTab = "approve" | "log";
+
+function normalizeTab(value: string | string[] | undefined): TransactionLogTab {
+  const first = Array.isArray(value) ? value[0] : value;
+  return first === "approve" ? "approve" : "log";
+}
+
+function TabNav({ activeTab }: { activeTab: TransactionLogTab }) {
+  const tabs = [
+    { href: "/logs", label: "Log", value: "log" },
+    { href: "/logs?tab=approve", label: "Approve", value: "approve" },
+  ] as const;
+
+  return (
+    <nav aria-label="Transaction log tabs" className="inline-flex rounded-sm bg-surface p-1">
+      {tabs.map((tab) => (
+        <Link
+          className={[
+            "inline-flex h-11 min-w-32 items-center justify-center rounded-full px-5 text-lg font-semibold transition",
+            activeTab === tab.value
+              ? "bg-brand-accent text-white"
+              : "text-ink hover:bg-white",
+          ].join(" ")}
+          href={tab.href}
+          key={tab.value}
+        >
+          {tab.label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
 
 function formatNumber(value: number) {
   return value.toLocaleString("en-US");
@@ -186,7 +222,7 @@ function Controls({ filters }: { filters: TransactionLogFilters }) {
             className="h-11 w-full rounded-md border border-border bg-white pl-10 pr-3 text-sm font-medium outline-none ring-brand-accent/20 transition focus:ring-4"
             defaultValue={filters.search}
             name="q"
-            placeholder="Search transaction id, borrower, serial no."
+            placeholder="Search transaction id, borrower, model, serial no."
           />
         </div>
 
@@ -351,9 +387,10 @@ function RequestQueueTable({
   );
 }
 
-type LogDisplayStatus = "BORROW" | "USING" | "SOLD" | "RETURN";
+type LogDisplayStatus = "PENDING" | "BORROW" | "USING" | "SOLD" | "RETURN";
 
 const logStatusLabels = {
+  PENDING: "Pending",
   BORROW: "Borrow",
   USING: "Using",
   SOLD: "Sold",
@@ -361,6 +398,7 @@ const logStatusLabels = {
 } as const satisfies Record<LogDisplayStatus, string>;
 
 const logStatusColors = {
+  PENDING: assetStatusHexColors[AssetStatus.REQUEST],
   BORROW: assetStatusHexColors[AssetStatus.BORROW],
   USING: assetStatusHexColors[AssetStatus.USING],
   SOLD: assetStatusHexColors[AssetStatus.SOLD],
@@ -368,6 +406,10 @@ const logStatusColors = {
 } as const satisfies Record<LogDisplayStatus, string>;
 
 function getLogDisplayStatus(row: TransactionLogRow): LogDisplayStatus {
+  if (row.workflowStatus === TransactionWorkflowStatus.PENDING) {
+    return "PENDING";
+  }
+
   const allItemsReturned =
     row.items.length > 0 && row.items.every((item) => Boolean(item.returnedAt));
 
@@ -386,6 +428,82 @@ function LogStatusBadge({ status }: { status: LogDisplayStatus }) {
     >
       {logStatusLabels[status]}
     </span>
+  );
+}
+
+function approvalAssetSummary(row: TransactionApprovalQueueRow) {
+  const firstItem = row.transaction.items[0];
+
+  if (!firstItem) {
+    return "-";
+  }
+
+  const model = firstItem.asset.assetModel.name;
+  const serial = firstItem.asset.serialNo ?? firstItem.asset.stockCode ?? "-";
+  const suffix = row.transaction.items.length > 1
+    ? " +" + (row.transaction.items.length - 1) + " more"
+    : "";
+
+  return model + " (" + serial + ")" + suffix;
+}
+
+function ApproveTable({ rows }: { rows: TransactionApprovalQueueRow[] }) {
+  return (
+    <section className="overflow-hidden rounded-md border border-border bg-white shadow-sm">
+      <div className="border-b border-border px-5 py-4">
+        <h2 className="text-xl font-bold text-navy">Approval Queue</h2>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full border-collapse text-left text-sm">
+          <thead className="bg-surface text-xs uppercase text-muted-foreground">
+            <tr>
+              <th className="px-5 py-4 font-bold">Requisition No.</th>
+              <th className="px-5 py-4 font-bold">Requester</th>
+              <th className="px-5 py-4 font-bold">Asset</th>
+              <th className="px-5 py-4 font-bold">Request Date</th>
+              <th className="px-5 py-4 font-bold">Step</th>
+              <th className="px-5 py-4 font-bold">Action</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {rows.map((row) => (
+              <tr className="align-middle transition hover:bg-surface/60" key={row.id}>
+                <td className="px-5 py-4 font-bold text-navy">
+                  {row.transaction.transactionNo ?? row.transaction.id}
+                </td>
+                <td className="px-5 py-4 font-semibold text-ink">
+                  {personName(row.transaction.requestedBy)}
+                  <p className="mt-1 text-xs font-medium text-muted-foreground">
+                    {row.transaction.requestedBy?.email ?? "-"}
+                  </p>
+                </td>
+                <td className="px-5 py-4 font-medium text-ink">
+                  {approvalAssetSummary(row)}
+                </td>
+                <td className="px-5 py-4 font-medium text-ink">
+                  {formatDate(row.transaction.requestDate)}
+                </td>
+                <td className="px-5 py-4 font-semibold text-ink">
+                  Step {row.stepSequence}
+                  <p className="mt-1 text-xs font-medium text-muted-foreground">
+                    {row.requiredTag}
+                  </p>
+                </td>
+                <td className="px-5 py-4">
+                  <ApprovalRowActions transactionId={row.transaction.id} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="border-t border-border px-5 py-10 text-center text-sm font-medium text-muted-foreground">
+          No approvals waiting for you.
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -413,7 +531,10 @@ function TransactionTable({
           </thead>
           <tbody className="divide-y divide-border">
             {rows.map((row) => (
-              <tr className="align-middle transition hover:bg-surface/60" key={row.id}>
+              <tr
+                className="align-middle transition hover:bg-surface/60"
+                key={row.id}
+              >
                 <td className="px-5 py-4 font-bold text-navy">
                   <TransactionLink transactionId={row.id}>
                     {row.transactionNo ?? row.id}
@@ -512,6 +633,8 @@ function NoLogAccess() {
 }
 
 export function TransactionLogPage({
+  activeTab,
+  approvalRows,
   filters,
   requestQueueAssets,
   total,
@@ -519,6 +642,8 @@ export function TransactionLogPage({
   rows,
   metrics,
 }: {
+  activeTab: TransactionLogTab;
+  approvalRows: TransactionApprovalQueueRow[];
   filters: TransactionLogFilters;
   metrics: {
     allRequests: number;
@@ -532,13 +657,20 @@ export function TransactionLogPage({
 }) {
   return (
     <div className="flex flex-col gap-6">
+      <TabNav activeTab={activeTab} />
       <SummaryCards filters={filters} metrics={metrics} />
-      {filters.scope !== "COMPLETED" ? (
-        <RequestQueueTable assets={requestQueueAssets} />
-      ) : null}
-      <Controls filters={filters} />
-      <TransactionTable rows={rows} />
-      <Pagination filters={filters} page={filters.page} total={total} totalPages={totalPages} />
+      {activeTab === "approve" ? (
+        <ApproveTable rows={approvalRows} />
+      ) : (
+        <>
+          {filters.scope !== "COMPLETED" ? (
+            <RequestQueueTable assets={requestQueueAssets} />
+          ) : null}
+          <Controls filters={filters} />
+          <TransactionTable rows={rows} />
+          <Pagination filters={filters} page={filters.page} total={total} totalPages={totalPages} />
+        </>
+      )}
     </div>
   );
 }
@@ -550,19 +682,24 @@ export function TransactionLogForbidden() {
 export default async function TransactionLogPageRoute({
   searchParams,
 }: TransactionLogPageProps) {
-  const filters = normalizeTransactionLogFilters(await searchParams);
+  const rawSearchParams = await searchParams;
+  const filters = normalizeTransactionLogFilters(rawSearchParams);
+  const activeTab = normalizeTab(rawSearchParams.tab);
   let result: Awaited<ReturnType<typeof getTransactionLogForUser>>;
   let requestQueueAssets: RequestCartAsset[] = [];
+  let approvalRows: TransactionApprovalQueueRow[] = [];
   let user: CurrentUser | null = null;
 
   try {
     user = await requireCurrentUser("/logs");
-    const [logResult, queueResult] = await Promise.all([
+    const [logResult, queueResult, approvalsResult] = await Promise.all([
       getTransactionLogForUser(user, filters),
       getRequestQueueForLog(),
+      getPendingApprovalsForUser(user),
     ]);
     result = logResult;
     requestQueueAssets = queueResult.assets as RequestCartAsset[];
+    approvalRows = approvalsResult;
   } catch (error) {
     if (isDatabaseUnavailableError(error)) {
       return (
@@ -586,6 +723,8 @@ export default async function TransactionLogPageRoute({
 
   return (
     <TransactionLogPage
+      activeTab={activeTab}
+      approvalRows={approvalRows}
       filters={filters}
       metrics={result.metrics}
       requestQueueAssets={requestQueueAssets}
@@ -595,3 +734,6 @@ export default async function TransactionLogPageRoute({
     />
   );
 }
+
+
+

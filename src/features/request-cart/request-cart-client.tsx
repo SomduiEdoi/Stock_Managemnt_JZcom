@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -47,20 +47,17 @@ type RequestCartClientProps = {
   initialAssets: RequestCartAssetClient[];
 };
 
-function todayInputValue() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function formatDomain(domainCode: string) {
   return domainCode.charAt(0) + domainCode.slice(1).toLowerCase();
 }
 
-function getReferenceLabel(type: TransactionTypeCode) {
-  return type === "USING" ? "Staff Name" : "Customer Name";
+function getReferenceLabel() {
+  return "Customer Name";
 }
 
-function getReferencePlaceholder(type: TransactionTypeCode) {
-  return type === "USING" ? "Enter staff name" : "Enter customer name";
+function getReferencePlaceholder() {
+  return "Enter customer name";
 }
 
 function assetLocation(asset: RequestCartAssetClient) {
@@ -223,47 +220,40 @@ function TransactionTypeSelect({
 function TransactionForm({
   assetCount,
   error,
-  internalRequest,
   isSubmitting,
   note,
-  onInternalRequestChange,
   onNoteChange,
   onProjectRequestChange,
   onReferenceChange,
-  onRequestDateChange,
   onServiceRequestChange,
   onSoldPriceChange,
   onSubmit,
   onTypeChange,
   projectRequest,
   referenceName,
-  requestDate,
   serviceRequest,
   soldPrice,
   type,
 }: {
   assetCount: number;
   error: string | null;
-  internalRequest: boolean;
   isSubmitting: boolean;
   note: string;
-  onInternalRequestChange: (checked: boolean) => void;
   onNoteChange: (value: string) => void;
   onProjectRequestChange: (checked: boolean) => void;
   onReferenceChange: (value: string) => void;
-  onRequestDateChange: (value: string) => void;
   onServiceRequestChange: (checked: boolean) => void;
   onSoldPriceChange: (value: string) => void;
   onSubmit: () => void;
   onTypeChange: (value: TransactionTypeCode) => void;
   projectRequest: boolean;
   referenceName: string;
-  requestDate: string;
   serviceRequest: boolean;
   soldPrice: string;
   type: TransactionTypeCode;
 }) {
   const showSoldPrice = type === "SOLD";
+  const showReferenceName = type !== "USING";
 
   return (
     <aside className="flex flex-col gap-4">
@@ -276,65 +266,58 @@ function TransactionForm({
             </span>
             <TransactionTypeSelect onChange={onTypeChange} value={type} />
           </label>
-          <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-            <span>
-              Request Date <RequiredMark />
-            </span>
-            <input
-              className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold normal-case tracking-normal text-ink outline-none ring-brand-accent/20 focus:ring-4"
-              onChange={(event) => onRequestDateChange(event.target.value)}
-              type="date"
-              value={requestDate}
-            />
-          </label>
+
           <div className="flex flex-col gap-2">
             <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
               Request Kind <RequiredMark />
             </p>
-            <div className="grid gap-2 sm:grid-cols-3">
-              {[
-                {
-                  checked: internalRequest,
-                  label: "Internal",
-                  onChange: onInternalRequestChange,
-                },
-                {
-                  checked: serviceRequest,
-                  label: "Service",
-                  onChange: onServiceRequestChange,
-                },
-                {
-                  checked: projectRequest,
-                  label: "Project",
-                  onChange: onProjectRequestChange,
-                },
-              ].map((item) => (
-                <label
-                  className="inline-flex items-center gap-2 rounded-md border border-border bg-surface/40 px-3 py-2 text-sm font-semibold text-navy"
-                  key={item.label}
-                >
-                  <input
-                    checked={item.checked}
-                    className="h-4 w-4 rounded border-border text-brand-accent focus:ring-brand-accent"
-                    onChange={(event) => item.onChange(event.target.checked)}
-                    type="checkbox"
-                  />
-                  {item.label}
-                </label>
-              ))}
-            </div>
+            {type === "USING" ? (
+              <div className="rounded-md border border-border bg-surface/40 px-3 py-2 text-sm font-semibold text-navy">
+                Internal
+              </div>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {[
+                  {
+                    checked: serviceRequest,
+                    label: "Service",
+                    onChange: onServiceRequestChange,
+                  },
+                  {
+                    checked: projectRequest,
+                    label: "Project",
+                    onChange: onProjectRequestChange,
+                  },
+                ].map((item) => (
+                  <label
+                    className="inline-flex items-center gap-2 rounded-md border border-border bg-surface/40 px-3 py-2 text-sm font-semibold text-navy"
+                    key={item.label}
+                  >
+                    <input
+                      checked={item.checked}
+                      className="h-4 w-4 rounded border-border text-brand-accent focus:ring-brand-accent"
+                      onChange={(event) => item.onChange(event.target.checked)}
+                      type="checkbox"
+                    />
+                    {item.label}
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
+          {showReferenceName ? (
           <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
             <span>
-              {getReferenceLabel(type)} <RequiredMark />
+              {getReferenceLabel()} <RequiredMark />
             </span>
             <input
               className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold normal-case tracking-normal text-ink outline-none ring-brand-accent/20 focus:ring-4"
               onChange={(event) => onReferenceChange(event.target.value)}
-              placeholder={getReferencePlaceholder(type)}
+              placeholder={getReferencePlaceholder()}
               value={referenceName}
             />
           </label>
+          ) : null}
           {showSoldPrice ? (
             <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
               <span>
@@ -477,35 +460,29 @@ async function readApiMessage(response: Response) {
 export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
   const [assets, setAssets] = useState(initialAssets);
   const [error, setError] = useState<string | null>(null);
-  const [internalRequest, setInternalRequest] = useState(false);
+  const [type, setType] = useState<TransactionTypeCode>("BORROW");
+  const internalRequest = type === "USING";
   const [isClearing, setIsClearing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [note, setNote] = useState("");
   const [projectRequest, setProjectRequest] = useState(false);
   const [referenceName, setReferenceName] = useState("");
   const [removingAssetId, setRemovingAssetId] = useState<string | null>(null);
-  const [requestDate, setRequestDate] = useState(todayInputValue());
   const [serviceRequest, setServiceRequest] = useState(false);
   const [soldPrice, setSoldPrice] = useState("");
   const [submitted, setSubmitted] = useState<PrintableTransaction | null>(null);
-  const [type, setType] = useState<TransactionTypeCode>("BORROW");
 
   function handleTypeChange(nextType: TransactionTypeCode) {
     setType(nextType);
 
-    if (nextType === "SOLD") {
-      return;
-    }
-
-    setSoldPrice("");
-  }
-
-  function handleInternalRequestChange(checked: boolean) {
-    setInternalRequest(checked);
-
-    if (checked) {
+    if (nextType === "USING") {
       setServiceRequest(false);
       setProjectRequest(false);
+      setReferenceName("");
+    }
+
+    if (nextType !== "SOLD") {
+      setSoldPrice("");
     }
   }
 
@@ -513,7 +490,6 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
     setServiceRequest(checked);
 
     if (checked) {
-      setInternalRequest(false);
       setProjectRequest(false);
     }
   }
@@ -522,7 +498,6 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
     setProjectRequest(checked);
 
     if (checked) {
-      setInternalRequest(false);
       setServiceRequest(false);
     }
   }
@@ -578,20 +553,16 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
       missingFields.push("Request list");
     }
 
-    if (!referenceName.trim()) {
-      missingFields.push(getReferenceLabel(type));
+    if (type !== "USING" && !referenceName.trim()) {
+      missingFields.push(getReferenceLabel());
     }
 
     if (!note.trim()) {
       missingFields.push("Use Detail");
     }
 
-    if (!requestDate) {
-      missingFields.push("Request Date");
-    }
-
-    if (!internalRequest && !serviceRequest && !projectRequest) {
-      missingFields.push("Internal / Service / Project");
+    if (type !== "USING" && !serviceRequest && !projectRequest) {
+      missingFields.push("Service / Project");
     }
 
     if (type === "SOLD" && !soldPrice.trim()) {
@@ -636,10 +607,9 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
           dueDate: null,
           internalRequest,
           note,
-          projectRequest,
-          purpose: referenceName,
-          requestDate,
-          serviceRequest,
+          projectRequest: type === "USING" ? false : projectRequest,
+          purpose: type === "USING" ? "Internal use" : referenceName,
+          serviceRequest: type === "USING" ? false : serviceRequest,
           soldPrice: type === "SOLD" ? soldPrice : null,
           type,
         }),
@@ -670,21 +640,17 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
         <TransactionForm
           assetCount={assets.length}
           error={error}
-          internalRequest={internalRequest}
           isSubmitting={isSubmitting}
           note={note}
-          onInternalRequestChange={handleInternalRequestChange}
           onNoteChange={setNote}
           onProjectRequestChange={handleProjectRequestChange}
           onReferenceChange={setReferenceName}
-          onRequestDateChange={setRequestDate}
           onServiceRequestChange={handleServiceRequestChange}
           onSoldPriceChange={setSoldPrice}
           onSubmit={handleSubmit}
           onTypeChange={handleTypeChange}
           projectRequest={projectRequest}
           referenceName={referenceName}
-          requestDate={requestDate}
           serviceRequest={serviceRequest}
           soldPrice={soldPrice}
           type={type}
@@ -699,4 +665,3 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
     </div>
   );
 }
-

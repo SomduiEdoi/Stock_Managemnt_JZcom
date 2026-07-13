@@ -5,7 +5,6 @@ import { apiErrorResponse, readJsonBody, requireApiUser } from "@/lib/api";
 import { createUserForAdmin } from "@/lib/user-management";
 
 const createUserSchema = z.object({
-  domainId: z.string().uuid().nullable().optional(),
   email: z.string().trim().email(),
   name: z.string().trim().min(1),
   organizationLevel: z.nativeEnum(OrganizationLevel).nullable().optional(),

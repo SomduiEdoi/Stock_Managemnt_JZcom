@@ -429,3 +429,14 @@ POST   /api/migrations/csv/import
 - Integration tests สำหรับ return approval รวม BSD
 - Migration tests สำหรับ CSV -> PostgreSQL
 - UI tests สำหรับ table sorting/filtering, request cart, asset detail และ transaction log
+
+## UI Color Palette Requirement
+
+The system UI must use the approved core palette only for product-level surfaces, navigation, breadcrumbs, buttons, active states, borders, and non-status emphasis:
+
+- Brand accent / active / hover: `#FE7743`
+- Surface / page background: `#EFEEEA`
+- Primary navy / headings / navigation: `#273F4F`
+- Ink / high contrast text: `#000000`
+
+Do not introduce unrelated blues or other ad-hoc brand colors such as Tailwind `blue-*` utilities for product UI. If a link or breadcrumb needs color, use navy (`#273F4F`) and hover with brand accent (`#FE7743`). Status badges may use the separate status color map already defined for statuses such as Ready, Borrow, Sold, Lost, Need Check, Request, Fail, and Using.

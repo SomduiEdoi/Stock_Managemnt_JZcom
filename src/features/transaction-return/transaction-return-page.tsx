@@ -1,3 +1,4 @@
+import { ApprovalStatus, TransactionWorkflowStatus } from "@prisma/client";
 import { notFound } from "next/navigation";
 import { requireCurrentUser } from "@/lib/auth";
 import {
@@ -8,6 +9,7 @@ import {
   TransactionReturnClient,
   type TransactionReturnRecord,
 } from "@/features/transaction-return/transaction-return-client";
+import { isReturnableTransaction } from "@/lib/workflow-rules";
 
 type TransactionReturnPageProps = {
   transactionId: string;
@@ -21,16 +23,81 @@ function personName(person: { email: string; name: string } | null | undefined) 
   return person.name || person.email || "-";
 }
 
+function titleCase(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/(^|_)([a-z])/g, (_match, separator: string, char: string) =>
+      `${separator ? " " : ""}${char.toUpperCase()}`,
+    );
+}
+
+function requestScopeLabel(
+  transaction: Awaited<ReturnType<typeof getTransactionResolutionForUser>>,
+) {
+  if (transaction.internalRequest) {
+    return "Internal";
+  }
+
+  if (transaction.serviceRequest) {
+    return "Service";
+  }
+
+  if (transaction.projectRequest) {
+    return "Project";
+  }
+
+  return "-";
+}
+
+function currentStepLabel(
+  transaction: Awaited<ReturnType<typeof getTransactionResolutionForUser>>,
+) {
+  if (transaction.workflowStatus === TransactionWorkflowStatus.PENDING) {
+    const pendingApproval = transaction.approvals.find(
+      (approval) => approval.status === ApprovalStatus.PENDING,
+    );
+
+    if (pendingApproval) {
+      const approver = pendingApproval.user
+        ? personName(pendingApproval.user)
+        : pendingApproval.requiredTag;
+
+      return `Step ${pendingApproval.stepSequence}: ${approver}`;
+    }
+
+    return "Pending approval";
+  }
+
+  if (transaction.workflowStatus === TransactionWorkflowStatus.IN_PROGRESS) {
+    return "Approved / Ready for return";
+  }
+
+  if (transaction.workflowStatus === TransactionWorkflowStatus.COMPLETED) {
+    return "Completed";
+  }
+
+  return titleCase(transaction.workflowStatus);
+}
+
 function serializeTransaction(
   transaction: Awaited<ReturnType<typeof getTransactionResolutionForUser>>,
 ): TransactionReturnRecord {
+  const canReturn =
+    transaction.workflowStatus === TransactionWorkflowStatus.IN_PROGRESS &&
+    isReturnableTransaction(transaction.type);
+  const stepLabel = currentStepLabel(transaction);
+  const kindLabel = `${titleCase(transaction.type)} / ${requestScopeLabel(transaction)}`;
+
   return {
+    canReturn,
     id: transaction.id,
     items: transaction.items.map((item) => ({
       assetId: item.asset.id,
       brand: item.asset.assetModel.brand,
+      currentStep: stepLabel,
       currentStatus: item.asset.status,
       itemId: item.id,
+      kindLabel,
       model: item.asset.assetModel.name,
       note: item.note,
       resolvedAt: item.returnedAt?.toISOString() ?? null,
@@ -39,9 +106,11 @@ function serializeTransaction(
       serialNo: item.asset.serialNo,
       stockCode: item.asset.stockCode,
     })),
+    kindLabel,
     requestedBy: personName(transaction.requestedBy),
     transactionNo: transaction.transactionNo ?? transaction.id,
     type: transaction.type,
+    workflowStatus: transaction.workflowStatus,
   };
 }
 

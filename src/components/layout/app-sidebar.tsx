@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  AlertTriangle,
   ChevronDown,
   ClipboardList,
   LayoutDashboard,
+  MoreVertical,
   Package,
   PlusCircle,
   ScrollText,
@@ -32,14 +34,17 @@ type AppSidebarProps = {
 };
 
 type DomainFormState = {
-  categoryName: string;
   controllerId: string;
   domainName: string;
   prefix: string;
   trackMethod: AssetTrackMethod;
-  typeCode: string;
-  typeName: string;
 };
+
+type DomainDialogState =
+  | { type: "ADD" }
+  | { domain: SidebarDomain; type: "DELETE" }
+  | { domain: SidebarDomain; type: "EDIT" }
+  | null;
 
 function getDomainHref(domainCode: string) {
   if (domainCode === "SERVER") {
@@ -86,6 +91,10 @@ function canCreateDomain(roles: RoleCode[]) {
   return roles.includes("ADMIN");
 }
 
+function canManageDomains(roles: RoleCode[]) {
+  return roles.includes("ADMIN");
+}
+
 function inputClass(disabled = false) {
   return clsx(
     "h-11 w-full rounded-md border border-border bg-white px-3 text-sm font-medium text-ink outline-none ring-brand-accent/20 transition focus:ring-4",
@@ -115,13 +124,10 @@ function Field({
 
 function emptyDomainForm(): DomainFormState {
   return {
-    categoryName: "",
     controllerId: "",
     domainName: "",
     prefix: "",
     trackMethod: AssetTrackMethod.SERIAL,
-    typeCode: "",
-    typeName: "",
   };
 }
 
@@ -152,13 +158,10 @@ function AddDomainModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          categoryName: form.categoryName.trim(),
           controllerId: form.controllerId,
           domainName: form.domainName.trim(),
           prefix: form.prefix.trim().toUpperCase(),
           trackMethod: form.trackMethod,
-          typeCode: form.typeCode.trim().toUpperCase() || null,
-          typeName: form.typeName.trim(),
         }),
       });
 
@@ -217,34 +220,6 @@ function AddDomainModal({
             />
           </Field>
 
-          <Field label="Category" required>
-            <input
-              className={inputClass()}
-              onChange={(event) => setField("categoryName", event.target.value)}
-              type="text"
-              value={form.categoryName}
-            />
-          </Field>
-
-          <Field label="Type" required>
-            <input
-              className={inputClass()}
-              onChange={(event) => setField("typeName", event.target.value)}
-              type="text"
-              value={form.typeName}
-            />
-          </Field>
-
-          <Field label="Type Prefix">
-            <input
-              className={inputClass()}
-              maxLength={2}
-              onChange={(event) => setField("typeCode", event.target.value.toUpperCase())}
-              type="text"
-              value={form.typeCode}
-            />
-          </Field>
-
           <Field label="Inventory Family" required>
             <select
               className={inputClass()}
@@ -300,6 +275,238 @@ function AddDomainModal({
   );
 }
 
+function EditDomainModal({
+  domain,
+  onClose,
+  onUpdated,
+  stockControllers,
+}: {
+  domain: SidebarDomain;
+  onClose: () => void;
+  onUpdated: (domain: SidebarDomain) => void;
+  stockControllers: StockControllerOption[];
+}) {
+  const router = useRouter();
+  const [form, setForm] = useState<DomainFormState>({
+    controllerId: domain.controllerId ?? "",
+    domainName: domain.name,
+    prefix: domain.prefix,
+    trackMethod: AssetTrackMethod.SERIAL,
+  });
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  function setField<Key extends keyof DomainFormState>(key: Key, value: DomainFormState[Key]) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  async function handleSubmit() {
+    setError("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`/api/domains/${encodeURIComponent(domain.code)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          controllerId: form.controllerId,
+          domainName: form.domainName.trim(),
+          prefix: form.prefix.trim().toUpperCase(),
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setError(data.message ?? "Unable to update domain.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      onUpdated(data.domain as SidebarDomain);
+      router.refresh();
+      onClose();
+    } catch {
+      setError("Unable to update domain right now.");
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
+      <div className="w-full max-w-xl rounded-md border border-border bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h2 className="text-xl font-bold text-navy">Edit Domain</h2>
+          <button
+            className="rounded-md p-2 text-muted-foreground hover:bg-surface hover:text-navy"
+            onClick={onClose}
+            type="button"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="grid gap-4 p-5 md:grid-cols-2">
+          <Field label="Domain Name" required>
+            <input
+              className={inputClass()}
+              onChange={(event) => setField("domainName", event.target.value)}
+              type="text"
+              value={form.domainName}
+            />
+          </Field>
+
+          <Field label="Prefix" required>
+            <input
+              className={inputClass()}
+              maxLength={2}
+              onChange={(event) => setField("prefix", event.target.value.toUpperCase())}
+              type="text"
+              value={form.prefix}
+            />
+          </Field>
+
+          <Field label="Stock Controller" required>
+            <select
+              className={inputClass()}
+              onChange={(event) => setField("controllerId", event.target.value)}
+              value={form.controllerId}
+            >
+              <option value="">Select stock controller</option>
+              {stockControllers.map((controller) => (
+                <option key={controller.id} value={controller.id}>
+                  {controller.name} ({controller.email})
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Inventory Family">
+            <input className={inputClass(true)} disabled type="text" value="Locked after creation" />
+          </Field>
+        </div>
+
+        {error ? (
+          <div className="mx-5 rounded-md border border-status-fail/20 bg-status-fail/10 px-4 py-3 text-sm font-semibold text-status-fail">
+            {error}
+          </div>
+        ) : null}
+
+        <div className="flex items-center justify-end gap-3 px-5 py-5">
+          <button
+            className="h-11 rounded-md border border-border px-4 text-sm font-bold text-navy hover:bg-surface"
+            onClick={onClose}
+            type="button"
+          >
+            Cancel
+          </button>
+          <button
+            className="h-11 rounded-md bg-navy px-4 text-sm font-bold text-white hover:bg-navy/90 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={isSubmitting}
+            onClick={handleSubmit}
+            type="button"
+          >
+            {isSubmitting ? "Saving..." : "Save Changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DeleteDomainModal({
+  domain,
+  onClose,
+  onDeleted,
+}: {
+  domain: SidebarDomain;
+  onClose: () => void;
+  onDeleted: (domain: SidebarDomain) => void;
+}) {
+  const router = useRouter();
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function handleDelete() {
+    setError("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`/api/domains/${encodeURIComponent(domain.code)}`, {
+        method: "DELETE",
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setError(data.message ?? "Unable to delete domain.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      onDeleted(domain);
+      router.push("/dashboard");
+      router.refresh();
+      onClose();
+    } catch {
+      setError("Unable to delete domain right now.");
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
+      <div className="w-full max-w-lg rounded-md border border-border bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <h2 className="text-xl font-bold text-navy">Delete Domain</h2>
+          <button
+            className="rounded-md p-2 text-muted-foreground hover:bg-surface hover:text-navy"
+            onClick={onClose}
+            type="button"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-4 p-5">
+          <p className="text-sm font-semibold text-ink">
+            Domain: <span className="font-bold text-navy">{domain.name}</span>
+          </p>
+          <div className="flex gap-3 rounded-md border border-status-fail/20 bg-status-fail/10 p-4 text-sm font-semibold text-status-fail">
+            <AlertTriangle className="h-5 w-5 shrink-0" />
+            <p>This domain currently contains {domain.assetCount.toLocaleString("en-US")} assets.</p>
+          </div>
+          <p className="text-sm font-medium text-ink">
+            Are you sure you want to delete this domain?
+          </p>
+
+          {error ? (
+            <div className="rounded-md border border-status-fail/20 bg-status-fail/10 px-4 py-3 text-sm font-semibold text-status-fail">
+              {error}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="flex items-center justify-end gap-3 px-5 py-5">
+          <button
+            className="h-11 rounded-md border border-border px-4 text-sm font-bold text-navy hover:bg-surface"
+            onClick={onClose}
+            type="button"
+          >
+            Cancel
+          </button>
+          <button
+            className="h-11 rounded-md bg-status-fail px-4 text-sm font-bold text-white hover:bg-status-fail/90 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={isSubmitting}
+            onClick={handleDelete}
+            type="button"
+          >
+            {isSubmitting ? "Deleting..." : "Delete"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SidebarLink({
   active,
   children,
@@ -332,7 +539,8 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const pathname = usePathname();
   const [isInventoryOpen, setIsInventoryOpen] = useState(true);
-  const [isAddDomainOpen, setIsAddDomainOpen] = useState(false);
+  const [domainDialog, setDomainDialog] = useState<DomainDialogState>(null);
+  const [openDomainMenu, setOpenDomainMenu] = useState<string | null>(null);
   const [domainItems, setDomainItems] = useState(domains);
 
   useEffect(() => {
@@ -342,6 +550,7 @@ export function AppSidebar({
   const visibleDomains = useMemo(() => {
     return [...domainItems].sort((left, right) => left.name.localeCompare(right.name, "en"));
   }, [domainItems]);
+  const showDomainActions = canManageDomains(roles);
 
   return (
     <>
@@ -392,25 +601,75 @@ export function AppSidebar({
                       const active = isDomainActive(pathname, domain.code);
 
                       return (
-                        <Link
+                        <div
                           className={clsx(
-                            "mt-1 flex min-h-9 items-center gap-3 rounded-md px-3 text-sm font-medium transition",
+                            "group relative mt-1 flex min-h-9 items-center rounded-md text-sm font-medium transition",
                             active
                               ? "bg-navy text-white"
                               : "text-muted-foreground hover:bg-surface hover:text-navy",
                           )}
-                          href={href}
                           key={domain.code}
                         >
-                          <span className="truncate">{domain.name}</span>
-                        </Link>
+                          <Link className="min-w-0 flex-1 px-3 py-2" href={href}>
+                            <span className="block truncate">{domain.name}</span>
+                          </Link>
+
+                          {showDomainActions ? (
+                            <button
+                              aria-label={`Open actions for ${domain.name}`}
+                              className={clsx(
+                                "mr-1 flex h-7 w-7 items-center justify-center rounded-md opacity-0 transition hover:bg-white/20 group-hover:opacity-100",
+                                openDomainMenu === domain.code && "opacity-100",
+                              )}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setOpenDomainMenu((current) =>
+                                  current === domain.code ? null : domain.code,
+                                );
+                              }}
+                              type="button"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </button>
+                          ) : null}
+
+                          {openDomainMenu === domain.code ? (
+                            <div className="absolute right-0 top-9 z-20 w-40 rounded-md border border-border bg-white p-1 text-ink shadow-lg">
+                              <button
+                                className="block w-full rounded px-3 py-2 text-left text-sm font-semibold hover:bg-surface"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  setOpenDomainMenu(null);
+                                  setDomainDialog({ domain, type: "EDIT" });
+                                }}
+                                type="button"
+                              >
+                                Edit Domain
+                              </button>
+                              <button
+                                className="block w-full rounded px-3 py-2 text-left text-sm font-semibold text-status-fail hover:bg-status-fail/10"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  setOpenDomainMenu(null);
+                                  setDomainDialog({ domain, type: "DELETE" });
+                                }}
+                                type="button"
+                              >
+                                Delete Domain
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
                       );
                     })}
 
                     {canCreateDomain(roles) ? (
                       <button
                         className="mt-2 flex min-h-9 w-full items-center gap-3 rounded-md px-3 text-sm font-semibold text-[#B45309] transition hover:bg-[#FE7743]/10"
-                        onClick={() => setIsAddDomainOpen(true)}
+                        onClick={() => setDomainDialog({ type: "ADD" })}
                         type="button"
                       >
                         <PlusCircle className="h-4 w-4 shrink-0" />
@@ -449,7 +708,7 @@ export function AppSidebar({
         </div>
       </aside>
 
-      {isAddDomainOpen ? (
+      {domainDialog?.type === "ADD" ? (
         <AddDomainModal
           onCreated={(domain) => {
             setDomainItems((current) => {
@@ -460,8 +719,31 @@ export function AppSidebar({
               return [...current, domain];
             });
           }}
-          onClose={() => setIsAddDomainOpen(false)}
+          onClose={() => setDomainDialog(null)}
           stockControllers={stockControllers}
+        />
+      ) : null}
+
+      {domainDialog?.type === "EDIT" ? (
+        <EditDomainModal
+          domain={domainDialog.domain}
+          onClose={() => setDomainDialog(null)}
+          onUpdated={(domain) => {
+            setDomainItems((current) =>
+              current.map((item) => (item.code === domain.code ? domain : item)),
+            );
+          }}
+          stockControllers={stockControllers}
+        />
+      ) : null}
+
+      {domainDialog?.type === "DELETE" ? (
+        <DeleteDomainModal
+          domain={domainDialog.domain}
+          onClose={() => setDomainDialog(null)}
+          onDeleted={(domain) => {
+            setDomainItems((current) => current.filter((item) => item.code !== domain.code));
+          }}
         />
       ) : null}
     </>

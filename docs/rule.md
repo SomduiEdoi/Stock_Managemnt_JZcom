@@ -133,3 +133,13 @@ Approval State
 - ห้ามใช้ category/type จากคนละ domain กับ asset
 - ห้ามให้ quantity ต่ำกว่า zero
 - Approval, status และ quantity changes ทั้งหมดควรทำแบบ transactional
+
+## UI Color Rules
+
+- Core product palette is fixed: `#FE7743`, `#EFEEEA`, `#273F4F`, `#000000`.
+- Use `#FE7743` for active states, hover emphasis, badges that represent system counts, and primary accent actions.
+- Use `#273F4F` for headings, navigation text, breadcrumbs, and primary dark buttons.
+- Use `#EFEEEA` for page/surface backgrounds.
+- Use `#000000` for high-contrast body text where needed.
+- Do not use arbitrary blue color utilities such as `text-blue-*`, `bg-blue-*`, or `border-blue-*` in product UI.
+- Status labels are the only exception and must follow the approved status color map.

@@ -5,8 +5,11 @@ import { hasRole } from "@/lib/permissions";
 import { WorkflowError } from "@/lib/workflow";
 
 export type SidebarDomain = {
+  assetCount: number;
   code: string;
+  controllerId: string | null;
   name: string;
+  prefix: string;
 };
 
 function cleanText(value: string | null | undefined) {
@@ -54,27 +57,85 @@ function requirePrefix(value: string | null | undefined) {
   return text;
 }
 
-function requireTypeCode(value: string | null | undefined) {
-  const text = cleanText(value)?.toUpperCase();
+const sidebarDomainSelect = {
+  _count: { select: { assets: true } },
+  code: true,
+  name: true,
+  permissions: {
+    select: { userId: true },
+    take: 1,
+    where: { canManage: true },
+  },
+  prefix: true,
+};
 
-  if (!text) {
-    return null;
+type SidebarDomainRecord = {
+  _count: { assets: number };
+  code: string;
+  name: string;
+  permissions: Array<{ userId: string }>;
+  prefix: string;
+};
+
+async function ensureDomainViewPermissionsForActiveUsers(
+  tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
+  domainId: string,
+  controllerId: string,
+) {
+  const existingPermissions = await tx.userDomainPermission.findMany({
+    select: { userId: true },
+    where: { domainId },
+  });
+  const existingUserIds = new Set(
+    existingPermissions.map((permission) => permission.userId),
+  );
+  const usersMissingPermission = await tx.user.findMany({
+    select: { id: true },
+    where: {
+      id: { notIn: [...existingUserIds] },
+      isActive: true,
+      roles: {
+        none: {
+          role: { code: "ADMIN" },
+        },
+      },
+    },
+  });
+
+  if (usersMissingPermission.length === 0) {
+    return;
   }
 
-  if (!/^[A-Z0-9]{2}$/.test(text)) {
-    throw new WorkflowError("Type prefix must be exactly 2 English letters or numbers.");
-  }
+  await tx.userDomainPermission.createMany({
+    data: usersMissingPermission.map((entry) => ({
+      canManage: entry.id === controllerId,
+      canView: true,
+      domainId,
+      userId: entry.id,
+    })),
+    skipDuplicates: true,
+  });
+}
 
-  return text;
+function toSidebarDomain(domain: SidebarDomainRecord): SidebarDomain {
+  return {
+    assetCount: domain._count.assets,
+    code: domain.code,
+    controllerId: domain.permissions[0]?.userId ?? null,
+    name: domain.name,
+    prefix: domain.prefix,
+  };
 }
 
 export async function getSidebarDomainsForUser(user: CurrentUser) {
   if (hasRole(user, "ADMIN")) {
-    return db.assetDomain.findMany({
+    const domains = await db.assetDomain.findMany({
       orderBy: { name: "asc" },
-      select: { code: true, name: true },
+      select: sidebarDomainSelect,
       where: { isActive: true },
     });
+
+    return domains.map(toSidebarDomain);
   }
 
   const visibleCodes = user.permissions
@@ -85,11 +146,13 @@ export async function getSidebarDomainsForUser(user: CurrentUser) {
     return [];
   }
 
-  return db.assetDomain.findMany({
+  const domains = await db.assetDomain.findMany({
     orderBy: { name: "asc" },
-    select: { code: true, name: true },
+    select: sidebarDomainSelect,
     where: { code: { in: visibleCodes }, isActive: true },
   });
+
+  return domains.map(toSidebarDomain);
 }
 
 export async function getStockControllersForDomainForm() {
@@ -104,13 +167,16 @@ export async function getStockControllersForDomainForm() {
 }
 
 export type CreateDomainInput = {
-  categoryName: string;
   controllerId: string;
   domainName: string;
   prefix: string;
   trackMethod: AssetTrackMethod;
-  typeCode?: string | null;
-  typeName: string;
+};
+
+export type UpdateDomainInput = {
+  controllerId: string;
+  domainName: string;
+  prefix: string;
 };
 
 export async function createDomainForUser(user: CurrentUser, input: CreateDomainInput) {
@@ -121,9 +187,6 @@ export async function createDomainForUser(user: CurrentUser, input: CreateDomain
   const name = requireName(input.domainName, "Domain name");
   const prefix = requirePrefix(input.prefix);
   const code = normalizeCode(name);
-  const categoryName = requireName(input.categoryName, "Category");
-  const typeName = requireName(input.typeName, "Type");
-  const typeCode = requireTypeCode(input.typeCode) ?? typeName.replace(/[^A-Za-z0-9]/g, "").toUpperCase().padEnd(2, "X").slice(0, 2);
 
   if (!input.controllerId) {
     throw new WorkflowError("Stock controller is required.");
@@ -154,32 +217,155 @@ export async function createDomainForUser(user: CurrentUser, input: CreateDomain
 
     const domain = await tx.assetDomain.create({
       data: { code, name, prefix },
-      select: { code: true, id: true, name: true },
+      select: { code: true, id: true, name: true, prefix: true },
     });
 
-    const category = await tx.assetCategory.create({
-      data: { domainId: domain.id, name: categoryName },
+    const nonAdminUsers = await tx.user.findMany({
       select: { id: true },
-    });
-
-    await tx.assetType.create({
-      data: {
-        categoryId: category.id,
-        code: typeCode,
-        name: typeName,
-        trackMethod: input.trackMethod,
+      where: {
+        isActive: true,
+        roles: {
+          none: {
+            role: { code: "ADMIN" },
+          },
+        },
       },
     });
 
-    await tx.userDomainPermission.create({
-      data: {
+    await tx.userDomainPermission.createMany({
+      data: nonAdminUsers.map((entry) => ({
+        canManage: entry.id === controller.id,
+        canView: true,
+        domainId: domain.id,
+        userId: entry.id,
+      })),
+    });
+    await ensureDomainViewPermissionsForActiveUsers(tx, domain.id, controller.id);
+
+    return {
+      assetCount: 0,
+      code: domain.code,
+      controllerId: controller.id,
+      name: domain.name,
+      prefix: domain.prefix,
+    };
+  });
+}
+
+export async function updateDomainForUser(
+  user: CurrentUser,
+  domainCode: string,
+  input: UpdateDomainInput,
+) {
+  if (!hasRole(user, "ADMIN")) {
+    throw new WorkflowError("Only admin can edit domains.", 403, "FORBIDDEN");
+  }
+
+  const name = requireName(input.domainName, "Domain name");
+  const prefix = requirePrefix(input.prefix);
+
+  if (!input.controllerId) {
+    throw new WorkflowError("Stock controller is required.");
+  }
+
+  return db.$transaction(async (tx) => {
+    const domain = await tx.assetDomain.findFirst({
+      select: { id: true },
+      where: { code: domainCode, isActive: true },
+    });
+
+    if (!domain) {
+      throw new WorkflowError("Domain not found.", 404);
+    }
+
+    const controller = await tx.user.findFirst({
+      select: { id: true },
+      where: {
+        id: input.controllerId,
+        isActive: true,
+        roles: { some: { role: { code: "STOCK_CONTROLLER" } } },
+      },
+    });
+
+    if (!controller) {
+      throw new WorkflowError("Stock controller not found.");
+    }
+
+    const duplicate = await tx.assetDomain.findFirst({
+      select: { id: true },
+      where: {
+        id: { not: domain.id },
+        OR: [{ prefix }, { name }],
+      },
+    });
+
+    if (duplicate) {
+      throw new WorkflowError("Domain name or prefix already exists.", 409, "DUPLICATE_DOMAIN");
+    }
+
+    await tx.assetDomain.update({
+      data: { name, prefix },
+      where: { id: domain.id },
+    });
+
+    await tx.userDomainPermission.updateMany({
+      data: { canManage: false, canView: true },
+      where: { domainId: domain.id },
+    });
+    await ensureDomainViewPermissionsForActiveUsers(tx, domain.id, controller.id);
+
+    await tx.userDomainPermission.upsert({
+      create: {
         canManage: true,
         canView: true,
         domainId: domain.id,
         userId: controller.id,
       },
+      update: {
+        canManage: true,
+        canView: true,
+      },
+      where: {
+        userId_domainId: {
+          domainId: domain.id,
+          userId: controller.id,
+        },
+      },
     });
 
-    return domain;
+    const updated = await tx.assetDomain.findUniqueOrThrow({
+      select: sidebarDomainSelect,
+      where: { id: domain.id },
+    });
+
+    return toSidebarDomain(updated);
+  });
+}
+
+export async function deleteDomainForUser(user: CurrentUser, domainCode: string) {
+  if (!hasRole(user, "ADMIN")) {
+    throw new WorkflowError("Only admin can delete domains.", 403, "FORBIDDEN");
+  }
+
+  return db.$transaction(async (tx) => {
+    const domain = await tx.assetDomain.findFirst({
+      select: { id: true },
+      where: { code: domainCode, isActive: true },
+    });
+
+    if (!domain) {
+      throw new WorkflowError("Domain not found.", 404);
+    }
+
+    const assetCount = await tx.asset.count({
+      where: { domainId: domain.id, isActive: true },
+    });
+
+    await tx.assetDomain.update({
+      data: { isActive: false },
+      where: { id: domain.id },
+    });
+
+    return { assetCount };
   });
 }

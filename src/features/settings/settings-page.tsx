@@ -55,14 +55,14 @@ function domainLabel(domainCode: string) {
   return domainCode;
 }
 
-function domainAccess(user: CurrentUser) {
+function managedDomainAccess(user: CurrentUser) {
   if (user.roles.includes("ADMIN")) {
     return "All domains";
   }
 
-  const domains = user.permissions.map((permission) =>
-    `${domainLabel(permission.domainCode)} ${permission.canManage ? "Manage" : "View"}`,
-  );
+  const domains = user.permissions
+    .filter((permission) => permission.canManage)
+    .map((permission) => domainLabel(permission.domainCode));
 
   return domains.length > 0 ? domains.join(", ") : "-";
 }
@@ -134,7 +134,7 @@ export function SettingsPage({ user }: SettingsPageProps) {
                   <TagValue>{userTag(user)}</TagValue>
                 </dd>
               </div>
-              <ProfileRow label="Domain" value={domainAccess(user)} />
+              <ProfileRow label="Managed Domains" value={managedDomainAccess(user)} />
             </dl>
 
             <div className="mt-9">

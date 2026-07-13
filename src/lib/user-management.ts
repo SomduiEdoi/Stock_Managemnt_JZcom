@@ -93,7 +93,6 @@ type UserRecord = Prisma.UserGetPayload<{
 }>;
 
 export type UpsertManagedUserInput = {
-  domainId?: string | null;
   email: string;
   name: string;
   organizationLevel?: OrganizationLevel | null;
@@ -272,7 +271,6 @@ async function syncRole(userId: string, nextRoleCode: RoleCode) {
 async function syncDomainPermissionsForUser(
   userId: string,
   systemRole: UserSystemRole,
-  selectedDomainId?: string | null,
 ) {
   const domains = await getDomainOptions();
 
@@ -283,8 +281,7 @@ async function syncDomainPermissionsForUser(
   }
 
   const permissionRows = domains.map((domain) => ({
-    canManage:
-      systemRole === "STOCK_CONTROLLER" && selectedDomainId === domain.id,
+    canManage: false,
     canView: true,
     domainId: domain.id,
     userId,
@@ -307,10 +304,6 @@ function validateManagedUserInput(input: UpsertManagedUserInput) {
     throw new WorkflowError("Name is required.");
   }
 
-  if (input.role === "STOCK_CONTROLLER" && !input.domainId) {
-    throw new WorkflowError("Domain tag is required for Stock Controller.");
-  }
-
   if (input.role === "USER") {
     if (!input.organizationLevel) {
       throw new WorkflowError("Organization level is required for User.");
@@ -327,10 +320,6 @@ function validateManagedUserUpdateInput(
 ) {
   if (!input.name.trim()) {
     throw new WorkflowError("Name is required.");
-  }
-
-  if (input.role === "STOCK_CONTROLLER" && !input.domainId) {
-    throw new WorkflowError("Domain tag is required for Stock Controller.");
   }
 
   if (input.role === "USER") {
@@ -433,7 +422,7 @@ export async function createUserForAdmin(
   });
 
   await syncRole(createdUser.id, normalizeRoleCode(input.role));
-  await syncDomainPermissionsForUser(createdUser.id, input.role, input.domainId);
+  await syncDomainPermissionsForUser(createdUser.id, input.role);
 
   return {
     defaultPassword,
@@ -458,18 +447,34 @@ export async function updateUserForAdmin(
     throw new WorkflowError("User not found.", 404);
   }
 
-  await db.user.update({
+  const currentSystemRole = await db.user.findUnique({
     where: { id: userId },
-    data: {
-      name: input.name.trim(),
-      organizationLevel: input.role === "USER" ? input.organizationLevel : null,
-      organizationTag: input.role === "USER" ? input.organizationTag : null,
-      projectTag: input.role === "USER" ? existing.projectTag : null,
-    },
+    select: userRowSelect,
+  });
+
+  if (!currentSystemRole) {
+    throw new WorkflowError("User not found.", 404);
+  }
+
+  const previousRole = inferSystemRole(currentSystemRole);
+
+  await db.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: userId },
+      data: {
+        name: input.name.trim(),
+        organizationLevel: input.role === "USER" ? input.organizationLevel : null,
+        organizationTag: input.role === "USER" ? input.organizationTag : null,
+        projectTag: input.role === "USER" ? existing.projectTag : null,
+      },
+    });
   });
 
   await syncRole(userId, normalizeRoleCode(input.role));
-  await syncDomainPermissionsForUser(userId, input.role, input.domainId);
+
+  if (previousRole !== input.role) {
+    await syncDomainPermissionsForUser(userId, input.role);
+  }
 }
 
 export async function deleteUserForAdmin(user: CurrentUser, userId: string) {

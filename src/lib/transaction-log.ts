@@ -1,4 +1,4 @@
-import { AssetStatus, Prisma, TransactionStatus } from "@prisma/client";
+import { ApprovalStatus, AssetStatus, Prisma, TransactionStatus, TransactionWorkflowStatus } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
@@ -54,6 +54,7 @@ const transactionLogSelect = Prisma.validator<Prisma.TransactionSelect>()({
   status: true,
   transactionNo: true,
   type: true,
+  workflowStatus: true,
   items: {
     orderBy: { createdAt: "asc" },
     select: {
@@ -88,6 +89,73 @@ const transactionLogSelect = Prisma.validator<Prisma.TransactionSelect>()({
 export type TransactionLogRow = Prisma.TransactionGetPayload<{
   select: typeof transactionLogSelect;
 }>;
+
+const approvalTransactionSelect = Prisma.validator<Prisma.TransactionApprovalSelect>()({
+  id: true,
+  requiredTag: true,
+  stepSequence: true,
+  status: true,
+  transaction: {
+    select: {
+      createdAt: true,
+      id: true,
+      requestDate: true,
+      requestedBy: { select: { email: true, name: true } },
+      transactionNo: true,
+      type: true,
+      workflowStatus: true,
+      approvals: {
+        orderBy: [{ stepSequence: "asc" }, { createdAt: "asc" }],
+        select: { id: true, requiredTag: true, status: true, stepSequence: true, userId: true },
+      },
+      items: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          requestedQuantity: true,
+          asset: {
+            select: {
+              serialNo: true,
+              stockCode: true,
+              domain: { select: { code: true } },
+              assetModel: { select: { brand: true, name: true } },
+            },
+          },
+        },
+      },
+    },
+  },
+  userId: true,
+});
+
+export type TransactionApprovalQueueRow = Prisma.TransactionApprovalGetPayload<{
+  select: typeof approvalTransactionSelect;
+}>;
+
+function approvalMatchesUser(user: CurrentUser, approval: { requiredTag: string; userId: string | null }) {
+  if (approval.userId === user.id) {
+    return true;
+  }
+
+  if (approval.requiredTag.startsWith("STOCK_CONTROLLER:")) {
+    const domainCode = approval.requiredTag.split(":")[1];
+    return user.permissions.some(
+      (permission) => permission.domainCode === domainCode && permission.canManage,
+    );
+  }
+
+  return (
+    user.organizationTag === approval.requiredTag ||
+    user.projectTag === approval.requiredTag
+  );
+}
+
+function isCurrentApprovalStep(approval: TransactionApprovalQueueRow) {
+  return !approval.transaction.approvals.some(
+    (candidate) =>
+      candidate.stepSequence < approval.stepSequence &&
+      candidate.status === ApprovalStatus.PENDING,
+  );
+}
 
 function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -275,8 +343,9 @@ async function getTransactionLogMetrics() {
     ],
   } satisfies Prisma.TransactionWhereInput;
 
-  const [submittedRequests, requestCount, completed] = await Promise.all([
+  const [submittedRequests, pendingTransactions, requestCount, completed] = await Promise.all([
     db.transaction.count(),
+    db.transaction.count({ where: { workflowStatus: TransactionWorkflowStatus.PENDING } }),
     db.asset.count({ where: requestWhere }),
     db.transaction.count({ where: completedWhere }),
   ]);
@@ -284,7 +353,7 @@ async function getTransactionLogMetrics() {
   return {
     allRequests: submittedRequests + requestCount,
     completed,
-    inProgress: requestCount,
+    inProgress: pendingTransactions + requestCount,
   };
 }
 
@@ -320,4 +389,22 @@ export async function getTransactionLogForUser(
     total,
     totalPages: Math.max(1, Math.ceil(total / filters.pageSize)),
   };
+}
+
+export async function getPendingApprovalsForUser(user: CurrentUser) {
+  const approvals = await db.transactionApproval.findMany({
+    orderBy: [
+      { stepSequence: "asc" },
+      { createdAt: "desc" },
+    ],
+    select: approvalTransactionSelect,
+    where: {
+      status: ApprovalStatus.PENDING,
+      transaction: { workflowStatus: TransactionWorkflowStatus.PENDING },
+    },
+  });
+
+  return approvals.filter(
+    (approval) => approvalMatchesUser(user, approval) && isCurrentApprovalStep(approval),
+  );
 }
