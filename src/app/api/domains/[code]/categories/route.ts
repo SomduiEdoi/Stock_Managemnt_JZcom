@@ -76,6 +76,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       const existingCode = await db.assetType.findFirst({
         select: { code: true },
         where: {
+          category: { domainId: domain.id },
           code: { in: submittedCodes },
           isActive: true,
           ...(submittedIds.length > 0 ? { NOT: { id: { in: submittedIds } } } : {}),

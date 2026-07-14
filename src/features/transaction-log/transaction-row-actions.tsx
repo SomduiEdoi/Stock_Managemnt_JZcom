@@ -2,28 +2,11 @@
 
 import { useState } from "react";
 import { FileDown, Loader2 } from "lucide-react";
-import {
-  openTransactionPrintWindow,
-  printTransaction,
-  type PrintableTransaction,
-} from "@/features/transactions/transaction-print";
+import { downloadTransactionPdf } from "@/features/transactions/transaction-pdf-download";
 
 type TransactionRowActionsProps = {
   transactionId: string;
 };
-
-async function readPrintableTransaction(response: Response) {
-  const data = (await response.json().catch(() => ({}))) as {
-    message?: string;
-    transaction?: PrintableTransaction;
-  };
-
-  if (!response.ok || !data.transaction) {
-    throw new Error(data.message ?? "Unable to export transaction.");
-  }
-
-  return data.transaction;
-}
 
 export function TransactionRowActions({
   transactionId,
@@ -31,13 +14,10 @@ export function TransactionRowActions({
   const [isExporting, setIsExporting] = useState(false);
 
   async function handleExport() {
-    const popup = openTransactionPrintWindow();
     setIsExporting(true);
 
     try {
-      const response = await fetch(`/api/transactions/${transactionId}`);
-      const transaction = await readPrintableTransaction(response);
-      printTransaction(transaction, popup);
+      await downloadTransactionPdf(transactionId);
     } finally {
       setIsExporting(false);
     }

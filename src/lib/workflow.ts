@@ -17,6 +17,7 @@ import {
   assertCanChangeAssetStatus,
   assertCanRequestDomain,
   assertCanViewDomain,
+  hasRole,
 } from "@/lib/permissions";
 import {
   canTransitionAssetStatus,
@@ -50,7 +51,7 @@ const assetWorkflowSelect = Prisma.validator<Prisma.AssetSelect>()({
   requestLockedById: true,
   serialNo: true,
   status: true,
-  domain: { select: { code: true } },
+  domain: { select: { code: true, inventoryFamily: true } },
 });
 
 const transactionDetailSelect = Prisma.validator<Prisma.TransactionSelect>()({
@@ -102,7 +103,7 @@ const transactionDetailSelect = Prisma.validator<Prisma.TransactionSelect>()({
           serialNo: true,
           status: true,
           stockCode: true,
-          domain: { select: { code: true } },
+          domain: { select: { code: true, inventoryFamily: true } },
           assetModel: {
             select: {
               brand: true,
@@ -146,6 +147,7 @@ export type SubmitTransactionInput = {
   requestDate: Date;
   serviceRequest?: boolean;
   soldPrice?: string | null;
+  sourceTransactionId?: string | null;
   items?: RequestAssetItemInput[];
   type: TransactionType;
 };
@@ -472,6 +474,54 @@ async function holdAsset(
   }
 }
 
+
+async function refreshQuantityRequestStatus(
+  tx: Prisma.TransactionClient,
+  assetId: string,
+  userId: string,
+) {
+  const asset = await tx.asset.findUnique({
+    where: { id: assetId },
+    select: { assetQuantity: true, status: true },
+  });
+
+  if (!asset) {
+    return;
+  }
+
+  const [draftReserved, openReserved] = await Promise.all([
+    tx.assetReservation.aggregate({
+      _sum: { quantity: true },
+      where: { assetId },
+    }),
+    tx.transactionItem.aggregate({
+      _sum: { requestedQuantity: true },
+      where: {
+        assetId,
+        returnedAt: null,
+        toStatus: { in: [AssetStatus.BORROW, AssetStatus.USING] },
+        transaction: { workflowStatus: TransactionWorkflowStatus.IN_PROGRESS },
+      },
+    }),
+  ]);
+
+  const reserved =
+    (draftReserved._sum.quantity ?? 0) +
+    (openReserved._sum.requestedQuantity ?? 0);
+  const nextStatus = reserved >= asset.assetQuantity ? AssetStatus.REQUEST : AssetStatus.READY;
+
+  if (asset.status !== nextStatus) {
+    await tx.asset.update({
+      data: {
+        requestLockedAt: null,
+        requestLockedById: null,
+        status: nextStatus,
+        updatedById: userId,
+      },
+      where: { id: assetId },
+    });
+  }
+}
 async function reserveQuantityAsset(
   tx: Prisma.TransactionClient,
   item: WorkflowRequestItem,
@@ -496,8 +546,9 @@ async function reserveQuantityAsset(
       userId: user.id,
     },
   });
-}
 
+  await refreshQuantityRequestStatus(tx, item.asset.id, user.id);
+}
 async function getUserReservations(
   tx: Prisma.TransactionClient,
   userId: string,
@@ -558,7 +609,7 @@ function assertAssetsCanSubmit(user: CurrentUser, items: WorkflowRequestItem[]) 
     assertCanRequestDomain(user, asset.domain.code);
 
     if (isQuantityAsset(asset)) {
-      if (asset.status !== AssetStatus.READY) {
+      if (asset.status !== AssetStatus.READY && asset.status !== AssetStatus.REQUEST) {
         throw new WorkflowError(
           `Asset ${assetDisplayName(asset)} is not ready for request.`,
           409,
@@ -1069,6 +1120,7 @@ async function releaseQuantityReservation(
 
   if (item.quantity >= reservation.quantity) {
     await tx.assetReservation.delete({ where: { id: reservation.id } });
+    await refreshQuantityRequestStatus(tx, item.asset.id, userId);
     return;
   }
 
@@ -1076,8 +1128,8 @@ async function releaseQuantityReservation(
     data: { quantity: { decrement: item.quantity } },
     where: { id: reservation.id },
   });
+  await refreshQuantityRequestStatus(tx, item.asset.id, userId);
 }
-
 async function findTransactionDetail(
   tx: Prisma.TransactionClient,
   transactionId: string,
@@ -1356,6 +1408,7 @@ export async function submitTransaction(
           requestedById: user.id,
           serviceRequest: input.serviceRequest ?? false,
           soldPrice: soldPrice ? new Prisma.Decimal(soldPrice) : null,
+          sourceTransactionId: cleanText(input.sourceTransactionId),
           status: getInitialTransactionStatus(input.type),
           transactionNo: await createRequisitionNo(tx, now),
           type: input.type,
@@ -1595,11 +1648,11 @@ export async function resolveTransactionItems(
         );
       }
 
-      if (transaction.requestedBy.id !== user.id) {
+      if (transaction.requestedBy.id !== user.id && !hasRole(user, "ADMIN")) {
         throw new WorkflowError(
-          "Only the requester can return this transaction.",
+          "Only the requester or an admin can return this transaction.",
           403,
-          "RETURN_REQUESTER_ONLY",
+          "RETURN_REQUESTER_OR_ADMIN_ONLY",
         );
       }
 
@@ -1760,6 +1813,7 @@ export async function markBorrowTransactionsOverdue(now = new Date()) {
 
   return { count: 0 };
 }
+
 
 
 

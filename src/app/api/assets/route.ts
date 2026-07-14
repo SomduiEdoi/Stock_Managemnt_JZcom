@@ -33,6 +33,7 @@ const createAssetSchema = z.object({
   sourceSystem: nullableString(255),
   status: z.nativeEnum(AssetStatus),
   stockCode: nullableString(255),
+  quantity: z.coerce.number().int().positive().optional().nullable(),
   typeName: z.string().trim().min(1).max(255),
 });
 
@@ -47,5 +48,6 @@ export async function POST(request: NextRequest) {
     return apiErrorResponse(error);
   }
 }
+
 
 

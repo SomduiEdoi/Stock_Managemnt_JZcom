@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
@@ -15,9 +14,9 @@ import {
   X,
 } from "lucide-react";
 import {
-  printTransaction,
   type PrintableTransaction,
-} from "@/features/transactions/transaction-print";
+} from "@/features/transactions/transaction-document";
+import { downloadTransactionPdf } from "@/features/transactions/transaction-pdf-download";
 
 type TransactionTypeCode = "BORROW" | "USING" | "SOLD";
 
@@ -131,20 +130,6 @@ function EmptyRequestList() {
       <p className="mt-2 text-sm font-medium text-muted-foreground">
         Select ready assets from inventory before submitting a request.
       </p>
-      <div className="mt-5 flex flex-wrap justify-center gap-3">
-        <Link
-          className="inline-flex h-10 items-center rounded-md bg-navy px-4 text-sm font-bold text-white"
-          href="/dashboard/server"
-        >
-          Server Inventory
-        </Link>
-        <Link
-          className="inline-flex h-10 items-center rounded-md border border-border bg-white px-4 text-sm font-bold text-navy"
-          href="/dashboard/network"
-        >
-          Network Inventory
-        </Link>
-      </div>
     </div>
   );
 }
@@ -394,6 +379,21 @@ function SubmitDialog({
   transaction: PrintableTransaction;
 }) {
   const router = useRouter();
+  const [isExporting, setIsExporting] = useState(false);
+
+  async function handleExport() {
+    if (!transaction.id) {
+      return;
+    }
+
+    setIsExporting(true);
+
+    try {
+      await downloadTransactionPdf(transaction.id);
+    } finally {
+      setIsExporting(false);
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -418,10 +418,15 @@ function SubmitDialog({
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <button
             className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-navy px-4 text-sm font-bold text-white hover:bg-black"
-            onClick={() => printTransaction(transaction)}
+            disabled={isExporting || !transaction.id}
+            onClick={handleExport}
             type="button"
           >
-            <FileDown className="h-4 w-4" />
+            {isExporting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <FileDown className="h-4 w-4" />
+            )}
             Export PDF
           </button>
           <button

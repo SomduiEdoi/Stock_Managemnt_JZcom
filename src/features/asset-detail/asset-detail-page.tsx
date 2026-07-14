@@ -6,6 +6,7 @@ import {
   ChevronRight,
   ClipboardList,
   FileText,
+  Boxes,
   Hash,
   History,
   LockKeyhole,
@@ -28,6 +29,7 @@ const actionLabels = {
   REQUEST_SUBMIT: "Request Submit",
   RETURN: "Return",
   STATUS_CHANGE: "Status Change",
+  ADJUST_QUANTITY: "Adjust Quantity",
 } as const satisfies Record<AssetActionType, string>;
 
 type DetailItem = {
@@ -227,9 +229,19 @@ function AssetDetails({ asset }: { asset: AssetDetailRecord }) {
 }
 
 function SummaryTiles({ asset }: { asset: AssetDetailRecord }) {
+  const isQuantityAsset = asset.domain.inventoryFamily === "QUANTITY";
+  const availabilityValue = `${asset.availableQuantity.toLocaleString("en-US")} / ${asset.totalQuantity.toLocaleString("en-US")}`;
+  const availabilityTitle = asset.reservedQuantity > 0
+    ? `${availabilityValue} (${asset.reservedQuantity.toLocaleString("en-US")} reserved)`
+    : availabilityValue;
+
   return (
     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      <SummaryTile icon={Hash} label="Serial No." value={fallback(asset.serialNo)} />
+      {isQuantityAsset ? (
+        <SummaryTile icon={Boxes} label="Available" value={availabilityTitle} />
+      ) : (
+        <SummaryTile icon={Hash} label="Serial No." value={fallback(asset.serialNo)} />
+      )}
       <SummaryTile
         icon={Tag}
         label="Stock Code"
@@ -386,5 +398,7 @@ export function AssetDetailPage({ asset, canManage }: AssetDetailPageProps) {
     </div>
   );
 }
+
+
 
 

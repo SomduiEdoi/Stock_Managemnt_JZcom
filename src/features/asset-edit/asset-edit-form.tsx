@@ -43,6 +43,7 @@ type AssetEditFormState = {
   modelName: string;
   note: string;
   partNo: string;
+  quantity: string;
   serialNo: string;
   status: AssetStatus;
   typeName: string;
@@ -55,6 +56,7 @@ type AssetEditFieldKey =
   | "location"
   | "modelName"
   | "partNo"
+  | "quantity"
   | "serialNo"
   | "status"
   | "typeName";
@@ -146,8 +148,18 @@ function validateAssetForm(
     } else if (!/^[A-Za-z0-9-]+$/.test(serialNo)) {
       fieldErrors.serialNo = "Serial no. allows letters, numbers, and - only. No spaces or other symbols.";
     }
-  } else if (form.serialNo.trim()) {
-    fieldErrors.serialNo = "Serial no. must be empty for quantity assets.";
+  } else {
+    const quantity = Number.parseInt(form.quantity, 10);
+
+    if (!form.quantity.trim()) {
+      fieldErrors.quantity = "Quantity is required.";
+    } else if (!Number.isInteger(quantity) || quantity <= 0) {
+      fieldErrors.quantity = "Quantity must be greater than 0.";
+    }
+
+    if (form.serialNo.trim()) {
+      fieldErrors.serialNo = "Serial no. must be empty for quantity assets.";
+    }
   }
 
   if (!hasText(form.categoryName)) {
@@ -179,6 +191,7 @@ function toFormState(asset: AssetEditRecord): AssetEditFormState {
     modelName: asset.assetModel.name,
     note: asset.note ?? "",
     partNo: asset.assetModel.partNo ?? "",
+    quantity: String(asset.assetQuantity ?? 1),
     serialNo: asset.serialNo ?? "",
     status: asset.status,
     typeName: asset.assetModel.typeName ?? "",
@@ -196,6 +209,7 @@ function createFormState(initialDomainCode: string): AssetEditFormState {
     modelName: "",
     note: "",
     partNo: "",
+    quantity: "1",
     serialNo: "",
     status: AssetStatus.READY,
     typeName: "",
@@ -361,6 +375,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
           modelName: form.modelName,
           note: form.note,
           partNo: form.partNo,
+          quantity: isQuantityAsset ? Number.parseInt(form.quantity, 10) : null,
           serialNo: isQuantityAsset ? null : form.serialNo,
           status: form.status,
           typeName: form.typeName,
@@ -395,16 +410,17 @@ export function AssetEditForm(props: AssetEditFormProps) {
   const visibleCategories = options.categories.filter(
     (category) => category.domainCode === form.domainCode,
   );
-  const visibleTypes = options.types.filter(
-    (type) => type.domainCode === form.domainCode,
-  );
-  const selectedType = visibleTypes.find((type) => type.name === form.typeName) ?? null;
-  const trackMethod = selectedType?.trackMethod ?? "SERIAL";
-  const isQuantityAsset = trackMethod === "QUANTITY";
   const selectedDomain =
     options.domains.find((domain) => domain.code === form.domainCode) ??
     options.domains[0] ??
     null;
+  const visibleTypes = options.types.filter((type) => {
+    if (type.domainCode !== form.domainCode) return false;
+    if (!form.categoryName) return true;
+    return type.categoryName === form.categoryName;
+  });
+  const trackMethod = selectedDomain?.inventoryFamily ?? "SERIAL";
+  const isQuantityAsset = trackMethod === "QUANTITY";
   const saveUrl = mode === "edit" && asset ? `/api/assets/${asset.id}` : "/api/assets";
   const cancelHref =
     mode === "edit" && asset ? `/dashboard/assets/${asset.id}` : domainHref(form.domainCode);
@@ -543,17 +559,22 @@ export function AssetEditForm(props: AssetEditFormProps) {
               />
             </Field>
             <Field
-              error={fieldErrors.serialNo}
-              label="Serial Number"
-              required={!isQuantityAsset}
+              error={isQuantityAsset ? fieldErrors.quantity : fieldErrors.serialNo}
+              label={isQuantityAsset ? "Quantity" : "Serial Number"}
+              required
             >
               <Input
-                aria-invalid={Boolean(fieldErrors.serialNo)}
-                disabled={isQuantityAsset}
-                onChange={(event) => setField("serialNo", event.target.value)}
-                placeholder={isQuantityAsset ? "Not used for quantity assets" : "SN-XXXX-XXXX"}
-                required={!isQuantityAsset}
-                value={isQuantityAsset ? "" : form.serialNo}
+                aria-invalid={Boolean(isQuantityAsset ? fieldErrors.quantity : fieldErrors.serialNo)}
+                min={isQuantityAsset ? 1 : undefined}
+                onChange={(event) =>
+                  isQuantityAsset
+                    ? setField("quantity", event.target.value)
+                    : setField("serialNo", event.target.value)
+                }
+                placeholder={isQuantityAsset ? "Enter quantity" : "SN-XXXX-XXXX"}
+                required
+                type={isQuantityAsset ? "number" : "text"}
+                value={isQuantityAsset ? form.quantity : form.serialNo}
               />
             </Field>
             <Field error={fieldErrors.domainCode} label="Domain" required>
@@ -582,7 +603,21 @@ export function AssetEditForm(props: AssetEditFormProps) {
               <Select
                 required
                 aria-invalid={Boolean(fieldErrors.categoryName)}
-                onChange={(event) => setField("categoryName", event.target.value)}
+                onChange={(event) => {
+                  const categoryName = event.target.value;
+                  setForm((current) => ({
+                    ...current,
+                    categoryName,
+                    typeName: options.types.some(
+                      (type) =>
+                        type.domainCode === current.domainCode &&
+                        type.categoryName === categoryName &&
+                        type.name === current.typeName,
+                    )
+                      ? current.typeName
+                      : "",
+                  }));
+                }}
                 value={form.categoryName}
               >
                 <option value="">Select category</option>
@@ -614,7 +649,8 @@ export function AssetEditForm(props: AssetEditFormProps) {
                   const nextType = visibleTypes.find((type) => type.name === nextTypeName);
                   setForm((current) => ({
                     ...current,
-                    serialNo: nextType?.trackMethod === "QUANTITY" ? "" : current.serialNo,
+                    categoryName: nextType?.categoryName ?? current.categoryName,
+                    serialNo: isQuantityAsset ? "" : current.serialNo,
                     typeName: nextTypeName,
                   }));
                 }}
@@ -701,6 +737,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
     </div>
   );
 }
+
 
 
 

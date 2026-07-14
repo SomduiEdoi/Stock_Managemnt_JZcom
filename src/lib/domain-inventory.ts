@@ -52,6 +52,7 @@ const defaultFilters: DomainInventoryFilters = {
 const domainInventoryAssetSelect = Prisma.validator<Prisma.AssetSelect>()({
   assetQuantity: true,
   id: true,
+  domain: { select: { inventoryFamily: true } },
   locationText: true,
   requestLockedById: true,
   serialNo: true,
@@ -304,7 +305,7 @@ export async function getDomainInventoryForUser(
   filters: DomainInventoryFilters,
 ) {
   const domain = await db.assetDomain.findFirst({
-    select: { code: true, name: true, prefix: true },
+    select: { code: true, inventoryFamily: true, name: true, prefix: true },
     where: { code: domainCode, isActive: true },
   });
   const canView = Boolean(domain) && canViewDomainForUser(user, domainCode);
@@ -365,3 +366,6 @@ export async function getDomainInventoryForUser(
     totalPages: Math.max(1, Math.ceil(total / filters.pageSize)),
   };
 }
+
+
+

@@ -1,4 +1,5 @@
-import { Prisma } from "@prisma/client";
+﻿import { Prisma } from "@prisma/client";
+import { getAvailabilityByAssetId } from "@/lib/asset-availability";
 import type { CurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
@@ -8,9 +9,10 @@ import {
 
 const assetDetailSelect = Prisma.validator<Prisma.AssetSelect>()({
   assetNo: true,
+  assetQuantity: true,
   createdAt: true,
   createdBy: { select: { email: true, name: true } },
-  domain: { select: { code: true, name: true } },
+  domain: { select: { code: true, inventoryFamily: true, name: true } },
   id: true,
   imageRef: true,
   isActive: true,
@@ -31,6 +33,7 @@ const assetDetailSelect = Prisma.validator<Prisma.AssetSelect>()({
   updatedBy: { select: { email: true, name: true } },
   assetModel: {
     select: {
+      assetType: { select: { trackMethod: true } },
       brand: true,
       category: { select: { name: true } },
       description: true,
@@ -87,9 +90,15 @@ const assetDetailSelect = Prisma.validator<Prisma.AssetSelect>()({
   },
 });
 
-export type AssetDetailRecord = Prisma.AssetGetPayload<{
+type AssetDetailPayload = Prisma.AssetGetPayload<{
   select: typeof assetDetailSelect;
 }>;
+
+export type AssetDetailRecord = AssetDetailPayload & {
+  availableQuantity: number;
+  reservedQuantity: number;
+  totalQuantity: number;
+};
 
 export type AssetDetailResult =
   | { asset: AssetDetailRecord; canManage: boolean; kind: "ok" }
@@ -113,9 +122,20 @@ export async function getAssetDetailForUser(
     return { kind: "forbidden" };
   }
 
+  const availabilityById = await getAvailabilityByAssetId([asset], { userId: user.id });
+  const availability = availabilityById.get(asset.id);
+
   return {
-    asset,
+    asset: {
+      ...asset,
+      availableQuantity: availability?.availableQuantity ?? 0,
+      reservedQuantity: availability?.reservedQuantity ?? 0,
+      totalQuantity: availability?.totalQuantity ?? asset.assetQuantity,
+    },
     canManage: canManageDomainForUser(user, asset.domain.code),
     kind: "ok",
   };
 }
+
+
+

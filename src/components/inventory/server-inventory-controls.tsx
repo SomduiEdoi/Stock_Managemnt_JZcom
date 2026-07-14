@@ -153,6 +153,7 @@ function ManageCategoriesDialog({
   }, [groups, initialCategory]);
   const [categories, setCategories] = useState<DraftCategory[]>(initialDraft);
   const [error, setError] = useState<string | null>(null);
+  const isSingleCategoryMode = initialCategory !== null;
   const [isSaving, setIsSaving] = useState(false);
 
   const prefixOwners = useMemo(() => {
@@ -370,15 +371,17 @@ function ManageCategoriesDialog({
                 );
               })}
 
-              <div className="p-4">
-                <button
-                  className="h-9 w-full rounded-md border border-ink bg-surface text-sm font-semibold text-navy hover:bg-white"
-                  onClick={() => setCategories((current) => [...current, { assetCount: 0, name: "", types: [] }])}
-                  type="button"
-                >
-                  + Add Categories
-                </button>
-              </div>
+              {!isSingleCategoryMode ? (
+                <div className="p-4">
+                  <button
+                    className="h-9 w-full rounded-md border border-ink bg-surface text-sm font-semibold text-navy hover:bg-white"
+                    onClick={() => setCategories((current) => [...current, { assetCount: 0, name: "", types: [] }])}
+                    type="button"
+                  >
+                    + Add Categories
+                  </button>
+                </div>
+              ) : null}
             </div>
           </div>
           {error ? <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</p> : null}

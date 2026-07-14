@@ -216,9 +216,7 @@ export async function DomainInventoryPage({ domainCode, searchParams }: DomainIn
 
   const domainName = result.domain.name || result.domain.code;
   const href = baseHref(result.domain.code);
-  const inventoryFamily = result.rows.some((row) => row.assetModel.assetType?.trackMethod === "QUANTITY")
-    ? "QUANTITY"
-    : "SERIAL";
+  const inventoryFamily = result.domain.inventoryFamily;
   const addAssetHref = canManageDomainForUser(user, result.domain.code)
     ? `/dashboard/assets/new?domain=${encodeURIComponent(result.domain.code)}`
     : null;
@@ -269,3 +267,4 @@ export async function DomainInventoryPage({ domainCode, searchParams }: DomainIn
     </div>
   );
 }
+

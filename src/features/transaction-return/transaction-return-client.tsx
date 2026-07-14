@@ -25,6 +25,7 @@ export type TransactionReturnItem = {
 
 export type TransactionReturnRecord = {
   canReturn: boolean;
+  returnBlockedReason: string | null;
   id: string;
   items: TransactionReturnItem[];
   kindLabel: string;
@@ -102,7 +103,7 @@ export function TransactionReturnClient({
 
   function handleSubmit() {
     if (!transaction.canReturn) {
-      setError("This transaction is still pending approval and cannot be returned.");
+      setError(transaction.returnBlockedReason ?? "This transaction cannot be returned.");
       return;
     }
 
@@ -201,7 +202,7 @@ export function TransactionReturnClient({
       {!transaction.canReturn ? (
         <p className="flex gap-2 rounded-md bg-status-request/10 p-3 text-sm font-semibold text-navy">
           <AlertCircle className="h-4 w-4 shrink-0 text-status-request" />
-          This request is not fully approved yet. You can review the request details, but return actions are disabled.
+          {transaction.returnBlockedReason ?? "Return actions are disabled."}
         </p>
       ) : null}
 

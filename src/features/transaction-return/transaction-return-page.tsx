@@ -9,6 +9,7 @@ import {
   TransactionReturnClient,
   type TransactionReturnRecord,
 } from "@/features/transaction-return/transaction-return-client";
+import { hasRole } from "@/lib/permissions";
 import { isReturnableTransaction } from "@/lib/workflow-rules";
 
 type TransactionReturnPageProps = {
@@ -81,15 +82,25 @@ function currentStepLabel(
 
 function serializeTransaction(
   transaction: Awaited<ReturnType<typeof getTransactionResolutionForUser>>,
+  user: Awaited<ReturnType<typeof requireCurrentUser>>,
 ): TransactionReturnRecord {
-  const canReturn =
+  const canReturnByWorkflow =
     transaction.workflowStatus === TransactionWorkflowStatus.IN_PROGRESS &&
     isReturnableTransaction(transaction.type);
+  const canReturnByUser =
+    transaction.requestedBy.id === user.id || hasRole(user, "ADMIN");
+  const canReturn = canReturnByWorkflow && canReturnByUser;
+  const returnBlockedReason = !canReturnByWorkflow
+    ? "This request is not fully approved yet. You can review the request details, but return actions are disabled."
+    : !canReturnByUser
+      ? "Only the requester or an admin can return this transaction."
+      : null;
   const stepLabel = currentStepLabel(transaction);
   const kindLabel = `${titleCase(transaction.type)} / ${requestScopeLabel(transaction)}`;
 
   return {
     canReturn,
+    returnBlockedReason,
     id: transaction.id,
     items: transaction.items.map((item) => ({
       assetId: item.asset.id,
@@ -123,7 +134,7 @@ export async function TransactionReturnPage({
     const transaction = await getTransactionResolutionForUser(user, transactionId);
 
     return (
-      <TransactionReturnClient transaction={serializeTransaction(transaction)} />
+      <TransactionReturnClient transaction={serializeTransaction(transaction, user)} />
     );
   } catch (error) {
     if (error instanceof WorkflowError && error.statusCode === 404) {

@@ -17,6 +17,14 @@ const transactionExportSelect = Prisma.validator<Prisma.TransactionSelect>()({
   returnedAt: true,
   serviceRequest: true,
   soldPrice: true,
+  sourceTransactionId: true,
+  sourceTransaction: {
+    select: {
+      documentRef: true,
+      id: true,
+      transactionNo: true,
+    },
+  },
   status: true,
   transactionNo: true,
   type: true,
@@ -34,17 +42,22 @@ const transactionExportSelect = Prisma.validator<Prisma.TransactionSelect>()({
     orderBy: { createdAt: "asc" },
     select: {
       id: true,
+      note: true,
       requestedQuantity: true,
+      resolutionNote: true,
+      resolvedStatus: true,
+      returnedAt: true,
       asset: {
         select: {
           id: true,
           locationText: true,
           serialNo: true,
           stockCode: true,
-          domain: { select: { code: true, name: true } },
+          domain: { select: { code: true, inventoryFamily: true, name: true } },
           location: { select: { name: true } },
           assetModel: {
             select: {
+              assetType: { select: { trackMethod: true } },
               brand: true,
               category: { select: { name: true } },
               name: true,

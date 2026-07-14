@@ -1,4 +1,4 @@
-import {
+﻿import {
   AssetStatus,
   AssetTrackMethod,
   Prisma,
@@ -12,6 +12,7 @@ export type AvailabilityAsset = {
   assetModel: {
     assetType: { trackMethod: AssetTrackMethod } | null;
   };
+  domain?: { inventoryFamily?: AssetTrackMethod | null } | null;
   assetQuantity: number;
   id: string;
   requestLockedById?: string | null;
@@ -27,7 +28,10 @@ export type AssetAvailability = {
 };
 
 function isQuantityAsset(asset: AvailabilityAsset) {
-  return asset.assetModel.assetType?.trackMethod === AssetTrackMethod.QUANTITY;
+  return (
+    asset.domain?.inventoryFamily === AssetTrackMethod.QUANTITY ||
+    asset.assetModel.assetType?.trackMethod === AssetTrackMethod.QUANTITY
+  );
 }
 
 async function sumDraftReservations(
@@ -135,3 +139,5 @@ export async function getAvailabilityByAssetId(
     }),
   );
 }
+
+

@@ -1,4 +1,4 @@
-import { AssetStatus, Prisma } from "@prisma/client";
+﻿import { AssetStatus, Prisma } from "@prisma/client";
 import { getAvailabilityByAssetId } from "@/lib/asset-availability";
 import type { CurrentUser } from "@/lib/auth";
 import { getVisibleDomainCodes } from "@/lib/assets";
@@ -15,7 +15,7 @@ const requestCartAssetSelect = Prisma.validator<Prisma.AssetSelect>()({
   serialNo: true,
   status: true,
   stockCode: true,
-  domain: { select: { code: true, name: true } },
+  domain: { select: { code: true, inventoryFamily: true, name: true } },
   location: { select: { name: true } },
   assetModel: {
     select: {
@@ -139,3 +139,4 @@ export async function getRequestQueueForLog() {
     }),
   };
 }
+

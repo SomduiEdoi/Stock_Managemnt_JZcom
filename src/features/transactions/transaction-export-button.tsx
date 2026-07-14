@@ -2,11 +2,7 @@
 
 import { useState } from "react";
 import { FileDown, Loader2 } from "lucide-react";
-import {
-  openTransactionPrintWindow,
-  printTransaction,
-  type PrintableTransaction,
-} from "@/features/transactions/transaction-print";
+import { downloadTransactionPdf } from "@/features/transactions/transaction-pdf-download";
 
 type TransactionExportButtonProps = {
   transactionId: string;
@@ -18,21 +14,10 @@ export function TransactionExportButton({
   const [isLoading, setIsLoading] = useState(false);
 
   async function handleExport() {
-    const popup = openTransactionPrintWindow();
     setIsLoading(true);
 
     try {
-      const response = await fetch(`/api/transactions/${transactionId}`);
-      const data = (await response.json()) as {
-        message?: string;
-        transaction?: PrintableTransaction;
-      };
-
-      if (!response.ok || !data.transaction) {
-        throw new Error(data.message ?? "Unable to export transaction.");
-      }
-
-      printTransaction(data.transaction, popup);
+      await downloadTransactionPdf(transactionId);
     } finally {
       setIsLoading(false);
     }

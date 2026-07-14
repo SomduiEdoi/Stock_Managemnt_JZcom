@@ -69,6 +69,7 @@ enum AssetActionType {
   MARK_FAIL
   MARK_LOST
   MARK_NEED_CHECK
+  ADJUST_QUANTITY
   IMPORT
 }
 
@@ -348,18 +349,20 @@ model AssetReservation {
 }
 
 model AssetStatusHistory {
-  id            String          @id @default(uuid()) @db.Uuid
-  assetId       String          @map("asset_id") @db.Uuid
-  transactionId String?         @map("transaction_id") @db.Uuid
-  fromStatus    AssetStatus?    @map("from_status")
-  toStatus      AssetStatus     @map("to_status")
-  actionType    AssetActionType @map("action_type")
-  note          String?
-  changedById   String          @map("changed_by") @db.Uuid
-  changedAt     DateTime        @default(now()) @map("changed_at")
-  asset         Asset           @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  transaction   Transaction?    @relation(fields: [transactionId], references: [id], onDelete: SetNull)
-  changedBy     User            @relation(fields: [changedById], references: [id])
+  id               String          @id @default(uuid()) @db.Uuid
+  assetId          String          @map("asset_id") @db.Uuid
+  transactionId    String?         @map("transaction_id") @db.Uuid
+  fromStatus       AssetStatus?    @map("from_status")
+  toStatus         AssetStatus     @map("to_status")
+  actionType       AssetActionType @map("action_type")
+  note             String?
+  previousQuantity Int?            @map("previous_quantity")
+  newQuantity      Int?            @map("new_quantity")
+  changedById      String          @map("changed_by") @db.Uuid
+  changedAt        DateTime        @default(now()) @map("changed_at")
+  asset            Asset           @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  transaction      Transaction?    @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  changedBy        User            @relation(fields: [changedById], references: [id])
 
   @@index([assetId])
   @@index([transactionId])
@@ -370,35 +373,39 @@ model AssetStatusHistory {
 }
 
 model Transaction {
-  id              String                    @id @default(uuid()) @db.Uuid
-  transactionNo   String?                   @unique @map("transaction_no")
-  type            TransactionType
-  status          TransactionStatus
-  workflowStatus  TransactionWorkflowStatus @default(COMPLETED) @map("workflow_status")
-  purpose         String
-  note            String?
-  documentRef     String?                   @map("document_ref")
-  requestDate     DateTime                  @default(now()) @map("request_date")
-  dueDate         DateTime?                 @map("due_date")
-  internalRequest Boolean                   @default(false) @map("internal_request")
-  serviceRequest  Boolean                   @default(false) @map("service_request")
-  projectRequest  Boolean                   @default(false) @map("project_request")
-  soldPrice       Decimal?                  @map("sold_price") @db.Decimal(12, 2)
-  requestedById   String                    @map("requested_by") @db.Uuid
-  createdById     String                    @map("created_by") @db.Uuid
-  returnedAt      DateTime?                 @map("returned_at")
-  completedAt     DateTime?                 @map("completed_at")
-  createdAt       DateTime                  @default(now()) @map("created_at")
-  updatedAt       DateTime                  @updatedAt @map("updated_at")
-  requestedBy     User                      @relation("TransactionRequestedBy", fields: [requestedById], references: [id])
-  createdBy       User                      @relation("TransactionCreatedBy", fields: [createdById], references: [id])
-  items           TransactionItem[]
-  statusHistories AssetStatusHistory[]
-  approvals       TransactionApproval[]
+  id                  String                    @id @default(uuid()) @db.Uuid
+  transactionNo       String?                   @unique @map("transaction_no")
+  sourceTransactionId String?                   @map("source_transaction_id") @db.Uuid
+  type                TransactionType
+  status              TransactionStatus
+  workflowStatus      TransactionWorkflowStatus @default(COMPLETED) @map("workflow_status")
+  purpose             String
+  note                String?
+  documentRef         String?                   @map("document_ref")
+  requestDate         DateTime                  @default(now()) @map("request_date")
+  dueDate             DateTime?                 @map("due_date")
+  internalRequest     Boolean                   @default(false) @map("internal_request")
+  serviceRequest      Boolean                   @default(false) @map("service_request")
+  projectRequest      Boolean                   @default(false) @map("project_request")
+  soldPrice           Decimal?                  @map("sold_price") @db.Decimal(12, 2)
+  requestedById       String                    @map("requested_by") @db.Uuid
+  createdById         String                    @map("created_by") @db.Uuid
+  returnedAt          DateTime?                 @map("returned_at")
+  completedAt         DateTime?                 @map("completed_at")
+  createdAt           DateTime                  @default(now()) @map("created_at")
+  updatedAt           DateTime                  @updatedAt @map("updated_at")
+  requestedBy         User                      @relation("TransactionRequestedBy", fields: [requestedById], references: [id])
+  createdBy           User                      @relation("TransactionCreatedBy", fields: [createdById], references: [id])
+  sourceTransaction   Transaction?              @relation("TransactionSource", fields: [sourceTransactionId], references: [id], onDelete: SetNull)
+  derivedTransactions Transaction[]             @relation("TransactionSource")
+  items               TransactionItem[]
+  statusHistories     AssetStatusHistory[]
+  approvals           TransactionApproval[]
 
   @@index([type])
   @@index([status])
   @@index([workflowStatus])
+  @@index([sourceTransactionId])
   @@index([requestedById])
   @@index([createdById])
   @@index([dueDate])

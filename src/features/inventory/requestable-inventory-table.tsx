@@ -61,17 +61,17 @@ const serialInventoryColumns: InventoryColumnKey[] = [
 ];
 
 const quantityInventoryColumns: InventoryColumnKey[] = [
-  "stockCode",
   "model",
   "category",
   "type",
   "brand",
+  "stockCode",
   "availability",
   "status",
 ];
 
 const inventoryColumnLabels = {
-  availability: "Availability",
+  availability: "Available",
   brand: "Brand",
   category: "Category",
   model: "Model",
@@ -257,7 +257,9 @@ function InventoryDataCell({
 }
 
 function getDisplayStatus(asset: RequestableInventoryRow) {
-  return asset.status === AssetStatus.READY && asset.reservedQuantity > 0
+  return asset.status === AssetStatus.READY &&
+    asset.reservedQuantity > 0 &&
+    asset.availableQuantity <= 0
     ? AssetStatus.REQUEST
     : asset.status;
 }

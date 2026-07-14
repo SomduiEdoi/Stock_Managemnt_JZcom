@@ -1,4 +1,4 @@
-﻿import {
+import {
   AssetActionType,
   AssetTrackMethod,
   AssetStatus,
@@ -17,12 +17,13 @@ import { WorkflowError } from "@/lib/workflow";
 
 const assetEditSelect = Prisma.validator<Prisma.AssetSelect>()({
   assetNo: true,
+  assetQuantity: true,
   assetModel: {
     select: {
       brand: true,
       category: { select: { id: true, name: true } },
       description: true,
-      domain: { select: { code: true, id: true, name: true } },
+      domain: { select: { code: true, id: true, inventoryFamily: true, name: true } },
       id: true,
       modelNo: true,
       name: true,
@@ -30,7 +31,7 @@ const assetEditSelect = Prisma.validator<Prisma.AssetSelect>()({
       typeName: true,
     },
   },
-  domain: { select: { code: true, id: true, name: true } },
+  domain: { select: { code: true, id: true, inventoryFamily: true, name: true } },
   id: true,
   imageRef: true,
   isActive: true,
@@ -55,10 +56,10 @@ export type AssetEditRecord = Prisma.AssetGetPayload<{
 
 export type AssetEditOptions = {
   categories: Array<{ domainCode: string; name: string }>;
-  domains: Array<{ code: string; name: string }>;
+  domains: Array<{ code: string; inventoryFamily: AssetTrackMethod; name: string }>;
   locations: Array<{ code: string | null; name: string }>;
   statuses: AssetStatus[];
-  types: Array<{ code: string | null; domainCode: string; name: string; trackMethod: AssetTrackMethod }>;
+  types: Array<{ categoryName: string; code: string | null; domainCode: string; name: string; trackMethod: AssetTrackMethod }>;
 };
 
 export type AssetEditResult =
@@ -102,6 +103,7 @@ export type UpdateAssetInput = {
   sourceSystem?: string | null;
   status: AssetStatus;
   stockCode?: string | null;
+  quantity?: number | null;
   typeName?: string | null;
 };
 
@@ -149,6 +151,14 @@ function requirePatternText(
   return text;
 }
 
+
+function requirePositiveAssetQuantity(value: number | null | undefined) {
+  if (!Number.isInteger(value) || (value ?? 0) <= 0) {
+    throw new WorkflowError("Quantity must be greater than 0.");
+  }
+
+  return value as number;
+}
 function validateSerialNo(
   value: string | null | undefined,
   trackMethod: AssetTrackMethod,
@@ -252,7 +262,7 @@ async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus
   const [domains, categories, locations, types] = await Promise.all([
     db.assetDomain.findMany({
       orderBy: { name: "asc" },
-      select: { code: true, name: true },
+      select: { code: true, inventoryFamily: true, name: true },
       where: domainWhere,
     }),
     db.assetCategory.findMany({
@@ -277,6 +287,7 @@ async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus
         category: {
           select: {
             domain: { select: { code: true } },
+            name: true,
           },
         },
         code: true,
@@ -296,6 +307,7 @@ async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus
         .map((type) => [
           `${type.category.domain.code}:${type.name}`,
           {
+            categoryName: type.category.name,
             code: type.code,
             domainCode: type.category.domain.code,
             name: type.name,
@@ -553,6 +565,7 @@ export async function updateAssetForUser(
       const asset = await tx.asset.findUnique({
         select: {
           domain: { select: { code: true } },
+          assetQuantity: true,
           id: true,
           serialNo: true,
           status: true,
@@ -604,6 +617,7 @@ export async function updateAssetForUser(
       }
 
       const targetDomain = await tx.assetDomain.findFirst({
+        select: { code: true, id: true, inventoryFamily: true, name: true },
         where: { code: input.domainCode, isActive: true },
       });
 
@@ -622,7 +636,10 @@ export async function updateAssetForUser(
         throw new WorkflowError("Type is required.");
       }
 
-      const serialNo = validateSerialNo(input.serialNo, assetType.trackMethod);
+      const serialNo = validateSerialNo(input.serialNo, targetDomain.inventoryFamily);
+      const nextQuantity = targetDomain.inventoryFamily === AssetTrackMethod.QUANTITY
+        ? requirePositiveAssetQuantity(input.quantity)
+        : 1;
 
       if (serialNo) {
         const duplicateSerial = await tx.asset.findFirst({
@@ -662,6 +679,7 @@ export async function updateAssetForUser(
         data: {
           assetModelId: assetModel.id,
           assetNo,
+          assetQuantity: nextQuantity,
           domainId: targetDomain.id,
           imageRef,
           isActive: input.isActive ?? true,
@@ -690,6 +708,28 @@ export async function updateAssetForUser(
             changedById: user.id,
             fromStatus: asset.status,
             note,
+            toStatus: input.status,
+          },
+        });
+      }
+
+      if (
+        targetDomain.inventoryFamily === AssetTrackMethod.QUANTITY &&
+        nextQuantity !== asset.assetQuantity
+      ) {
+        if (!note) {
+          throw new WorkflowError("Remark is required when adjusting quantity.");
+        }
+
+        await tx.assetStatusHistory.create({
+          data: {
+            actionType: AssetActionType.ADJUST_QUANTITY,
+            assetId: asset.id,
+            changedById: user.id,
+            fromStatus: asset.status,
+            newQuantity: nextQuantity,
+            note: `${note} - by ${user.name}`,
+            previousQuantity: asset.assetQuantity,
             toStatus: input.status,
           },
         });
@@ -793,6 +833,7 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
   return db.$transaction(
     async (tx) => {
       const targetDomain = await tx.assetDomain.findFirst({
+        select: { code: true, id: true, inventoryFamily: true, name: true },
         where: { code: input.domainCode, isActive: true },
       });
 
@@ -811,7 +852,10 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
         throw new WorkflowError("Type is required.");
       }
 
-      const serialNo = validateSerialNo(input.serialNo, assetType.trackMethod);
+      const serialNo = validateSerialNo(input.serialNo, targetDomain.inventoryFamily);
+      const nextQuantity = targetDomain.inventoryFamily === AssetTrackMethod.QUANTITY
+        ? requirePositiveAssetQuantity(input.quantity)
+        : 1;
 
       if (serialNo) {
         const duplicateSerial = await tx.asset.findFirst({
@@ -849,7 +893,7 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
         data: {
           assetModelId: assetModel.id,
           assetNo,
-          assetQuantity: 1,
+          assetQuantity: nextQuantity,
           createdById: user.id,
           domainId: targetDomain.id,
           imageRef,
