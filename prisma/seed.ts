@@ -3,6 +3,7 @@ import {  type OrganizationLevel,
   type OrganizationTag,
   PrismaClient,
   type RoleCode,
+  type StockControllerTag,
 } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -13,6 +14,7 @@ type SeedUser = {
   email: string;
   position: string;
   roleCode: RoleCode;
+  stockControllerTag?: StockControllerTag;
   organizationLevel?: OrganizationLevel;
   organizationTag?: OrganizationTag;
   azureAdObjectId?: string;
@@ -41,6 +43,7 @@ const seedUsers: SeedUser[] = [
     email: "server@example.com",
     position: "Server Stock Controller",
     roleCode: "STOCK_CONTROLLER",
+    stockControllerTag: "STOCK_CONTROLLER",
     organizationLevel: "STAFF",
     organizationTag: "S1_STAFF",
     permissions: [
@@ -53,8 +56,35 @@ const seedUsers: SeedUser[] = [
     email: "network@example.com",
     position: "Network Stock Controller",
     roleCode: "STOCK_CONTROLLER",
+    stockControllerTag: "STOCK_CONTROLLER",
     organizationLevel: "STAFF",
     organizationTag: "N1_STAFF",
+    permissions: [
+      { domainCode: "SERVER", canView: true, canManage: false },
+      { domainCode: "NETWORK", canView: true, canManage: true },
+    ],
+  },
+  {
+    name: "Server Head Stock Controller",
+    email: "server-head@example.com",
+    position: "Server Head Stock Controller",
+    roleCode: "STOCK_CONTROLLER",
+    stockControllerTag: "HEAD_STOCK_CONTROLLER",
+    organizationLevel: "MANAGER",
+    organizationTag: "SCN_MANAGER",
+    permissions: [
+      { domainCode: "SERVER", canView: true, canManage: true },
+      { domainCode: "NETWORK", canView: true, canManage: false },
+    ],
+  },
+  {
+    name: "Network Head Stock Controller",
+    email: "network-head@example.com",
+    position: "Network Head Stock Controller",
+    roleCode: "STOCK_CONTROLLER",
+    stockControllerTag: "HEAD_STOCK_CONTROLLER",
+    organizationLevel: "MANAGER",
+    organizationTag: "SCN_MANAGER",
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: false },
       { domainCode: "NETWORK", canView: true, canManage: true },
@@ -176,6 +206,7 @@ async function upsertSeedUser(
       passwordHash,
       position: user.position,
       projectTag: null,
+      stockControllerTag: user.roleCode === "STOCK_CONTROLLER" ? user.stockControllerTag ?? "STOCK_CONTROLLER" : null,
       ...identityData,
     },
     create: {
@@ -187,6 +218,7 @@ async function upsertSeedUser(
       passwordHash,
       position: user.position,
       projectTag: null,
+      stockControllerTag: user.roleCode === "STOCK_CONTROLLER" ? user.stockControllerTag ?? "STOCK_CONTROLLER" : null,
       ...identityData,
     },
   });

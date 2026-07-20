@@ -5,6 +5,7 @@ import {
   Prisma,
   ProjectTag,
   RoleCode,
+  StockControllerTag,
 } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -21,6 +22,7 @@ import {
   organizationLevelOptions,
   organizationUnitOptions,
   projectTagOptions,
+  stockControllerTagOptions,
   buildUserManagementHref,
 } from "./user-management-shared";
 
@@ -38,6 +40,7 @@ export {
   organizationLevelOptions,
   organizationUnitOptions,
   projectTagOptions,
+  stockControllerTagOptions,
   buildUserManagementHref,
 };
 
@@ -63,6 +66,7 @@ const userRowSelect = Prisma.validator<Prisma.UserSelect>()({
   organizationTag: true,
   position: true,
   projectTag: true,
+  stockControllerTag: true,
   roles: {
     select: {
       role: {
@@ -99,6 +103,7 @@ export type UpsertManagedUserInput = {
   organizationLevel?: OrganizationLevel | null;
   organizationTag?: OrganizationTag | null;
   role: UserSystemRole;
+  stockControllerTag?: StockControllerTag | null;
 };
 
 function firstParam(value: string | string[] | undefined) {
@@ -156,6 +161,7 @@ function toRow(user: UserRecord): UserManagementRow {
     position: user.position,
     projectTag: user.projectTag,
     roleCodes: user.roles.map(({ role }) => role.code),
+    stockControllerTag: user.stockControllerTag,
     systemRole: inferSystemRole(user),
   };
 }
@@ -186,6 +192,7 @@ function matchesUserFilters(user: UserManagementRow, filters: UserManagementFilt
     user.organizationLevel ?? "",
     user.organizationTag ?? "",
     user.projectTag ?? "",
+    user.stockControllerTag ?? "",
     ...user.domainPermissions.map((permission) => permission.domain.name),
     ...user.domainPermissions.map((permission) => permission.domain.code),
   ];
@@ -306,6 +313,10 @@ function validateManagedUserInput(input: UpsertManagedUserInput) {
     throw new WorkflowError("Name is required.");
   }
 
+  if (input.role === "STOCK_CONTROLLER" && !input.stockControllerTag) {
+    throw new WorkflowError("Stock controller tag is required for Stock Controller.");
+  }
+
   if (input.role === "USER") {
     if (!input.organizationLevel) {
       throw new WorkflowError("Organization level is required for User.");
@@ -322,6 +333,10 @@ function validateManagedUserUpdateInput(
 ) {
   if (!input.name.trim()) {
     throw new WorkflowError("Name is required.");
+  }
+
+  if (input.role === "STOCK_CONTROLLER" && !input.stockControllerTag) {
+    throw new WorkflowError("Stock controller tag is required for Stock Controller.");
   }
 
   if (input.role === "USER") {
@@ -419,6 +434,7 @@ export async function createUserForAdmin(
       organizationTag: input.role === "USER" ? input.organizationTag : null,
       passwordHash,
       projectTag: null,
+      stockControllerTag: input.role === "STOCK_CONTROLLER" ? input.stockControllerTag : null,
     },
     select: { id: true },
   });
@@ -468,6 +484,7 @@ export async function updateUserForAdmin(
         organizationLevel: input.role === "USER" ? input.organizationLevel : null,
         organizationTag: input.role === "USER" ? input.organizationTag : null,
         projectTag: input.role === "USER" ? existing.projectTag : null,
+        stockControllerTag: input.role === "STOCK_CONTROLLER" ? input.stockControllerTag : null,
       },
     });
   });

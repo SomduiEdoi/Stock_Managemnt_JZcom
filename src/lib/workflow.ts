@@ -7,11 +7,17 @@ import {
   OrganizationTag,
   Prisma,
   ProjectTag,
+  StockControllerTag,
   TransactionStatus,
   TransactionWorkflowStatus,
   TransactionType,
 } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
+import {
+  approvalMatchesUser,
+  domainHeadStockControllerRequiredTag,
+  domainStockControllerRequiredTag,
+} from "@/lib/approval-flow";
 import { db } from "@/lib/db";
 import {
   createMonthlyRequisitionNo,
@@ -723,9 +729,6 @@ function assertTransactionInput(input: SubmitTransactionInput) {
     throw new WorkflowError("Request date is required.");
   }
 
-  if (input.type === TransactionType.SOLD && !soldPrice) {
-    throw new WorkflowError("Price is required for sold transactions.");
-  }
 
   if (input.type === TransactionType.SOLD && soldPrice && Number.isNaN(Number(soldPrice))) {
     throw new WorkflowError("Price must be a valid number.");
@@ -747,6 +750,7 @@ type ApprovalUser = {
   name: string;
   organizationTag: OrganizationTag | null;
   projectTag: ProjectTag | null;
+  stockControllerTag: StockControllerTag | null;
   domainPermissions: Array<{ canManage: boolean; domain: { code: string } }>;
 };
 
@@ -818,6 +822,7 @@ async function findOrganizationApprover(
       name: true,
       organizationTag: true,
       projectTag: true,
+      stockControllerTag: true,
     },
     where: {
       id: { not: requesterId },
@@ -841,6 +846,7 @@ async function findProjectApprover(
       name: true,
       organizationTag: true,
       projectTag: true,
+      stockControllerTag: true,
     },
     where: {
       id: { not: requesterId },
@@ -850,11 +856,12 @@ async function findProjectApprover(
   });
 }
 
-async function findStockControllerApprover(
+async function findStockControllerApprovers(
   tx: Prisma.TransactionClient,
   domainCode: string,
+  stockControllerTag: StockControllerTag,
 ) {
-  return tx.user.findFirst({
+  return tx.user.findMany({
     orderBy: { name: "asc" },
     select: {
       domainPermissions: {
@@ -864,14 +871,29 @@ async function findStockControllerApprover(
       name: true,
       organizationTag: true,
       projectTag: true,
+      stockControllerTag: true,
     },
     where: {
       domainPermissions: {
         some: { canManage: true, domain: { code: domainCode } },
       },
       isActive: true,
+      roles: { some: { role: { code: "STOCK_CONTROLLER" } } },
+      stockControllerTag,
     },
   });
+}
+
+function candidatesForUsers(
+  users: ApprovalUser[],
+  requiredTag: string,
+  stepSequence: number,
+) {
+  if (users.length === 0) {
+    return [candidateForUser(null, requiredTag, stepSequence)];
+  }
+
+  return users.map((user) => candidateForUser(user, requiredTag, stepSequence));
 }
 
 async function buildApprovalCandidates(
@@ -916,10 +938,21 @@ async function buildApprovalCandidates(
   const stockStep = stepSequence++;
   for (const domainCode of domainCodes) {
     approvals.push(
-      candidateForUser(
-        await findStockControllerApprover(tx, domainCode),
-        `STOCK_CONTROLLER:${domainCode}`,
+      ...candidatesForUsers(
+        await findStockControllerApprovers(tx, domainCode, StockControllerTag.STOCK_CONTROLLER),
+        domainStockControllerRequiredTag(domainCode),
         stockStep,
+      ),
+    );
+  }
+
+  const headStockStep = stepSequence++;
+  for (const domainCode of domainCodes) {
+    approvals.push(
+      ...candidatesForUsers(
+        await findStockControllerApprovers(tx, domainCode, StockControllerTag.HEAD_STOCK_CONTROLLER),
+        domainHeadStockControllerRequiredTag(domainCode),
+        headStockStep,
       ),
     );
   }
@@ -932,35 +965,15 @@ async function buildApprovalCandidates(
     ),
   );
 
-  if (input.type === TransactionType.SOLD) {
-    approvals.push(
-      candidateForUser(
-        await findOrganizationApprover(tx, OrganizationTag.BSD_MANAGER, user.id),
-        OrganizationTag.BSD_MANAGER,
-        stepSequence++,
-      ),
-    );
-  }
+  approvals.push(
+    candidateForUser(
+      await findOrganizationApprover(tx, OrganizationTag.BSD_MANAGER, user.id),
+      OrganizationTag.BSD_MANAGER,
+      stepSequence++,
+    ),
+  );
 
   return approvals;
-}
-
-function approvalMatchesUser(user: CurrentUser, approval: { requiredTag: string; userId: string | null }) {
-  if (approval.userId === user.id) {
-    return true;
-  }
-
-  if (approval.requiredTag.startsWith("STOCK_CONTROLLER:")) {
-    const domainCode = approval.requiredTag.split(":")[1];
-    return user.permissions.some(
-      (permission) => permission.domainCode === domainCode && permission.canManage,
-    );
-  }
-
-  return (
-    user.organizationTag === approval.requiredTag ||
-    user.projectTag === approval.requiredTag
-  );
 }
 
 async function updateSubmittedAsset(
@@ -1510,10 +1523,15 @@ async function applyApprovedTransaction(
   });
 }
 
+export type ApproveTransactionInput = {
+  comment?: string | null;
+  soldPrice?: string | null;
+};
+
 export async function approveTransaction(
   user: CurrentUser,
   transactionId: string,
-  comment?: string | null,
+  input: ApproveTransactionInput = {},
 ) {
   const now = new Date();
 
@@ -1523,6 +1541,8 @@ export async function approveTransaction(
         where: { id: transactionId },
         select: {
           id: true,
+          soldPrice: true,
+          type: true,
           workflowStatus: true,
           approvals: {
             orderBy: [{ stepSequence: "asc" }, { createdAt: "asc" }],
@@ -1558,13 +1578,31 @@ export async function approveTransaction(
         throw new WorkflowError("No approval is waiting for this user.", 403);
       }
 
+      const soldPrice = cleanText(input.soldPrice);
+      if (transaction.type === TransactionType.SOLD && currentApproval.requiredTag === OrganizationTag.BSD_STAFF) {
+        const effectiveSoldPrice = soldPrice ?? transaction.soldPrice?.toString() ?? null;
+
+        if (!effectiveSoldPrice) {
+          throw new WorkflowError("Price is required before BSD Staff approval.", 400, "SOLD_PRICE_REQUIRED");
+        }
+
+        if (Number.isNaN(Number(effectiveSoldPrice))) {
+          throw new WorkflowError("Price must be a valid number.", 400, "INVALID_SOLD_PRICE");
+        }
+
+        await tx.transaction.update({
+          where: { id: transactionId },
+          data: { soldPrice: new Prisma.Decimal(effectiveSoldPrice) },
+        });
+      }
+
       await tx.transactionApproval.update({
         where: { id: currentApproval.id },
         data: {
           actedAt: now,
           approverNameSnapshot: user.name,
           approverTagSnapshot: currentApproval.requiredTag,
-          comment: cleanText(comment),
+          comment: cleanText(input.comment),
           status: ApprovalStatus.APPROVED,
           userId: user.id,
         },

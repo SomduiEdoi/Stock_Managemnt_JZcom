@@ -1,4 +1,4 @@
-import { OrganizationLevel, OrganizationTag } from "@prisma/client";
+import { OrganizationLevel, OrganizationTag, StockControllerTag } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { apiErrorResponse, readJsonBody, requireApiUser } from "@/lib/api";
@@ -10,6 +10,7 @@ const createUserSchema = z.object({
   organizationLevel: z.nativeEnum(OrganizationLevel).nullable().optional(),
   organizationTag: z.nativeEnum(OrganizationTag).nullable().optional(),
   role: z.enum(["ADMIN", "STOCK_CONTROLLER", "USER"]),
+  stockControllerTag: z.nativeEnum(StockControllerTag).nullable().optional(),
 });
 
 export async function POST(request: NextRequest) {

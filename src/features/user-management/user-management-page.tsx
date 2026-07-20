@@ -21,6 +21,7 @@ import {
   organizationLevelOptions,
   organizationUnitOptions,
   projectTagOptions,
+  stockControllerTagOptions,
   type UserManagementFilters,
   type UserManagementMetrics,
   type UserManagementRow,
@@ -43,6 +44,7 @@ type UserFormState = {
   organizationLevel: string;
   organizationTag: string;
   role: UserSystemRole | "";
+  stockControllerTag: string;
 };
 
 type DialogMode =
@@ -57,6 +59,11 @@ const roleLabels: Record<UserSystemRole, string> = {
   STOCK_CONTROLLER: "Stock Controller",
   USER: "User",
 };
+
+const stockControllerTagLabels = {
+  HEAD_STOCK_CONTROLLER: "Head Stock Controller",
+  STOCK_CONTROLLER: "Stock Controller",
+} as const;
 
 const projectLabels = {
   LEAD_PROJECT: "Lead Project",
@@ -90,6 +97,7 @@ function emptyFormState(): UserFormState {
     organizationLevel: "",
     organizationTag: "",
     role: "",
+    stockControllerTag: "",
   };
 }
 
@@ -100,6 +108,7 @@ function toFormState(user: UserManagementRow): UserFormState {
     organizationLevel: user.organizationLevel ?? "",
     organizationTag: user.organizationTag ?? "",
     role: user.systemRole,
+    stockControllerTag: user.stockControllerTag ?? "",
   };
 }
 
@@ -121,9 +130,15 @@ function tagPills(user: UserManagementRow) {
   }
 
   if (user.systemRole === "STOCK_CONTROLLER") {
-    return user.domainPermissions
-      .filter((permission) => permission.canManage)
-      .map((permission) => permission.domain.name);
+    const values: string[] = user.stockControllerTag
+      ? [stockControllerTagLabels[user.stockControllerTag]]
+      : [];
+
+    return values.concat(
+      user.domainPermissions
+        .filter((permission) => permission.canManage)
+        .map((permission) => permission.domain.name),
+    );
   }
 
   const values: string[] = [];
@@ -276,6 +291,10 @@ function UserFormModal({
       return "Role is required.";
     }
 
+    if (form.role === "STOCK_CONTROLLER" && !form.stockControllerTag) {
+      return "Stock controller tag is required for Stock Controller.";
+    }
+
     if (form.role === "USER" && !form.organizationLevel) {
       return "Organization level is required for User.";
     }
@@ -303,6 +322,7 @@ function UserFormModal({
       organizationLevel: form.role === "USER" ? form.organizationLevel : null,
       organizationTag: form.role === "USER" ? form.organizationTag : null,
       role: form.role,
+      stockControllerTag: form.role === "STOCK_CONTROLLER" ? form.stockControllerTag : null,
     };
 
     try {
@@ -366,6 +386,7 @@ function UserFormModal({
                 organizationLevel: "",
                 organizationTag: "",
                 role,
+                stockControllerTag: "",
               }));
             }}
             value={form.role}
@@ -374,6 +395,24 @@ function UserFormModal({
             {userRoleOptions.map((role) => (
               <option key={role} value={role}>
                 {roleLabels[role]}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Stock Controller Tag" required={form.role === "STOCK_CONTROLLER"}>
+          <select
+            className={baseInputClass(form.role !== "STOCK_CONTROLLER")}
+            disabled={form.role !== "STOCK_CONTROLLER"}
+            onChange={(event) => setField("stockControllerTag", event.target.value)}
+            value={form.role === "STOCK_CONTROLLER" ? form.stockControllerTag : ""}
+          >
+            <option value="">
+              {form.role === "STOCK_CONTROLLER" ? "Select Stock Controller Tag" : "Disabled"}
+            </option>
+            {stockControllerTagOptions.map((option) => (
+              <option key={option} value={option}>
+                {stockControllerTagLabels[option]}
               </option>
             ))}
           </select>
@@ -713,6 +752,10 @@ function EditUserModal({
       return "Role is required.";
     }
 
+    if (form.role === "STOCK_CONTROLLER" && !form.stockControllerTag) {
+      return "Stock controller tag is required for Stock Controller.";
+    }
+
     if (form.role === "USER" && !form.organizationLevel) {
       return "Organization level is required for User.";
     }
@@ -743,6 +786,7 @@ function EditUserModal({
           organizationLevel: form.role === "USER" ? form.organizationLevel : null,
           organizationTag: form.role === "USER" ? form.organizationTag : null,
           role: form.role,
+          stockControllerTag: form.role === "STOCK_CONTROLLER" ? form.stockControllerTag : null,
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -786,6 +830,7 @@ function EditUserModal({
                 organizationLevel: "",
                 organizationTag: "",
                 role,
+                stockControllerTag: "",
               }));
             }}
             value={form.role}
@@ -794,6 +839,24 @@ function EditUserModal({
             {userRoleOptions.map((role) => (
               <option key={role} value={role}>
                 {roleLabels[role]}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Stock Controller Tag" required={form.role === "STOCK_CONTROLLER"}>
+          <select
+            className={baseInputClass(form.role !== "STOCK_CONTROLLER")}
+            disabled={form.role !== "STOCK_CONTROLLER"}
+            onChange={(event) => setField("stockControllerTag", event.target.value)}
+            value={form.role === "STOCK_CONTROLLER" ? form.stockControllerTag : ""}
+          >
+            <option value="">
+              {form.role === "STOCK_CONTROLLER" ? "Select Stock Controller Tag" : "Disabled"}
+            </option>
+            {stockControllerTagOptions.map((option) => (
+              <option key={option} value={option}>
+                {stockControllerTagLabels[option]}
               </option>
             ))}
           </select>

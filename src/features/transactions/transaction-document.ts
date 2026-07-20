@@ -227,25 +227,55 @@ function requestFlags(transaction: PrintableTransaction) {
     .join("");
 }
 
-function approvalFor(
+function approvalsFor(
   transaction: PrintableTransaction,
   matcher: (requiredTag: string) => boolean,
 ) {
-  const approvals =
+  return (
     transaction.approvals?.filter(
       (approval) =>
         approval.status === "APPROVED" && matcher(approval.requiredTag ?? ""),
-    ) ?? [];
-
-  return approvals.at(-1);
+    ) ?? []
+  );
 }
 
 function leadApprovalMatcher(requiredTag: string) {
   return (
     requiredTag === "LEAD_PROJECT" ||
     (!requiredTag.startsWith("STOCK_CONTROLLER:") &&
+      !requiredTag.startsWith("HEAD_STOCK_CONTROLLER:") &&
       !requiredTag.startsWith("BSD_"))
   );
+}
+
+function latestApprovalDate(
+  approvals: NonNullable<PrintableTransaction["approvals"]>,
+) {
+  return approvals.at(-1)?.actedAt ?? null;
+}
+
+function approvalNames(
+  approvals: NonNullable<PrintableTransaction["approvals"]>,
+) {
+  return approvals
+    .map((approval) => approval.user?.name)
+    .filter(Boolean)
+    .join(" / ");
+}
+
+function approvalSignatureImages(
+  approvals: NonNullable<PrintableTransaction["approvals"]>,
+) {
+  return approvals
+    .map((approval) => approval.user?.signatureDataUrl)
+    .filter(Boolean)
+    .map(
+      (signatureDataUrl) =>
+        '<img alt="Signature" class="signature-image inline-signature-image" src="' +
+        escapeHtml(signatureDataUrl) +
+        '" />',
+    )
+    .join("");
 }
 
 function signature(
@@ -253,12 +283,13 @@ function signature(
   options: {
     date?: Date | string | null;
     signatureDataUrl?: string | null;
+    signatureHtml?: string;
     userName?: string | null;
   } = {},
 ) {
-  const signatureImage = options.signatureDataUrl
-    ? `<img alt="Signature" class="signature-image" src="${escapeHtml(options.signatureDataUrl)}" />`
-    : "";
+  const signatureImage = options.signatureHtml ?? (options.signatureDataUrl
+    ? '<img alt="Signature" class="signature-image" src="' + escapeHtml(options.signatureDataUrl) + '" />'
+    : "");
   const userName = options.userName ?? "";
 
   return `
@@ -274,47 +305,49 @@ function signature(
   `;
 }
 
-function signatures(transaction: PrintableTransaction, includeAuthorized: boolean) {
+function signatures(transaction: PrintableTransaction) {
   const requester = {
     date: transaction.requestDate ?? transaction.createdAt ?? null,
     signatureDataUrl: transaction.requestedBy?.signatureDataUrl ?? null,
   };
-  const lead = approvalFor(transaction, leadApprovalMatcher);
-  const stock = approvalFor(transaction, (tag) =>
+  const lead = approvalsFor(transaction, leadApprovalMatcher);
+  const stock = approvalsFor(transaction, (tag) =>
     tag.startsWith("STOCK_CONTROLLER:"),
   );
-  const bsd = approvalFor(transaction, (tag) => tag.startsWith("BSD_"));
+  const headStock = approvalsFor(transaction, (tag) =>
+    tag.startsWith("HEAD_STOCK_CONTROLLER:"),
+  );
+  const bsd = approvalsFor(transaction, (tag) => tag.startsWith("BSD_"));
 
   return `
-    <section class="signatures ${includeAuthorized ? "signatures-five" : ""}">
+    <section class="signatures signatures-five">
       ${signature("Requisition by :", {
         ...requester,
         userName: transaction.requestedBy?.name,
       })}
-      ${signature("Lead Project / Superviser :", {
-        date: lead?.actedAt,
-        signatureDataUrl: lead?.user?.signatureDataUrl,
-        userName: lead?.user?.name,
+      ${signature("Lead Project / Supervisor :", {
+        date: latestApprovalDate(lead),
+        signatureHtml: approvalSignatureImages(lead),
+        userName: approvalNames(lead),
       })}
       ${signature("Stock Controller :", {
-        date: stock?.actedAt,
-        signatureDataUrl: stock?.user?.signatureDataUrl,
-        userName: stock?.user?.name,
+        date: latestApprovalDate(stock),
+        signatureHtml: approvalSignatureImages(stock),
+        userName: approvalNames(stock),
+      })}
+      ${signature("Head Stock Controller :", {
+        date: latestApprovalDate(headStock),
+        signatureHtml: approvalSignatureImages(headStock),
+        userName: approvalNames(headStock),
       })}
       ${signature("BSD :", {
-        date: bsd?.actedAt,
-        signatureDataUrl: bsd?.user?.signatureDataUrl,
-        userName: bsd?.user?.name,
+        date: latestApprovalDate(bsd),
+        signatureHtml: approvalSignatureImages(bsd),
+        userName: approvalNames(bsd),
       })}
-      ${
-        includeAuthorized
-          ? signature("Authorized by :")
-          : ""
-      }
     </section>
   `;
 }
-
 function titleFor(kind: DocumentKind) {
   if (kind === "RETURN") {
     return "ใบคืน อุปกรณ์";
@@ -530,7 +563,7 @@ function page(
     <main class="page ${document.kind.toLowerCase()}">
       ${header(document, pageIndex, pageTotal)}
       ${table(document, items, rowOffset)}
-      ${signatures(document.transaction, document.kind !== "BORROW")}
+      ${signatures(document.transaction)}
       <div class="footer-code">FM-5300(2)-R.5</div>
     </main>
   `;
@@ -828,6 +861,11 @@ function documentStyles() {
         object-fit: contain;
         position: absolute;
         width: 104pt;
+      }
+      .inline-signature-image {
+        margin-right: 3pt;
+        position: static;
+        vertical-align: bottom;
       }
       .signature-user {
         font-size: 8pt;

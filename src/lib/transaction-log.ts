@@ -1,5 +1,6 @@
 import { ApprovalStatus, AssetStatus, Prisma, TransactionStatus, TransactionWorkflowStatus } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
+import { approvalMatchesUser } from "@/lib/approval-flow";
 import { db } from "@/lib/db";
 
 export const transactionLogScopes = ["ALL", "IN_PROGRESS", "COMPLETED"] as const;
@@ -131,24 +132,6 @@ const approvalTransactionSelect = Prisma.validator<Prisma.TransactionApprovalSel
 export type TransactionApprovalQueueRow = Prisma.TransactionApprovalGetPayload<{
   select: typeof approvalTransactionSelect;
 }>;
-
-function approvalMatchesUser(user: CurrentUser, approval: { requiredTag: string; userId: string | null }) {
-  if (approval.userId === user.id) {
-    return true;
-  }
-
-  if (approval.requiredTag.startsWith("STOCK_CONTROLLER:")) {
-    const domainCode = approval.requiredTag.split(":")[1];
-    return user.permissions.some(
-      (permission) => permission.domainCode === domainCode && permission.canManage,
-    );
-  }
-
-  return (
-    user.organizationTag === approval.requiredTag ||
-    user.projectTag === approval.requiredTag
-  );
-}
 
 function isCurrentApprovalStep(approval: TransactionApprovalQueueRow) {
   return !approval.transaction.approvals.some(

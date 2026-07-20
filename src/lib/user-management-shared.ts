@@ -3,6 +3,7 @@ import type {
   OrganizationTag,
   ProjectTag,
   RoleCode,
+  StockControllerTag,
 } from "@prisma/client";
 
 export type UserStatusFilter = "ACTIVE" | "ALL" | "BLOCKED";
@@ -36,6 +37,7 @@ export type UserManagementRow = {
   position: string | null;
   projectTag: ProjectTag | null;
   roleCodes: RoleCode[];
+  stockControllerTag: StockControllerTag | null;
   systemRole: UserSystemRole;
 };
 
@@ -91,6 +93,11 @@ export const projectTagOptions = [
   "LEAD_PROJECT",
   "TEAM_MEMBER",
 ] as const satisfies readonly ProjectTag[];
+
+export const stockControllerTagOptions = [
+  "HEAD_STOCK_CONTROLLER",
+  "STOCK_CONTROLLER",
+] as const satisfies readonly StockControllerTag[];
 
 export function buildUserManagementHref(
   filters: UserManagementFilters,

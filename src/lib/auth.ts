@@ -17,6 +17,7 @@ export type CurrentUser = {
   signatureDataUrl: string | null;
   signatureUploadedAt: Date | null;
   signatureUploadedBy: { email: string; name: string } | null;
+  stockControllerTag: string | null;
   roles: RoleCode[];
   permissions: DomainPermission[];
 };
@@ -39,6 +40,7 @@ async function findActiveUser(userId: string) {
       position: true,
       signatureDataUrl: true,
       signatureUploadedAt: true,
+      stockControllerTag: true,
       signatureUploadedBy: {
         select: {
           email: true,
@@ -86,6 +88,7 @@ function toCurrentUser(
     signatureDataUrl: user.signatureDataUrl,
     signatureUploadedAt: user.signatureUploadedAt,
     signatureUploadedBy: user.signatureUploadedBy,
+    stockControllerTag: user.stockControllerTag,
     roles: user.roles.map(({ role }) => role.code as RoleCode),
     permissions: user.domainPermissions.map((permission) => ({
       canManage: permission.canManage,

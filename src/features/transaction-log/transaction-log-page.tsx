@@ -507,7 +507,10 @@ function ApproveTable({ rows }: { rows: TransactionApprovalQueueRow[] }) {
                   </p>
                 </td>
                 <td className="px-5 py-4">
-                  <ApprovalRowActions transactionId={row.transaction.id} />
+                  <ApprovalRowActions
+                    requiresSoldPrice={row.requiredTag === "BSD_STAFF" && row.transaction.type === "SOLD"}
+                    transactionId={row.transaction.id}
+                  />
                 </td>
               </tr>
             ))}

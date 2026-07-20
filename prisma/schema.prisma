@@ -44,6 +44,11 @@ enum ProjectTag {
   TEAM_MEMBER
 }
 
+enum StockControllerTag {
+  HEAD_STOCK_CONTROLLER
+  STOCK_CONTROLLER
+}
+
 enum AssetTrackMethod {
   SERIAL
   QUANTITY
@@ -127,6 +132,7 @@ model User {
   organizationLevel        OrganizationLevel?     @map("organization_level")
   organizationTag          OrganizationTag?       @map("organization_tag")
   projectTag               ProjectTag?            @map("project_tag")
+  stockControllerTag       StockControllerTag?    @map("stock_controller_tag")
   signatureDataUrl         String?                @map("signature_data_url")
   signatureUploadedAt      DateTime?              @map("signature_uploaded_at")
   signatureUploadedById    String?                @map("signature_uploaded_by") @db.Uuid
