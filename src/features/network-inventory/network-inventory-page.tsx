@@ -71,6 +71,7 @@ function buildNetworkPageHref(page: number, filters: NetworkInventoryFilters) {
     params.set("q", filters.search);
   }
 
+  appendValues(params, "brand", filters.brands);
   appendValues(params, "category", filters.categories);
   appendValues(params, "type", filters.types);
   appendValues(params, "status", filters.statuses);
@@ -281,9 +282,11 @@ export default async function NetworkInventoryPage({
       <NetworkInventoryControls
         addAssetHref={addAssetHref}
         canManageCategories={canManageDomainForUser(user, "NETWORK")}
+        brands={result.filterOptions.brands}
         categories={result.filterOptions.categories}
         categoryGroups={result.filterOptions.categoryGroups}
         filters={{
+          brands: filters.brands,
           categories: filters.categories,
           search: filters.search,
           sortBy: filters.sortBy,

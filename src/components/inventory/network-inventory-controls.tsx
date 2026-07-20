@@ -15,6 +15,7 @@ type CategoryGroup = {
 };
 
 type NetworkInventoryControlFilters = {
+  brands: string[];
   categories: string[];
   search: string;
   sortBy: string;
@@ -26,6 +27,7 @@ type NetworkInventoryControlFilters = {
 type NetworkInventoryControlsProps = {
   addAssetHref?: string | null;
   canManageCategories?: boolean;
+  brands: string[];
   categories: string[];
   categoryGroups: CategoryGroup[];
   filters: NetworkInventoryControlFilters;

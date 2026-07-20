@@ -1,4 +1,4 @@
-﻿import type { ComponentType } from "react";
+import type { ComponentType } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -65,6 +65,7 @@ function buildPageHref(domainCode: string, page: number, filters: DomainInventor
   const params = new URLSearchParams();
 
   if (filters.search) params.set("q", filters.search);
+  appendValues(params, "brand", filters.brands);
   appendValues(params, "category", filters.categories);
   appendValues(params, "type", filters.types);
   appendValues(params, "status", filters.statuses);
@@ -236,11 +237,13 @@ export async function DomainInventoryPage({ domainCode, searchParams }: DomainIn
         addAssetHref={addAssetHref}
         baseHref={href}
         canManageCategories={canManageDomainForUser(user, result.domain.code)}
+        brands={result.filterOptions.brands}
         categories={result.filterOptions.categories}
         categoryGroups={result.filterOptions.categoryGroups}
         domainCode={result.domain.code}
         domainLabel={domainName}
         filters={{
+          brands: filters.brands,
           categories: filters.categories,
           search: filters.search,
           sortBy: filters.sortBy,

@@ -55,6 +55,7 @@ async function findActiveUser(userId: string) {
         },
       },
       domainPermissions: {
+        where: { domain: { isActive: true } },
         select: {
           canManage: true,
           canView: true,
@@ -122,3 +123,4 @@ export async function requireCurrentUser(nextPath = "/dashboard") {
 
   return user;
 }
+

@@ -318,6 +318,19 @@ function formatRequestTime(value: string | null) {
   }).format(new Date(value));
 }
 
+function formatReturnDate(row: TransactionLogRow) {
+  const itemDates = row.items
+    .map((item) => item.returnedAt)
+    .filter((value): value is Date => Boolean(value));
+  const latestItemReturn = itemDates.sort(
+    (left, right) => right.getTime() - left.getTime(),
+  )[0];
+
+  return row.returnedAt || latestItemReturn
+    ? formatDate(row.returnedAt ?? latestItemReturn)
+    : "-";
+}
+
 function personName(person: { email: string; name: string } | null | undefined) {
   if (!person) {
     return "-";
@@ -350,6 +363,7 @@ function RequestQueueTable({
               <th className="px-5 py-4 font-bold">Asset</th>
               <th className="px-5 py-4 font-bold">Requester</th>
               <th className="px-5 py-4 font-bold">Locked At</th>
+              <th className="px-5 py-4 font-bold">Qty</th>
               <th className="px-5 py-4 font-bold">Status</th>
             </tr>
           </thead>
@@ -372,6 +386,9 @@ function RequestQueueTable({
                 </td>
                 <td className="px-5 py-4 font-medium text-ink">
                   {formatRequestTime(asset.requestLockedAt?.toISOString() ?? null)}
+                </td>
+                <td className="px-5 py-4 font-semibold text-ink">
+                  {asset.requestedQuantity.toLocaleString("en-US")}
                 </td>
                 <td className="px-5 py-4">
                   <span className="rounded-full bg-status-request/15 px-2.5 py-1 text-xs font-bold uppercase text-status-request">
@@ -507,6 +524,10 @@ function ApproveTable({ rows }: { rows: TransactionApprovalQueueRow[] }) {
   );
 }
 
+function transactionQuantity(row: TransactionLogRow) {
+  return row.items.reduce((sum, item) => sum + (item.requestedQuantity ?? 1), 0);
+}
+
 function TransactionTable({
   rows,
 }: {
@@ -525,6 +546,7 @@ function TransactionTable({
               <th className="px-5 py-4 font-bold">Borrower</th>
               <th className="px-5 py-4 font-bold">Returner</th>
               <th className="px-5 py-4 font-bold">Request Date</th>
+              <th className="px-5 py-4 font-bold">Return Date</th>
               <th className="px-5 py-4 font-bold">Status</th>
               <th className="px-5 py-4 font-bold">Action</th>
             </tr>
@@ -539,7 +561,7 @@ function TransactionTable({
                   <TransactionLink transactionId={row.id}>
                     {row.transactionNo ?? row.id}
                     <p className="mt-1 text-xs font-medium text-muted-foreground">
-                      {row.items.length.toLocaleString("en-US")} items
+                      {row.items.length.toLocaleString("en-US")} lines / {transactionQuantity(row).toLocaleString("en-US")} qty
                     </p>
                   </TransactionLink>
                 </td>
@@ -556,6 +578,11 @@ function TransactionTable({
                 <td className="px-5 py-4 font-medium text-ink">
                   <TransactionLink transactionId={row.id}>
                     {formatDate(row.requestDate)}
+                  </TransactionLink>
+                </td>
+                <td className="px-5 py-4 font-medium text-ink">
+                  <TransactionLink transactionId={row.id}>
+                    {formatReturnDate(row)}
                   </TransactionLink>
                 </td>
                 <td className="px-5 py-4">
@@ -734,6 +761,4 @@ export default async function TransactionLogPageRoute({
     />
   );
 }
-
-
 

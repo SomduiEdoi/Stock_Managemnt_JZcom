@@ -287,7 +287,7 @@ export default async function AssetsPage({ searchParams }: AssetsPageProps) {
           aria-label="Breadcrumb"
           className="flex items-center gap-2 text-sm font-bold text-muted-foreground"
         >
-          <Link className="text-navy transition hover:text-brand-accent" href="/dashboard">
+          <Link className="text-brand-accent transition hover:text-navy" href="/dashboard">
             Dashboard
           </Link>
           <ChevronRight className="h-4 w-4" />
@@ -312,3 +312,4 @@ export default async function AssetsPage({ searchParams }: AssetsPageProps) {
     </div>
   );
 }
+

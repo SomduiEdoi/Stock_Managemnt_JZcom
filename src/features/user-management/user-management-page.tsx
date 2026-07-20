@@ -254,7 +254,6 @@ function UserFormModal({
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const tagDisabled = !form.role || form.role === "ADMIN" || form.role === "STOCK_CONTROLLER";
 
   function setField<Key extends keyof UserFormState>(key: Key, value: UserFormState[Key]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -378,19 +377,6 @@ function UserFormModal({
               </option>
             ))}
           </select>
-        </Field>
-
-        <Field label="Tag">
-          <input
-            className={baseInputClass(tagDisabled)}
-            disabled
-            type="text"
-            value={
-              form.role === "STOCK_CONTROLLER"
-                ? "Managed from Domain Management"
-                : "Disabled"
-            }
-          />
         </Field>
 
         <Field label="Organization Level" required={form.role === "USER"}>
@@ -717,9 +703,6 @@ function EditUserModal({
     setForm((current) => ({ ...current, [key]: value }));
   }
 
-  const tagDisabled = !form.role || form.role === "ADMIN";
-  const tagText =
-    form.role === "STOCK_CONTROLLER" ? "Managed from Domain Management" : "Disabled";
 
   function validate() {
     if (!form.name.trim()) {
@@ -814,15 +797,6 @@ function EditUserModal({
               </option>
             ))}
           </select>
-        </Field>
-
-        <Field label="Tag">
-          <input
-            className={baseInputClass(tagDisabled)}
-            disabled
-            type="text"
-            value={tagText}
-          />
         </Field>
 
         <Field label="Organization Level" required={form.role === "USER"}>
@@ -1144,3 +1118,4 @@ export function UserManagementForbidden() {
     </section>
   );
 }
+

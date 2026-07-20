@@ -26,6 +26,7 @@ type CategoryGroup = {
 };
 
 type InventoryControlFilters = {
+  brands: string[];
   categories: string[];
   search: string;
   sortBy: string;
@@ -40,6 +41,7 @@ type InventoryControlsProps = {
   canManageCategories?: boolean;
   domainCode?: string;
   domainLabel?: string;
+  brands: string[];
   categories: string[];
   categoryGroups: CategoryGroup[];
   filters: InventoryControlFilters;
@@ -80,6 +82,7 @@ function buildHref(
     params.set("q", nextFilters.search);
   }
 
+  appendValues(params, "brand", nextFilters.brands);
   appendValues(params, "category", nextFilters.categories);
   appendValues(params, "type", nextFilters.types);
   appendValues(params, "status", nextFilters.statuses);
@@ -98,6 +101,9 @@ function buildHref(
 function HiddenFilters({ filters }: { filters: InventoryControlFilters }) {
   return (
     <>
+      {filters.brands.map((brand) => (
+        <input key={`brand-${brand}`} name="brand" type="hidden" value={brand} />
+      ))}
       {filters.categories.map((category) => (
         <input key={`category-${category}`} name="category" type="hidden" value={category} />
       ))}
@@ -582,6 +588,43 @@ function StatusCheckboxes({
   );
 }
 
+function BrandFilters({
+  brands,
+  selectedBrands,
+}: {
+  brands: string[];
+  selectedBrands: string[];
+}) {
+  if (brands.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="border-t border-border py-5">
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="text-sm font-bold text-ink">Brand</h3>
+        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {brands.map((brand) => (
+          <label className="flex items-center gap-3 text-sm text-muted-foreground" key={brand}>
+            <input
+              className="h-4 w-4 rounded border-border text-navy"
+              defaultChecked={selectedBrands.includes(brand)}
+              name="brand"
+              type="checkbox"
+              value={brand}
+            />
+            <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap" title={brand}>
+              {brand}
+            </span>
+          </label>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function CategoryTypeFilters({
   groups,
   selectedCategories,
@@ -641,6 +684,7 @@ function CategoryTypeFilters({
 
 function FilterDrawer({
   baseHref = "/dashboard/server",
+  brands,
   categoryGroups,
   filters,
   isOpen,
@@ -671,6 +715,7 @@ function FilterDrawer({
           <p className="mb-5 text-sm font-medium text-muted-foreground">
             {total.toLocaleString("en-US")} matching items
           </p>
+          <BrandFilters brands={brands} selectedBrands={filters.brands} />
           <CategoryTypeFilters
             groups={categoryGroups}
             selectedCategories={filters.categories}
@@ -700,6 +745,7 @@ export function ServerInventoryControls({
   addAssetHref,
   baseHref = "/dashboard/server",
   canManageCategories = false,
+  brands,
   categories,
   categoryGroups,
   domainCode = "SERVER",
@@ -710,7 +756,7 @@ export function ServerInventoryControls({
 }: InventoryControlsProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const selectedCount =
-    filters.categories.length + filters.types.length + filters.statuses.length;
+    filters.brands.length + filters.categories.length + filters.types.length + filters.statuses.length;
   const hasActiveSearchOrFilters = Boolean(filters.search) || selectedCount > 0;
 
   return (
@@ -770,6 +816,7 @@ export function ServerInventoryControls({
         addAssetHref={addAssetHref}
         baseHref={baseHref}
         canManageCategories={canManageCategories}
+        brands={brands}
         categories={categories}
         categoryGroups={categoryGroups}
         domainCode={domainCode}

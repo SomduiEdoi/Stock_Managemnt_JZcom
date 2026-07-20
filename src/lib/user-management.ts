@@ -74,6 +74,7 @@ const userRowSelect = Prisma.validator<Prisma.UserSelect>()({
     },
   },
   domainPermissions: {
+    where: { domain: { isActive: true } },
     select: {
       canManage: true,
       canView: true,
@@ -251,6 +252,7 @@ async function getRoleId(roleCode: RoleCode) {
 
 async function getDomainOptions() {
   return db.assetDomain.findMany({
+    where: { isActive: true },
     orderBy: { name: "asc" },
     select: { code: true, id: true, name: true },
   });

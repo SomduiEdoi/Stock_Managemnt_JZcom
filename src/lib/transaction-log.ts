@@ -59,6 +59,7 @@ const transactionLogSelect = Prisma.validator<Prisma.TransactionSelect>()({
     orderBy: { createdAt: "asc" },
     select: {
       id: true,
+      requestedQuantity: true,
       resolvedStatus: true,
       returnedAt: true,
       toStatus: true,

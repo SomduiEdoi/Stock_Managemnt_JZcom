@@ -26,6 +26,7 @@ export type NetworkCategoryGroup = {
 };
 
 export type NetworkInventoryFilters = {
+  brands: string[];
   categories: string[];
   page: number;
   pageSize: number;
@@ -39,6 +40,7 @@ export type NetworkInventoryFilters = {
 type SearchParams = Record<string, string | string[] | undefined>;
 
 const defaultFilters: NetworkInventoryFilters = {
+  brands: [],
   categories: [],
   page: 1,
   pageSize: 25,
@@ -180,6 +182,10 @@ function buildFilterClauses(filters: NetworkInventoryFilters) {
     clauses.push(searchWhere);
   }
 
+  if (filters.brands.length > 0) {
+    clauses.push({ assetModel: { is: { brand: { in: filters.brands } } } });
+  }
+
   if (filters.categories.length > 0) {
     clauses.push({
       assetModel: {
@@ -201,6 +207,7 @@ export function normalizeNetworkInventoryFilters(
   const statuses = cleanValues(arrayParam(searchParams.status)).filter(isAssetStatus);
 
   return {
+    brands: cleanValues(arrayParam(searchParams.brand)),
     categories: cleanValues(arrayParam(searchParams.category)),
     page: parsePage(firstParam(searchParams.page)),
     pageSize: defaultFilters.pageSize,
@@ -247,7 +254,7 @@ async function getNetworkFilterOptions() {
     where: { domain: { code: "NETWORK" }, isActive: true },
   });
   const models = await db.assetModel.findMany({
-    select: { assetTypeId: true, categoryId: true, id: true },
+    select: { assetTypeId: true, brand: true, categoryId: true, id: true },
     where: { domain: { code: "NETWORK" }, isActive: true },
   });
   const countByModel = new Map(assetCounts.map((count) => [count.assetModelId, count._count]));
@@ -278,6 +285,7 @@ async function getNetworkFilterOptions() {
   }));
 
   return {
+    brands: [...new Set(models.map((model) => model.brand).filter((brand): brand is string => Boolean(brand)))].sort((left, right) => left.localeCompare(right)),
     categories: categoryGroups.map((category) => category.name),
     categoryGroups,
     statuses: [...networkInventoryStatusOptions],

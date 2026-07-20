@@ -71,6 +71,7 @@ function buildServerPageHref(page: number, filters: ServerInventoryFilters) {
     params.set("q", filters.search);
   }
 
+  appendValues(params, "brand", filters.brands);
   appendValues(params, "category", filters.categories);
   appendValues(params, "type", filters.types);
   appendValues(params, "status", filters.statuses);
@@ -281,11 +282,13 @@ export default async function ServerInventoryPage({
       <ServerInventoryControls
         addAssetHref={addAssetHref}
         canManageCategories={canManageDomainForUser(user, "SERVER")}
+        brands={result.filterOptions.brands}
         categories={result.filterOptions.categories}
         categoryGroups={result.filterOptions.categoryGroups}
         domainCode="SERVER"
         domainLabel="Server"
         filters={{
+          brands: filters.brands,
           categories: filters.categories,
           search: filters.search,
           sortBy: filters.sortBy,

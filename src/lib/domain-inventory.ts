@@ -1,4 +1,4 @@
-﻿import { AssetStatus, Prisma } from "@prisma/client";
+import { AssetStatus, Prisma } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
 import { getAvailabilityByAssetId } from "@/lib/asset-availability";
 import { db } from "@/lib/db";
@@ -26,6 +26,7 @@ export type DomainCategoryGroup = {
 };
 
 export type DomainInventoryFilters = {
+  brands: string[];
   categories: string[];
   page: number;
   pageSize: number;
@@ -39,6 +40,7 @@ export type DomainInventoryFilters = {
 type SearchParams = Record<string, string | string[] | undefined>;
 
 const defaultFilters: DomainInventoryFilters = {
+  brands: [],
   categories: [],
   page: 1,
   pageSize: 25,
@@ -181,6 +183,10 @@ function buildFilterClauses(filters: DomainInventoryFilters) {
     clauses.push(searchWhere);
   }
 
+  if (filters.brands.length > 0) {
+    clauses.push({ assetModel: { is: { brand: { in: filters.brands } } } });
+  }
+
   if (filters.categories.length > 0) {
     clauses.push({
       assetModel: {
@@ -202,6 +208,7 @@ export function normalizeDomainInventoryFilters(
   const statuses = cleanValues(arrayParam(searchParams.status)).filter(isAssetStatus);
 
   return {
+    brands: cleanValues(arrayParam(searchParams.brand)),
     categories: cleanValues(arrayParam(searchParams.category)),
     page: parsePage(firstParam(searchParams.page)),
     pageSize: defaultFilters.pageSize,
@@ -244,7 +251,7 @@ async function getDomainFilterOptions(domainCode: string) {
     where: { domain: { code: domainCode }, isActive: true },
   });
   const models = await db.assetModel.findMany({
-    select: { assetTypeId: true, categoryId: true, id: true },
+    select: { assetTypeId: true, brand: true, categoryId: true, id: true },
     where: { domain: { code: domainCode }, isActive: true },
   });
   const countByModel = new Map(assetCounts.map((count) => [count.assetModelId, count._count]));
@@ -276,6 +283,7 @@ async function getDomainFilterOptions(domainCode: string) {
   }));
 
   return {
+    brands: [...new Set(models.map((model) => model.brand).filter((brand): brand is string => Boolean(brand)))].sort((left, right) => left.localeCompare(right)),
     categories: categoryGroups.map((category) => category.name),
     categoryGroups,
     statuses: [...domainInventoryStatusOptions],
@@ -320,7 +328,7 @@ export async function getDomainInventoryForUser(
       domain,
       filterOptions: domain
         ? await getDomainFilterOptions(domainCode)
-        : { categories: [], categoryGroups: [], statuses: [...domainInventoryStatusOptions], types: [] },
+        : { brands: [], categories: [], categoryGroups: [], statuses: [...domainInventoryStatusOptions], types: [] },
       filters,
       metrics: { borrowed: 0, ready: 0, request: 0, sold: 0, total: 0 },
       rows: [],

@@ -14,6 +14,10 @@ import {
 import type { CurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
+  createMonthlyRequisitionNo,
+  MonthlyRequisitionLimitError,
+} from "@/lib/requisition-no";
+import {
   assertCanChangeAssetStatus,
   assertCanRequestDomain,
   assertCanViewDomain,
@@ -271,15 +275,19 @@ function assertHasItems(items: NormalizedRequestItem[], label: string) {
 }
 
 async function createRequisitionNo(tx: Prisma.TransactionClient, now: Date) {
-  const datePart = now.toISOString().slice(0, 10).replaceAll("-", "");
-  const yearPart = datePart.slice(0, 4);
-  const prefix = `REQ-${yearPart}`;
-  const count = await tx.transaction.count({
-    where: { transactionNo: { startsWith: prefix } },
-  });
-  const sequence = String(count + 1).padStart(2, "0");
+  try {
+    return await createMonthlyRequisitionNo(tx, now);
+  } catch (error) {
+    if (error instanceof MonthlyRequisitionLimitError) {
+      throw new WorkflowError(
+        error.message,
+        409,
+        "MONTHLY_REQUISITION_LIMIT_REACHED",
+      );
+    }
 
-  return `REQ-${datePart}-${sequence}`;
+    throw error;
+  }
 }
 
 async function findAssets(

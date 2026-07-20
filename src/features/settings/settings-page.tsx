@@ -43,30 +43,6 @@ function userTag(user: CurrentUser) {
   return tags.length > 0 ? tags.join(" / ") : "-";
 }
 
-function domainLabel(domainCode: string) {
-  if (domainCode === "SERVER") {
-    return "Server";
-  }
-
-  if (domainCode === "NETWORK") {
-    return "Network";
-  }
-
-  return domainCode;
-}
-
-function managedDomainAccess(user: CurrentUser) {
-  if (user.roles.includes("ADMIN")) {
-    return "All domains";
-  }
-
-  const domains = user.permissions
-    .filter((permission) => permission.canManage)
-    .map((permission) => domainLabel(permission.domainCode));
-
-  return domains.length > 0 ? domains.join(", ") : "-";
-}
-
 function ProfileRow({
   label,
   value,
@@ -102,13 +78,13 @@ export function SettingsPage({ user }: SettingsPageProps) {
     <div className="mx-auto max-w-7xl">
       <article className="min-h-[640px] rounded-md bg-white px-10 py-9 shadow-sm">
         <div className="inline-flex flex-col items-center">
-          <h1 className="text-lg font-bold text-[#00796B]">Profile</h1>
-          <span className="mt-2 h-1 w-28 rounded-full bg-[#A6C437]" />
+          <h1 className="text-lg font-bold text-navy">Profile</h1>
+          <span className="mt-2 h-1 w-28 rounded-full bg-brand-accent" />
         </div>
 
         <div className="mt-10 grid gap-10 lg:grid-cols-[220px_1fr] xl:grid-cols-[260px_1fr]">
           <aside className="flex justify-center lg:justify-start">
-            <div className="flex h-40 w-40 items-center justify-center rounded-full border-2 border-[#00796B] bg-navy text-4xl font-bold text-white">
+            <div className="flex h-40 w-40 items-center justify-center rounded-full bg-navy text-4xl font-bold text-white">
               {getInitials(user.name)}
             </div>
           </aside>
@@ -117,7 +93,6 @@ export function SettingsPage({ user }: SettingsPageProps) {
             <dl className="space-y-3">
               <ProfileRow label="Name" value={user.name} />
               <ProfileRow label="Email" value={user.email} />
-              <ProfileRow label="Phone" value="-" />
               <div className="flex items-start gap-3 text-[15px] leading-7">
                 <dt className="w-28 shrink-0 font-bold text-ink">Role:</dt>
                 <dd className="flex flex-wrap gap-2">
@@ -134,7 +109,6 @@ export function SettingsPage({ user }: SettingsPageProps) {
                   <TagValue>{userTag(user)}</TagValue>
                 </dd>
               </div>
-              <ProfileRow label="Managed Domains" value={managedDomainAccess(user)} />
             </dl>
 
             <div className="mt-9">
@@ -167,3 +141,4 @@ export function SettingsPage({ user }: SettingsPageProps) {
     </div>
   );
 }
+
