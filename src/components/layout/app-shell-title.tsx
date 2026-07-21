@@ -59,6 +59,10 @@ function resolveTitle(pathname: string) {
     return "User Management";
   }
 
+  if (pathname === "/project") {
+    return "Project Management";
+  }
+
   return "Stock Management";
 }
 
@@ -71,3 +75,4 @@ export function AppShellTitle({ title }: AppShellTitleProps) {
     </p>
   );
 }
+

@@ -326,11 +326,18 @@ function ManageCategoriesDialog({
                               />
                               <div>
                                 <input
-                                  className={`h-9 w-full rounded-md border bg-white px-2 text-sm font-semibold uppercase text-navy outline-none focus:ring-2 focus:ring-brand-accent/30 ${
-                                    duplicate ? "border-red-500" : "border-ink"
-                                  }`}
-                                  onChange={(event) => updateType(categoryIndex, typeIndex, { code: event.target.value })}
+                                  aria-readonly={Boolean(type.id)}
+                                  className={`h-9 w-full rounded-md border px-2 text-sm font-semibold uppercase text-navy outline-none focus:ring-2 focus:ring-brand-accent/30 ${
+                                    type.id ? "bg-surface" : "bg-white"
+                                  } ${duplicate ? "border-red-500" : "border-ink"}`}
+                                  onChange={(event) => {
+                                    if (!type.id) {
+                                      updateType(categoryIndex, typeIndex, { code: event.target.value });
+                                    }
+                                  }}
                                   placeholder="Prefix"
+                                  readOnly={Boolean(type.id)}
+                                  title={type.id ? "Type prefix is locked after creation. New stock codes will continue using this prefix." : "Enter type prefix"}
                                   value={type.code}
                                 />
                                 {duplicate ? <p className="mt-1 text-[10px] font-bold text-red-600">Duplicate</p> : null}

@@ -1,4 +1,4 @@
-﻿import { AssetTrackMethod } from "@prisma/client";
+import { AssetTrackMethod } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { hasRole } from "@/lib/permissions";
@@ -180,7 +180,6 @@ export type CreateDomainInput = {
 export type UpdateDomainInput = {
   controllerId: string;
   domainName: string;
-  prefix: string;
 };
 
 export async function createDomainForUser(user: CurrentUser, input: CreateDomainInput) {
@@ -267,7 +266,6 @@ export async function updateDomainForUser(
   }
 
   const name = requireName(input.domainName, "Domain name");
-  const prefix = requirePrefix(input.prefix);
 
   if (!input.controllerId) {
     throw new WorkflowError("Stock controller is required.");
@@ -300,16 +298,16 @@ export async function updateDomainForUser(
       select: { id: true },
       where: {
         id: { not: domain.id },
-        OR: [{ prefix }, { name }],
+        name,
       },
     });
 
     if (duplicate) {
-      throw new WorkflowError("Domain name or prefix already exists.", 409, "DUPLICATE_DOMAIN");
+      throw new WorkflowError("Domain name already exists.", 409, "DUPLICATE_DOMAIN");
     }
 
     await tx.assetDomain.update({
-      data: { name, prefix },
+      data: { name },
       where: { id: domain.id },
     });
 
@@ -374,3 +372,4 @@ export async function deleteDomainForUser(user: CurrentUser, domainCode: string)
     return { assetCount };
   });
 }
+

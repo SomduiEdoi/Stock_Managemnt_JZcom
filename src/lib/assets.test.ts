@@ -38,16 +38,17 @@ describe("asset list permissions", () => {
 });
 
 describe("asset list filters", () => {
-  it("normalizes invalid params to defaults", () => {
+  it("preserves dynamic domain params and normalizes invalid non-domain params", () => {
     expect(
       normalizeAssetListFilters({
-        domain: "INVALID",
+        domain: "BARBIE",
         page: "-1",
         q: "  fan  ",
         status: "MISSING",
       }),
     ).toMatchObject({
-      domain: "ALL",
+      brand: "ALL",
+      domain: "BARBIE",
       page: 1,
       search: "fan",
       status: "ALL",

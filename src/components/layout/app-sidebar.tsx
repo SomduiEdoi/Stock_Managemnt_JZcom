@@ -6,13 +6,15 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ChevronDown,
-  ClipboardList,
+  Archive,
   LayoutDashboard,
+  Layers,
   MoreVertical,
   Package,
   PlusCircle,
-  ScrollText,
-  Users,
+  ReceiptText,
+  ShoppingBasket,
+  UserRound,
   X,
 } from "lucide-react";
 import { clsx } from "clsx";
@@ -84,6 +86,10 @@ function canShowRequest(roles: RoleCode[]) {
 }
 
 function canShowUsers(roles: RoleCode[]) {
+  return roles.includes("ADMIN");
+}
+
+function canShowProjects(roles: RoleCode[]) {
   return roles.includes("ADMIN");
 }
 
@@ -315,7 +321,6 @@ function EditDomainModal({
         body: JSON.stringify({
           controllerId: form.controllerId,
           domainName: form.domainName.trim(),
-          prefix: form.prefix.trim().toUpperCase(),
         }),
       });
 
@@ -359,11 +364,12 @@ function EditDomainModal({
             />
           </Field>
 
-          <Field label="Prefix" required>
+          <Field label="Prefix">
             <input
-              className={inputClass()}
-              maxLength={2}
-              onChange={(event) => setField("prefix", event.target.value.toUpperCase())}
+              aria-readonly="true"
+              className={inputClass(true)}
+              readOnly
+              title="Prefix is locked after domain creation. New stock codes will continue using this prefix."
               type="text"
               value={form.prefix}
             />
@@ -596,6 +602,7 @@ export function AppSidebar({
                 onClick={() => setIsInventoryOpen((current) => !current)}
                 type="button"
               >
+                <Archive className="h-4 w-4 shrink-0" />
                 <span>Inventories</span>
                 <ChevronDown
                   className={clsx("ml-auto h-4 w-4 transition", isInventoryOpen && "rotate-180")}
@@ -692,7 +699,7 @@ export function AppSidebar({
 
             {canShowRequest(roles) ? (
               <SidebarLink active={pathname === "/request"} href="/request">
-                <ClipboardList className="h-4 w-4 shrink-0" />
+                <ShoppingBasket className="h-4 w-4 shrink-0" />
                 <span>Request Cart</span>
                 {requestCount > 0 ? (
                   <span className="ml-auto rounded-full bg-[#FE7743] px-2 py-0.5 text-[11px] font-bold text-white">
@@ -703,13 +710,20 @@ export function AppSidebar({
             ) : null}
 
             <SidebarLink active={pathname === "/logs"} href="/logs">
-              <ScrollText className="h-4 w-4 shrink-0" />
+              <ReceiptText className="h-4 w-4 shrink-0" />
               <span>Transaction Log</span>
             </SidebarLink>
 
+            {canShowProjects(roles) ? (
+              <SidebarLink active={pathname === "/project"} href="/project">
+                <Layers className="h-4 w-4 shrink-0" />
+                <span>Project</span>
+              </SidebarLink>
+            ) : null}
+
             {canShowUsers(roles) ? (
               <SidebarLink active={pathname === "/user"} href="/user">
-                <Users className="h-4 w-4 shrink-0" />
+                <UserRound className="h-4 w-4 shrink-0" />
                 <span>User</span>
               </SidebarLink>
             ) : null}
@@ -758,3 +772,4 @@ export function AppSidebar({
     </>
   );
 }
+

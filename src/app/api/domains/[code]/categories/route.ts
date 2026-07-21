@@ -68,6 +68,32 @@ export async function PUT(request: NextRequest, context: RouteContext) {
         "TYPE_CODE_DUPLICATED",
       );
     }
+    const submittedExistingTypeIds = submittedTypes
+      .map((type) => type.id)
+      .filter((id): id is string => Boolean(id));
+
+    if (submittedExistingTypeIds.length > 0) {
+      const existingTypes = await db.assetType.findMany({
+        select: { code: true, id: true },
+        where: {
+          category: { domainId: domain.id },
+          id: { in: submittedExistingTypeIds },
+          isActive: true,
+        },
+      });
+      const existingCodeById = new Map(existingTypes.map((type) => [type.id, cleanCode(type.code)]));
+      const changedPrefix = submittedTypes.find(
+        (type) => type.id && cleanCode(type.code) !== existingCodeById.get(type.id),
+      );
+
+      if (changedPrefix) {
+        throw new WorkflowError(
+          "Type prefix cannot be edited after creation.",
+          400,
+          "TYPE_CODE_LOCKED",
+        );
+      }
+    }
 
     if (submittedCodes.length > 0) {
       const submittedIds = submittedTypes
@@ -158,11 +184,18 @@ export async function PUT(request: NextRequest, context: RouteContext) {
           };
 
           if (typeInput.id) {
-            await tx.assetType.update({ data, where: { id: typeInput.id } });
+            await tx.assetType.update({
+              data: {
+                isActive: true,
+                name: data.name,
+                trackMethod: data.trackMethod,
+              },
+              where: { id: typeInput.id },
+            });
           } else {
             await tx.assetType.upsert({
               create: { ...data, categoryId: category.id },
-              update: { code: data.code, isActive: true },
+              update: { isActive: true },
               where: { categoryId_name: { categoryId: category.id, name: data.name } },
             });
           }

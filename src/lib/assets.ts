@@ -32,6 +32,7 @@ export type AssetStatusFilter = (typeof problemAssetStatusOptions)[number] | "AL
 export type AssetDomainAccess = "MANAGE" | "READ_ONLY" | "NONE";
 
 export type AssetListFilters = {
+  brand: string;
   category: string;
   domain: AssetDomainFilter;
   page: number;
@@ -44,6 +45,7 @@ export type AssetListFilters = {
 type SearchParams = Record<string, string | string[] | undefined>;
 
 const defaultFilters: AssetListFilters = {
+  brand: "ALL",
   category: "ALL",
   domain: "ALL",
   page: 1,
@@ -87,7 +89,7 @@ function firstParam(value: string | string[] | undefined) {
 }
 
 function isDomainCode(value: string | undefined): value is DomainCode {
-  return value !== undefined && assetDomainOptions.includes(value);
+  return Boolean(value && value !== "ALL");
 }
 
 function isAssetStatus(
@@ -117,6 +119,7 @@ export function normalizeAssetListFilters(
   const status = firstParam(searchParams.status);
 
   return {
+    brand: cleanFilterValue(firstParam(searchParams.brand)),
     category: cleanFilterValue(firstParam(searchParams.category)),
     domain: isDomainCode(domain) ? domain : defaultFilters.domain,
     page: parsePage(firstParam(searchParams.page)),
@@ -137,6 +140,38 @@ export function getVisibleDomainCodes(user: PermissionUser) {
     .map((permission) => permission.domainCode);
 }
 
+async function getActiveDomainCodes() {
+  const domains = await db.assetDomain.findMany({
+    orderBy: { name: "asc" },
+    select: { code: true, name: true },
+    where: { isActive: true },
+  });
+
+  return domains;
+}
+
+export async function getVisibleDomainOptionsForUser(user: PermissionUser) {
+  const activeDomains = await getActiveDomainCodes();
+
+  if (user.roles.includes("ADMIN")) {
+    return activeDomains;
+  }
+
+  const permittedCodes = new Set(
+    user.permissions
+      .filter((permission) => permission.canView || permission.canManage)
+      .map((permission) => permission.domainCode),
+  );
+
+  return activeDomains.filter((domain) => permittedCodes.has(domain.code));
+}
+
+export async function getVisibleDomainCodesForUser(user: PermissionUser) {
+  const domains = await getVisibleDomainOptionsForUser(user);
+
+  return domains.map((domain) => domain.code);
+}
+
 export function getDomainAccess(
   user: PermissionUser,
   domainCode: DomainCode,
@@ -154,6 +189,17 @@ export function getSelectedDomainCodes(
 ) {
   const visibleDomainCodes = getVisibleDomainCodes(user);
 
+  if (domainFilter === "ALL") {
+    return visibleDomainCodes;
+  }
+
+  return visibleDomainCodes.includes(domainFilter) ? [domainFilter] : [];
+}
+
+export function getSelectedDomainCodesFromVisible(
+  visibleDomainCodes: string[],
+  domainFilter: AssetDomainFilter,
+) {
   if (domainFilter === "ALL") {
     return visibleDomainCodes;
   }
@@ -192,14 +238,18 @@ function buildSearchWhere(search: string): Prisma.AssetWhereInput | undefined {
 }
 
 export function buildAssetWhere(
-  user: PermissionUser,
   filters: AssetListFilters,
+  selectedDomainCodes: string[],
 ): Prisma.AssetWhereInput {
   const clauses: Prisma.AssetWhereInput[] = [];
   const searchWhere = buildSearchWhere(filters.search);
 
   if (searchWhere) {
     clauses.push(searchWhere);
+  }
+
+  if (filters.brand !== "ALL") {
+    clauses.push({ assetModel: { is: { brand: filters.brand } } });
   }
 
   if (filters.category !== "ALL") {
@@ -214,7 +264,7 @@ export function buildAssetWhere(
 
   return {
     isActive: true,
-    domain: { code: { in: getSelectedDomainCodes(user, filters.domain) } },
+    domain: { code: { in: selectedDomainCodes } },
     ...(filters.status === "ALL"
       ? { status: { in: [...problemAssetStatusOptions] } }
       : { status: filters.status }),
@@ -236,12 +286,17 @@ export async function listAssetsForUser(
   user: CurrentUser,
   filters: AssetListFilters,
 ) {
-  const where = buildAssetWhere(user, filters);
+  const visibleDomainOptions = await getVisibleDomainOptionsForUser(user);
+  const visibleDomainCodes = visibleDomainOptions.map((domain) => domain.code);
+  const filterDomainCodes = getSelectedDomainCodesFromVisible(
+    visibleDomainCodes,
+    filters.domain,
+  );
+  const where = buildAssetWhere(filters, filterDomainCodes);
   const skip = (filters.page - 1) * filters.pageSize;
-  const filterDomainCodes = getSelectedDomainCodes(user, filters.domain);
   const filterOptionDomainCodes =
-    filterDomainCodes.length > 0 ? filterDomainCodes : getVisibleDomainCodes(user);
-  const [assets, total, categories, types] = await db.$transaction([
+    filterDomainCodes.length > 0 ? filterDomainCodes : visibleDomainCodes;
+  const [assets, total, brands, categories, types] = await db.$transaction([
     db.asset.findMany({
       orderBy: [{ updatedAt: "desc" }, { serialNo: "asc" }],
       select: assetListSelect,
@@ -250,6 +305,16 @@ export async function listAssetsForUser(
       where,
     }),
     db.asset.count({ where }),
+    db.assetModel.findMany({
+      distinct: ["brand"],
+      orderBy: { brand: "asc" },
+      select: { brand: true },
+      where: {
+        brand: { not: null },
+        domain: { code: { in: filterOptionDomainCodes } },
+        isActive: true,
+      },
+    }),
     db.assetCategory.findMany({
       orderBy: { name: "asc" },
       select: { name: true },
@@ -273,18 +338,20 @@ export async function listAssetsForUser(
   return {
     assets: assets.map((asset) => withDomainAccess(user, asset)),
     filterOptions: {
+      brands: brands.map((brand) => brand.brand).filter(Boolean) as string[],
       categories: categories.map((category) => category.name),
       types: types.map((type) => type.typeName).filter(Boolean) as string[],
     },
     filters,
     total,
     totalPages: Math.max(1, Math.ceil(total / filters.pageSize)),
-    visibleDomainCodes: getVisibleDomainCodes(user),
+    domainOptions: visibleDomainOptions,
+    visibleDomainCodes,
   };
 }
 
 export async function getAssetOverviewForUser(user: CurrentUser) {
-  const visibleDomainCodes = getVisibleDomainCodes(user);
+  const visibleDomainCodes = await getVisibleDomainCodesForUser(user);
   const where: Prisma.AssetWhereInput = {
     isActive: true,
     domain: { code: { in: visibleDomainCodes } },

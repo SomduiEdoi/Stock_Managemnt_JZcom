@@ -14,14 +14,13 @@ const paramsSchema = z.object({
 });
 
 const updateDomainSchema = z.object({
-  controllerId: z.string().uuid(),
-  domainName: z.string().trim().min(1),
-  prefix: z.string().trim().min(1),
-});
+  controllerId: z.string().trim().min(1, "Stock controller is required.").uuid("Stock controller is required."),
+  domainName: z.string().trim().min(1, "Domain name is required."),
+}).strict();
 
 function errorResponse(error: unknown) {
   if (error instanceof z.ZodError) {
-    return NextResponse.json({ message: "Invalid domain payload." }, { status: 400 });
+    return NextResponse.json({ message: error.issues[0]?.message ?? "Invalid domain payload." }, { status: 400 });
   }
 
   if (error instanceof WorkflowError) {
@@ -39,7 +38,11 @@ export async function PATCH(request: Request, context: RouteContext) {
   try {
     const user = await requireCurrentUser("/dashboard");
     const { code } = paramsSchema.parse(await context.params);
-    const body = updateDomainSchema.parse(await request.json());
+    const payload = await request.json();
+    if (payload && typeof payload === "object" && "prefix" in payload) {
+      return NextResponse.json({ message: "Prefix cannot be edited after domain creation." }, { status: 400 });
+    }
+    const body = updateDomainSchema.parse(payload);
     const domain = await updateDomainForUser(user, decodeURIComponent(code), body);
 
     return NextResponse.json({ domain });
@@ -59,3 +62,4 @@ export async function DELETE(request: Request, context: RouteContext) {
     return errorResponse(error);
   }
 }
+

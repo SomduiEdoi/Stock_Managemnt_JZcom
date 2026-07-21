@@ -15,7 +15,7 @@ type AssetsPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-const domainLabels: Record<AssetDomainFilter, string> = {
+const domainLabels: Record<string, string> = {
   ALL: "All",
   NETWORK: "Network",
   SERVER: "Server",
@@ -38,6 +38,10 @@ function buildFilterHref(
 
   if (nextFilters.domain !== "ALL") {
     params.set("domain", nextFilters.domain);
+  }
+
+  if (nextFilters.brand !== "ALL") {
+    params.set("brand", nextFilters.brand);
   }
 
   if (nextFilters.status !== "ALL") {
@@ -65,12 +69,16 @@ function formatNumber(value: number) {
 
 function ProblemDomainChips({
   filters,
-  visibleDomainCodes,
+  domainOptions,
 }: {
+  domainOptions: Awaited<ReturnType<typeof listAssetsForUser>>["domainOptions"];
   filters: AssetListFilters;
-  visibleDomainCodes: Array<Exclude<AssetDomainFilter, "ALL">>;
 }) {
-  const options: AssetDomainFilter[] = ["ALL", ...visibleDomainCodes];
+  const options: AssetDomainFilter[] = [
+    "ALL",
+    ...domainOptions.map((domain) => domain.code),
+  ];
+  const labelByCode = new Map(domainOptions.map((domain) => [domain.code, domain.name]));
 
   return (
     <div className="flex gap-2 overflow-x-auto pb-1">
@@ -85,6 +93,7 @@ function ProblemDomainChips({
                 : "bg-surface text-muted-foreground hover:text-navy"
             }`}
             href={buildFilterHref(filters, {
+              brand: "ALL",
               category: "ALL",
               domain,
               page: 1,
@@ -92,7 +101,9 @@ function ProblemDomainChips({
             })}
             key={domain}
           >
-            {domain === "ALL" ? "All Problem Items" : domainLabels[domain]}
+            {domain === "ALL"
+              ? "All Problem Items"
+              : labelByCode.get(domain) ?? domainLabels[domain] ?? domain}
           </Link>
         );
       })}
@@ -110,7 +121,7 @@ function ProblemFilters({
   return (
     <form
       action="/dashboard/assets"
-      className="grid gap-3 rounded-md border border-border bg-white p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_150px_180px_180px_auto_auto]"
+      className="grid gap-3 rounded-md border border-border bg-white p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_150px_180px_180px_180px_auto_auto]"
       method="get"
     >
       <input name="page" type="hidden" value="1" />
@@ -131,6 +142,19 @@ function ProblemFilters({
         {problemAssetStatusOptions.map((status) => (
           <option key={status} value={status}>
             {assetStatusLabels[status]}
+          </option>
+        ))}
+      </select>
+
+      <select
+        className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold text-navy"
+        defaultValue={filters.brand}
+        name="brand"
+      >
+        <option value="ALL">All Brands</option>
+        {result.filterOptions.brands.map((brand) => (
+          <option key={brand} value={brand}>
+            {brand}
           </option>
         ))}
       </select>
@@ -301,8 +325,8 @@ export default async function AssetsPage({ searchParams }: AssetsPageProps) {
 
       <div className="flex flex-col gap-4">
         <ProblemDomainChips
+          domainOptions={result.domainOptions}
           filters={filters}
-          visibleDomainCodes={result.visibleDomainCodes}
         />
         <ProblemFilters filters={filters} result={result} />
       </div>

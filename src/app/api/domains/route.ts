@@ -1,4 +1,4 @@
-﻿import { AssetTrackMethod } from "@prisma/client";
+import { AssetTrackMethod } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireCurrentUser } from "@/lib/auth";
@@ -7,9 +7,9 @@ import { PermissionError } from "@/lib/permissions";
 import { WorkflowError } from "@/lib/workflow";
 
 const createDomainSchema = z.object({
-  controllerId: z.string().uuid(),
-  domainName: z.string().trim().min(1),
-  prefix: z.string().trim().min(1),
+  controllerId: z.string().trim().min(1, "Stock controller is required.").uuid("Stock controller is required."),
+  domainName: z.string().trim().min(1, "Domain name is required."),
+  prefix: z.string().trim().min(1, "Prefix is required.").regex(/^[A-Za-z0-9]{2}$/, "Prefix must be exactly 2 English letters or numbers."),
   trackMethod: z.nativeEnum(AssetTrackMethod),
 });
 
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ domain });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ message: "Invalid domain payload." }, { status: 400 });
+      return NextResponse.json({ message: error.issues[0]?.message ?? "Invalid domain payload." }, { status: 400 });
     }
 
     if (error instanceof WorkflowError) {

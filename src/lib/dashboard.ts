@@ -1,6 +1,6 @@
 import { AssetActionType, AssetStatus, Prisma } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
-import { getVisibleDomainCodes } from "@/lib/assets";
+import { getVisibleDomainCodesForUser } from "@/lib/assets";
 import { db } from "@/lib/db";
 
 export const dashboardRecentTabs = [
@@ -54,29 +54,29 @@ export function normalizeDashboardRecentTab(
     : "REGISTER";
 }
 
-function buildVisibleAssetWhere(user: CurrentUser): Prisma.AssetWhereInput {
+function buildVisibleAssetWhere(domainCodes: string[]): Prisma.AssetWhereInput {
   return {
     isActive: true,
-    domain: { code: { in: getVisibleDomainCodes(user) } },
+    domain: { code: { in: domainCodes } },
   };
 }
 
 function buildVisibleHistoryWhere(
-  user: CurrentUser,
+  domainCodes: string[],
   options: { includeInactive?: boolean } = {},
 ): Prisma.AssetStatusHistoryWhereInput {
   return {
     asset: options.includeInactive
-      ? { domain: { code: { in: getVisibleDomainCodes(user) } } }
-      : buildVisibleAssetWhere(user),
+      ? { domain: { code: { in: domainCodes } } }
+      : buildVisibleAssetWhere(domainCodes),
   };
 }
 
 function buildRecentTableWhere(
-  user: CurrentUser,
+  domainCodes: string[],
   tab: DashboardRecentTab,
 ): Prisma.AssetStatusHistoryWhereInput {
-  const visibleWhere = buildVisibleHistoryWhere(user);
+  const visibleWhere = buildVisibleHistoryWhere(domainCodes);
 
   if (tab === "REGISTER") {
     return {
@@ -102,8 +102,11 @@ export async function getDashboardOverviewForUser(
   user: CurrentUser,
   recentTab: DashboardRecentTab,
 ) {
-  const assetWhere = buildVisibleAssetWhere(user);
-  const historyWhere = buildVisibleHistoryWhere(user, { includeInactive: true });
+  const visibleDomainCodes = await getVisibleDomainCodesForUser(user);
+  const assetWhere = buildVisibleAssetWhere(visibleDomainCodes);
+  const historyWhere = buildVisibleHistoryWhere(visibleDomainCodes, {
+    includeInactive: true,
+  });
   const [statusGroups, activity, recentRows] = await Promise.all([
     db.asset.groupBy({
       _count: { _all: true },
@@ -120,7 +123,7 @@ export async function getDashboardOverviewForUser(
       orderBy: { changedAt: "desc" },
       select: recentAssetSelect,
       take: 50,
-      where: buildRecentTableWhere(user, recentTab),
+      where: buildRecentTableWhere(visibleDomainCodes, recentTab),
     }),
   ]);
   const totalAssets = statusGroups.reduce(
