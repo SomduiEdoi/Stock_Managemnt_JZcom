@@ -78,6 +78,7 @@ const transactionDetailSelect = Prisma.validator<Prisma.TransactionSelect>()({
   returnedAt: true,
   serviceRequest: true,
   soldPrice: true,
+  sourceTransactionId: true,
   status: true,
   transactionNo: true,
   type: true,
@@ -338,6 +339,83 @@ function assertAllAssetsFound(assetIds: string[], assets: WorkflowAsset[]) {
   if (missingId) {
     throw new WorkflowError(`Asset not found: ${missingId}`, 404);
   }
+}
+
+type WorkflowUserRecord = NonNullable<
+  Awaited<ReturnType<typeof findWorkflowUserById>>
+>;
+
+async function findWorkflowUserById(tx: Prisma.TransactionClient, userId: string) {
+  return tx.user.findFirst({
+    where: { id: userId, isActive: true },
+    select: {
+      azureAdObjectId: true,
+      id: true,
+      email: true,
+      lastLoginAt: true,
+      name: true,
+      organizationLevel: true,
+      organizationTag: true,
+      projectTag: true,
+      position: true,
+      signatureDataUrl: true,
+      signatureUploadedAt: true,
+      stockControllerTag: true,
+      signatureUploadedBy: {
+        select: { email: true, name: true },
+      },
+      roles: {
+        select: {
+          role: { select: { code: true } },
+        },
+      },
+      domainPermissions: {
+        where: { domain: { isActive: true } },
+        select: {
+          canManage: true,
+          canView: true,
+          domain: { select: { code: true } },
+        },
+      },
+    },
+  });
+}
+
+async function requireWorkflowUserById(
+  tx: Prisma.TransactionClient,
+  userId: string,
+) {
+  const user = await findWorkflowUserById(tx, userId);
+
+  if (!user) {
+    throw new WorkflowError("Requester is not active.", 409, "REQUESTER_INACTIVE");
+  }
+
+  return toWorkflowCurrentUser(user);
+}
+
+function toWorkflowCurrentUser(user: WorkflowUserRecord): CurrentUser {
+  return {
+    azureAdObjectId: user.azureAdObjectId,
+    email: user.email,
+    id: user.id,
+    lastLoginAt: user.lastLoginAt,
+    name: user.name,
+    organizationLevel: user.organizationLevel,
+    organizationTag: user.organizationTag,
+    permissions: user.domainPermissions.map((permission) => ({
+      canManage: permission.canManage,
+      canView: permission.canView,
+      domainCode: permission.domain.code,
+    })),
+    position: user.position,
+    projectTag: user.projectTag,
+    roles: user.roles.map(({ role }) => role.code),
+    signatureDataUrl: user.signatureDataUrl,
+    signatureUploadedAt: user.signatureUploadedAt,
+    signatureUploadedBy: user.signatureUploadedBy,
+    stockControllerTag: user.stockControllerTag,
+  };
 }
 
 function isQuantityAsset(asset: WorkflowAsset) {
@@ -981,6 +1059,29 @@ async function buildApprovalCandidates(
   return approvals;
 }
 
+async function replaceTransactionApprovals(
+  tx: Prisma.TransactionClient,
+  transactionId: string,
+  approvals: ApprovalCandidate[],
+) {
+  await tx.transactionApproval.deleteMany({ where: { transactionId } });
+
+  if (approvals.length === 0) {
+    return;
+  }
+
+  await tx.transactionApproval.createMany({
+    data: approvals.map((approval) => ({
+      approverNameSnapshot: approval.approverNameSnapshot,
+      approverTagSnapshot: approval.approverTagSnapshot,
+      requiredTag: approval.requiredTag,
+      stepSequence: approval.stepSequence,
+      transactionId,
+      userId: approval.userId,
+    })),
+  });
+}
+
 async function updateSubmittedAsset(
   tx: Prisma.TransactionClient,
   asset: WorkflowAsset,
@@ -1221,7 +1322,7 @@ function validateSoldResolutionPrice(item: ResolveTransactionItemInput) {
   }
 
   if (!soldPrice) {
-    throw new WorkflowError("Sold price is required for sold return items.");
+    return null;
   }
 
   if (Number.isNaN(Number(soldPrice))) {
@@ -1517,6 +1618,11 @@ async function applyApprovedTransaction(
   const transaction = await findTransactionDetail(tx, transactionId);
   const toStatus = getTransactionAssetStatus(transaction.type);
 
+  if (transaction.type === TransactionType.SOLD && transaction.sourceTransactionId) {
+    await applyApprovedReturnSaleTransaction(tx, transaction, userId, now);
+    return;
+  }
+
   for (const item of transaction.items) {
     const workflowItem = { asset: item.asset as unknown as WorkflowAsset, quantity: item.requestedQuantity };
     if (isQuantityTransactionItem(item)) {
@@ -1546,6 +1652,89 @@ async function applyApprovedTransaction(
         transaction.type === TransactionType.SOLD
           ? TransactionWorkflowStatus.COMPLETED
           : TransactionWorkflowStatus.IN_PROGRESS,
+    },
+  });
+}
+
+async function applyApprovedReturnSaleTransaction(
+  tx: Prisma.TransactionClient,
+  transaction: TransactionDetail,
+  userId: string,
+  now: Date,
+) {
+  if (!transaction.sourceTransactionId) {
+    throw new WorkflowError("Source transaction is required for return sale.", 409);
+  }
+
+  const sourceTransaction = await findTransactionDetail(
+    tx,
+    transaction.sourceTransactionId,
+  );
+  const sourceItemsByAsset = new Map(
+    sourceTransaction.items
+      .filter((item) => !item.returnedAt)
+      .map((item) => [item.assetId, item]),
+  );
+
+  for (const saleItem of transaction.items) {
+    const sourceItem = sourceItemsByAsset.get(saleItem.assetId);
+
+    if (!sourceItem) {
+      throw new WorkflowError(
+        `Source item for ${transactionItemAssetName(saleItem)} is already resolved.`,
+        409,
+        "SOURCE_ITEM_ALREADY_RESOLVED",
+      );
+    }
+
+    if (saleItem.requestedQuantity !== sourceItem.requestedQuantity) {
+      throw new WorkflowError(
+        "Return sale quantity must match the open source item quantity.",
+        409,
+        "RETURN_SALE_QUANTITY_MISMATCH",
+      );
+    }
+
+    await resolveItem(
+      tx,
+      sourceItem,
+      { id: userId } as CurrentUser,
+      now,
+      AssetStatus.SOLD,
+      "Sold after return approval",
+      saleItem.soldPrice?.toString() ?? transaction.soldPrice?.toString() ?? null,
+    );
+  }
+
+  await tx.transactionItem.updateMany({
+    where: { transactionId: transaction.id },
+    data: {
+      resolvedStatus: AssetStatus.SOLD,
+      returnedAt: now,
+      returnedById: userId,
+    },
+  });
+
+  await tx.assetStatusHistory.createMany({
+    data: transaction.items.map((item) => ({
+      actionType: AssetActionType.STATUS_CHANGE,
+      assetId: item.assetId,
+      changedById: userId,
+      fromStatus: item.fromStatus,
+      note: "Approved sale from return",
+      toStatus: AssetStatus.SOLD,
+      transactionId: transaction.id,
+    })),
+  });
+
+  await refreshTransactionResolutionStatus(tx, sourceTransaction.id, now);
+
+  await tx.transaction.update({
+    where: { id: transaction.id },
+    data: {
+      completedAt: now,
+      status: TransactionStatus.COMPLETED,
+      workflowStatus: TransactionWorkflowStatus.COMPLETED,
     },
   });
 }
@@ -1772,6 +1961,7 @@ export async function rejectTransaction(
 
 
 export type UpdatePendingTransactionRequestInput = {
+  items?: RequestAssetItemInput[];
   internalRequest?: boolean;
   note?: string | null;
   projectRequest?: boolean;
@@ -1779,6 +1969,59 @@ export type UpdatePendingTransactionRequestInput = {
   serviceRequest?: boolean;
   type: TransactionType;
 };
+
+async function updatePendingQuantityReservation(
+  tx: Prisma.TransactionClient,
+  item: WorkflowRequestItem,
+  userId: string,
+  nextQuantity: number,
+  previousQuantity: number,
+) {
+  const reservation = await tx.assetReservation.findUnique({
+    where: {
+      assetId_userId: {
+        assetId: item.asset.id,
+        userId,
+      },
+    },
+  });
+
+  if (!reservation || reservation.quantity < previousQuantity) {
+    throw new WorkflowError(
+      `Asset ${assetDisplayName(item.asset)} reservation changed before edit.`,
+      409,
+      "ASSET_RESERVATION_CONFLICT",
+    );
+  }
+
+  const delta = nextQuantity - previousQuantity;
+
+  if (delta === 0) {
+    return;
+  }
+
+  if (delta > 0) {
+    await tx.assetReservation.update({
+      data: { quantity: { increment: delta } },
+      where: { id: reservation.id },
+    });
+    await refreshQuantityRequestStatus(tx, item.asset.id, userId);
+    return;
+  }
+
+  const decrement = Math.abs(delta);
+
+  if (reservation.quantity === decrement) {
+    await tx.assetReservation.delete({ where: { id: reservation.id } });
+  } else {
+    await tx.assetReservation.update({
+      data: { quantity: { decrement } },
+      where: { id: reservation.id },
+    });
+  }
+
+  await refreshQuantityRequestStatus(tx, item.asset.id, userId);
+}
 
 export async function updatePendingTransactionRequest(
   user: CurrentUser,
@@ -1788,6 +2031,7 @@ export async function updatePendingTransactionRequest(
   const purpose = requireText(input.purpose, "Use detail");
   const note = cleanText(input.note);
   const toStatus = getTransactionAssetStatus(input.type);
+  const requestedItems = input.items ? normalizeRequestItems(input) : null;
 
   return db.$transaction(
     async (tx) => {
@@ -1817,10 +2061,234 @@ export async function updatePendingTransactionRequest(
         },
       });
 
-      await tx.transactionItem.updateMany({
-        where: { transactionId },
-        data: { note, toStatus },
-      });
+      if (!requestedItems) {
+        await tx.transactionItem.updateMany({
+          where: { transactionId },
+          data: { note, toStatus },
+        });
+
+        const requester = await requireWorkflowUserById(tx, transaction.requestedBy.id);
+        const workflowItems = transaction.items.map((item) => ({
+          asset: item.asset as unknown as WorkflowAsset,
+          quantity: item.requestedQuantity,
+        }));
+        await replaceTransactionApprovals(
+          tx,
+          transactionId,
+          await buildApprovalCandidates(tx, requester, { ...input, requestDate: transaction.requestDate }, workflowItems),
+        );
+
+        return findTransactionDetail(tx, transactionId);
+      }
+
+      assertHasItems(requestedItems, "Asset items");
+
+      const nextItems = await findRequestItems(tx, requestedItems);
+      const previousByAssetId = new Map(
+        transaction.items.map((item) => [item.assetId, item]),
+      );
+      const nextByAssetId = new Map(
+        nextItems.map((item) => [item.asset.id, item]),
+      );
+      const availableQuantities = await getAvailableQuantities(
+        tx,
+        nextItems.map((item) => item.asset),
+      );
+
+      for (const nextItem of nextItems) {
+        const previous = previousByAssetId.get(nextItem.asset.id);
+
+        assertCanRequestDomain(user, nextItem.asset.domain.code);
+
+        if (!isQuantityAsset(nextItem.asset) && nextItem.quantity !== 1) {
+          throw new WorkflowError(
+            `Serial asset ${assetDisplayName(nextItem.asset)} can only be requested with quantity 1.`,
+            409,
+            "INVALID_SERIAL_QUANTITY",
+          );
+        }
+
+        if (isQuantityAsset(nextItem.asset)) {
+          const previousQuantity = previous?.requestedQuantity ?? 0;
+          const availableQuantity =
+            (availableQuantities.get(nextItem.asset.id) ?? 0) + previousQuantity;
+
+          if (
+            !previous &&
+            nextItem.asset.status !== AssetStatus.READY &&
+            nextItem.asset.status !== AssetStatus.REQUEST
+          ) {
+            throw new WorkflowError(
+              `Asset ${assetDisplayName(nextItem.asset)} is not ready for request.`,
+              409,
+              "ASSET_NOT_READY",
+            );
+          }
+
+          if (nextItem.quantity > availableQuantity) {
+            throw new WorkflowError(
+              `Asset ${assetDisplayName(nextItem.asset)} has only ${availableQuantity} available.`,
+              409,
+              "INSUFFICIENT_ASSET_QUANTITY",
+            );
+          }
+        } else if (!previous) {
+          if (nextItem.asset.status !== AssetStatus.READY) {
+            throw new WorkflowError(
+              `Asset ${assetDisplayName(nextItem.asset)} is not ready for request.`,
+              409,
+              "ASSET_NOT_READY",
+            );
+          }
+
+          if (nextItem.asset.requestLockedById) {
+            throw new WorkflowError(
+              `Asset ${assetDisplayName(nextItem.asset)} is locked by another user.`,
+              409,
+              "ASSET_LOCKED_BY_ANOTHER_USER",
+            );
+          }
+        }
+      }
+
+      const removedItems = transaction.items.filter(
+        (item) => !nextByAssetId.has(item.assetId),
+      );
+      const addedItems = nextItems.filter(
+        (item) => !previousByAssetId.has(item.asset.id),
+      );
+      const keptItems = nextItems.filter((item) =>
+        previousByAssetId.has(item.asset.id),
+      );
+
+      for (const removed of removedItems) {
+        const workflowItem = {
+          asset: removed.asset as unknown as WorkflowAsset,
+          quantity: removed.requestedQuantity,
+        };
+
+        if (isQuantityTransactionItem(removed)) {
+          await releaseQuantityReservation(tx, workflowItem, transaction.requestedBy.id);
+        } else {
+          await releaseHeldAsset(tx, workflowItem.asset, transaction.requestedBy.id);
+        }
+      }
+
+      for (const added of addedItems) {
+        if (isQuantityAsset(added.asset)) {
+          await reserveQuantityAsset(tx, added, user, note);
+        } else {
+          await holdAsset(tx, added.asset, user, new Date());
+        }
+      }
+
+      for (const kept of keptItems) {
+        const previous = previousByAssetId.get(kept.asset.id);
+
+        if (!previous) {
+          continue;
+        }
+
+        if (isQuantityAsset(kept.asset)) {
+          await updatePendingQuantityReservation(
+            tx,
+            kept,
+            transaction.requestedBy.id,
+            kept.quantity,
+            previous.requestedQuantity,
+          );
+        }
+      }
+
+      if (removedItems.length > 0) {
+        await tx.transactionItem.deleteMany({
+          where: {
+            id: { in: removedItems.map((item) => item.id) },
+            transactionId,
+          },
+        });
+      }
+
+      for (const kept of keptItems) {
+        const previous = previousByAssetId.get(kept.asset.id);
+
+        if (!previous) {
+          continue;
+        }
+
+        await tx.transactionItem.update({
+          where: { id: previous.id },
+          data: {
+            note,
+            requestedQuantity: kept.quantity,
+            soldPrice: null,
+            toStatus,
+          },
+        });
+      }
+
+      if (addedItems.length > 0) {
+        await tx.transactionItem.createMany({
+          data: addedItems.map(({ asset, quantity }) => ({
+            assetId: asset.id,
+            fromStatus: isQuantityAsset(asset) ? AssetStatus.READY : AssetStatus.REQUEST,
+            note,
+            requestedQuantity: quantity,
+            soldPrice: null,
+            toStatus,
+            transactionId,
+          })),
+        });
+      }
+
+      const requester = await requireWorkflowUserById(tx, transaction.requestedBy.id);
+      await replaceTransactionApprovals(
+        tx,
+        transactionId,
+        await buildApprovalCandidates(tx, requester, { ...input, requestDate: transaction.requestDate }, nextItems),
+      );
+
+      const historyRows = [
+        ...removedItems.map((item) => ({
+          actionType: AssetActionType.STATUS_CHANGE,
+          assetId: item.assetId,
+          changedById: user.id,
+          fromStatus: AssetStatus.REQUEST,
+          note: "Removed from pending request",
+          toStatus: AssetStatus.READY,
+          transactionId,
+        })),
+        ...addedItems.map(({ asset, quantity }) => ({
+          actionType: AssetActionType.REQUEST_HOLD,
+          assetId: asset.id,
+          changedById: user.id,
+          fromStatus: AssetStatus.READY,
+          note: isQuantityAsset(asset)
+            ? `Added to pending request; quantity: ${quantity}`
+            : "Added to pending request",
+          toStatus: AssetStatus.REQUEST,
+          transactionId,
+        })),
+        ...keptItems
+          .filter((item) => {
+            const previous = previousByAssetId.get(item.asset.id);
+
+            return previous && previous.requestedQuantity !== item.quantity;
+          })
+          .map(({ asset, quantity }) => ({
+            actionType: AssetActionType.ADJUST_QUANTITY,
+            assetId: asset.id,
+            changedById: user.id,
+            fromStatus: AssetStatus.REQUEST,
+            note: `Pending request quantity changed to ${quantity}`,
+            toStatus: AssetStatus.REQUEST,
+            transactionId,
+          })),
+      ];
+
+      if (historyRows.length > 0) {
+        await tx.assetStatusHistory.createMany({ data: historyRows });
+      }
 
       return findTransactionDetail(tx, transactionId);
     },
@@ -1869,6 +2337,95 @@ export async function releaseAssetsFromRequest(
   );
 }
 
+async function createReturnSaleApprovalTransaction(
+  tx: Prisma.TransactionClient,
+  actor: CurrentUser,
+  sourceTransaction: TransactionDetail,
+  saleItems: TransactionDetail["items"],
+  note: string | null,
+  now: Date,
+) {
+  const requester = await requireWorkflowUserById(
+    tx,
+    sourceTransaction.requestedBy.id,
+  );
+  const workflowItems = saleItems.map((item) => ({
+    asset: item.asset as unknown as WorkflowAsset,
+    quantity: item.requestedQuantity,
+  }));
+  const approvalInput: SubmitTransactionInput = {
+    internalRequest: false,
+    items: workflowItems.map((item) => ({
+      assetId: item.asset.id,
+      quantity: item.quantity,
+    })),
+    note,
+    projectRequest: sourceTransaction.projectRequest,
+    purpose: sourceTransaction.purpose,
+    requestDate: now,
+    serviceRequest: sourceTransaction.serviceRequest,
+    sourceTransactionId: sourceTransaction.id,
+    type: TransactionType.SOLD,
+  };
+  const approvals = await buildApprovalCandidates(
+    tx,
+    requester,
+    approvalInput,
+    workflowItems,
+  );
+  const transaction = await tx.transaction.create({
+    data: {
+      completedAt: null,
+      createdById: actor.id,
+      documentRef: null,
+      dueDate: null,
+      internalRequest: false,
+      note,
+      projectRequest: sourceTransaction.projectRequest,
+      purpose: sourceTransaction.purpose,
+      requestDate: now,
+      requestedById: sourceTransaction.requestedBy.id,
+      serviceRequest: sourceTransaction.serviceRequest,
+      soldPrice: null,
+      sourceTransactionId: sourceTransaction.id,
+      status: TransactionStatus.COMPLETED,
+      transactionNo: await createRequisitionNo(tx, now),
+      type: TransactionType.SOLD,
+      workflowStatus: TransactionWorkflowStatus.PENDING,
+    },
+  });
+
+  await tx.transactionItem.createMany({
+    data: saleItems.map((item) => ({
+      assetId: item.assetId,
+      fromStatus: item.toStatus,
+      note,
+      requestedQuantity: item.requestedQuantity,
+      soldPrice: null,
+      toStatus: AssetStatus.SOLD,
+      transactionId: transaction.id,
+    })),
+  });
+
+  await replaceTransactionApprovals(tx, transaction.id, approvals);
+
+  await tx.assetStatusHistory.createMany({
+    data: saleItems.map((item) => ({
+      actionType: AssetActionType.STATUS_CHANGE,
+      assetId: item.assetId,
+      changedById: actor.id,
+      fromStatus: item.toStatus,
+      note: [note, `Created sale approval request ${transaction.transactionNo}`]
+        .filter(Boolean)
+        .join("\n"),
+      toStatus: item.toStatus,
+      transactionId: transaction.id,
+    })),
+  });
+
+  return transaction;
+}
+
 export async function resolveTransactionItems(
   user: CurrentUser,
   input: ResolveTransactionInput,
@@ -1879,6 +2436,7 @@ export async function resolveTransactionItems(
     input.items.map((item) => ({
       itemId: item.itemId.trim(),
       note: cleanText(item.note),
+      soldPrice: cleanText(item.soldPrice),
       toStatus: item.toStatus,
     })),
   );
@@ -1919,7 +2477,30 @@ export async function resolveTransactionItems(
 
       assertCanResolveTransaction(user, { items });
 
-      for (const item of items) {
+      const saleItems = items.filter((item) => {
+        const resolution = resolutionMap.get(item.id);
+
+        return resolution?.toStatus === AssetStatus.SOLD;
+      });
+      const returnItems = items.filter((item) => {
+        const resolution = resolutionMap.get(item.id);
+
+        return resolution?.toStatus !== AssetStatus.SOLD;
+      });
+
+      if (saleItems.length > 0) {
+        const firstSaleResolution = resolutionMap.get(saleItems[0].id);
+        await createReturnSaleApprovalTransaction(
+          tx,
+          user,
+          transaction,
+          saleItems,
+          cleanText(firstSaleResolution?.note),
+          now,
+        );
+      }
+
+      for (const item of returnItems) {
         const resolution = resolutionMap.get(item.id);
 
         if (!resolution) {
@@ -1937,22 +2518,24 @@ export async function resolveTransactionItems(
         );
       }
 
-      await tx.assetStatusHistory.createMany({
-        data: items.map((item) => {
-          const resolution = resolutionMap.get(item.id);
-          const toStatus = resolution?.toStatus ?? AssetStatus.READY;
+      if (returnItems.length > 0) {
+        await tx.assetStatusHistory.createMany({
+          data: returnItems.map((item) => {
+            const resolution = resolutionMap.get(item.id);
+            const toStatus = resolution?.toStatus ?? AssetStatus.READY;
 
-          return {
-            actionType: getManualStatusAction(item.toStatus, toStatus),
-            assetId: item.assetId,
-            changedById: user.id,
-            fromStatus: item.toStatus,
-            note: cleanText(resolution?.note),
-            toStatus,
-            transactionId: transaction.id,
-          };
-        }),
-      });
+            return {
+              actionType: getManualStatusAction(item.toStatus, toStatus),
+              assetId: item.assetId,
+              changedById: user.id,
+              fromStatus: item.toStatus,
+              note: cleanText(resolution?.note),
+              toStatus,
+              transactionId: transaction.id,
+            };
+          }),
+        });
+      }
 
       await refreshTransactionResolutionStatus(tx, transaction.id, now);
 

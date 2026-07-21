@@ -12,13 +12,24 @@ export type TransactionReturnItem = {
   brand: string | null;
   currentStep: string;
   currentStatus: AssetStatus;
+  isQuantityAsset: boolean;
   itemId: string;
   kindLabel: string;
   model: string;
   note: string | null;
+  requestedQuantity: number;
   resolvedAt: string | null;
   resolvedStatus: AssetStatus | null;
   resolutionNote: string | null;
+  serialNo: string | null;
+  stockCode: string | null;
+};
+
+type EditableRequestItem = {
+  assetId: string;
+  isQuantityAsset: boolean;
+  model: string;
+  quantity: number;
   serialNo: string | null;
   stockCode: string | null;
 };
@@ -101,6 +112,19 @@ export function TransactionReturnClient({
   const [editScope, setEditScope] = useState<"internal" | "service" | "project">(
     transaction.internalRequest ? "internal" : transaction.projectRequest ? "project" : "service",
   );
+  const [editItems, setEditItems] = useState<EditableRequestItem[]>(
+    () =>
+      transaction.items.map((item) => ({
+        assetId: item.assetId,
+        isQuantityAsset: item.isQuantityAsset,
+        model: item.model,
+        quantity: item.requestedQuantity,
+        serialNo: item.serialNo,
+        stockCode: item.stockCode,
+      })),
+  );
+  const [newAssetId, setNewAssetId] = useState("");
+  const [newAssetQuantity, setNewAssetQuantity] = useState(1);
   const [resolutions, setResolutions] = useState<ResolutionState>(() =>
     buildInitialState(transaction.items),
   );
@@ -122,6 +146,10 @@ export function TransactionReturnClient({
     try {
       const response = await fetch(`/api/transactions/${transaction.id}`, {
         body: JSON.stringify({
+          items: editItems.map((item) => ({
+            assetId: item.assetId,
+            quantity: item.quantity,
+          })),
           internalRequest: editScope === "internal",
           note: editNote.trim() || null,
           projectRequest: editScope === "project",
@@ -144,6 +172,49 @@ export function TransactionReturnClient({
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  function removeEditItem(assetId: string) {
+    setEditItems((items) => items.filter((item) => item.assetId !== assetId));
+  }
+
+  function updateEditItemQuantity(assetId: string, quantity: number) {
+    setEditItems((items) =>
+      items.map((item) =>
+        item.assetId === assetId
+          ? { ...item, quantity: item.isQuantityAsset ? Math.max(1, quantity) : 1 }
+          : item,
+      ),
+    );
+  }
+
+  function addEditItem() {
+    const assetId = newAssetId.trim();
+
+    if (!assetId) {
+      setError("Asset ID is required before adding an item.");
+      return;
+    }
+
+    if (editItems.some((item) => item.assetId === assetId)) {
+      setError("This asset is already in the request.");
+      return;
+    }
+
+    setEditItems((items) => [
+      ...items,
+      {
+        assetId,
+        isQuantityAsset: true,
+        model: "New asset",
+        quantity: Math.max(1, newAssetQuantity),
+        serialNo: null,
+        stockCode: null,
+      },
+    ]);
+    setNewAssetId("");
+    setNewAssetQuantity(1);
+    setError(null);
   }
   function updateResolution(itemId: string, value: string) {
     setResolutions((current) => ({
@@ -232,12 +303,6 @@ export function TransactionReturnClient({
   }
 
   async function confirmSubmit() {
-    if (confirmationMode === "SOLD" && !price.trim()) {
-      setError("Please enter the sale price.");
-      return;
-    }
-
-    const cleanPrice = price.trim();
     const cleanRemark = remark.trim();
     const items = openItems.map((item) => {
       const toStatus = resolutions[item.itemId]?.toStatus ?? "READY";
@@ -245,7 +310,7 @@ export function TransactionReturnClient({
       return {
         itemId: item.itemId,
         note: cleanRemark || null,
-        soldPrice: toStatus === "SOLD" ? cleanPrice : null,
+        soldPrice: null,
         toStatus,
       };
     });
@@ -362,6 +427,92 @@ export function TransactionReturnClient({
               value={editNote}
             />
           </label>
+          <div className="mt-4 overflow-hidden rounded-md border border-border">
+            <div className="flex flex-col gap-3 border-b border-border bg-surface px-4 py-3 lg:flex-row lg:items-end">
+              <label className="flex flex-1 flex-col gap-2">
+                <span className="text-xs font-bold uppercase text-ink">Add Asset ID</span>
+                <input
+                  className="h-10 rounded-md border border-border bg-white px-3 text-sm font-semibold text-ink outline-none ring-brand-accent/20 focus:ring-4"
+                  onChange={(event) => setNewAssetId(event.target.value)}
+                  placeholder="Paste asset id"
+                  value={newAssetId}
+                />
+              </label>
+              <label className="flex w-32 flex-col gap-2">
+                <span className="text-xs font-bold uppercase text-ink">Qty</span>
+                <input
+                  className="h-10 rounded-md border border-border bg-white px-3 text-sm font-semibold text-ink outline-none ring-brand-accent/20 focus:ring-4"
+                  min={1}
+                  onChange={(event) => setNewAssetQuantity(Number(event.target.value) || 1)}
+                  type="number"
+                  value={newAssetQuantity}
+                />
+              </label>
+              <button
+                className="h-10 rounded-md bg-navy px-4 text-sm font-bold text-white hover:bg-black"
+                onClick={addEditItem}
+                type="button"
+              >
+                Add Item
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full table-fixed text-left text-sm">
+                <thead className="bg-surface text-xs uppercase text-muted-foreground">
+                  <tr>
+                    <th className="w-[34%] px-4 py-3 font-bold">Asset</th>
+                    <th className="w-[22%] px-4 py-3 font-bold">Stock Code</th>
+                    <th className="w-[22%] px-4 py-3 font-bold">Serial No.</th>
+                    <th className="w-[12%] px-4 py-3 font-bold">Qty</th>
+                    <th className="w-[10%] px-4 py-3 font-bold">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border bg-white">
+                  {editItems.map((item) => (
+                    <tr key={item.assetId}>
+                      <td className="truncate px-4 py-3 font-bold text-navy" title={item.model}>
+                        {item.model}
+                      </td>
+                      <td className="truncate px-4 py-3 font-medium text-ink" title={fallback(item.stockCode)}>
+                        {fallback(item.stockCode)}
+                      </td>
+                      <td className="truncate px-4 py-3 font-medium text-ink" title={fallback(item.serialNo)}>
+                        {fallback(item.serialNo)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          className="h-9 w-20 rounded-md border border-border bg-white px-2 text-sm font-bold text-navy outline-none ring-brand-accent/20 focus:ring-4 disabled:bg-surface"
+                          disabled={!item.isQuantityAsset}
+                          min={1}
+                          onChange={(event) =>
+                            updateEditItemQuantity(item.assetId, Number(event.target.value) || 1)
+                          }
+                          type="number"
+                          value={item.isQuantityAsset ? item.quantity : 1}
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          className="text-sm font-bold text-status-fail hover:underline"
+                          onClick={() => removeEditItem(item.assetId)}
+                          type="button"
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {editItems.length === 0 ? (
+                    <tr>
+                      <td className="px-4 py-6 text-center text-sm font-semibold text-muted-foreground" colSpan={5}>
+                        No request items.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </div>
           <div className="mt-4 flex justify-end">
             <button
               className="inline-flex h-10 items-center justify-center rounded-md bg-brand-accent px-4 text-sm font-bold text-white hover:bg-brand-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
@@ -607,7 +758,7 @@ export function TransactionReturnClient({
             </h2>
             <p className="mt-2 text-sm font-medium text-muted-foreground">
               {confirmationMode === "SOLD"
-                ? "Please enter the sale price and confirm that these assets should be sold."
+                ? "These assets will be sent to the sale approval workflow. BSD Staff will enter the sale price before approval."
                 : "Confirm that these assets have been returned."}
             </p>
 
@@ -619,21 +770,6 @@ export function TransactionReturnClient({
             ) : null}
 
             <div className="mt-5 flex flex-col gap-4">
-              {confirmationMode === "SOLD" ? (
-                <label className="flex flex-col gap-2">
-                  <span className="text-xs font-bold uppercase text-ink">
-                    Price
-                  </span>
-                  <input
-                    className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold text-ink outline-none ring-brand-accent/20 focus:ring-4"
-                    inputMode="decimal"
-                    onChange={(event) => setPrice(event.target.value)}
-                    placeholder="Enter sale price"
-                    value={price}
-                  />
-                </label>
-              ) : null}
-
               <label className="flex flex-col gap-2">
                 <span className="text-xs font-bold uppercase text-ink">
                   Remark

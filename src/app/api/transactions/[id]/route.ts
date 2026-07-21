@@ -11,6 +11,15 @@ type RouteContext = {
 
 const paramsSchema = z.object({ id: z.string().uuid() });
 const patchSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        assetId: z.string().uuid(),
+        quantity: z.number().int().positive().optional().nullable(),
+      }),
+    )
+    .max(100)
+    .optional(),
   internalRequest: z.boolean().optional().default(false),
   note: z.string().max(1000).optional().nullable(),
   projectRequest: z.boolean().optional().default(false),
