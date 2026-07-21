@@ -45,6 +45,7 @@ const transactionExportSelect = Prisma.validator<Prisma.TransactionSelect>()({
       note: true,
       requestedQuantity: true,
       resolutionNote: true,
+      soldPrice: true,
       resolvedStatus: true,
       returnedAt: true,
       asset: {

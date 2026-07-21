@@ -9,6 +9,7 @@ import {
   TransactionReturnClient,
   type TransactionReturnRecord,
 } from "@/features/transaction-return/transaction-return-client";
+import { approvalMatchesUser } from "@/lib/approval-flow";
 import { hasRole } from "@/lib/permissions";
 import { isReturnableTransaction } from "@/lib/workflow-rules";
 
@@ -97,8 +98,31 @@ function serializeTransaction(
       : null;
   const stepLabel = currentStepLabel(transaction);
   const kindLabel = `${titleCase(transaction.type)} / ${requestScopeLabel(transaction)}`;
+  const pendingApprovals = transaction.approvals.filter(
+    (approval) => approval.status === ApprovalStatus.PENDING,
+  );
+  const currentStep = pendingApprovals.length
+    ? Math.min(...pendingApprovals.map((approval) => approval.stepSequence))
+    : null;
+  const currentApproval = currentStep
+    ? pendingApprovals.find(
+        (approval) =>
+          approval.stepSequence === currentStep && approvalMatchesUser(user, approval),
+      )
+    : null;
+  const hasApprovedApproval = transaction.approvals.some(
+    (approval) => approval.status === ApprovalStatus.APPROVED,
+  );
+  const canEditPendingRequest =
+    transaction.workflowStatus === TransactionWorkflowStatus.PENDING &&
+    transaction.requestedBy.id === user.id &&
+    !hasApprovedApproval;
 
   return {
+    approvalStep: currentApproval?.stepSequence ?? null,
+    approvalTag: currentApproval?.requiredTag ?? null,
+    canApprove: Boolean(currentApproval),
+    canEditPendingRequest,
     canReturn,
     returnBlockedReason,
     id: transaction.id,
@@ -117,8 +141,15 @@ function serializeTransaction(
       serialNo: item.asset.serialNo,
       stockCode: item.asset.stockCode,
     })),
+    internalRequest: transaction.internalRequest,
     kindLabel,
+    note: transaction.note,
+    projectRequest: transaction.projectRequest,
+    purpose: transaction.purpose,
+    rejectBlockedReason: currentApproval ? null : "No approval is waiting for this user.",
     requestedBy: personName(transaction.requestedBy),
+    requiresSoldPriceApproval: Boolean(currentApproval?.requiredTag === "BSD_STAFF" && transaction.type === "SOLD"),
+    serviceRequest: transaction.serviceRequest,
     transactionNo: transaction.transactionNo ?? transaction.id,
     type: transaction.type,
     workflowStatus: transaction.workflowStatus,
@@ -144,3 +175,7 @@ export async function TransactionReturnPage({
     throw error;
   }
 }
+
+
+
+

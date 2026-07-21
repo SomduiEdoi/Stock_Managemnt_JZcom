@@ -17,6 +17,7 @@ const returnTransactionSchema = z.object({
     z.object({
       itemId: z.string().uuid(),
       note: z.string().max(1000).optional().nullable(),
+      soldPrice: z.string().trim().max(30).optional().nullable(),
       toStatus: z.nativeEnum(AssetStatus),
     }),
   ).min(1).max(100),

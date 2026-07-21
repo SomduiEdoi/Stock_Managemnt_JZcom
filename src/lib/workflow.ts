@@ -86,9 +86,12 @@ const transactionDetailSelect = Prisma.validator<Prisma.TransactionSelect>()({
     orderBy: [{ stepSequence: "asc" }, { createdAt: "asc" }],
     select: {
       actedAt: true,
+      comment: true,
+      id: true,
       requiredTag: true,
       status: true,
       stepSequence: true,
+      userId: true,
       user: { select: { email: true, id: true, name: true } },
     },
   },
@@ -103,6 +106,7 @@ const transactionDetailSelect = Prisma.validator<Prisma.TransactionSelect>()({
       note: true,
       requestedQuantity: true,
       returnedAt: true,
+      soldPrice: true,
       toStatus: true,
       asset: {
         select: {
@@ -165,6 +169,7 @@ export type SubmitTransactionInput = {
 export type ResolveTransactionItemInput = {
   itemId: string;
   note?: string | null;
+  soldPrice?: string | null;
   toStatus: AssetStatus;
 };
 
@@ -1208,6 +1213,24 @@ function getOpenResolutionItems(
   return items.filter((item) => !item.returnedAt);
 }
 
+function validateSoldResolutionPrice(item: ResolveTransactionItemInput) {
+  const soldPrice = cleanText(item.soldPrice);
+
+  if (item.toStatus !== AssetStatus.SOLD) {
+    return null;
+  }
+
+  if (!soldPrice) {
+    throw new WorkflowError("Sold price is required for sold return items.");
+  }
+
+  if (Number.isNaN(Number(soldPrice))) {
+    throw new WorkflowError("Sold price must be a valid number.");
+  }
+
+  return soldPrice;
+}
+
 function buildResolutionMap(items: ResolveTransactionItemInput[]) {
   const map = new Map<string, ResolveTransactionItemInput>();
 
@@ -1220,7 +1243,7 @@ function buildResolutionMap(items: ResolveTransactionItemInput[]) {
       throw new WorkflowError(`Cannot resolve item to ${item.toStatus}.`);
     }
 
-    map.set(item.itemId, item);
+    map.set(item.itemId, { ...item, soldPrice: validateSoldResolutionPrice(item) });
   }
 
   return map;
@@ -1241,6 +1264,7 @@ async function resolveItem(
   now: Date,
   toStatus: AssetStatus,
   note: string | null,
+  soldPrice: string | null = null,
 ) {
   if (isQuantityTransactionItem(item)) {
     if (toStatus === AssetStatus.SOLD) {
@@ -1288,6 +1312,7 @@ async function resolveItem(
       data: {
         resolutionNote: note,
         resolvedStatus: toStatus,
+        soldPrice: toStatus === AssetStatus.SOLD && soldPrice ? new Prisma.Decimal(soldPrice) : null,
         returnedAt: now,
         returnedById: user.id,
       },
@@ -1319,6 +1344,7 @@ async function resolveItem(
     data: {
       resolutionNote: note,
       resolvedStatus: toStatus,
+      soldPrice: toStatus === AssetStatus.SOLD && soldPrice ? new Prisma.Decimal(soldPrice) : null,
       returnedAt: now,
       returnedById: user.id,
     },
@@ -1399,7 +1425,7 @@ export async function submitTransaction(
 ) {
   const requestItems = normalizeRequestItems(input);
   assertHasItems(requestItems, "Asset items");
-  const { purpose, soldPrice } = assertTransactionInput(input);
+  const { purpose } = assertTransactionInput(input);
   const note = cleanText(input.note);
   const now = new Date();
   const toStatus = getTransactionAssetStatus(input.type);
@@ -1428,7 +1454,7 @@ export async function submitTransaction(
           requestDate: input.requestDate,
           requestedById: user.id,
           serviceRequest: input.serviceRequest ?? false,
-          soldPrice: soldPrice ? new Prisma.Decimal(soldPrice) : null,
+          soldPrice: null,
           sourceTransactionId: cleanText(input.sourceTransactionId),
           status: getInitialTransactionStatus(input.type),
           transactionNo: await createRequisitionNo(tx, now),
@@ -1443,6 +1469,7 @@ export async function submitTransaction(
           fromStatus: isQuantityAsset(asset) ? AssetStatus.READY : AssetStatus.REQUEST,
           note,
           requestedQuantity: quantity,
+          soldPrice: null,
           toStatus,
           transactionId: transaction.id,
         })),
@@ -1594,6 +1621,11 @@ export async function approveTransaction(
           where: { id: transactionId },
           data: { soldPrice: new Prisma.Decimal(effectiveSoldPrice) },
         });
+
+        await tx.transactionItem.updateMany({
+          where: { transactionId },
+          data: { soldPrice: new Prisma.Decimal(effectiveSoldPrice) },
+        });
       }
 
       await tx.transactionApproval.update({
@@ -1615,6 +1647,180 @@ export async function approveTransaction(
       if (remaining === 0) {
         await applyApprovedTransaction(tx, transactionId, user.id, now);
       }
+
+      return findTransactionDetail(tx, transactionId);
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
+}
+
+
+
+export type RejectTransactionInput = {
+  reason: string;
+};
+
+function currentPendingApproval(
+  user: CurrentUser,
+  approvals: Array<{
+    id: string;
+    requiredTag: string;
+    status: ApprovalStatus;
+    stepSequence: number;
+    userId: string | null;
+  }>,
+) {
+  const pendingApprovals = approvals.filter(
+    (approval) => approval.status === ApprovalStatus.PENDING,
+  );
+
+  if (pendingApprovals.length === 0) {
+    return null;
+  }
+
+  const currentStep = Math.min(
+    ...pendingApprovals.map((approval) => approval.stepSequence),
+  );
+
+  return pendingApprovals.find(
+    (approval) =>
+      approval.stepSequence === currentStep && approvalMatchesUser(user, approval),
+  ) ?? null;
+}
+
+async function releaseRejectedTransactionItems(
+  tx: Prisma.TransactionClient,
+  transaction: TransactionDetail,
+  userId: string,
+) {
+  for (const item of transaction.items) {
+    const workflowItem = {
+      asset: item.asset as unknown as WorkflowAsset,
+      quantity: item.requestedQuantity,
+    };
+
+    if (isQuantityTransactionItem(item)) {
+      await releaseQuantityReservation(tx, workflowItem, transaction.requestedBy.id);
+    } else {
+      await releaseHeldAsset(tx, workflowItem.asset, transaction.requestedBy.id);
+    }
+  }
+
+  await tx.assetStatusHistory.createMany({
+    data: transaction.items.map((item) => ({
+      actionType: AssetActionType.STATUS_CHANGE,
+      assetId: item.assetId,
+      changedById: userId,
+      fromStatus: AssetStatus.REQUEST,
+      note: "Rejected request",
+      toStatus: AssetStatus.READY,
+      transactionId: transaction.id,
+    })),
+  });
+}
+
+export async function rejectTransaction(
+  user: CurrentUser,
+  transactionId: string,
+  input: RejectTransactionInput,
+) {
+  const reason = requireText(input.reason, "Reject reason");
+  const now = new Date();
+
+  return db.$transaction(
+    async (tx) => {
+      const transaction = await findTransactionDetail(tx, transactionId);
+
+      if (transaction.workflowStatus !== TransactionWorkflowStatus.PENDING) {
+        throw new WorkflowError("Transaction is not pending approval.", 409);
+      }
+
+      const currentApproval = currentPendingApproval(user, transaction.approvals);
+
+      if (!currentApproval) {
+        throw new WorkflowError("No approval is waiting for this user.", 403);
+      }
+
+      await tx.transactionApproval.update({
+        where: { id: currentApproval.id },
+        data: {
+          actedAt: now,
+          approverNameSnapshot: user.name,
+          approverTagSnapshot: currentApproval.requiredTag,
+          comment: reason,
+          status: ApprovalStatus.REJECTED,
+          userId: user.id,
+        },
+      });
+
+      await tx.transaction.update({
+        where: { id: transactionId },
+        data: {
+          completedAt: now,
+          status: TransactionStatus.COMPLETED,
+          workflowStatus: TransactionWorkflowStatus.REJECTED,
+        },
+      });
+
+      await releaseRejectedTransactionItems(tx, transaction, user.id);
+
+      return findTransactionDetail(tx, transactionId);
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
+}
+
+
+export type UpdatePendingTransactionRequestInput = {
+  internalRequest?: boolean;
+  note?: string | null;
+  projectRequest?: boolean;
+  purpose: string;
+  serviceRequest?: boolean;
+  type: TransactionType;
+};
+
+export async function updatePendingTransactionRequest(
+  user: CurrentUser,
+  transactionId: string,
+  input: UpdatePendingTransactionRequestInput,
+) {
+  const purpose = requireText(input.purpose, "Use detail");
+  const note = cleanText(input.note);
+  const toStatus = getTransactionAssetStatus(input.type);
+
+  return db.$transaction(
+    async (tx) => {
+      const transaction = await findTransactionDetail(tx, transactionId);
+
+      if (transaction.requestedBy.id !== user.id) {
+        throw new WorkflowError("Only the requester can edit this request.", 403);
+      }
+
+      if (transaction.workflowStatus !== TransactionWorkflowStatus.PENDING) {
+        throw new WorkflowError("Only pending requests can be edited.", 409);
+      }
+
+      if (transaction.approvals.some((approval) => approval.status === ApprovalStatus.APPROVED)) {
+        throw new WorkflowError("This request is locked because approval has already started.", 409);
+      }
+
+      await tx.transaction.update({
+        where: { id: transactionId },
+        data: {
+          internalRequest: input.internalRequest ?? false,
+          note,
+          projectRequest: input.projectRequest ?? false,
+          purpose,
+          serviceRequest: input.serviceRequest ?? false,
+          type: input.type,
+        },
+      });
+
+      await tx.transactionItem.updateMany({
+        where: { transactionId },
+        data: { note, toStatus },
+      });
 
       return findTransactionDetail(tx, transactionId);
     },
@@ -1727,6 +1933,7 @@ export async function resolveTransactionItems(
           now,
           resolution.toStatus,
           cleanText(resolution.note),
+          cleanText(resolution.soldPrice),
         );
       }
 
@@ -1859,6 +2066,10 @@ export async function markBorrowTransactionsOverdue(now = new Date()) {
 
   return { count: 0 };
 }
+
+
+
+
 
 
 

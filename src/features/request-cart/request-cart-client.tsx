@@ -63,17 +63,6 @@ function assetLocation(asset: RequestCartAssetClient) {
   return asset.location?.name ?? asset.locationText ?? "-";
 }
 
-function formatCurrencyInput(value: string) {
-  const cleaned = value.replace(/[^\d.]/g, "");
-  const [integerPart, ...fractionParts] = cleaned.split(".");
-
-  if (fractionParts.length === 0) {
-    return integerPart;
-  }
-
-  return `${integerPart}.${fractionParts.join("").slice(0, 2)}`;
-}
-
 function RequestItemCard({
   asset,
   isRemoving,
@@ -211,13 +200,11 @@ function TransactionForm({
   onProjectRequestChange,
   onReferenceChange,
   onServiceRequestChange,
-  onSoldPriceChange,
   onSubmit,
   onTypeChange,
   projectRequest,
   referenceName,
   serviceRequest,
-  soldPrice,
   type,
 }: {
   assetCount: number;
@@ -228,16 +215,13 @@ function TransactionForm({
   onProjectRequestChange: (checked: boolean) => void;
   onReferenceChange: (value: string) => void;
   onServiceRequestChange: (checked: boolean) => void;
-  onSoldPriceChange: (value: string) => void;
   onSubmit: () => void;
   onTypeChange: (value: TransactionTypeCode) => void;
   projectRequest: boolean;
   referenceName: string;
   serviceRequest: boolean;
-  soldPrice: string;
   type: TransactionTypeCode;
 }) {
-  const showSoldPrice = type === "SOLD";
   const showReferenceName = type !== "USING";
 
   return (
@@ -302,22 +286,6 @@ function TransactionForm({
               value={referenceName}
             />
           </label>
-          ) : null}
-          {showSoldPrice ? (
-            <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-              <span>
-                Price <RequiredMark />
-              </span>
-              <input
-                className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold normal-case tracking-normal text-ink outline-none ring-brand-accent/20 focus:ring-4"
-                inputMode="decimal"
-                onChange={(event) =>
-                  onSoldPriceChange(formatCurrencyInput(event.target.value))
-                }
-                placeholder="0.00"
-                value={soldPrice}
-              />
-            </label>
           ) : null}
           <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
             <span>
@@ -474,7 +442,6 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
   const [referenceName, setReferenceName] = useState("");
   const [removingAssetId, setRemovingAssetId] = useState<string | null>(null);
   const [serviceRequest, setServiceRequest] = useState(false);
-  const [soldPrice, setSoldPrice] = useState("");
   const [submitted, setSubmitted] = useState<PrintableTransaction | null>(null);
 
   function handleTypeChange(nextType: TransactionTypeCode) {
@@ -486,9 +453,6 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
       setReferenceName("");
     }
 
-    if (nextType !== "SOLD") {
-      setSoldPrice("");
-    }
   }
 
   function handleServiceRequestChange(checked: boolean) {
@@ -570,9 +534,6 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
       missingFields.push("Service / Project");
     }
 
-    if (type === "SOLD" && !soldPrice.trim()) {
-      missingFields.push("Price");
-    }
 
     if (missingFields.length > 0) {
       return `Please complete: ${missingFields.join(", ")}.`;
@@ -615,7 +576,7 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
           projectRequest: type === "USING" ? false : projectRequest,
           purpose: type === "USING" ? "Internal use" : referenceName,
           serviceRequest: type === "USING" ? false : serviceRequest,
-          soldPrice: type === "SOLD" ? soldPrice : null,
+          soldPrice: null,
           type,
         }),
         headers: { "Content-Type": "application/json" },
@@ -651,13 +612,11 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
           onProjectRequestChange={handleProjectRequestChange}
           onReferenceChange={setReferenceName}
           onServiceRequestChange={handleServiceRequestChange}
-          onSoldPriceChange={setSoldPrice}
           onSubmit={handleSubmit}
           onTypeChange={handleTypeChange}
           projectRequest={projectRequest}
           referenceName={referenceName}
           serviceRequest={serviceRequest}
-          soldPrice={soldPrice}
           type={type}
         />
       </div>
@@ -670,3 +629,4 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
     </div>
   );
 }
+

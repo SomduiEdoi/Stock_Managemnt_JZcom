@@ -429,6 +429,7 @@ model TransactionItem {
   note              String?
   resolvedStatus    AssetStatus? @map("resolved_status")
   resolutionNote    String?      @map("resolution_note")
+  soldPrice         Decimal?     @map("sold_price") @db.Decimal(12, 2)
   returnedAt        DateTime?    @map("returned_at")
   returnedById      String?      @map("returned_by") @db.Uuid
   createdAt         DateTime     @default(now()) @map("created_at")

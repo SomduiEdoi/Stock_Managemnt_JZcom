@@ -26,7 +26,6 @@ import { assetStatusHexColors } from "@/lib/status-style";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { InventoryDataUnavailable } from "@/components/inventory/inventory-data-unavailable";
 import { TransactionRowActions } from "@/features/transaction-log/transaction-row-actions";
-import { ApprovalRowActions } from "@/features/transaction-log/approval-row-actions";
 
 type TransactionLogPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -479,7 +478,7 @@ function ApproveTable({ rows }: { rows: TransactionApprovalQueueRow[] }) {
               <th className="px-5 py-4 font-bold">Asset</th>
               <th className="px-5 py-4 font-bold">Request Date</th>
               <th className="px-5 py-4 font-bold">Step</th>
-              <th className="px-5 py-4 font-bold">Action</th>
+              <th className="px-5 py-4 font-bold">Detail</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -507,10 +506,12 @@ function ApproveTable({ rows }: { rows: TransactionApprovalQueueRow[] }) {
                   </p>
                 </td>
                 <td className="px-5 py-4">
-                  <ApprovalRowActions
-                    requiresSoldPrice={row.requiredTag === "BSD_STAFF" && row.transaction.type === "SOLD"}
-                    transactionId={row.transaction.id}
-                  />
+                  <Link
+                    className="inline-flex h-9 items-center justify-center rounded-md bg-navy px-3 text-sm font-bold text-white hover:bg-black"
+                    href={`/logs/${row.transaction.id}/return`}
+                  >
+                    View Detail
+                  </Link>
                 </td>
               </tr>
             ))}
@@ -551,7 +552,7 @@ function TransactionTable({
               <th className="px-5 py-4 font-bold">Request Date</th>
               <th className="px-5 py-4 font-bold">Return Date</th>
               <th className="px-5 py-4 font-bold">Status</th>
-              <th className="px-5 py-4 font-bold">Action</th>
+              <th className="px-5 py-4 font-bold">Detail</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -764,4 +765,6 @@ export default async function TransactionLogPageRoute({
     />
   );
 }
+
+
 

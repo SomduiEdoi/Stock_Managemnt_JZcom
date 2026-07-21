@@ -62,6 +62,7 @@ const transactionLogSelect = Prisma.validator<Prisma.TransactionSelect>()({
       id: true,
       requestedQuantity: true,
       resolvedStatus: true,
+      soldPrice: true,
       returnedAt: true,
       toStatus: true,
       returnedBy: { select: { email: true, name: true } },

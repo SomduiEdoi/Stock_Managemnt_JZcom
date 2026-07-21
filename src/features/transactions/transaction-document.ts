@@ -23,6 +23,7 @@ export type PrintableTransactionItem = {
   requestedQuantity?: number | null;
   resolutionNote?: string | null;
   resolvedStatus?: string | null;
+  soldPrice?: { toString(): string } | number | string | null;
   returnedAt?: Date | string | null;
   note?: string | null;
 };
@@ -432,9 +433,10 @@ function rowCells(
   hasQty: boolean,
 ) {
   const quantity = item.requestedQuantity ?? 1;
-  const price = formatMoney(document.transaction.soldPrice);
+  const salePrice = item.soldPrice ?? document.transaction.soldPrice;
+  const price = formatMoney(salePrice);
   const rowTotal = price
-    ? formatMoney(numberValue(document.transaction.soldPrice) * quantity)
+    ? formatMoney(numberValue(salePrice) * quantity)
     : "";
 
   if (document.kind === "SALE") {
@@ -528,7 +530,7 @@ function table(
       ? items.reduce(
           (sum, item) =>
             sum +
-            numberValue(document.transaction.soldPrice) *
+            numberValue(item.soldPrice ?? document.transaction.soldPrice) *
               (item.requestedQuantity ?? 1),
           0,
         )

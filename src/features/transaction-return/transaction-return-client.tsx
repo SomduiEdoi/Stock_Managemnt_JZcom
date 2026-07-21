@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
-import type { AssetStatus, TransactionWorkflowStatus } from "@prisma/client";
+import { AlertCircle, CheckCircle2, Loader2, XCircle } from "lucide-react";
+import type { AssetStatus, TransactionType, TransactionWorkflowStatus } from "@prisma/client";
 import { AssetStatusBadge } from "@/components/status/asset-status-badge";
 
 export type TransactionReturnItem = {
@@ -24,14 +24,25 @@ export type TransactionReturnItem = {
 };
 
 export type TransactionReturnRecord = {
+  approvalStep: number | null;
+  approvalTag: string | null;
+  canApprove: boolean;
+  canEditPendingRequest: boolean;
   canReturn: boolean;
   returnBlockedReason: string | null;
   id: string;
+  internalRequest: boolean;
   items: TransactionReturnItem[];
   kindLabel: string;
+  note: string | null;
+  projectRequest: boolean;
+  purpose: string | null;
+  rejectBlockedReason: string | null;
   requestedBy: string;
+  requiresSoldPriceApproval: boolean;
+  serviceRequest: boolean;
   transactionNo: string;
-  type: string;
+  type: TransactionType;
   workflowStatus: TransactionWorkflowStatus;
 };
 
@@ -81,7 +92,15 @@ export function TransactionReturnClient({
   >(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [price, setPrice] = useState("");
+  const [rejectReason, setRejectReason] = useState("");
   const [remark, setRemark] = useState("");
+  const [approvalMode, setApprovalMode] = useState<"APPROVE" | "REJECT" | null>(null);
+  const [editPurpose, setEditPurpose] = useState(transaction.purpose ?? "");
+  const [editNote, setEditNote] = useState(transaction.note ?? "");
+  const [editType, setEditType] = useState<TransactionType>(transaction.type);
+  const [editScope, setEditScope] = useState<"internal" | "service" | "project">(
+    transaction.internalRequest ? "internal" : transaction.projectRequest ? "project" : "service",
+  );
   const [resolutions, setResolutions] = useState<ResolutionState>(() =>
     buildInitialState(transaction.items),
   );
@@ -91,6 +110,41 @@ export function TransactionReturnClient({
     [transaction.items],
   );
 
+  async function savePendingEdit() {
+    if (!editPurpose.trim()) {
+      setError("Use detail is required.");
+      return;
+    }
+
+    setError(null);
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`/api/transactions/${transaction.id}`, {
+        body: JSON.stringify({
+          internalRequest: editScope === "internal",
+          note: editNote.trim() || null,
+          projectRequest: editScope === "project",
+          purpose: editPurpose.trim(),
+          serviceRequest: editScope === "service",
+          type: editType,
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: "PATCH",
+      });
+      const data = (await response.json().catch(() => ({}))) as { message?: string };
+
+      if (!response.ok) {
+        throw new Error(data.message ?? "Unable to update request.");
+      }
+
+      router.refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to update request.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
   function updateResolution(itemId: string, value: string) {
     setResolutions((current) => ({
       ...current,
@@ -101,6 +155,61 @@ export function TransactionReturnClient({
     }));
   }
 
+  function openApproval(mode: "APPROVE" | "REJECT") {
+    setError(null);
+    setPrice("");
+    setRejectReason("");
+
+    if (!transaction.canApprove) {
+      setError(transaction.rejectBlockedReason ?? "No approval is waiting for this user.");
+      return;
+    }
+
+    setApprovalMode(mode);
+  }
+
+  async function confirmApproval() {
+    if (approvalMode === "APPROVE" && transaction.requiresSoldPriceApproval && !price.trim()) {
+      setError("Price is required before approval.");
+      return;
+    }
+
+    if (approvalMode === "REJECT" && !rejectReason.trim()) {
+      setError("Reject reason is required.");
+      return;
+    }
+
+    setError(null);
+    setIsSubmitting(true);
+
+    try {
+      const endpoint = approvalMode === "REJECT" ? "reject" : "approve";
+      const response = await fetch(`/api/transactions/${transaction.id}/${endpoint}`, {
+        body: JSON.stringify(
+          approvalMode === "REJECT"
+            ? { reason: rejectReason.trim() }
+            : {
+                comment: null,
+                soldPrice: transaction.requiresSoldPriceApproval ? price.trim() : null,
+              },
+        ),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      const data = (await response.json().catch(() => ({}))) as { message?: string };
+
+      if (!response.ok) {
+        throw new Error(data.message ?? "Unable to update approval.");
+      }
+
+      setApprovalMode(null);
+      router.refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to update approval.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
   function handleSubmit() {
     if (!transaction.canReturn) {
       setError(transaction.returnBlockedReason ?? "This transaction cannot be returned.");
@@ -135,7 +244,8 @@ export function TransactionReturnClient({
 
       return {
         itemId: item.itemId,
-        note: buildResolutionNote(toStatus, cleanRemark, cleanPrice),
+        note: cleanRemark || null,
+        soldPrice: toStatus === "SOLD" ? cleanPrice : null,
         toStatus,
       };
     });
@@ -198,6 +308,101 @@ export function TransactionReturnClient({
           </p>
         </div>
       </header>
+
+      {transaction.canEditPendingRequest ? (
+        <section className="rounded-md border border-border bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[180px_minmax(0,1fr)_180px]">
+            <label className="flex flex-col gap-2">
+              <span className="text-xs font-bold uppercase text-ink">Transaction Type</span>
+              <select
+                className="h-11 rounded-md border border-border bg-white px-3 text-sm font-bold text-navy outline-none ring-brand-accent/20 focus:ring-4"
+                onChange={(event) => {
+                  const nextType = event.target.value as TransactionType;
+                  setEditType(nextType);
+                  if (nextType === "USING") {
+                    setEditScope("internal");
+                  } else if (editScope === "internal") {
+                    setEditScope("service");
+                  }
+                }}
+                value={editType}
+              >
+                <option value="BORROW">Borrow</option>
+                <option value="USING">Using</option>
+                <option value="SOLD">Sold</option>
+              </select>
+            </label>
+            <label className="flex flex-col gap-2">
+              <span className="text-xs font-bold uppercase text-ink">Use Detail</span>
+              <input
+                className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold text-ink outline-none ring-brand-accent/20 focus:ring-4"
+                onChange={(event) => setEditPurpose(event.target.value)}
+                value={editPurpose}
+              />
+            </label>
+            <label className="flex flex-col gap-2">
+              <span className="text-xs font-bold uppercase text-ink">Scope</span>
+              <select
+                className="h-11 rounded-md border border-border bg-white px-3 text-sm font-bold text-navy outline-none ring-brand-accent/20 focus:ring-4"
+                disabled={editType === "USING"}
+                onChange={(event) => setEditScope(event.target.value as "internal" | "service" | "project")}
+                value={editType === "USING" ? "internal" : editScope}
+              >
+                {editType === "USING" ? <option value="internal">Internal</option> : null}
+                {editType !== "USING" ? <option value="service">Service</option> : null}
+                {editType !== "USING" ? <option value="project">Project</option> : null}
+              </select>
+            </label>
+          </div>
+          <label className="mt-4 flex flex-col gap-2">
+            <span className="text-xs font-bold uppercase text-ink">Note</span>
+            <textarea
+              className="min-h-24 rounded-md border border-border bg-white px-3 py-2 text-sm font-medium text-ink outline-none ring-brand-accent/20 focus:ring-4"
+              onChange={(event) => setEditNote(event.target.value)}
+              value={editNote}
+            />
+          </label>
+          <div className="mt-4 flex justify-end">
+            <button
+              className="inline-flex h-10 items-center justify-center rounded-md bg-brand-accent px-4 text-sm font-bold text-white hover:bg-brand-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSubmitting}
+              onClick={savePendingEdit}
+              type="button"
+            >
+              Save Pending Request
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {transaction.canApprove ? (
+        <section className="flex flex-col gap-3 rounded-md border border-border bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-navy">Approval Detail</h2>
+            <p className="mt-1 text-sm font-medium text-muted-foreground">
+              Review this request before approving or rejecting it.
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <button
+              className="inline-flex h-10 items-center gap-2 rounded-md border border-status-fail bg-white px-4 text-sm font-bold text-status-fail hover:bg-status-fail/10"
+              onClick={() => openApproval("REJECT")}
+              type="button"
+            >
+              <XCircle className="h-4 w-4" />
+              Reject
+            </button>
+            <button
+              className="inline-flex h-10 items-center gap-2 rounded-md bg-brand-accent px-4 text-sm font-bold text-white hover:bg-brand-accent/90"
+              onClick={() => openApproval("APPROVE")}
+              type="button"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              Approve
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       {!transaction.canReturn ? (
         <p className="flex gap-2 rounded-md bg-status-request/10 p-3 text-sm font-semibold text-navy">
@@ -325,6 +530,75 @@ export function TransactionReturnClient({
         </button>
       </div>
 
+      {approvalMode ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <section className="w-full max-w-md rounded-md border border-border bg-white p-5 shadow-xl">
+            <h2 className="text-xl font-bold text-navy">
+              {approvalMode === "APPROVE" ? "Approve Request" : "Reject Request"}
+            </h2>
+            <p className="mt-2 text-sm font-medium text-muted-foreground">
+              {approvalMode === "APPROVE"
+                ? "Confirm that you approve this request."
+                : "Please provide a reject reason. The requested assets will be released."}
+            </p>
+
+            {error ? (
+              <p className="mt-4 flex gap-2 rounded-md bg-status-fail/10 p-3 text-sm font-semibold text-status-fail">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {error}
+              </p>
+            ) : null}
+
+            <div className="mt-5 flex flex-col gap-4">
+              {approvalMode === "APPROVE" && transaction.requiresSoldPriceApproval ? (
+                <label className="flex flex-col gap-2">
+                  <span className="text-xs font-bold uppercase text-ink">Price</span>
+                  <input
+                    className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold text-ink outline-none ring-brand-accent/20 focus:ring-4"
+                    inputMode="decimal"
+                    onChange={(event) => setPrice(event.target.value)}
+                    placeholder="Enter sale price"
+                    value={price}
+                  />
+                </label>
+              ) : null}
+
+              {approvalMode === "REJECT" ? (
+                <label className="flex flex-col gap-2">
+                  <span className="text-xs font-bold uppercase text-ink">Reject Reason</span>
+                  <textarea
+                    className="min-h-28 rounded-md border border-border bg-white px-3 py-2 text-sm font-medium text-ink outline-none ring-brand-accent/20 focus:ring-4"
+                    onChange={(event) => setRejectReason(event.target.value)}
+                    placeholder="Reason for rejection"
+                    value={rejectReason}
+                  />
+                </label>
+              ) : null}
+            </div>
+
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                className="h-10 rounded-md border border-border bg-white px-4 text-sm font-bold text-navy hover:bg-surface"
+                disabled={isSubmitting}
+                onClick={() => setApprovalMode(null)}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="inline-flex h-10 items-center gap-2 rounded-md bg-brand-accent px-4 text-sm font-bold text-white hover:bg-brand-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isSubmitting}
+                onClick={confirmApproval}
+                type="button"
+              >
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                Confirm
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       {confirmationMode ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <section className="w-full max-w-md rounded-md border border-border bg-white p-5 shadow-xl">
@@ -403,21 +677,4 @@ export function TransactionReturnClient({
   );
 }
 
-function buildResolutionNote(
-  toStatus: AssetStatus,
-  remark: string,
-  price: string,
-) {
-  const parts: string[] = [];
-
-  if (toStatus === "SOLD" && price) {
-    parts.push(`Sold price: ${price}`);
-  }
-
-  if (remark) {
-    parts.push(remark);
-  }
-
-  return parts.length ? parts.join("\n") : null;
-}
 
