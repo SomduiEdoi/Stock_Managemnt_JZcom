@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Search, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { clsx } from "clsx";
 
 export type SearchComboboxSuggestion = {
@@ -27,7 +27,6 @@ type SearchComboboxProps = {
   value?: string;
 };
 
-const defaultCategories = [{ label: "All", value: "ALL" }];
 
 function normalize(value: string) {
   return value.trim().toLowerCase();
@@ -35,6 +34,21 @@ function normalize(value: string) {
 
 function suggestionText(suggestion: SearchComboboxSuggestion) {
   return `${suggestion.label} ${suggestion.value ?? ""} ${suggestion.category ?? ""} ${suggestion.searchText ?? ""}`;
+}
+
+function dedupeSuggestionKey(suggestion: SearchComboboxSuggestion) {
+  return normalize(suggestion.value ?? suggestion.label);
+}
+
+function uniqueSuggestions(suggestions: SearchComboboxSuggestion[]) {
+  const seen = new Set<string>();
+
+  return suggestions.filter((suggestion) => {
+    const key = dedupeSuggestionKey(suggestion);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function renderHighlighted(label: string, query: string) {
@@ -55,7 +69,6 @@ function renderHighlighted(label: string, query: string) {
 }
 
 export function SearchCombobox({
-  categories = defaultCategories,
   className,
   defaultValue = "",
   name = "q",
@@ -66,38 +79,30 @@ export function SearchCombobox({
 }: SearchComboboxProps) {
   const isControlled = value !== undefined;
   const [internalValue, setInternalValue] = useState(defaultValue);
-  const [category, setCategory] = useState(categories[0]?.value ?? "ALL");
   const [isOpen, setIsOpen] = useState(false);
-  const [isCategoryOpen, setIsCategoryOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const currentValue = isControlled ? value : internalValue;
-  const activeCategory = categories.find((item) => item.value === category) ?? categories[0];
-
   const filteredSuggestions = useMemo(() => {
     const normalizedQuery = normalize(currentValue);
-    const active = category === "ALL" ? null : category;
-    return suggestions
-      .filter((suggestion) => !active || suggestion.category === active)
-      .filter((suggestion) => {
+    return uniqueSuggestions(
+      suggestions.filter((suggestion) => {
         if (!normalizedQuery) return true;
         return suggestionText(suggestion).toLowerCase().includes(normalizedQuery);
-      })
-      .slice(0, 12);
-  }, [category, currentValue, suggestions]);
+      }),
+    ).slice(0, 12);
+  }, [currentValue, suggestions]);
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
       if (!rootRef.current?.contains(event.target as Node)) {
         setIsOpen(false);
-        setIsCategoryOpen(false);
       }
     }
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setIsOpen(false);
-        setIsCategoryOpen(false);
         inputRef.current?.blur();
       }
     }
@@ -120,35 +125,21 @@ export function SearchCombobox({
   function chooseSuggestion(suggestion: SearchComboboxSuggestion) {
     updateValue(suggestion.value ?? suggestion.label);
     setIsOpen(false);
-    setIsCategoryOpen(false);
   }
 
   return (
     <div ref={rootRef} className={clsx("relative overflow-visible", className)}>
       <input name={name} type="hidden" value={currentValue} />
       <div className="flex h-11 overflow-hidden rounded-md border border-border bg-white shadow-sm ring-brand-accent/20 transition focus-within:ring-4">
-        <button
-          className="flex min-w-[122px] items-center justify-center gap-2 border-r border-border bg-surface px-3 text-sm font-semibold text-ink hover:text-navy"
-          onClick={() => {
-            setIsCategoryOpen((current) => !current);
-            setIsOpen(false);
-          }}
-          type="button"
-        >
-          <span className="truncate">{activeCategory?.label ?? "All"}</span>
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-        </button>
         <input
           ref={inputRef}
           className="min-w-0 flex-1 border-0 bg-white px-4 text-sm font-medium text-ink outline-none placeholder:text-muted-foreground"
           onChange={(event) => {
             updateValue(event.target.value);
             setIsOpen(true);
-            setIsCategoryOpen(false);
           }}
           onFocus={() => {
             setIsOpen(true);
-            setIsCategoryOpen(false);
           }}
           placeholder={placeholder}
           value={currentValue}
@@ -176,29 +167,6 @@ export function SearchCombobox({
         </button>
       </div>
 
-      {isCategoryOpen ? (
-        <div className="absolute left-0 top-[calc(100%+4px)] z-[95] min-w-[160px] rounded-md border border-border bg-white p-1 shadow-xl">
-          {categories.map((item) => (
-            <button
-              className={clsx(
-                "block w-full rounded px-3 py-2 text-left text-sm font-semibold hover:bg-surface",
-                item.value === category ? "text-navy" : "text-muted-foreground",
-              )}
-              key={item.value}
-              onClick={() => {
-                setCategory(item.value);
-                setIsCategoryOpen(false);
-                setIsOpen(true);
-                inputRef.current?.focus();
-              }}
-              type="button"
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
-
       {isOpen ? (
         <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-[90] max-h-80 overflow-y-auto rounded-md border border-border bg-white py-2 shadow-xl">
           {filteredSuggestions.map((suggestion, index) => (
@@ -220,3 +188,5 @@ export function SearchCombobox({
     </div>
   );
 }
+
+
