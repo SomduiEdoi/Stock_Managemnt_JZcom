@@ -10,11 +10,12 @@ import {
   Layers,
   MoreVertical,
   Plus,
-  Search,
   Trash2,
   UserCheck,
   X,
 } from "lucide-react";
+import { SearchCombobox } from "@/components/form/search-combobox";
+import { SearchableDropdown } from "@/components/form/searchable-dropdown";
 import type { ProjectRow, ProjectUserOption } from "@/lib/project-management";
 
 type ProjectStatus = "ACTIVE" | "CLOSED";
@@ -166,73 +167,21 @@ function SearchableUserSelect({
   required?: boolean;
   value: string;
 }) {
-  const [query, setQuery] = useState("");
-  const [isOpen, setIsOpen] = useState(false);
-  const availableOptions = options.filter((option) => !disabledIds.includes(option.id));
-  const normalizedQuery = query.trim().toLowerCase();
-  const filteredOptions = availableOptions.filter((option) =>
-    optionLabel(option).toLowerCase().includes(normalizedQuery),
-  );
-  const selected = options.find((option) => option.id === value) ?? null;
-
-  function closeSoon() {
-    window.setTimeout(() => setIsOpen(false), 120);
-  }
-
   return (
     <Field label={label} required={required}>
-      <div
-        className="relative rounded-md border border-border bg-white p-2 ring-brand-accent/20 focus-within:ring-4"
-        onBlur={closeSoon}
-      >
-        {selected ? (
-          <div className="mb-2 flex items-center justify-between gap-2 rounded bg-surface px-3 py-2 text-sm font-bold text-navy">
-            <span className="truncate">{optionLabel(selected)}</span>
-            <button
-              className="rounded p-1 text-muted-foreground hover:bg-white hover:text-status-fail"
-              onClick={() => {
-                onChange("");
-                setQuery("");
-                setIsOpen(true);
-              }}
-              type="button"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        ) : null}
-        <input
-          className="h-9 w-full border-0 px-1 text-sm font-medium text-ink outline-none"
-          onChange={(event) => {
-            setQuery(event.target.value);
-            setIsOpen(true);
-          }}
-          onFocus={() => setIsOpen(true)}
-          placeholder={selected ? "Search to change user" : "Search user by name or email"}
-          value={query}
-        />
-        {isOpen ? (
-          <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-[70] max-h-56 overflow-y-auto rounded-md border border-border bg-white p-2 shadow-xl">
-            {filteredOptions.map((option) => (
-              <button
-                className="block w-full rounded px-2 py-2 text-left text-sm font-semibold text-ink hover:bg-surface"
-                key={option.id}
-                onClick={() => {
-                  onChange(option.id);
-                  setQuery("");
-                  setIsOpen(false);
-                }}
-                type="button"
-              >
-                {optionLabel(option)}
-              </button>
-            ))}
-            {filteredOptions.length === 0 ? (
-              <p className="px-2 py-3 text-sm font-semibold text-muted-foreground">No users found.</p>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
+      <SearchableDropdown
+        onChange={onChange}
+        options={options.map((option) => ({
+          disabled: disabledIds.includes(option.id),
+          description: option.email,
+          label: option.name,
+          searchText: optionLabel(option),
+          value: option.id,
+        }))}
+        placeholder="Search user by name or email"
+        searchPlaceholder="Search user by name or email"
+        value={value}
+      />
     </Field>
   );
 }
@@ -396,14 +345,16 @@ function ProjectFormModal({
 
         {mode === "EDIT" ? (
           <Field label="Project Status" required>
-            <select
-              className={inputClass()}
-              onChange={(event) => setField("status", event.target.value as ProjectStatus)}
+            <SearchableDropdown
+              onChange={(value) => setField("status", value as ProjectStatus)}
+              options={[
+                { label: "Active", value: "ACTIVE" },
+                { label: "Closed", value: "CLOSED" },
+              ]}
+              placeholder="Select project status"
+              searchPlaceholder="Search status"
               value={form.status}
-            >
-              <option value="ACTIVE">Active</option>
-              <option value="CLOSED">Closed</option>
-            </select>
+            />
           </Field>
         ) : null}
 
@@ -573,6 +524,13 @@ export function ProjectManagementPage({
   const [dialog, setDialog] = useState<DialogState>(null);
   const [query, setQuery] = useState("");
 
+  const searchSuggestions = useMemo(() => projects.flatMap((project) => [
+    { category: "PROJECT", label: project.name, searchText: `${project.projectId ?? ""} ${project.lead?.name ?? ""}`, value: project.name },
+    ...(project.projectId ? [{ category: "ID", label: project.projectId, searchText: project.name, value: project.projectId }] : []),
+    ...(project.lead ? [{ category: "LEAD", label: project.lead.name, searchText: `${project.lead.email} ${project.name}`, value: project.lead.name }] : []),
+    ...project.members.map((member) => ({ category: "MEMBER", label: member.name, searchText: `${member.email} ${project.name}`, value: member.name })),
+  ]), [projects]);
+
   const filteredProjects = useMemo(() => {
     const search = query.trim().toLowerCase();
 
@@ -636,15 +594,19 @@ export function ProjectManagementPage({
       </section>
 
       <section className="grid gap-3 rounded-md border border-border bg-white p-4 shadow-sm lg:grid-cols-[1fr_auto]">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            className="h-11 w-full rounded-md border border-border bg-white pl-10 pr-3 text-sm font-medium outline-none ring-brand-accent/20 transition focus:ring-4"
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search project name, project id, lead, member"
-            value={query}
-          />
-        </div>
+        <SearchCombobox
+          categories={[
+            { label: "All", value: "ALL" },
+            { label: "Project", value: "PROJECT" },
+            { label: "ID", value: "ID" },
+            { label: "Lead", value: "LEAD" },
+            { label: "Member", value: "MEMBER" },
+          ]}
+          onChange={setQuery}
+          placeholder="Search project name, project id, lead, member"
+          suggestions={searchSuggestions}
+          value={query}
+        />
 
         <button
           className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-navy px-4 text-sm font-bold text-white shadow-sm hover:bg-navy/90"

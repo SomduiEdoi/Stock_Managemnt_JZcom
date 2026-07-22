@@ -6,7 +6,6 @@ import {
   BadgeCheck,
   Clock3,
   FileText,
-  Search,
 } from "lucide-react";
 import { AssetStatus, TransactionWorkflowStatus } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
@@ -25,6 +24,7 @@ import { getRequestQueueForLog, type RequestCartAsset } from "@/lib/request-cart
 import { assetStatusHexColors } from "@/lib/status-style";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { InventoryDataUnavailable } from "@/components/inventory/inventory-data-unavailable";
+import { TransactionLogControls } from "@/features/transaction-log/transaction-log-controls";
 import { TransactionRowActions } from "@/features/transaction-log/transaction-row-actions";
 
 type TransactionLogPageProps = {
@@ -205,44 +205,14 @@ function SummaryCards({
   );
 }
 
-function Controls({ filters }: { filters: TransactionLogFilters }) {
+function Controls({ filters, rows }: { filters: TransactionLogFilters; rows: TransactionLogRow[] }) {
   return (
-    <form
-      action="/logs"
-      className="rounded-md border border-border bg-white p-4 shadow-sm"
-      method="get"
-    >
-      <input name="scope" type="hidden" value={filters.scope} />
-
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_180px]">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            className="h-11 w-full rounded-md border border-border bg-white pl-10 pr-3 text-sm font-medium outline-none ring-brand-accent/20 transition focus:ring-4"
-            defaultValue={filters.search}
-            name="q"
-            placeholder="Search transaction id, borrower, model, serial no."
-          />
-        </div>
-
-        <select
-          className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold text-navy"
-          defaultValue={filters.status}
-          name="status"
-        >
-          <option value="ALL">All status</option>
-          {transactionLogStatusChoices.map((status) => (
-            <option key={status} value={status}>
-              {logStatusLabels[status]}
-            </option>
-          ))}
-        </select>
-
-        <button className="sr-only" type="submit">
-          Search
-        </button>
-      </div>
-    </form>
+    <TransactionLogControls
+      filters={filters}
+      rows={rows}
+      statusChoices={[...transactionLogStatusChoices]}
+      statusLabels={logStatusLabels}
+    />
   );
 }
 
@@ -697,7 +667,7 @@ export function TransactionLogPage({
           {filters.scope !== "COMPLETED" ? (
             <RequestQueueTable assets={requestQueueAssets} />
           ) : null}
-          <Controls filters={filters} />
+          <Controls filters={filters} rows={rows} />
           <TransactionTable rows={rows} />
           <Pagination filters={filters} page={filters.page} total={total} totalPages={totalPages} />
         </>

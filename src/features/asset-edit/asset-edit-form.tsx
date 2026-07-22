@@ -14,6 +14,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { AssetEditOptions, AssetEditRecord } from "@/lib/asset-edit";
+import { SearchableDropdown } from "@/components/form/searchable-dropdown";
 import { AssetStatusBadge } from "@/components/status/asset-status-badge";
 
 type AssetEditFormProps = {
@@ -268,23 +269,6 @@ function Textarea(
       {...props}
       className={[
         "min-h-32 rounded-md border bg-white px-3 py-3 text-sm font-semibold text-ink outline-none ring-brand-accent/20 focus:ring-4",
-        isInvalid ? "border-status-fail" : "border-border",
-        props.className,
-      ].filter(Boolean).join(" ")}
-    />
-  );
-}
-
-function Select(
-  props: React.SelectHTMLAttributes<HTMLSelectElement>,
-) {
-  const isInvalid = props["aria-invalid"] === true;
-
-  return (
-    <select
-      {...props}
-      className={[
-        "h-11 rounded-md border bg-white px-3 text-sm font-semibold text-ink outline-none ring-brand-accent/20 focus:ring-4",
         isInvalid ? "border-status-fail" : "border-border",
         props.className,
       ].filter(Boolean).join(" ")}
@@ -583,28 +567,22 @@ export function AssetEditForm(props: AssetEditFormProps) {
                   {selectedDomain?.name ?? form.domainCode}
                 </p>
               ) : (
-                <Select
-                  required
-                  aria-invalid={Boolean(fieldErrors.domainCode)}
-                  onChange={(event) =>
-                    setField("domainCode", event.target.value)
-                  }
+                <SearchableDropdown
+                  onChange={(value) => setField("domainCode", value)}
+                  options={options.domains.map((domain) => ({
+                    label: domain.name,
+                    searchText: `${domain.name} ${domain.code}`,
+                    value: domain.code,
+                  }))}
+                  placeholder="Select domain"
+                  searchPlaceholder="Search domain"
                   value={form.domainCode}
-                >
-                  {options.domains.map((domain) => (
-                    <option key={domain.code} value={domain.code}>
-                      {domain.name}
-                    </option>
-                  ))}
-                </Select>
+                />
               )}
             </Field>
             <Field error={fieldErrors.categoryName} label="Category" required>
-              <Select
-                required
-                aria-invalid={Boolean(fieldErrors.categoryName)}
-                onChange={(event) => {
-                  const categoryName = event.target.value;
+              <SearchableDropdown
+                onChange={(categoryName) => {
                   setForm((current) => ({
                     ...current,
                     categoryName,
@@ -618,15 +596,15 @@ export function AssetEditForm(props: AssetEditFormProps) {
                       : "",
                   }));
                 }}
+                options={visibleCategories.map((category) => ({
+                  label: category.name,
+                  searchText: `${category.domainCode} ${category.name}`,
+                  value: category.name,
+                }))}
+                placeholder="Select category"
+                searchPlaceholder="Search category"
                 value={form.categoryName}
-              >
-                <option value="">Select category</option>
-                {visibleCategories.map((category) => (
-                  <option key={`${category.domainCode}-${category.name}`} value={category.name}>
-                    {category.name}
-                  </option>
-                ))}
-              </Select>
+              />
             </Field>
             <Field
               error={fieldErrors.brand}
@@ -642,10 +620,8 @@ export function AssetEditForm(props: AssetEditFormProps) {
               />
             </Field>
             <Field error={fieldErrors.typeName} label="Type" required>
-              <Select
-                aria-invalid={Boolean(fieldErrors.typeName)}
-                onChange={(event) => {
-                  const nextTypeName = event.target.value;
+              <SearchableDropdown
+                onChange={(nextTypeName) => {
                   const nextType = visibleTypes.find((type) => type.name === nextTypeName);
                   setForm((current) => ({
                     ...current,
@@ -654,16 +630,16 @@ export function AssetEditForm(props: AssetEditFormProps) {
                     typeName: nextTypeName,
                   }));
                 }}
-                required
+                options={visibleTypes.map((type) => ({
+                  description: type.categoryName,
+                  label: type.name,
+                  searchText: `${type.domainCode} ${type.categoryName} ${type.name}`,
+                  value: type.name,
+                }))}
+                placeholder="Select type"
+                searchPlaceholder="Search type"
                 value={form.typeName}
-              >
-                <option value="">Select type</option>
-                {visibleTypes.map((type) => (
-                  <option key={`${type.domainCode}-${type.name}`} value={type.name}>
-                    {type.name}
-                  </option>
-                ))}
-              </Select>
+              />
             </Field>
             <Field
               error={fieldErrors.partNo}
@@ -686,20 +662,13 @@ export function AssetEditForm(props: AssetEditFormProps) {
         <h2 className="text-xl font-bold text-navy">Operational State</h2>
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <Field error={fieldErrors.status} label="Current Status" required>
-            <Select
-              onChange={(event) =>
-                setField("status", event.target.value as AssetStatus)
-              }
-              required
-              aria-invalid={Boolean(fieldErrors.status)}
+            <SearchableDropdown
+              onChange={(value) => setField("status", value as AssetStatus)}
+              options={options.statuses.map((status) => ({ label: status, value: status }))}
+              placeholder="Select status"
+              searchPlaceholder="Search status"
               value={form.status}
-            >
-              {options.statuses.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </Select>
+            />
           </Field>
           <Field
             error={fieldErrors.location}

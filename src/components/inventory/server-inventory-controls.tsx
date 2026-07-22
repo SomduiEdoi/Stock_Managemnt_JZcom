@@ -7,11 +7,11 @@ import {
   ChevronDown,
   MoreVertical,
   Plus,
-  Search,
   SlidersHorizontal,
   Trash2,
   X,
 } from "lucide-react";
+import { SearchCombobox } from "@/components/form/search-combobox";
 
 type StatusOption = {
   label: string;
@@ -764,7 +764,20 @@ export function ServerInventoryControls({
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const selectedCount =
     filters.brands.length + filters.categories.length + filters.types.length + filters.statuses.length;
-  const hasActiveSearchOrFilters = Boolean(filters.search) || selectedCount > 0;
+  const searchSuggestions = useMemo(() => {
+    const values = [
+      ...brands.map((value) => ({ category: "BRAND", label: value, value })),
+      ...categories.map((value) => ({ category: "CATEGORY", label: value, value })),
+      ...categoryGroups.flatMap((group) =>
+        group.types.map((type) => ({ category: "TYPE", label: type.name, value: type.name })),
+      ),
+      ...statuses.map((status) => ({ category: "STATUS", label: status.label, value: status.label })),
+    ];
+    return Array.from(new Map(values.map((item) => [
+      `${item.category}-${item.value}`,
+      item,
+    ])).values());
+  }, [brands, categories, categoryGroups, statuses]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -779,23 +792,20 @@ export function ServerInventoryControls({
       />
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <form action={baseHref} className="relative flex-1" method="get">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            className="h-11 w-full rounded-md border border-border bg-white pl-10 pr-11 text-sm font-medium outline-none ring-brand-accent/20 transition focus:ring-4"
+        <form action={baseHref} className="relative flex-1 overflow-visible" method="get">
+          <SearchCombobox
+            categories={[
+              { label: "All", value: "ALL" },
+              { label: "Brand", value: "BRAND" },
+              { label: "Category", value: "CATEGORY" },
+              { label: "Type", value: "TYPE" },
+              { label: "Status", value: "STATUS" },
+            ]}
             defaultValue={filters.search}
             name="q"
             placeholder="Search model, brand, category, type, stock code, serial no."
+            suggestions={searchSuggestions}
           />
-          {hasActiveSearchOrFilters ? (
-            <Link
-              aria-label="Clear search and filters"
-              className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition hover:bg-surface hover:text-navy"
-              href={baseHref}
-            >
-              <X className="h-4 w-4" />
-            </Link>
-          ) : null}
           <input name="page" type="hidden" value="1" />
           <input name="sort" type="hidden" value={filters.sortBy} />
           <input name="dir" type="hidden" value={filters.sortDirection} />

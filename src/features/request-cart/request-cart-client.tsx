@@ -16,6 +16,7 @@ import {
 import {
   type PrintableTransaction,
 } from "@/features/transactions/transaction-document";
+import { SearchableDropdown } from "@/components/form/searchable-dropdown";
 import { downloadTransactionPdf } from "@/features/transactions/transaction-pdf-download";
 
 type TransactionTypeCode = "BORROW" | "USING" | "SOLD";
@@ -179,15 +180,17 @@ function TransactionTypeSelect({
   value: TransactionTypeCode;
 }) {
   return (
-    <select
-      className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold text-navy outline-none ring-brand-accent/20 focus:ring-4"
-      onChange={(event) => onChange(event.target.value as TransactionTypeCode)}
+    <SearchableDropdown
+      onChange={(nextValue) => onChange(nextValue as TransactionTypeCode)}
+      options={[
+        { label: "Borrow", value: "BORROW" },
+        { label: "Using", value: "USING" },
+        { label: "Sold", value: "SOLD" },
+      ]}
+      placeholder="Select transaction type"
+      searchPlaceholder="Search transaction type"
       value={value}
-    >
-      <option value="BORROW">Borrow</option>
-      <option value="USING">Using</option>
-      <option value="SOLD">Sold</option>
-    </select>
+    />
   );
 }
 

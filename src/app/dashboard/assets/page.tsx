@@ -10,6 +10,7 @@ import {
 } from "@/lib/assets";
 import { assetStatusLabels } from "@/lib/status-style";
 import { AssetStatusBadge } from "@/components/status/asset-status-badge";
+import { ProblemFiltersClient } from "@/app/dashboard/assets/problem-filters-client";
 
 type AssetsPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -119,86 +120,14 @@ function ProblemFilters({
   result: Awaited<ReturnType<typeof listAssetsForUser>>;
 }) {
   return (
-    <form
-      action="/dashboard/assets"
-      className="grid gap-3 rounded-md border border-border bg-white p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_150px_180px_180px_180px_auto_auto]"
-      method="get"
-    >
-      <input name="page" type="hidden" value="1" />
-      <input name="domain" type="hidden" value={filters.domain} />
-      <input
-        className="h-11 rounded-md border border-border px-3 text-sm font-medium outline-none ring-brand-accent/20 transition focus:ring-4"
-        defaultValue={filters.search}
-        name="q"
-        placeholder="Search model, brand, category, type, stock code, serial no."
-      />
-
-      <select
-        className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold text-navy"
-        defaultValue={filters.status}
-        name="status"
-      >
-        <option value="ALL">All Problems</option>
-        {problemAssetStatusOptions.map((status) => (
-          <option key={status} value={status}>
-            {assetStatusLabels[status]}
-          </option>
-        ))}
-      </select>
-
-      <select
-        className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold text-navy"
-        defaultValue={filters.brand}
-        name="brand"
-      >
-        <option value="ALL">All Brands</option>
-        {result.filterOptions.brands.map((brand) => (
-          <option key={brand} value={brand}>
-            {brand}
-          </option>
-        ))}
-      </select>
-
-      <select
-        className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold text-navy"
-        defaultValue={filters.category}
-        name="category"
-      >
-        <option value="ALL">All Categories</option>
-        {result.filterOptions.categories.map((category) => (
-          <option key={category} value={category}>
-            {category}
-          </option>
-        ))}
-      </select>
-
-      <select
-        className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold text-navy"
-        defaultValue={filters.type}
-        name="type"
-      >
-        <option value="ALL">All Types</option>
-        {result.filterOptions.types.map((type) => (
-          <option key={type} value={type}>
-            {type}
-          </option>
-        ))}
-      </select>
-
-      <button
-        className="h-11 rounded-md bg-navy px-4 text-sm font-bold text-white transition hover:bg-black"
-        type="submit"
-      >
-        Apply
-      </button>
-
-      <Link
-        className="flex h-11 items-center justify-center rounded-md border border-border bg-white px-4 text-sm font-bold text-navy transition hover:bg-surface"
-        href="/dashboard/assets"
-      >
-        Reset
-      </Link>
-    </form>
+    <ProblemFiltersClient
+      brandOptions={result.filterOptions.brands}
+      categoryOptions={result.filterOptions.categories}
+      filters={filters}
+      statusLabels={assetStatusLabels}
+      statusOptions={[...problemAssetStatusOptions]}
+      typeOptions={result.filterOptions.types}
+    />
   );
 }
 

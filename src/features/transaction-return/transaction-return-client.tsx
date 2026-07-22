@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, Loader2, XCircle } from "lucide-react";
 import type { AssetStatus, TransactionType, TransactionWorkflowStatus } from "@prisma/client";
+import { SearchableDropdown } from "@/components/form/searchable-dropdown";
 import { AssetStatusBadge } from "@/components/status/asset-status-badge";
 
 export type TransactionReturnItem = {
@@ -379,10 +380,9 @@ export function TransactionReturnClient({
           <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[180px_minmax(0,1fr)_180px]">
             <label className="flex flex-col gap-2">
               <span className="text-xs font-bold uppercase text-ink">Transaction Type</span>
-              <select
-                className="h-11 rounded-md border border-border bg-white px-3 text-sm font-bold text-navy outline-none ring-brand-accent/20 focus:ring-4"
-                onChange={(event) => {
-                  const nextType = event.target.value as TransactionType;
+              <SearchableDropdown
+                onChange={(value) => {
+                  const nextType = value as TransactionType;
                   setEditType(nextType);
                   if (nextType === "USING") {
                     setEditScope("internal");
@@ -390,12 +390,15 @@ export function TransactionReturnClient({
                     setEditScope("service");
                   }
                 }}
+                options={[
+                  { label: "Borrow", value: "BORROW" },
+                  { label: "Using", value: "USING" },
+                  { label: "Sold", value: "SOLD" },
+                ]}
+                placeholder="Select transaction type"
+                searchPlaceholder="Search transaction type"
                 value={editType}
-              >
-                <option value="BORROW">Borrow</option>
-                <option value="USING">Using</option>
-                <option value="SOLD">Sold</option>
-              </select>
+              />
             </label>
             <label className="flex flex-col gap-2">
               <span className="text-xs font-bold uppercase text-ink">Use Detail</span>
@@ -407,16 +410,20 @@ export function TransactionReturnClient({
             </label>
             <label className="flex flex-col gap-2">
               <span className="text-xs font-bold uppercase text-ink">Scope</span>
-              <select
-                className="h-11 rounded-md border border-border bg-white px-3 text-sm font-bold text-navy outline-none ring-brand-accent/20 focus:ring-4"
+              <SearchableDropdown
                 disabled={editType === "USING"}
-                onChange={(event) => setEditScope(event.target.value as "internal" | "service" | "project")}
+                onChange={(value) => setEditScope(value as "internal" | "service" | "project")}
+                options={editType === "USING"
+                  ? [{ label: "Internal", value: "internal" }]
+                  : [
+                      { label: "Service", value: "service" },
+                      { label: "Project", value: "project" },
+                    ]
+                }
+                placeholder="Select scope"
+                searchPlaceholder="Search scope"
                 value={editType === "USING" ? "internal" : editScope}
-              >
-                {editType === "USING" ? <option value="internal">Internal</option> : null}
-                {editType !== "USING" ? <option value="service">Service</option> : null}
-                {editType !== "USING" ? <option value="project">Project</option> : null}
-              </select>
+              />
             </label>
           </div>
           <label className="mt-4 flex flex-col gap-2">
@@ -625,19 +632,17 @@ export function TransactionReturnClient({
                       {isResolved && item.resolvedStatus ? (
                         <AssetStatusBadge status={item.resolvedStatus} />
                       ) : transaction.canReturn ? (
-                        <select
-                          className="h-10 w-full rounded-md border border-border bg-white px-3 text-sm font-bold text-navy outline-none ring-brand-accent/20 focus:ring-4"
-                          onChange={(event) =>
-                            updateResolution(item.itemId, event.target.value)
-                          }
+                        <SearchableDropdown
+                          onChange={(value) => updateResolution(item.itemId, value)}
+                          options={resolutionOptions.map((status) => ({
+                            label: resolutionOptionLabels[status],
+                            searchText: `${resolutionOptionLabels[status]} ${status}`,
+                            value: status,
+                          }))}
+                          placeholder="Select outcome"
+                          searchPlaceholder="Search outcome"
                           value={state?.toStatus ?? "READY"}
-                        >
-                          {resolutionOptions.map((status) => (
-                            <option key={status} value={status}>
-                              {resolutionOptionLabels[status]}
-                            </option>
-                          ))}
-                        </select>
+                        />
                       ) : (
                         <span className="text-sm font-bold text-muted-foreground">
                           Awaiting approval

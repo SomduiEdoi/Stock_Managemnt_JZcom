@@ -8,7 +8,6 @@ import {
   ArrowRight,
   Filter,
   Mail,
-  Search,
   ShieldCheck,
   UserCheck,
   UserCog,
@@ -28,6 +27,8 @@ import {
   type UserSystemRole,
   userRoleOptions,
 } from "@/lib/user-management-shared";
+import { SearchCombobox } from "@/components/form/search-combobox";
+import { SearchableDropdown } from "@/components/form/searchable-dropdown";
 import { UserActionMenu } from "@/features/user-management/user-action-menu";
 
 type UserManagementPageProps = {
@@ -219,6 +220,34 @@ function Field({
   );
 }
 
+function roleOptions() {
+  return userRoleOptions.map((role) => ({ label: roleLabels[role], value: role }));
+}
+
+function stockControllerOptions() {
+  return stockControllerTagOptions.map((option) => ({
+    label: stockControllerTagLabels[option],
+    searchText: `${stockControllerTagLabels[option]} ${option}`,
+    value: option,
+  }));
+}
+
+function organizationLevelDropdownOptions() {
+  return organizationLevelOptions.map((option) => ({ label: option, value: option }));
+}
+
+function organizationUnitDropdownOptions() {
+  return organizationUnitOptions.map((option) => ({
+    description: option.group,
+    label: option.value,
+    searchText: `${option.group} ${option.value}`,
+    value: option.value,
+  }));
+}
+
+function projectDropdownOptions() {
+  return projectTagOptions.map((option) => ({ label: projectLabels[option], value: option }));
+}
 function baseInputClass(disabled = false) {
   return `h-11 w-full rounded-md border border-border bg-white px-3 text-sm font-medium text-ink outline-none ring-brand-accent/20 transition focus:ring-4 ${
     disabled ? "cursor-not-allowed bg-surface text-muted-foreground" : ""
@@ -236,7 +265,7 @@ function ModalShell({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
-      <div className="w-full max-w-2xl rounded-md border border-border bg-white shadow-xl">
+      <div className="w-full max-w-2xl overflow-visible rounded-md border border-border bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <h2 className="text-xl font-bold text-navy">{title}</h2>
           <button
@@ -377,10 +406,9 @@ function UserFormModal({
         </Field>
 
         <Field label="Role" required>
-          <select
-            className={baseInputClass()}
-            onChange={(event) => {
-              const role = event.target.value as UserSystemRole | "";
+          <SearchableDropdown
+            onChange={(value) => {
+              const role = value as UserSystemRole | "";
               setForm((current) => ({
                 ...current,
                 organizationLevel: "",
@@ -389,69 +417,44 @@ function UserFormModal({
                 stockControllerTag: "",
               }));
             }}
+            options={roleOptions()}
+            placeholder="Select Role"
+            searchPlaceholder="Search role"
             value={form.role}
-          >
-            <option value="">Select Role</option>
-            {userRoleOptions.map((role) => (
-              <option key={role} value={role}>
-                {roleLabels[role]}
-              </option>
-            ))}
-          </select>
+          />
         </Field>
 
         <Field label="Stock Controller Tag" required={form.role === "STOCK_CONTROLLER"}>
-          <select
-            className={baseInputClass(form.role !== "STOCK_CONTROLLER")}
+          <SearchableDropdown
             disabled={form.role !== "STOCK_CONTROLLER"}
-            onChange={(event) => setField("stockControllerTag", event.target.value)}
+            onChange={(value) => setField("stockControllerTag", value)}
+            options={stockControllerOptions()}
+            placeholder={form.role === "STOCK_CONTROLLER" ? "Select Stock Controller Tag" : "Disabled"}
+            searchPlaceholder="Search stock controller tag"
             value={form.role === "STOCK_CONTROLLER" ? form.stockControllerTag : ""}
-          >
-            <option value="">
-              {form.role === "STOCK_CONTROLLER" ? "Select Stock Controller Tag" : "Disabled"}
-            </option>
-            {stockControllerTagOptions.map((option) => (
-              <option key={option} value={option}>
-                {stockControllerTagLabels[option]}
-              </option>
-            ))}
-          </select>
+          />
         </Field>
 
         <Field label="Organization Level" required={form.role === "USER"}>
-          <select
-            className={baseInputClass(form.role !== "USER")}
+          <SearchableDropdown
             disabled={form.role !== "USER"}
-            onChange={(event) => setField("organizationLevel", event.target.value)}
+            onChange={(value) => setField("organizationLevel", value)}
+            options={organizationLevelDropdownOptions()}
+            placeholder={form.role === "USER" ? "Select Organization Level" : "Disabled"}
+            searchPlaceholder="Search organization level"
             value={form.role === "USER" ? form.organizationLevel : ""}
-          >
-            <option value="">
-              {form.role === "USER" ? "Select Organization Level" : "Disabled"}
-            </option>
-            {organizationLevelOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
+          />
         </Field>
 
         <Field label="Organization Unit / Team Tag" required={form.role === "USER"}>
-          <select
-            className={baseInputClass(form.role !== "USER")}
+          <SearchableDropdown
             disabled={form.role !== "USER"}
-            onChange={(event) => setField("organizationTag", event.target.value)}
+            onChange={(value) => setField("organizationTag", value)}
+            options={organizationUnitDropdownOptions()}
+            placeholder={form.role === "USER" ? "Select Unit / Team Tag" : "Disabled"}
+            searchPlaceholder="Search unit or team tag"
             value={form.role === "USER" ? form.organizationTag : ""}
-          >
-            <option value="">
-              {form.role === "USER" ? "Select Unit / Team Tag" : "Disabled"}
-            </option>
-            {organizationUnitOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.group} - {option.value}
-              </option>
-            ))}
-          </select>
+          />
         </Field>
       </div>
 
@@ -591,18 +594,13 @@ function AssignModal({
 
       <div className="mt-4">
         <Field label="Project Tag">
-          <select
-            className={baseInputClass()}
-            onChange={(event) => setProjectTag(event.target.value)}
+          <SearchableDropdown
+            onChange={(value) => setProjectTag(value)}
+            options={[{ label: "Not assigned", value: "" }, ...projectDropdownOptions()]}
+            placeholder="Not assigned"
+            searchPlaceholder="Search project tag"
             value={projectTag}
-          >
-            <option value="">Not assigned</option>
-            {projectTagOptions.map((option) => (
-              <option key={option} value={option}>
-                {projectLabels[option]}
-              </option>
-            ))}
-          </select>
+          />
         </Field>
       </div>
 
@@ -821,10 +819,9 @@ function EditUserModal({
         </Field>
 
         <Field label="Role" required>
-          <select
-            className={baseInputClass()}
-            onChange={(event) => {
-              const role = event.target.value as UserSystemRole | "";
+          <SearchableDropdown
+            onChange={(value) => {
+              const role = value as UserSystemRole | "";
               setForm((current) => ({
                 ...current,
                 organizationLevel: "",
@@ -833,69 +830,44 @@ function EditUserModal({
                 stockControllerTag: "",
               }));
             }}
+            options={roleOptions()}
+            placeholder="Select Role"
+            searchPlaceholder="Search role"
             value={form.role}
-          >
-            <option value="">Select Role</option>
-            {userRoleOptions.map((role) => (
-              <option key={role} value={role}>
-                {roleLabels[role]}
-              </option>
-            ))}
-          </select>
+          />
         </Field>
 
         <Field label="Stock Controller Tag" required={form.role === "STOCK_CONTROLLER"}>
-          <select
-            className={baseInputClass(form.role !== "STOCK_CONTROLLER")}
+          <SearchableDropdown
             disabled={form.role !== "STOCK_CONTROLLER"}
-            onChange={(event) => setField("stockControllerTag", event.target.value)}
+            onChange={(value) => setField("stockControllerTag", value)}
+            options={stockControllerOptions()}
+            placeholder={form.role === "STOCK_CONTROLLER" ? "Select Stock Controller Tag" : "Disabled"}
+            searchPlaceholder="Search stock controller tag"
             value={form.role === "STOCK_CONTROLLER" ? form.stockControllerTag : ""}
-          >
-            <option value="">
-              {form.role === "STOCK_CONTROLLER" ? "Select Stock Controller Tag" : "Disabled"}
-            </option>
-            {stockControllerTagOptions.map((option) => (
-              <option key={option} value={option}>
-                {stockControllerTagLabels[option]}
-              </option>
-            ))}
-          </select>
+          />
         </Field>
 
         <Field label="Organization Level" required={form.role === "USER"}>
-          <select
-            className={baseInputClass(form.role !== "USER")}
+          <SearchableDropdown
             disabled={form.role !== "USER"}
-            onChange={(event) => setField("organizationLevel", event.target.value)}
+            onChange={(value) => setField("organizationLevel", value)}
+            options={organizationLevelDropdownOptions()}
+            placeholder={form.role === "USER" ? "Select Organization Level" : "Disabled"}
+            searchPlaceholder="Search organization level"
             value={form.role === "USER" ? form.organizationLevel : ""}
-          >
-            <option value="">
-              {form.role === "USER" ? "Select Organization Level" : "Disabled"}
-            </option>
-            {organizationLevelOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
+          />
         </Field>
 
         <Field label="Organization Unit / Team Tag" required={form.role === "USER"}>
-          <select
-            className={baseInputClass(form.role !== "USER")}
+          <SearchableDropdown
             disabled={form.role !== "USER"}
-            onChange={(event) => setField("organizationTag", event.target.value)}
+            onChange={(value) => setField("organizationTag", value)}
+            options={organizationUnitDropdownOptions()}
+            placeholder={form.role === "USER" ? "Select Unit / Team Tag" : "Disabled"}
+            searchPlaceholder="Search unit or team tag"
             value={form.role === "USER" ? form.organizationTag : ""}
-          >
-            <option value="">
-              {form.role === "USER" ? "Select Unit / Team Tag" : "Disabled"}
-            </option>
-            {organizationUnitOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.group} - {option.value}
-              </option>
-            ))}
-          </select>
+          />
         </Field>
       </div>
 
@@ -1031,6 +1003,15 @@ export function UserManagementPage({
 }: UserManagementPageProps) {
   const [dialog, setDialog] = useState<DialogMode | null>(null);
   const [notice, setNotice] = useState("");
+  const [roleFilter, setRoleFilter] = useState(filters.role);
+  const [statusFilter, setStatusFilter] = useState(filters.status);
+
+  const searchSuggestions = useMemo(() => users.flatMap((user) => [
+    { category: "NAME", label: user.name, searchText: `${user.email} ${roleLabels[user.systemRole]}`, value: user.name },
+    { category: "MAIL", label: user.email, searchText: user.name, value: user.email },
+    { category: "ROLE", label: roleLabels[user.systemRole], searchText: `${user.name} ${user.email}`, value: roleLabels[user.systemRole] },
+    ...tagPills(user).map((tag) => ({ category: "TAG", label: tag, searchText: `${user.name} ${user.email}`, value: tag })),
+  ]), [users]);
 
   const pageLabel = useMemo(
     () => `Showing ${users.length.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} users`,
@@ -1071,38 +1052,41 @@ export function UserManagementPage({
         className="grid gap-3 rounded-md border border-border bg-white p-4 shadow-sm lg:grid-cols-[1fr_190px_170px_auto_auto]"
         method="get"
       >
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            className="h-11 w-full rounded-md border border-border bg-white pl-10 pr-3 text-sm font-medium outline-none ring-brand-accent/20 transition focus:ring-4"
-            defaultValue={filters.search}
-            name="q"
-            placeholder="Search name, mail, role, tag"
-          />
-        </div>
+        <SearchCombobox
+          categories={[
+            { label: "All", value: "ALL" },
+            { label: "Name", value: "NAME" },
+            { label: "Mail", value: "MAIL" },
+            { label: "Role", value: "ROLE" },
+            { label: "Tag", value: "TAG" },
+          ]}
+          defaultValue={filters.search}
+          name="q"
+          placeholder="Search name, mail, role, tag"
+          suggestions={searchSuggestions}
+        />
 
-        <select
-          className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold text-navy"
-          defaultValue={filters.role}
+        <SearchableDropdown
           name="role"
-        >
-          <option value="ALL">All roles</option>
-          {userRoleOptions.map((role) => (
-            <option key={role} value={role}>
-              {roleLabels[role]}
-            </option>
-          ))}
-        </select>
+          onChange={(value) => setRoleFilter(value as typeof roleFilter)}
+          options={[{ label: "All roles", value: "ALL" }, ...roleOptions()]}
+          placeholder="All roles"
+          searchPlaceholder="Search role"
+          value={roleFilter}
+        />
 
-        <select
-          className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold text-navy"
-          defaultValue={filters.status}
+        <SearchableDropdown
           name="status"
-        >
-          <option value="ALL">All status</option>
-          <option value="ACTIVE">Active</option>
-          <option value="BLOCKED">Blocked</option>
-        </select>
+          onChange={(value) => setStatusFilter(value as typeof statusFilter)}
+          options={[
+            { label: "All status", value: "ALL" },
+            { label: "Active", value: "ACTIVE" },
+            { label: "Blocked", value: "BLOCKED" },
+          ]}
+          placeholder="All status"
+          searchPlaceholder="Search status"
+          value={statusFilter}
+        />
 
         <button
           className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-border bg-white px-4 text-sm font-bold text-navy shadow-sm hover:bg-surface"

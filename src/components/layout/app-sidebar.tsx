@@ -20,6 +20,7 @@ import {
 import { clsx } from "clsx";
 import { AssetTrackMethod } from "@prisma/client";
 import type { RoleCode } from "@/lib/permissions";
+import { SearchableDropdown } from "@/components/form/searchable-dropdown";
 import type { SidebarDomain } from "@/lib/domains";
 
 type StockControllerOption = {
@@ -144,6 +145,20 @@ function inventoryFamilyLabel(value: AssetTrackMethod) {
   return value === AssetTrackMethod.QUANTITY ? "Quantity" : "Serial";
 }
 
+function stockControllerOptions(stockControllers: StockControllerOption[]) {
+  return stockControllers.map((controller) => ({
+    description: controller.email,
+    label: controller.name,
+    searchText: `${controller.name} ${controller.email}`,
+    value: controller.id,
+  }));
+}
+
+const inventoryFamilyOptions = [
+  { label: "Serial", value: AssetTrackMethod.SERIAL },
+  { label: "Quantity", value: AssetTrackMethod.QUANTITY },
+];
+
 function AddDomainModal({
   onCreated,
   onClose,
@@ -235,44 +250,36 @@ function AddDomainModal({
           </Field>
 
           <Field label="Inventory Family" required>
-            <select
-              className={inputClass()}
-              onChange={(event) => setField("trackMethod", event.target.value as AssetTrackMethod)}
+            <SearchableDropdown
+              onChange={(value) => setField("trackMethod", value as AssetTrackMethod)}
+              options={inventoryFamilyOptions}
+              placeholder="Select inventory family"
+              searchPlaceholder="Search inventory family"
               value={form.trackMethod}
-            >
-              <option value={AssetTrackMethod.SERIAL}>Serial</option>
-              <option value={AssetTrackMethod.QUANTITY}>Quantity</option>
-            </select>
+            />
           </Field>
 
           <Field label="Stock Controller" required>
-            <select
-              className={inputClass()}
-              onChange={(event) => setField("controllerId", event.target.value)}
+            <SearchableDropdown
+              onChange={(value) => setField("controllerId", value)}
+              options={stockControllerOptions(stockControllers)}
+              placeholder="Select stock controller"
+              searchPlaceholder="Search by name or email"
               value={form.controllerId}
-            >
-              <option value="">Select stock controller</option>
-              {stockControllers.map((controller) => (
-                <option key={controller.id} value={controller.id}>
-                  {controller.name} ({controller.email})
-                </option>
-              ))}
-            </select>
+            />
           </Field>
 
           <Field label="Head Stock Controller">
-            <select
-              className={inputClass()}
-              onChange={(event) => setField("headControllerId", event.target.value)}
+            <SearchableDropdown
+              onChange={(value) => setField("headControllerId", value)}
+              options={[
+                { label: "No head stock controller", value: "" },
+                ...stockControllerOptions(stockControllers),
+              ]}
+              placeholder="No head stock controller"
+              searchPlaceholder="Search by name or email"
               value={form.headControllerId}
-            >
-              <option value="">No head stock controller</option>
-              {stockControllers.map((controller) => (
-                <option key={controller.id} value={controller.id}>
-                  {controller.name} ({controller.email})
-                </option>
-              ))}
-            </select>
+            />
           </Field>
         </div>
 
@@ -397,33 +404,26 @@ function EditDomainModal({
           </Field>
 
           <Field label="Stock Controller" required>
-            <select
-              className={inputClass()}
-              onChange={(event) => setField("controllerId", event.target.value)}
+            <SearchableDropdown
+              onChange={(value) => setField("controllerId", value)}
+              options={stockControllerOptions(stockControllers)}
+              placeholder="Select stock controller"
+              searchPlaceholder="Search by name or email"
               value={form.controllerId}
-            >
-              <option value="">Select stock controller</option>
-              {stockControllers.map((controller) => (
-                <option key={controller.id} value={controller.id}>
-                  {controller.name} ({controller.email})
-                </option>
-              ))}
-            </select>
+            />
           </Field>
 
           <Field label="Head Stock Controller">
-            <select
-              className={inputClass()}
-              onChange={(event) => setField("headControllerId", event.target.value)}
+            <SearchableDropdown
+              onChange={(value) => setField("headControllerId", value)}
+              options={[
+                { label: "No head stock controller", value: "" },
+                ...stockControllerOptions(stockControllers),
+              ]}
+              placeholder="No head stock controller"
+              searchPlaceholder="Search by name or email"
               value={form.headControllerId}
-            >
-              <option value="">No head stock controller</option>
-              {stockControllers.map((controller) => (
-                <option key={controller.id} value={controller.id}>
-                  {controller.name} ({controller.email})
-                </option>
-              ))}
-            </select>
+            />
           </Field>
 
           <Field label="Inventory Family">
