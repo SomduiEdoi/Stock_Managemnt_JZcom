@@ -66,15 +66,15 @@ npm run build
 - Use domain permission to separate Server and Network ownership.
 - Use manual CSV/Excel import from SharePoint.
 - Store signed paper document references as note/reference only in MVP.
-- Use `data/Network_reclassified.csv` and `data/Server_reclassified.csv` as the initial migration source files.
+- Use `D:\Internship\Stock\data\Network_reclassified.csv` and `D:\Internship\Stock\data\Server_reclassified.csv` as the initial migration source files.
 - Require serial no. for every MVP asset.
 - Treat rent and borrow as the same `Borrow` workflow.
 - Give Viewer users read-only access.
 
 ## Source Data
 
-- `data/Network_reclassified.csv`: 594 rows, no blank serial no., no duplicate serial no.
-- `data/Server_reclassified.csv`: 551 rows, no blank serial no., no duplicate serial no.
+- `D:\Internship\Stock\data\Network_reclassified.csv`: 594 rows, no blank serial no., no duplicate serial no.
+- `D:\Internship\Stock\data\Server_reclassified.csv`: 551 rows, no blank serial no., no duplicate serial no.
 - CSV files include a first-line SharePoint `ListSchema=...` record before the real header.
 
 ## Documents

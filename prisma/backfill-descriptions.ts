@@ -3,6 +3,7 @@ import path from "node:path";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
+const dataDirectory = process.env.STOCK_DATA_DIR ?? path.resolve(process.cwd(), "..", "data");
 
 type CsvRecord = Record<string, string>;
 
@@ -99,7 +100,7 @@ function recordFromCells(headers: string[], cells: string[]) {
 }
 
 async function readCsvRecords(fileName: string) {
-  const filePath = path.join(process.cwd(), "data", fileName);
+  const filePath = path.join(dataDirectory, fileName);
   const rawText = await readFile(filePath, "utf8");
   const [headers, ...rows] = parseCsv(stripSharePointSchema(rawText));
 

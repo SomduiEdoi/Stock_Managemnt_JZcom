@@ -11,6 +11,7 @@ import {
 } from "@prisma/client";
 
 const prisma = new PrismaClient();
+const dataDirectory = process.env.STOCK_DATA_DIR ?? path.resolve(process.cwd(), "..", "data");
 const sourceSystem = "SharePoint";
 
 type CsvRecord = Record<string, string>;
@@ -606,7 +607,7 @@ async function importRowsForBatch(
   userId: string,
   seenSerials: Set<string>,
 ) {
-  const filePath = path.join(process.cwd(), "data", sourceFile.fileName);
+  const filePath = path.join(dataDirectory, sourceFile.fileName);
   const rows = await readCsvRows(filePath);
   const stockCodeCounters = new Map<string, number>();
   let successRows = 0;
