@@ -124,6 +124,7 @@ function serializeTransaction(
     canApprove: Boolean(currentApproval),
     canEditPendingRequest,
     canReturn,
+    hasSignature: Boolean(user.signatureDataUrl),
     returnBlockedReason,
     id: transaction.id,
     items: transaction.items.map((item) => ({

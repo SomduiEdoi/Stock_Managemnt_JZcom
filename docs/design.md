@@ -267,3 +267,12 @@ Cleanup ที่ควรทำ:
 - Transaction log visibility/filter/return date
 - Dynamic domain ไม่ hardcode Server/Network ในจุดสำคัญ
 - Prisma schema/migration consistency สำหรับ Project
+
+## 12. UI Color Palette Requirement
+
+The system UI must use the approved core palette only for product-level surfaces, navigation, breadcrumbs, buttons, active states, borders, and non-status emphasis:
+
+- Brand accent / active / hover: `#FE7743`
+- Surface / page background: `#EFEEEA`
+- Primary navy / headings / navigation: `#273F4F`
+- Ink / high contrast text: `#000000`

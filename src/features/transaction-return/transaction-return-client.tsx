@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -41,6 +41,7 @@ export type TransactionReturnRecord = {
   canApprove: boolean;
   canEditPendingRequest: boolean;
   canReturn: boolean;
+  hasSignature: boolean;
   returnBlockedReason: string | null;
   id: string;
   internalRequest: boolean;
@@ -64,6 +65,9 @@ type ResolutionState = Record<
     toStatus: AssetStatus;
   }
 >;
+
+const missingSignatureMessage =
+  "Please upload your signature before approving the document.";
 
 const resolutionOptions = [
   "READY",
@@ -241,6 +245,11 @@ export function TransactionReturnClient({
   }
 
   async function confirmApproval() {
+    if (approvalMode === "APPROVE" && !transaction.hasSignature) {
+      setError(missingSignatureMessage);
+      return;
+    }
+
     if (approvalMode === "APPROVE" && transaction.requiresSoldPriceApproval && !price.trim()) {
       setError("Price is required before approval.");
       return;
