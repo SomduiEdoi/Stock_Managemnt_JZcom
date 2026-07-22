@@ -1,37 +1,29 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
   BriefcaseBusiness,
-  Filter,
+  CheckCircle2,
   Layers,
-  Pencil,
+  MoreVertical,
   Plus,
   Search,
   Trash2,
   UserCheck,
-  Users,
   X,
 } from "lucide-react";
+import type { ProjectRow, ProjectUserOption } from "@/lib/project-management";
 
-type ProjectStatus = "ACTIVE" | "ARCHIVED";
-
-type ProjectRow = {
-  code: string;
-  id: string;
-  lead: string;
-  members: number;
-  name: string;
-  status: ProjectStatus;
-};
+type ProjectStatus = "ACTIVE" | "CLOSED";
 
 type ProjectFormState = {
-  code: string;
-  lead: string;
-  members: string;
+  leadUserId: string;
+  memberUserIds: string[];
   name: string;
+  projectId: string;
   status: ProjectStatus;
 };
 
@@ -41,33 +33,22 @@ type DialogState =
   | { project: ProjectRow; type: "EDIT" }
   | null;
 
-const initialProjects: ProjectRow[] = [
-  {
-    code: "PRJ-001",
-    id: "project-operations",
-    lead: "Lead Project",
-    members: 0,
-    name: "Operations Project",
-    status: "ACTIVE",
-  },
-];
-
 function emptyForm(): ProjectFormState {
   return {
-    code: "",
-    lead: "",
-    members: "0",
+    leadUserId: "",
+    memberUserIds: [],
     name: "",
+    projectId: "",
     status: "ACTIVE",
   };
 }
 
 function toForm(project: ProjectRow): ProjectFormState {
   return {
-    code: project.code,
-    lead: project.lead,
-    members: String(project.members),
+    leadUserId: project.lead?.id ?? "",
+    memberUserIds: project.members.map((member) => member.id),
     name: project.name,
+    projectId: project.projectId ?? "",
     status: project.status,
   };
 }
@@ -133,7 +114,7 @@ function StatusBadge({ status }: { status: ProjectStatus }) {
   return (
     <span className="inline-flex items-center gap-2 text-sm font-semibold text-ink">
       <span className={isActive ? "h-2 w-2 rounded-full bg-status-ready" : "h-2 w-2 rounded-full bg-muted-foreground"} />
-      {isActive ? "Active" : "Archived"}
+      {isActive ? "Active" : "Closed"}
     </span>
   );
 }
@@ -149,7 +130,7 @@ function ModalShell({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
-      <div className="w-full max-w-2xl rounded-md border border-border bg-white shadow-xl">
+      <div className="w-full max-w-2xl overflow-visible rounded-md border border-border bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <h2 className="text-xl font-bold text-navy">{title}</h2>
           <button
@@ -166,19 +147,166 @@ function ModalShell({
   );
 }
 
+function optionLabel(option: ProjectUserOption) {
+  return `${option.name} (${option.email})`;
+}
+
+function SearchableUserSelect({
+  disabledIds = [],
+  label,
+  onChange,
+  options,
+  required = false,
+  value,
+}: {
+  disabledIds?: string[];
+  label: string;
+  onChange: (value: string) => void;
+  options: ProjectUserOption[];
+  required?: boolean;
+  value: string;
+}) {
+  const [query, setQuery] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const availableOptions = options.filter((option) => !disabledIds.includes(option.id));
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredOptions = availableOptions.filter((option) =>
+    optionLabel(option).toLowerCase().includes(normalizedQuery),
+  );
+  const selected = options.find((option) => option.id === value) ?? null;
+
+  function closeSoon() {
+    window.setTimeout(() => setIsOpen(false), 120);
+  }
+
+  return (
+    <Field label={label} required={required}>
+      <div
+        className="relative rounded-md border border-border bg-white p-2 ring-brand-accent/20 focus-within:ring-4"
+        onBlur={closeSoon}
+      >
+        {selected ? (
+          <div className="mb-2 flex items-center justify-between gap-2 rounded bg-surface px-3 py-2 text-sm font-bold text-navy">
+            <span className="truncate">{optionLabel(selected)}</span>
+            <button
+              className="rounded p-1 text-muted-foreground hover:bg-white hover:text-status-fail"
+              onClick={() => {
+                onChange("");
+                setQuery("");
+                setIsOpen(true);
+              }}
+              type="button"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        ) : null}
+        <input
+          className="h-9 w-full border-0 px-1 text-sm font-medium text-ink outline-none"
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setIsOpen(true);
+          }}
+          onFocus={() => setIsOpen(true)}
+          placeholder={selected ? "Search to change user" : "Search user by name or email"}
+          value={query}
+        />
+        {isOpen ? (
+          <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-[70] max-h-56 overflow-y-auto rounded-md border border-border bg-white p-2 shadow-xl">
+            {filteredOptions.map((option) => (
+              <button
+                className="block w-full rounded px-2 py-2 text-left text-sm font-semibold text-ink hover:bg-surface"
+                key={option.id}
+                onClick={() => {
+                  onChange(option.id);
+                  setQuery("");
+                  setIsOpen(false);
+                }}
+                type="button"
+              >
+                {optionLabel(option)}
+              </button>
+            ))}
+            {filteredOptions.length === 0 ? (
+              <p className="px-2 py-3 text-sm font-semibold text-muted-foreground">No users found.</p>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </Field>
+  );
+}
+
+function MemberPicker({
+  leadUserId,
+  memberUserIds,
+  onChange,
+  options,
+}: {
+  leadUserId: string;
+  memberUserIds: string[];
+  onChange: (value: string[]) => void;
+  options: ProjectUserOption[];
+}) {
+  const [candidateId, setCandidateId] = useState("");
+  const selectedMembers = memberUserIds
+    .map((id) => options.find((option) => option.id === id))
+    .filter(Boolean) as ProjectUserOption[];
+
+  return (
+    <div className="md:col-span-2">
+      <SearchableUserSelect
+        disabledIds={[leadUserId, ...memberUserIds].filter(Boolean)}
+        label="Team Member"
+        onChange={(id) => {
+          if (!id) return;
+          onChange([...memberUserIds, id]);
+          setCandidateId("");
+        }}
+        options={options}
+        value={candidateId}
+      />
+      {selectedMembers.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {selectedMembers.map((member) => (
+            <span
+              className="inline-flex items-center gap-2 rounded-full bg-surface px-3 py-1 text-sm font-bold text-navy"
+              key={member.id}
+            >
+              {member.name}
+              <button
+                className="text-muted-foreground hover:text-status-fail"
+                onClick={() => onChange(memberUserIds.filter((id) => id !== member.id))}
+                type="button"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function ProjectFormModal({
   initialState,
   mode,
   onClose,
-  onSave,
+  onSaved,
+  projectId,
+  userOptions,
 }: {
   initialState: ProjectFormState;
   mode: "ADD" | "EDIT";
   onClose: () => void;
-  onSave: (project: ProjectRow) => void;
+  onSaved: (project: ProjectRow) => void;
+  projectId?: string;
+  userOptions: ProjectUserOption[];
 }) {
   const [form, setForm] = useState(initialState);
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   function setField<Key extends keyof ProjectFormState>(
     key: Key,
@@ -187,39 +315,48 @@ function ProjectFormModal({
     setForm((current) => ({ ...current, [key]: value }));
   }
 
-  function handleSave() {
-    if (!form.name.trim()) {
-      setError("Project name is required.");
+  async function handleSave() {
+    const missingFields = [];
+    if (!form.name.trim()) missingFields.push("Project Name");
+    if (!form.projectId.trim()) missingFields.push("Project ID");
+    if (!form.leadUserId) missingFields.push("Lead Project");
+
+    if (missingFields.length > 0) {
+      setError(`Required fields missing: ${missingFields.join(", ")}.`);
       return;
     }
 
-    if (!form.code.trim()) {
-      setError("Project code is required.");
-      return;
-    }
+    setError("");
+    setIsSubmitting(true);
 
-    if (!form.lead.trim()) {
-      setError("Lead is required.");
-      return;
-    }
+    try {
+      const response = await fetch(mode === "EDIT" ? `/api/projects/${projectId}` : "/api/projects", {
+        body: JSON.stringify({
+          leadUserId: form.leadUserId,
+          memberUserIds: form.memberUserIds,
+          name: form.name.trim(),
+          projectId: form.projectId.trim().toUpperCase(),
+          status: form.status,
+        }),
+        headers: { "Content-Type": "application/json" },
+        method: mode === "EDIT" ? "PATCH" : "POST",
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        message?: string;
+        project?: ProjectRow;
+      };
 
-    const members = Number.parseInt(form.members, 10);
-    if (!Number.isFinite(members) || members < 0) {
-      setError("Members must be zero or more.");
-      return;
-    }
+      if (!response.ok || !data.project) {
+        throw new Error(data.message ?? "Unable to save project.");
+      }
 
-    onSave({
-      code: form.code.trim().toUpperCase(),
-      id:
-        mode === "EDIT"
-          ? initialState.code.toLowerCase()
-          : `project-${Date.now()}`,
-      lead: form.lead.trim(),
-      members,
-      name: form.name.trim(),
-      status: form.status,
-    });
+      onSaved(data.project);
+      onClose();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to save project.");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -237,44 +374,45 @@ function ProjectFormModal({
           />
         </Field>
 
-        <Field label="Project Code" required>
+        <Field label="Project ID" required>
           <input
             className={inputClass()}
-            onChange={(event) => setField("code", event.target.value.toUpperCase())}
+            onChange={(event) => setField("projectId", event.target.value.toUpperCase())}
             type="text"
-            value={form.code}
+            value={form.projectId}
           />
         </Field>
 
-        <Field label="Lead" required>
-          <input
-            className={inputClass()}
-            onChange={(event) => setField("lead", event.target.value)}
-            type="text"
-            value={form.lead}
+        <div className="md:col-span-2">
+          <SearchableUserSelect
+            disabledIds={form.memberUserIds}
+            label="Lead Project"
+            onChange={(id) => setField("leadUserId", id)}
+            options={userOptions}
+            required
+            value={form.leadUserId}
           />
-        </Field>
+        </div>
 
-        <Field label="Members">
-          <input
-            className={inputClass()}
-            min={0}
-            onChange={(event) => setField("members", event.target.value)}
-            type="number"
-            value={form.members}
-          />
-        </Field>
+        {mode === "EDIT" ? (
+          <Field label="Project Status" required>
+            <select
+              className={inputClass()}
+              onChange={(event) => setField("status", event.target.value as ProjectStatus)}
+              value={form.status}
+            >
+              <option value="ACTIVE">Active</option>
+              <option value="CLOSED">Closed</option>
+            </select>
+          </Field>
+        ) : null}
 
-        <Field label="Status">
-          <select
-            className={inputClass()}
-            onChange={(event) => setField("status", event.target.value as ProjectStatus)}
-            value={form.status}
-          >
-            <option value="ACTIVE">Active</option>
-            <option value="ARCHIVED">Archived</option>
-          </select>
-        </Field>
+        <MemberPicker
+          leadUserId={form.leadUserId}
+          memberUserIds={form.memberUserIds}
+          onChange={(ids) => setField("memberUserIds", ids)}
+          options={userOptions}
+        />
       </div>
 
       {error ? (
@@ -292,11 +430,12 @@ function ProjectFormModal({
           Cancel
         </button>
         <button
-          className="h-11 rounded-md bg-navy px-4 text-sm font-bold text-white hover:bg-navy/90"
+          className="h-11 rounded-md bg-navy px-4 text-sm font-bold text-white hover:bg-navy/90 disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={isSubmitting}
           onClick={handleSave}
           type="button"
         >
-          Save
+          {isSubmitting ? "Saving..." : "Save"}
         </button>
       </div>
     </ModalShell>
@@ -312,11 +451,46 @@ function DeleteProjectModal({
   onDelete: () => void;
   project: ProjectRow;
 }) {
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function handleDelete() {
+    setError("");
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`/api/projects/${project.id}`, { method: "DELETE" });
+      const data = (await response.json().catch(() => ({}))) as { message?: string };
+
+      if (!response.ok) {
+        throw new Error(data.message ?? "Unable to delete project.");
+      }
+
+      onDelete();
+      onClose();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to delete project.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <ModalShell onClose={onClose} title="Delete Project">
-      <p className="text-sm font-medium leading-6 text-ink">
-        Are you sure you want to delete {project.name}?
-      </p>
+      <div className="space-y-3 text-sm font-medium leading-6 text-ink">
+        <p>Are you sure you want to delete this project?</p>
+        <p>
+          Project Name: <span className="font-bold text-navy">{project.name}</span>
+        </p>
+        <p>
+          Project ID: <span className="font-bold text-navy">{project.projectId ?? "-"}</span>
+        </p>
+      </div>
+      {error ? (
+        <div className="mt-4 rounded-md border border-status-fail/20 bg-status-fail/10 px-4 py-3 text-sm font-semibold text-status-fail">
+          {error}
+        </div>
+      ) : null}
       <div className="mt-5 flex items-center justify-end gap-3">
         <button
           className="h-11 rounded-md border border-border px-4 text-sm font-bold text-navy hover:bg-surface"
@@ -326,41 +500,103 @@ function DeleteProjectModal({
           Cancel
         </button>
         <button
-          className="h-11 rounded-md bg-status-fail px-4 text-sm font-bold text-white hover:bg-status-fail/90"
-          onClick={onDelete}
+          className="h-11 rounded-md bg-status-fail px-4 text-sm font-bold text-white hover:bg-status-fail/90 disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={isSubmitting}
+          onClick={handleDelete}
           type="button"
         >
-          Delete
+          {isSubmitting ? "Deleting..." : "Delete"}
         </button>
       </div>
     </ModalShell>
   );
 }
 
-export function ProjectManagementPage() {
+function ProjectActionMenu({
+  onDelete,
+  onEdit,
+}: {
+  onDelete: () => void;
+  onEdit: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative inline-flex">
+      <button
+        aria-label="Open project actions"
+        className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-white text-navy hover:bg-surface"
+        onClick={() => setOpen((current) => !current)}
+        type="button"
+      >
+        <MoreVertical className="h-4 w-4" />
+      </button>
+      {open ? (
+        <div className="absolute right-0 top-10 z-20 w-36 rounded-md border border-border bg-white p-1 shadow-lg">
+          <button
+            className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm font-semibold text-ink hover:bg-surface"
+            onClick={() => {
+              setOpen(false);
+              onEdit();
+            }}
+            type="button"
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            Edit
+          </button>
+          <button
+            className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm font-semibold text-status-fail hover:bg-status-fail/10"
+            onClick={() => {
+              setOpen(false);
+              onDelete();
+            }}
+            type="button"
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function ProjectManagementPage({
+  initialProjects,
+  userOptions,
+}: {
+  initialProjects: ProjectRow[];
+  userOptions: ProjectUserOption[];
+}) {
+  const router = useRouter();
   const [projects, setProjects] = useState(initialProjects);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<"ALL" | ProjectStatus>("ALL");
 
   const filteredProjects = useMemo(() => {
     const search = query.trim().toLowerCase();
 
-    return projects.filter((project) => {
-      const matchesStatus = status === "ALL" || project.status === status;
-      const matchesSearch =
-        !search ||
-        [project.name, project.code, project.lead, project.status]
-          .join(" ")
-          .toLowerCase()
-          .includes(search);
+    if (!search) {
+      return projects;
+    }
 
-      return matchesStatus && matchesSearch;
-    });
-  }, [projects, query, status]);
+    return projects.filter((project) =>
+      [
+        project.name,
+        project.projectId ?? "",
+        project.lead?.name ?? "",
+        project.lead?.email ?? "",
+        project.status,
+        ...project.members.flatMap((member) => [member.name, member.email]),
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(search),
+    );
+  }, [projects, query]);
 
   const activeCount = projects.filter((project) => project.status === "ACTIVE").length;
-  const totalMembers = projects.reduce((total, project) => total + project.members, 0);
+  const closedCount = projects.filter((project) => project.status === "CLOSED").length;
 
   function upsertProject(nextProject: ProjectRow) {
     setProjects((current) => {
@@ -373,66 +609,42 @@ export function ProjectManagementPage() {
 
       return [nextProject, ...current];
     });
-    setDialog(null);
+    router.refresh();
   }
 
   return (
     <div className="flex flex-col gap-6">
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-3">
         <MetricCard
           detail="All tracked projects"
           icon={Layers}
-          label="Total"
+          label="Total Projects"
           value={projects.length}
         />
         <MetricCard
-          detail="Currently available"
+          detail="Currently active"
           icon={BriefcaseBusiness}
-          label="Active"
+          label="Active Projects"
           value={activeCount}
         />
         <MetricCard
-          detail="Assigned project leads"
+          detail="Closed projects"
           icon={UserCheck}
-          label="Lead Project"
-          value={projects.filter((project) => project.lead !== "-").length}
-        />
-        <MetricCard
-          detail="People in project teams"
-          icon={Users}
-          label="Team Member"
-          value={totalMembers}
+          label="Closed Projects"
+          value={closedCount}
         />
       </section>
 
-      <section className="grid gap-3 rounded-md border border-border bg-white p-4 shadow-sm lg:grid-cols-[1fr_180px_auto_auto]">
+      <section className="grid gap-3 rounded-md border border-border bg-white p-4 shadow-sm lg:grid-cols-[1fr_auto]">
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             className="h-11 w-full rounded-md border border-border bg-white pl-10 pr-3 text-sm font-medium outline-none ring-brand-accent/20 transition focus:ring-4"
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search project name, code, lead"
+            placeholder="Search project name, project id, lead, member"
             value={query}
           />
         </div>
-
-        <select
-          className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold text-navy"
-          onChange={(event) => setStatus(event.target.value as "ALL" | ProjectStatus)}
-          value={status}
-        >
-          <option value="ALL">All status</option>
-          <option value="ACTIVE">Active</option>
-          <option value="ARCHIVED">Archived</option>
-        </select>
-
-        <button
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-border bg-white px-4 text-sm font-bold text-navy shadow-sm hover:bg-surface"
-          type="button"
-        >
-          <Filter className="h-4 w-4" />
-          Filter
-        </button>
 
         <button
           className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-navy px-4 text-sm font-bold text-white shadow-sm hover:bg-navy/90"
@@ -446,46 +658,38 @@ export function ProjectManagementPage() {
 
       <section className="overflow-hidden rounded-md border border-border bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="min-w-full border-collapse text-left text-sm">
+          <table className="min-w-full table-fixed border-collapse text-left text-sm">
             <thead className="bg-surface text-xs uppercase text-muted-foreground">
               <tr>
-                <th className="px-5 py-4 font-bold">Project Name</th>
-                <th className="px-5 py-4 font-bold">Project Code</th>
-                <th className="px-5 py-4 font-bold">Lead</th>
-                <th className="px-5 py-4 font-bold">Members</th>
-                <th className="px-5 py-4 font-bold">Status</th>
-                <th className="px-5 py-4 font-bold">Action</th>
+                <th className="w-[24%] px-5 py-4 font-bold">Project Name</th>
+                <th className="w-[16%] px-5 py-4 font-bold">Project ID</th>
+                <th className="w-[18%] px-5 py-4 font-bold">Lead Project</th>
+                <th className="w-[24%] px-5 py-4 font-bold">Team Member</th>
+                <th className="w-[12%] px-5 py-4 font-bold">Status</th>
+                <th className="w-[6%] px-5 py-4 font-bold">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {filteredProjects.map((project) => (
                 <tr className="align-middle" key={project.id}>
-                  <td className="px-5 py-4 font-bold text-navy">{project.name}</td>
-                  <td className="px-5 py-4 font-semibold text-ink">{project.code}</td>
-                  <td className="px-5 py-4 text-ink">{project.lead}</td>
-                  <td className="px-5 py-4 text-ink">{project.members}</td>
+                  <td className="truncate px-5 py-4 font-bold text-navy" title={project.name}>{project.name}</td>
+                  <td className="truncate px-5 py-4 font-semibold text-ink" title={project.projectId ?? "-"}>{project.projectId ?? "-"}</td>
+                  <td className="truncate px-5 py-4 text-ink" title={project.lead ? optionLabel(project.lead) : "-"}>
+                    {project.lead?.name ?? "-"}
+                  </td>
+                  <td className="truncate px-5 py-4 text-ink" title={project.members.map((member) => member.name).join(", ") || "-"}>
+                    {project.members.length > 0
+                      ? project.members.map((member) => member.name).join(", ")
+                      : "-"}
+                  </td>
                   <td className="px-5 py-4">
                     <StatusBadge status={project.status} />
                   </td>
                   <td className="px-5 py-4">
-                    <div className="flex gap-2">
-                      <button
-                        className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-bold text-navy hover:bg-surface"
-                        onClick={() => setDialog({ project, type: "EDIT" })}
-                        type="button"
-                      >
-                        <Pencil className="h-4 w-4" />
-                        Edit
-                      </button>
-                      <button
-                        className="inline-flex h-9 items-center gap-2 rounded-md border border-status-fail/30 bg-white px-3 text-sm font-bold text-status-fail hover:bg-status-fail/10"
-                        onClick={() => setDialog({ project, type: "DELETE" })}
-                        type="button"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Delete
-                      </button>
-                    </div>
+                    <ProjectActionMenu
+                      onDelete={() => setDialog({ project, type: "DELETE" })}
+                      onEdit={() => setDialog({ project, type: "EDIT" })}
+                    />
                   </td>
                 </tr>
               ))}
@@ -530,7 +734,8 @@ export function ProjectManagementPage() {
           initialState={emptyForm()}
           mode="ADD"
           onClose={() => setDialog(null)}
-          onSave={upsertProject}
+          onSaved={upsertProject}
+          userOptions={userOptions}
         />
       ) : null}
 
@@ -539,7 +744,9 @@ export function ProjectManagementPage() {
           initialState={toForm(dialog.project)}
           mode="EDIT"
           onClose={() => setDialog(null)}
-          onSave={(project) => upsertProject({ ...project, id: dialog.project.id })}
+          onSaved={upsertProject}
+          projectId={dialog.project.id}
+          userOptions={userOptions}
         />
       ) : null}
 
@@ -550,7 +757,7 @@ export function ProjectManagementPage() {
             setProjects((current) =>
               current.filter((project) => project.id !== dialog.project.id),
             );
-            setDialog(null);
+            router.refresh();
           }}
           project={dialog.project}
         />
@@ -569,3 +776,4 @@ export function ProjectManagementForbidden() {
     </section>
   );
 }
+

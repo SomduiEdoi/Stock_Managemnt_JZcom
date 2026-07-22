@@ -1,5 +1,6 @@
-import { requireCurrentUser } from "@/lib/auth";
+﻿import { requireCurrentUser } from "@/lib/auth";
 import { hasRole } from "@/lib/permissions";
+import { getProjectManagementForAdmin } from "@/lib/project-management";
 import {
   ProjectManagementForbidden,
   ProjectManagementPage,
@@ -12,5 +13,7 @@ export default async function ProjectRoute() {
     return <ProjectManagementForbidden />;
   }
 
-  return <ProjectManagementPage />;
+  const data = await getProjectManagementForAdmin(user);
+
+  return <ProjectManagementPage initialProjects={data.projects} userOptions={data.users} />;
 }

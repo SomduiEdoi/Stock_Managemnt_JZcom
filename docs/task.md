@@ -140,3 +140,15 @@ Legend:
 - [ ] เพิ่ม test สำหรับ project schema consistency
 - [ ] เพิ่ม regression test สำหรับ transaction no
 - [ ] เพิ่ม regression test สำหรับ role/tag permission
+## 2026-07-22 Implementation Update
+
+- [x] Domain Management supports Head Stock Controller on create/edit and stores `asset_domains.head_stock_controller_id`.
+- [x] Domain create/edit keeps existing Stock Controller permission behavior and also grants manage permission to the Head Stock Controller when assigned.
+- [x] Project Management now uses PostgreSQL/Prisma instead of local mock state.
+- [x] Project page dashboard summary shows Total Projects, Active Projects, and Closed Projects.
+- [x] Project table action uses kebab menu with Edit/Delete and delete confirmation showing Project Name and Project ID.
+- [x] Project add/edit supports Project Name, Project ID, Project Status, Lead Project, and multiple Team Members with active USER-only searchable selectors.
+- [x] Project filter control removed; search remains.
+- [x] Asset Detail and Request Detail breadcrumbs use blue links with orange hover while preserving existing navigation.
+- [x] Project ID is required at DB/schema level after backfill.
+- [x] Ran `npx.cmd prisma migrate deploy`, `npx.cmd prisma generate --no-engine`, `npm.cmd run typecheck`, and `npm.cmd run lint` successfully.

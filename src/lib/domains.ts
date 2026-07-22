@@ -8,6 +8,7 @@ export type SidebarDomain = {
   assetCount: number;
   code: string;
   controllerId: string | null;
+  headControllerId: string | null;
   inventoryFamily: AssetTrackMethod;
   name: string;
   prefix: string;
@@ -64,6 +65,7 @@ const sidebarDomainSelect = {
   inventoryFamily: true,
   name: true,
   permissions: {
+    orderBy: { createdAt: "asc" as const },
     select: { userId: true },
     take: 1,
     where: { canManage: true },
@@ -80,11 +82,14 @@ type SidebarDomainRecord = {
   prefix: string;
 };
 
+type DomainTx = Parameters<Parameters<typeof db.$transaction>[0]>[0];
+
 async function ensureDomainViewPermissionsForActiveUsers(
-  tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
+  tx: DomainTx,
   domainId: string,
-  controllerId: string,
+  managerIds: string[],
 ) {
+  const managerIdSet = new Set(managerIds.filter(Boolean));
   const existingPermissions = await tx.userDomainPermission.findMany({
     select: { userId: true },
     where: { domainId },
@@ -111,7 +116,7 @@ async function ensureDomainViewPermissionsForActiveUsers(
 
   await tx.userDomainPermission.createMany({
     data: usersMissingPermission.map((entry) => ({
-      canManage: entry.id === controllerId,
+      canManage: managerIdSet.has(entry.id),
       canView: true,
       domainId,
       userId: entry.id,
@@ -120,11 +125,58 @@ async function ensureDomainViewPermissionsForActiveUsers(
   });
 }
 
+async function findStockControllerOrThrow(
+  tx: DomainTx,
+  userId: string,
+  label: string,
+) {
+  const controller = await tx.user.findFirst({
+    select: { id: true },
+    where: {
+      id: userId,
+      isActive: true,
+      roles: { some: { role: { code: "STOCK_CONTROLLER" } } },
+    },
+  });
+
+  if (!controller) {
+    throw new WorkflowError(`${label} not found.`);
+  }
+
+  return controller;
+}
+
+async function upsertDomainManagerPermission(
+  tx: DomainTx,
+  domainId: string,
+  userId: string,
+) {
+  await tx.userDomainPermission.upsert({
+    create: {
+      canManage: true,
+      canView: true,
+      domainId,
+      userId,
+    },
+    update: {
+      canManage: true,
+      canView: true,
+    },
+    where: {
+      userId_domainId: {
+        domainId,
+        userId,
+      },
+    },
+  });
+}
+
 function toSidebarDomain(domain: SidebarDomainRecord): SidebarDomain {
   return {
     assetCount: domain._count.assets,
     code: domain.code,
     controllerId: domain.permissions[0]?.userId ?? null,
+    headControllerId: null,
     inventoryFamily: domain.inventoryFamily,
     name: domain.name,
     prefix: domain.prefix,
@@ -162,7 +214,7 @@ export async function getSidebarDomainsForUser(user: CurrentUser) {
 export async function getStockControllersForDomainForm() {
   return db.user.findMany({
     orderBy: { name: "asc" },
-    select: { email: true, id: true, name: true },
+    select: { email: true, id: true, name: true, stockControllerTag: true },
     where: {
       isActive: true,
       roles: { some: { role: { code: "STOCK_CONTROLLER" } } },
@@ -173,6 +225,7 @@ export async function getStockControllersForDomainForm() {
 export type CreateDomainInput = {
   controllerId: string;
   domainName: string;
+  headControllerId?: string | null;
   prefix: string;
   trackMethod: AssetTrackMethod;
 };
@@ -180,6 +233,7 @@ export type CreateDomainInput = {
 export type UpdateDomainInput = {
   controllerId: string;
   domainName: string;
+  headControllerId?: string | null;
 };
 
 export async function createDomainForUser(user: CurrentUser, input: CreateDomainInput) {
@@ -196,18 +250,10 @@ export async function createDomainForUser(user: CurrentUser, input: CreateDomain
   }
 
   return db.$transaction(async (tx) => {
-    const controller = await tx.user.findFirst({
-      select: { id: true },
-      where: {
-        id: input.controllerId,
-        isActive: true,
-        roles: { some: { role: { code: "STOCK_CONTROLLER" } } },
-      },
-    });
-
-    if (!controller) {
-      throw new WorkflowError("Stock controller not found.");
-    }
+    const controller = await findStockControllerOrThrow(tx, input.controllerId, "Stock controller");
+    const headController = input.headControllerId
+      ? await findStockControllerOrThrow(tx, input.headControllerId, "Head stock controller")
+      : null;
 
     const duplicate = await tx.assetDomain.findFirst({
       select: { id: true },
@@ -219,8 +265,21 @@ export async function createDomainForUser(user: CurrentUser, input: CreateDomain
     }
 
     const domain = await tx.assetDomain.create({
-      data: { code, inventoryFamily: input.trackMethod, name, prefix },
-      select: { code: true, id: true, inventoryFamily: true, name: true, prefix: true },
+      data: {
+        code,
+        headStockControllerId: headController?.id ?? null,
+        inventoryFamily: input.trackMethod,
+        name,
+        prefix,
+      },
+      select: {
+        code: true,
+        headStockControllerId: true,
+        id: true,
+        inventoryFamily: true,
+        name: true,
+        prefix: true,
+      },
     });
 
     const nonAdminUsers = await tx.user.findMany({
@@ -237,18 +296,26 @@ export async function createDomainForUser(user: CurrentUser, input: CreateDomain
 
     await tx.userDomainPermission.createMany({
       data: nonAdminUsers.map((entry) => ({
-        canManage: entry.id === controller.id,
+        canManage: entry.id === controller.id || entry.id === headController?.id,
         canView: true,
         domainId: domain.id,
         userId: entry.id,
       })),
     });
-    await ensureDomainViewPermissionsForActiveUsers(tx, domain.id, controller.id);
+    await ensureDomainViewPermissionsForActiveUsers(tx, domain.id, [
+      controller.id,
+      headController?.id ?? "",
+    ]);
+    await upsertDomainManagerPermission(tx, domain.id, controller.id);
+    if (headController) {
+      await upsertDomainManagerPermission(tx, domain.id, headController.id);
+    }
 
     return {
       assetCount: 0,
       code: domain.code,
       controllerId: controller.id,
+      headControllerId: headController?.id ?? null,
       inventoryFamily: domain.inventoryFamily,
       name: domain.name,
       prefix: domain.prefix,
@@ -281,18 +348,10 @@ export async function updateDomainForUser(
       throw new WorkflowError("Domain not found.", 404);
     }
 
-    const controller = await tx.user.findFirst({
-      select: { id: true },
-      where: {
-        id: input.controllerId,
-        isActive: true,
-        roles: { some: { role: { code: "STOCK_CONTROLLER" } } },
-      },
-    });
-
-    if (!controller) {
-      throw new WorkflowError("Stock controller not found.");
-    }
+    const controller = await findStockControllerOrThrow(tx, input.controllerId, "Stock controller");
+    const headController = input.headControllerId
+      ? await findStockControllerOrThrow(tx, input.headControllerId, "Head stock controller")
+      : null;
 
     const duplicate = await tx.assetDomain.findFirst({
       select: { id: true },
@@ -307,7 +366,7 @@ export async function updateDomainForUser(
     }
 
     await tx.assetDomain.update({
-      data: { name },
+      data: { headStockControllerId: headController?.id ?? null, name },
       where: { id: domain.id },
     });
 
@@ -315,26 +374,14 @@ export async function updateDomainForUser(
       data: { canManage: false, canView: true },
       where: { domainId: domain.id },
     });
-    await ensureDomainViewPermissionsForActiveUsers(tx, domain.id, controller.id);
-
-    await tx.userDomainPermission.upsert({
-      create: {
-        canManage: true,
-        canView: true,
-        domainId: domain.id,
-        userId: controller.id,
-      },
-      update: {
-        canManage: true,
-        canView: true,
-      },
-      where: {
-        userId_domainId: {
-          domainId: domain.id,
-          userId: controller.id,
-        },
-      },
-    });
+    await ensureDomainViewPermissionsForActiveUsers(tx, domain.id, [
+      controller.id,
+      headController?.id ?? "",
+    ]);
+    await upsertDomainManagerPermission(tx, domain.id, controller.id);
+    if (headController) {
+      await upsertDomainManagerPermission(tx, domain.id, headController.id);
+    }
 
     const updated = await tx.assetDomain.findUniqueOrThrow({
       select: sidebarDomainSelect,
@@ -372,4 +419,3 @@ export async function deleteDomainForUser(user: CurrentUser, domainCode: string)
     return { assetCount };
   });
 }
-

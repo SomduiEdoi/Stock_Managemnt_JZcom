@@ -154,7 +154,7 @@ function AssetHeader({ asset, canManage }: AssetDetailPageProps) {
           aria-label="Breadcrumb"
           className="flex flex-wrap items-center gap-2 text-sm font-bold text-muted-foreground"
         >
-          <Link className="text-navy hover:underline" href={domainHref(asset.domain.code)}>
+          <Link className="text-[#2563EB] transition hover:text-brand-accent" href={domainHref(asset.domain.code)}>
             {domainLabel(asset)}
           </Link>
           <ChevronRight className="h-4 w-4" />
@@ -398,6 +398,7 @@ export function AssetDetailPage({ asset, canManage }: AssetDetailPageProps) {
     </div>
   );
 }
+
 
 
 

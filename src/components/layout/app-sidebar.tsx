@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -26,6 +26,7 @@ type StockControllerOption = {
   email: string;
   id: string;
   name: string;
+  stockControllerTag: string | null;
 };
 
 type AppSidebarProps = {
@@ -37,6 +38,7 @@ type AppSidebarProps = {
 
 type DomainFormState = {
   controllerId: string;
+  headControllerId: string;
   domainName: string;
   prefix: string;
   trackMethod: AssetTrackMethod;
@@ -131,6 +133,7 @@ function Field({
 function emptyDomainForm(): DomainFormState {
   return {
     controllerId: "",
+    headControllerId: "",
     domainName: "",
     prefix: "",
     trackMethod: AssetTrackMethod.SERIAL,
@@ -169,6 +172,7 @@ function AddDomainModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           controllerId: form.controllerId,
+          headControllerId: form.headControllerId || null,
           domainName: form.domainName.trim(),
           prefix: form.prefix.trim().toUpperCase(),
           trackMethod: form.trackMethod,
@@ -255,6 +259,21 @@ function AddDomainModal({
               ))}
             </select>
           </Field>
+
+          <Field label="Head Stock Controller">
+            <select
+              className={inputClass()}
+              onChange={(event) => setField("headControllerId", event.target.value)}
+              value={form.headControllerId}
+            >
+              <option value="">No head stock controller</option>
+              {stockControllers.map((controller) => (
+                <option key={controller.id} value={controller.id}>
+                  {controller.name} ({controller.email})
+                </option>
+              ))}
+            </select>
+          </Field>
         </div>
 
         {error ? (
@@ -299,6 +318,7 @@ function EditDomainModal({
   const router = useRouter();
   const [form, setForm] = useState<DomainFormState>({
     controllerId: domain.controllerId ?? "",
+    headControllerId: domain.headControllerId ?? "",
     domainName: domain.name,
     prefix: domain.prefix,
     trackMethod: domain.inventoryFamily,
@@ -320,6 +340,7 @@ function EditDomainModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           controllerId: form.controllerId,
+          headControllerId: form.headControllerId || null,
           domainName: form.domainName.trim(),
         }),
       });
@@ -382,6 +403,21 @@ function EditDomainModal({
               value={form.controllerId}
             >
               <option value="">Select stock controller</option>
+              {stockControllers.map((controller) => (
+                <option key={controller.id} value={controller.id}>
+                  {controller.name} ({controller.email})
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Head Stock Controller">
+            <select
+              className={inputClass()}
+              onChange={(event) => setField("headControllerId", event.target.value)}
+              value={form.headControllerId}
+            >
+              <option value="">No head stock controller</option>
               {stockControllers.map((controller) => (
                 <option key={controller.id} value={controller.id}>
                   {controller.name} ({controller.email})
@@ -772,4 +808,5 @@ export function AppSidebar({
     </>
   );
 }
+
 

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -354,12 +354,12 @@ export function TransactionReturnClient({
             aria-label="Breadcrumb"
             className="flex flex-wrap items-center gap-2 text-sm font-bold"
           >
-            <Link className="text-brand-accent hover:text-navy" href="/logs">
+            <Link className="text-[#2563EB] transition hover:text-brand-accent" href="/logs">
               Logs
             </Link>
             <span className="text-muted-foreground">&gt;</span>
             <Link
-              className="text-brand-accent hover:text-navy"
+              className="text-[#2563EB] transition hover:text-brand-accent"
               href={`/logs/${transaction.id}/return`}
             >
               {transaction.transactionNo}
@@ -812,5 +812,6 @@ export function TransactionReturnClient({
     </div>
   );
 }
+
 
 
