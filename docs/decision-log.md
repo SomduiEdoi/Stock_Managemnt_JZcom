@@ -1,208 +1,203 @@
-# บันทึกการตัดสินใจ
+# Decision Log: Asset Flow Management System
 
-อัปเดตล่าสุด: 2026-07-03
+อัปเดตล่าสุด: 2026-07-22
 
-## 2026-06-09: Baseline แรกของ Asset Flow
+## 2026-07-22: Rename to Asset Flow
 
-การตัดสินใจ:
+Decision:
 
-- เริ่มสร้าง Asset Flow จาก inventory ของ Server และ Network ก่อน
-- Track asset status แทนการลบ assets
-- เก็บ status history เพื่อให้ audit ได้
-- ใช้ role/permission checks สำหรับ management actions
+- ใช้ชื่อสั้น `Asset Flow`
+- ใช้ชื่อเต็ม `Asset Flow Management System`
+- เอกสารควรเลิกเรียกระบบด้วยชื่อเดิม
 
-เหตุผล:
+Reason:
 
-- ระบบต้อง trace การเคลื่อนย้ายและการเปลี่ยนสถานะของอุปกรณ์ได้
-- Server และ Network เป็น domains แรก แต่ไม่ควรถูกจำกัดให้มีได้แค่นี้ตลอดไป
+- ระบบไม่ได้เป็นแค่ stock table แต่ครอบคลุม request, approval, borrow, using, sold, return, history และ document flow
 
-## 2026-06-12: แนวทาง CSV Migration
+Follow-up:
 
-การตัดสินใจ:
+- UI บางจุดยังมีชื่อเดิม ต้องไล่เปลี่ยนให้ครบ
 
-- CSV files เป็น mock/bootstrap data
-- CSV ใช้สำหรับ migrate initial data เข้า PostgreSQL
-- หลัง migration แล้ว PostgreSQL เป็น source of truth ถาวร
-- Runtime ห้ามอ่าน CSV หรือ SharePoint อีกหลัง migration
+## 2026-07-22: Use Domain as Asset Grouping Unit
 
-เหตุผล:
+Decision:
 
-- การมี database source เดียวช่วยลดความไม่สอดคล้องของข้อมูล และทำให้ approval/history workflows เชื่อถือได้
+- `domain` คือคำหลักสำหรับคลัง/กลุ่ม asset
+- Server และ Network เป็น initial domains
+- เอกสารและ logic ใหม่ต้องใช้คำว่า domain ให้สม่ำเสมอ
 
-## 2026-06-12: พฤติกรรม Request Cart
+Reason:
 
-การตัดสินใจ:
+- ในอนาคตอาจมี domain ของฝ่ายอื่น จึงต้องไม่จำกัด model ไว้แค่คลัง Server/Network ปัจจุบัน
 
-- Staff/user สามารถ request หลาย assets ใน request เดียวได้
-- Request ทำงานเหมือน cart ก่อน submit
-- เมื่อคลิก request ต้อง lock serial asset ทันทีโดยเปลี่ยน asset status เป็น `REQUEST`
-- User คนอื่นยังเห็น asset ได้ แต่ request ซ้ำไม่ได้
+Follow-up:
 
-เหตุผล:
+- ตรวจ helper ที่ยัง hardcode `SERVER`, `NETWORK`
+- ตรวจ README/root docs ให้ใช้คำว่า domain ตรงกัน
 
-- ป้องกัน double booking แต่ยังให้ requester รวมหลาย items ก่อน submit ได้
+## 2026-07-22: CSV Is Migration Input Only
 
-## 2026-06-12: Asset Status Model
+Decision:
 
-การตัดสินใจ:
+- CSV/SharePoint ใช้เป็น mock/bootstrap/migration input เท่านั้น
+- PostgreSQL เป็น source of truth ถาวรหลัง migrate
 
-- Asset statuses คือ `READY`, `REQUEST`, `BORROW`, `USING`, `SOLD`, `FAIL`, `LOST`, `NEED_CHECK`
-- Assets จะไม่ถูกลบจริงสำหรับ outcome เช่น borrow, using, sold, fail, lost หรือ need-check
-- `SOLD` เป็น terminal status สำหรับ normal workflow
-- `FAIL` และ `NEED_CHECK` ภายหลังสามารถเปลี่ยนเป็น `READY`, `FAIL`, หรือ `LOST` ได้ตามผลตรวจสอบ
+Reason:
 
-เหตุผล:
+- ระบบยืม-คืนเวอร์ชันใหม่ต้องมี transaction, approval, status history และ audit trail ที่เชื่อถือได้
 
-- ธุรกิจต้องการ traceability และ audit history ระยะยาว
+Follow-up:
 
-## 2026-06-12: Transaction Business Status Model
+- เพิ่ม import verification report
+- ห้าม runtime กลับไปอ่าน CSV เป็นข้อมูลหลัก
 
-การตัดสินใจ:
+## 2026-07-22: Role Model Has 3 System Roles
 
-- Borrow ใช้ `BORROWED`, `RETURNED`, `OVERDUE`
-- Using ใช้ `ACTIVE`, `RETURNED`
-- Sold ใช้ `COMPLETED`
-- Approval/workflow state ต้องแยกจาก transaction business status
+Decision:
 
-เหตุผล:
+- System roles มี 3 แบบ: `ADMIN`, `STOCK_CONTROLLER`, `USER`
+- รายละเอียดองค์กรและ project ใช้ tag/context แทนการเพิ่ม role ใหม่
 
-- Approval state ตอบว่า “คำขออยู่ตรงไหนของ workflow”
-- Business status ตอบว่า “เกิดอะไรขึ้นกับ asset”
+Reason:
 
-## 2026-07-02: Authentication Scope Update
+- ลดความซับซ้อนของ permission model
+- ให้คนเดียวมีหลาย context ได้ เช่น manager ที่เป็น lead project ด้วย
 
-การตัดสินใจ:
+Follow-up:
 
-- ใช้ login flow เดิมสำหรับ current scope
-- ตอนนี้ยังไม่ implement Microsoft 365, Azure AD, LDAP หรือ SSO
-- เก็บ LDAP/SSO/Microsoft login เป็น future enhancement
+- UI ต้องแสดง tag ให้ชัดว่าเป็น organization tag, project tag หรือ stock controller tag
 
-เหตุผล:
+## 2026-07-22: Stock Controller Has Domain and Level Tags
 
-- Priority ปัจจุบันคือทำให้ stock, migration, request, approval และ return workflows เสถียรก่อน
-- หลีกเลี่ยงการผสม authentication migration เข้ากับ business workflow redesign
+Decision:
 
-## 2026-07-02: Role and Tag Model
+- Stock Controller ใช้ `stockControllerTag`
+- Tag ปัจจุบันคือ `STOCK_CONTROLLER` และ `HEAD_STOCK_CONTROLLER`
+- Approval ต้องสร้าง step ตาม domain ของ item ใน transaction
 
-การตัดสินใจ:
+Reason:
 
-- Primary roles คือ `ADMIN`, `STOCK_CONTROLLER`, และ `USER`
-- ห้ามมี system roles อื่นนอกเหนือจาก `ADMIN`, `STOCK_CONTROLLER`, และ `USER`
-- Stock Controller permission scope กำหนดด้วย domain tags เช่น `SERVER` และ `NETWORK`
-- User organization level tags คือ `EXECUTIVE`, `MANAGER`, `SUPERVISOR`, และ `STAFF`
-- User organization unit tags ได้แก่ `BSD_MANAGER`, `BSD_STAFF`, `SCN_MANAGER`, `S1_SUPERVISOR`, `S1_STAFF`, `N1_SUPERVISOR`, `N1_STAFF`, `C1_SUPERVISOR`, `C1_STAFF`, `DL_MANAGER`, `DL_STAFF`, `EN_MANAGER`, `CMS_SUPERVISOR`, `CMS_STAFF`, `SD_SUPERVISOR`, และ `SD_STAFF`
-- User project tags ถูก assign ผ่าน project membership เป็น `LEAD_PROJECT` หรือ `TEAM_MEMBER`
-- User คนใดก็สามารถเป็น `LEAD_PROJECT` หรือ `TEAM_MEMBER` ได้ ไม่ขึ้นกับ organization level
-- BSD เป็น organization/approval context ไม่ใช่ system role แยก
+- Request เดียวอาจมีหลาย domain จึงต้องให้ controller ของทุก domain approve
 
-เหตุผล:
+Follow-up:
 
-- Primary role ควรบอกความสามารถหลักในระบบ
-- Tags ใช้อธิบาย approval responsibility และ project/organization context
+- ตรวจ edge case ไม่มี controller ใน domain
+- ตรวจหลาย controller ใน domain เดียวว่าต้องการ approve หนึ่งคนหรือทุกคน
 
-## 2026-07-02: BSD Approval Requirement
+## 2026-07-22: Approval Workflow Is Now Active
 
-การตัดสินใจ:
+Decision:
 
-- `BORROW` และ `USING` ต้องผ่าน `BSD_STAFF`
-- `RETURN` และ `SOLD` ต้องผ่าน `BSD_STAFF -> BSD_MANAGER`
-- Rejected approval ต้องมี reason
+- Submit transaction ต้องสร้าง approval flow และเริ่มที่ `workflowStatus = PENDING`
+- Asset final status เปลี่ยนหลัง approve ครบเท่านั้น
+- Reject ต้อง release lock/reservation
+- Requester edit pending request ได้ก่อนมี approver approve
 
-เหตุผล:
+Implementation:
 
-- BSD เป็น final business control point ทั้งตอนจ่ายของและตอนคืน/ปิดรายการ
+- มี `TransactionApproval` ใช้งานจริง
+- มี approve/reject endpoints
+- มี approval step generation สำหรับ business/project/stock/head stock/BSD
 
-## 2026-07-02: Context-Aware Approval Routing
+Open point:
 
-การตัดสินใจ:
+- ระบบจริงตอนนี้มี `BSD_MANAGER` ใน chain ของ request ทุกประเภท
+- ถ้าต้องการให้ `BORROW`/`USING` จบที่ `BSD_STAFF` ต้องปรับ rule เพิ่ม
 
-- ถ้า requester เป็น `STAFF` ให้ approval route ไปที่ `SUPERVISOR` ของทีม requester
-- ถ้า requester เป็น `SUPERVISOR` ให้ approval route ไปที่ department `MANAGER`
-- ถ้า requester เป็น `MANAGER` หรือ `EXECUTIVE` ให้ skip business approver tier
-- ถ้า request ผูกกับ project และ requester เป็น `TEAM_MEMBER` ให้ route ไปที่ project `LEAD_PROJECT`
-- ถ้า requester เป็น `LEAD_PROJECT` ของ project นั้นอยู่แล้ว ให้ skip project approver tier
-- Transaction ที่มีหลาย domains ต้อง generate Stock Controller approval สำหรับทุก domain ที่เกี่ยวข้อง
-- Multi-domain Stock Controller approvals สามารถ run parallel ได้
-- Workflow จะไป BSD ได้หลังจาก Stock Controller approvals ที่จำเป็นทั้งหมด complete แล้ว
+## 2026-07-22: Requisition No. Format
 
-เหตุผล:
+Decision:
 
-- Approval ต้องวิ่งตามบริบทของ requester และ domain owner ทุกส่วนที่ได้รับผลกระทบจาก transaction
+- ใช้ `REQ-YYYYMMDD-XX`
+- `XX` reset รายเดือน
 
-## 2026-07-02: Dynamic Domain Direction
+Reason:
 
-การตัดสินใจ:
+- อ่านง่าย อิงวันที่สร้างคำขอ และควบคุม running number ต่อเดือนได้
 
-- Domain ต้องเป็น data-driven
-- Initial domains คือ Server และ Network
-- อนาคตฝ่ายอื่นสามารถเพิ่ม domains ใหม่ได้โดยไม่ต้องเปลี่ยน core workflow code
-- Category/type ต้อง belong to domain
-- Admin และ Stock Controller สามารถ create/edit category/type ตาม permission ได้
+Follow-up:
 
-เหตุผล:
+- เพิ่ม test concurrency และ month boundary
 
-- ระบบปัจจุบันเริ่มจาก Server และ Network แต่ควรรองรับการเติบโตขององค์กร
+## 2026-07-22: Quantity Asset Support
 
-## 2026-07-02: Mixed Serial and Quantity Tracking
+Decision:
 
-การตัดสินใจ:
+- Asset ต้องรองรับทั้ง `SERIAL` และ `QUANTITY`
+- QUANTITY request ต้องระบุจำนวนและ reserve availability
 
-- รองรับ tracking methods ทั้ง `SERIAL` และ `QUANTITY`
-- Serialized asset ต้องมี serial identity และ quantity 1
-- Quantity asset ไม่จำเป็นต้องมี serial และใช้ `asset_quantity`
-- `transactions_items` เก็บ `requested_quantity`
-- Quantity requests ต้อง reserve available quantity ก่อน submit/approval complete
+Implementation:
 
-เหตุผล:
+- มี `AssetReservation`
+- มี `TransactionItem.requestedQuantity`
+- Inventory/request cart รองรับ quantity แล้ว
 
-- Stock บางอย่าง track เป็นรายชิ้น และบางอย่าง track เป็นจำนวน
+Follow-up:
 
-## 2026-07-02: Transaction History Visibility
+- เพิ่ม test partial return/sold และ over-request
+- ตรวจ type creation ให้กำหนด track method ได้ชัดเจน
 
-การตัดสินใจ:
+## 2026-07-22: BSD Handles Sold Price
 
-- Transaction History เป็น internal public view
-- Authenticated users เห็นทุก queue, pending approvals, rejected/cancelled items, completed transactions, ทุก projects และทุก users
-- ต้องมี filtering เพื่อให้ global view ใช้งานได้จริง
+Decision:
 
-เหตุผล:
+- ราคาขายควรถูกกรอกโดย BSD ไม่ใช่ requester
 
-- ทีมต้องเห็นภาพรวมข้าม project และ stock movement โดยใช้ filters แทนการซ่อน history
+Implementation:
 
-## 2026-07-02: Asset Detail Page
+- SOLD approval ที่ `BSD_STAFF` บังคับกรอก sold price
+- Sold price ถูกเก็บใน transaction/item
 
-การตัดสินใจ:
+Follow-up:
 
-- Asset Detail Page ต้องแสดง asset data ทั้งหมด
-- ต้องแสดง asset status history
-- ต้องแสดง related transaction history
-- ต้อง export asset detail เป็น PDF ได้
+- ยืนยัน policy การแก้ไขราคาหลัง approve
+- ปรับ PDF/report ให้แสดงราคาตาม template จริง
 
-เหตุผล:
+## 2026-07-22: Return Flow Is Partial
 
-- ต้องมี asset-level traceability สำหรับ audit, inspection และ operational handoff
+Decision:
 
-## 2026-07-02: Transaction PDF Timing
+- Return/close outcome target ต้องรองรับ Ready, Sold, Fail, Lost, Need Check
+- การคืน/ขาย/พัง/หายควรผ่าน approval ตาม business rule และจบด้วย BSD
 
-การตัดสินใจ:
+Implementation:
 
-- Asset detail PDF อยู่ใน current scope
-- Borrow/return transaction PDF รอจนกว่าจะได้ final document format
+- Return หลัง approve ครบใช้งานได้
+- Return to `READY` apply ทันที
+- Return to `SOLD` สร้าง SOLD approval transaction ใหม่
 
-เหตุผล:
+Open point:
 
-- สามารถ build workflow ก่อนได้ ระหว่างที่ document layout ยัง finalize ภายหลัง
+- ยังไม่รองรับ outcome `FAIL`, `LOST`, `NEED_CHECK` ใน return UI/API
+- ต้องยืนยันว่าจะให้ return-to-ready ผ่าน BSD ด้วยหรือไม่
 
-## 2026-07-03: ER Naming Baseline
+## 2026-07-22: Project Page Exists but Is Not Persistent
 
-การตัดสินใจ:
+Decision:
 
-- ใช้ ER diagram ล่าสุดเป็น schema naming baseline
-- Core entities คือ `USER`, `DOMAINS`, `ASSETS_CATEGORIES`, `ASSETS_TYPES`, `ASSETS`, `PROJECT`, `PROJECT_MEMBERS`, `TRANSACTIONS`, `TRANSACTIONS_ITEMS`, `TRANSACTIONS_APPROVALS`, และ `ASSET_STATUS_HISTORY`
-- `transactions_approvals` แทน parallel approvals ด้วยหลาย rows ที่มี `approval_step_sequence` เดียวกัน
-- `user.organization_tag` เป็น field ใน ER สำหรับ organization context และต้องรองรับทั้ง level tags และ concrete unit tags
-- `due_date` และ `requisition_no` ยังเป็น workflow fields ที่ต้องมี แม้ไม่ได้แสดงใน ER ปัจจุบัน
+- มีหน้า Project เพื่อเตรียม UX แล้ว
+- ยังไม่ถือเป็น feature สมบูรณ์จนกว่าจะต่อ DB/API
 
-เหตุผล:
+Risk:
 
-- Markdown ต้องตรงกับ ER ล่าสุด และยังต้องคง workflow rules ที่ยืนยันแล้วสำหรับ overdue และ document numbering
+- Migration มี `projects`/`project_members` แต่ `schema.prisma` ปัจจุบันยังไม่มี model ตรงกัน
+
+Follow-up:
+
+- Reconcile Prisma schema กับ migration
+- ต่อ Project API และ transaction relation
+
+## 2026-07-22: Asset Detail PDF Is Pending
+
+Decision:
+
+- Asset detail ต้องแสดงข้อมูลทั้งหมด, status history และ export PDF ได้
+
+Implementation:
+
+- Asset detail page แสดงข้อมูลและ history แล้ว
+
+Follow-up:
+
+- ต่อ asset detail PDF endpoint/button
+- ตรวจ fields ให้ครบตาม requirement

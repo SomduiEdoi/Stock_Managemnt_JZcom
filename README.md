@@ -1,6 +1,6 @@
 # Asset Flow Management System
 
-Internal asset flow system for managing Server, Network, and future warehouse items with request, approval, status history, and PDF export support.
+Internal asset flow system for managing Server, Network, and future asset domains with request, approval, status history, return flow, and PDF export support.
 
 ## Stack
 
@@ -56,31 +56,30 @@ npm run test
 npm run build
 ```
 
-## MVP Decisions
+## Current Decisions
 
-- Use PostgreSQL.
-- Use TypeScript.
-- Use Next.js full-stack monolith.
-- Use `assets.status` as the current state.
+- Use PostgreSQL as the runtime source of truth.
+- Use CSV/SharePoint data only for bootstrap/migration.
+- Use TypeScript and Next.js full-stack monolith.
+- Use `domain` as the asset grouping unit.
+- Start with Server and Network domains, while keeping room for future domains.
+- Use `assets.status` as the current asset state.
 - Use `asset_status_histories` as the audit trail.
-- Use domain permission to separate Server and Network ownership.
-- Use manual CSV/Excel import from SharePoint.
-- Store signed paper document references as note/reference only in MVP.
-- Use `D:\Internship\Stock\data\Network_reclassified.csv` and `D:\Internship\Stock\data\Server_reclassified.csv` as the initial migration source files.
-- Require serial no. for every MVP asset.
-- Treat rent and borrow as the same `Borrow` workflow.
-- Give Viewer users read-only access.
+- Support both `SERIAL` and `QUANTITY` asset tracking.
+- Use request cart plus approval workflow before applying final asset status.
+- Use requisition no. format `REQ-YYYYMMDD-XX`, with monthly sequence reset.
+- Store signed paper document references/signatures for document export support.
 
 ## Source Data
 
-- `D:\Internship\Stock\data\Network_reclassified.csv`: 594 rows, no blank serial no., no duplicate serial no.
-- `D:\Internship\Stock\data\Server_reclassified.csv`: 551 rows, no blank serial no., no duplicate serial no.
-- CSV files include a first-line SharePoint `ListSchema=...` record before the real header.
+- `D:\Internship\Stock\data\Network_reclassified.csv`: initial Network import source
+- `D:\Internship\Stock\data\Server_reclassified.csv`: initial Server import source
+- CSV files include a first-line SharePoint `ListSchema=...` record before the real header
 
 ## Documents
 
 - `docs/prd.md`: product requirements, use cases, and workflows
 - `docs/design.md`: technical design, schema, API, and implementation direction
 - `docs/task.md`: project task plan
-- `docs/decision-log.md`: accepted decisions
-- `docs/rule.md`: coding and behavior rules
+- `docs/decision-log.md`: accepted decisions and open points
+- `docs/rule.md`: business and development rules

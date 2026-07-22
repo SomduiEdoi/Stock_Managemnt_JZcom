@@ -1,391 +1,142 @@
-# Asset Flow Management System Task Plan
-
-## Project
-
-Asset Flow Management System
-
-## Document Purpose
-
-เอกสารนี้ใช้เป็น task tracker หลักของโปรเจกต์ โดยอ้างอิงจาก requirement ล่าสุดที่มีทั้ง asset workflow และ transaction workflow
-
-## Status Legend
-
-```text
-[ ] Not started
-[~] In progress
-[x] Done
-[!] Blocked
-```
-
-## Current Focus
-
-```text
-Phase 4: Asset CRUD and Browse
-Next task: Validate asset edit page manually and connect image workflow to production storage later if needed
-```
-
-## Locked MVP Decisions
-
-- [x] Use PostgreSQL
-- [x] Use TypeScript
-- [x] Use Next.js full-stack monolith
-- [x] Use existing login for now; LDAP/SSO/Microsoft 365 stays future scope
-- [x] Use `assets.status` as current asset state
-- [x] Use `asset_status_history` as audit trail for asset status changes
-- [x] Use `transactions` and `transactions_items` for business workflow
-- [x] Use domain permission for Server/Network
-- [x] Use manual CSV/Excel import from SharePoint
-- [x] Use CSV/Excel only as one-time migration input
-- [x] Use PostgreSQL as the runtime source of truth after migration
-- [x] Store paper document references as note/reference only in MVP
-- [x] Use `D:\Internship\Stock\data\Network_reclassified.csv` and `D:\Internship\Stock\data\Server_reclassified.csv` as source migration files
-- [x] Support both `SERIAL` and `QUANTITY` assets
-- [x] Use `REQUEST` as temporary lock status before submit
-- [x] Use transaction type `BORROW | USING | SOLD`
-
-## Working Rules
-
-- ทำงานทีละ phase ตามลำดับ ยกเว้นมีเหตุผลชัดเจน
-- รองรับทั้ง `SERIAL` และ `QUANTITY` ตาม requirement ล่าสุด
-- 1 physical item ต้องเป็น 1 asset record
-- Asset ทุกตัวต้องมี serial no. และ serial no. ต้องไม่ซ้ำ
-- Asset จะไม่ถูกลบเพราะเหตุผลทางธุรกิจ เช่น sold, fail, lost, borrow
-- ทุกการเปลี่ยน asset status ต้องสร้าง `asset_status_history`
-- API ทุกจุดที่แก้ข้อมูลต้องตรวจ role และ domain permission
-- `QTY` และ `FG` จาก SharePoint เป็น legacy/reference fields only
-- CSV importer ต้องข้ามบรรทัดแรก `ListSchema=...`
-- หลัง migration แล้ว runtime features ต้องอ่าน/เขียนจาก PostgreSQL เท่านั้น
-- ห้ามให้ dashboard, asset pages, request flow, log page หรือ reports อ่าน CSV เป็น data source
-- Asset ที่อยู่ `REQUEST` ห้ามถูก request ซ้ำ
-- `OVERDUE` เป็น transaction status ไม่ใช่ asset status
-- ตอนนี้ login ยังเป็น user/password/ระบบเดิมสำหรับ MVP bootstrap ส่วน LDAP/SSO/Microsoft 365 เป็น future enhancement
-- เมื่อทำ task เสร็จ ต้องอัปเดต checklist ในไฟล์นี้
-
-## Phase 0: Project Foundation
-
-- [x] Create Next.js full-stack TypeScript project
-- [x] Install and configure Tailwind CSS
-- [ ] Install and configure shadcn/ui
-- [x] Configure ESLint and Prettier
-- [x] Configure basic test tooling
-- [x] Create `.env.example`
-- [x] Update `README.md` with install/dev/build/test commands
-- [x] Confirm document links in README
-
-Acceptance checks:
-
-- `npm install` works
-- dev server starts
-- lint command exists
-- test command exists
-
-## Phase 1: Database Foundation
-
-- [x] Configure PostgreSQL connection
-- [x] Configure ORM and migrations
-- [x] Create `user` table
-- [ ] Remove legacy `roles` table dependency; use `user.system_role`
-- [ ] Remove legacy `user_roles` table dependency; use `user.system_role`
-- [x] Create `domains` table
-- [x] Create domain permission mapping for Stock Controller scope
-- [x] Create `assets_categories` table
-- [x] Create `assets_types` table
-- [x] Use `assets.asset_location` for location text
-- [x] Create `assets` table
-- [x] Create `asset_status_history` table
-- [x] Create `migration_batches` table
-- [x] Create `migration_rows` table
-- [x] Add Microsoft 365 identity fields to `users`
-- [ ] Replace legacy password auth fields if no longer needed
-- [x] Add `transactions` table
-- [x] Add `transactions_items` table
-- [x] Add request lock fields to `assets`
-- [x] Add transaction reference to `asset_status_history`
-- [x] Update seed roles to `ADMIN`, `STOCK_CONTROLLER`, `USER`
-- [x] Add organization tags and unit tags for approval routing
-- [x] Add project membership tags `LEAD_PROJECT` and `TEAM_MEMBER`
-- [x] Add approval routing for `BSD_STAFF` and `BSD_MANAGER`
-
-Acceptance checks:
-
-- migrations run successfully
-- user schema supports current login plus role/tag context
-- transaction schema supports many assets per transaction
-- duplicate serial no. is rejected
-- schema supports serialized assets and quantity/count assets
-
-## Phase 2: Authentication and Authorization
-
-- [ ] Keep existing login working and defer LDAP/SSO/Microsoft 365
-- [x] Implement logout
-- [x] Implement current user helper/API
-- [x] Implement protected routes
-- [x] Implement role loading
-- [x] Implement domain permission loading
-- [x] Implement permission checker
-- [x] Add API guard for manage Server
-- [x] Add API guard for manage Network
-- [x] Add requester permission rules for Staff
-- [x] Remove stock owners from request permission
-- [x] Allow admin and Stock Controllers to manage table actions by assigned domain
-- [~] Rebuild user management to use `ADMIN | STOCK_CONTROLLER | USER` UI flow
-- [~] Add organization tags and project assignment actions to user management
-
-Acceptance checks:
-
-- unauthenticated users cannot access protected pages
-- P' Oak can manage all domains
-- P' Arm can manage Server only
-- P' Mek can manage Network only
-- Staff can request but cannot manage master data or override status
-- Stock Controller request permission follows role policy and must not bypass approval rules
-- Admin can create, edit, block, delete, and assign project tags from User Management
-
-## Phase 3: Master Data
-
-- [x] Create default Server domain
-- [x] Create default Network domain
-- [ ] Prevent deleting domains used by assets
-- [ ] Create category list page
-- [ ] Create category form
-- [ ] Implement create/edit category
-- [ ] Implement active/inactive category status
-- [ ] Create asset model list page
-- [ ] Create asset model form
-- [ ] Implement create/edit asset model
-- [ ] Scope models by domain
-- [ ] Create location list page
-- [ ] Create location form
-- [ ] Implement create/edit location
-
-Acceptance checks:
-
-- admin manages all master data
-- owners manage only allowed domain data
-- asset model domain cannot conflict with asset domain
-
-## Phase 4: Asset CRUD and Browse
-
-- [ ] Create asset list API
-- [ ] Create asset detail API
-- [ ] Create asset related transactions API
-- [ ] Create asset PDF export API
-- [ ] Create asset create API
-- [x] Create asset update API
-- [x] Create Server page
-- [x] Create Network page
-- [x] Create asset detail page
-- [x] Create asset edit page
-- [x] Show all asset information on asset detail page
-- [x] Show asset-specific status history on asset detail page
-- [x] Show asset-related transaction history on asset detail page
-- [x] Add export PDF action for asset detail
-- [x] Show `REQUEST` status in asset tables
-- [x] Add search by serial no.
-- [x] Add search by model name
-- [x] Add filters for domain, status, category, and location
-- [x] Add pagination
-- [x] Add duplicate serial no. validation
-- [x] Add domain-scoped delete action to Server/Network inventory tables
-- [x] Keep inventory table columns stable with fixed table layout and ellipsis
-
-Acceptance checks:
-
-- one asset record represents one physical item
-- assets can be searched by serial no.
-- asset detail page shows complete asset data
-- asset detail page shows status history for that asset
-- asset detail page can export asset information as PDF
-- asset PDF export reads from PostgreSQL, not CSV/SharePoint
-- `REQUEST` assets are visible but cannot be requested again
-- owners cannot edit cross-domain assets
-- only admin/Stock Controllers see delete action for their allowed domain
-
-## Phase 5: Asset Status and History
-
-- [x] Implement asset status enum
-- [x] Implement asset status transition rules
-- [x] Implement note-required rules
-- [x] Implement `changeAssetStatus` service
-- [x] Lock asset row during status update
-- [x] Update `assets.status`
-- [x] Insert `asset_status_history`
-- [x] Show status history timeline on asset detail
-- [x] Add owner/admin manual override flow
-
-Acceptance checks:
-
-- every asset status change creates history
-- sold asset is locked from normal reuse workflow
-- fail/lost/need check are blocked from new transactions until reviewed
-- API enforces domain permission before status update
-- admin and Stock Controllers can change status from inventory tables
-
-## Phase 6: Request and Transaction Workflow
-
-- [x] Implement request hold API/service
-- [x] Change asset from `READY` to `REQUEST` when staff selects it
-- [x] Prevent duplicate request on `REQUEST` asset
-- [x] Implement request cart / draft transaction UI
-- [x] Allow one transaction to contain many assets
-- [x] Implement transaction type `BORROW`
-- [x] Implement transaction type `USING`
-- [x] Implement transaction type `SOLD`
-- [x] Require purpose when submitting transaction
-- [x] Require `due_date` for `BORROW`
-- [x] Submit transaction and move assets to target status
-- [x] Implement return flow for `BORROW`
-- [x] Implement return flow for `USING`
-- [x] Implement automatic `OVERDUE` update
-- [x] Link transaction records to asset status histories
-
-Acceptance checks:
-
-- staff can hold assets in request state before submit
-- one transaction can contain Server and Network assets together
-- borrow creates `BORROWED` transaction status
-- using creates `ACTIVE` transaction status
-- sold creates `COMPLETED` transaction status
-- borrow and using can return asset to `READY`
-- overdue is computed automatically when borrow passes due date
-
-## Phase 7: SharePoint Migration
-
-- [x] Define expected SharePoint export fields
-- [x] Confirm `D:\Internship\Stock\data\Network_reclassified.csv` has 594 rows, no blank serial no., no duplicate serial no.
-- [x] Confirm `D:\Internship\Stock\data\Server_reclassified.csv` has 551 rows, no blank serial no., no duplicate serial no.
-- [x] Build CSV parser
-- [x] Skip SharePoint `ListSchema=...` first line before parsing CSV header
-- [ ] Build Excel parser
-- [ ] Build field mapping preview
-- [x] Validate required fields
-- [x] Validate status mapping to new asset enum
-- [x] Infer domain from file name
-- [x] Validate duplicate serial no.
-- [x] Reject blank serial no.
-- [x] Store `QTY` and `FG` as legacy/reference fields only
-- [x] Create migration batch records
-- [x] Create migration row records
-- [x] Import valid rows as assets
-- [x] Persist all imported source data into PostgreSQL permanent tables
-- [x] Create initial asset status history for imported assets
-- [x] Mark invalid rows as failed or needs review
-- [ ] Create import summary page
-- [x] Ensure runtime APIs do not read CSV files after import
-
-Acceptance checks:
-
-- admin can preview SharePoint import before commit
-- valid rows become assets
-- invalid rows do not silently disappear
-- imported assets keep source system and migration batch reference
-- imported assets are served from PostgreSQL after migration
-- Server/Network pages, dashboard, request flow, log page, and reports do not depend on CSV files
-
-## Phase 8: Dashboard
-
-- [x] Create dashboard layout
-- [x] Show asset count by status
-- [x] Show asset count by Server/Network
-- [x] Show borrow assets summary
-- [x] Show using assets summary
-- [x] Show sold assets summary
-- [x] Show fail/lost/need check summary
-- [x] Show recent asset activity
-- [x] Show recently table grouped by registered/borrow/using/sold
-- [x] Scope dashboard data by user permission
-
-Acceptance checks:
-
-- admin sees all domains
-- owners see data for their domain plus allowed read-only context
-- staff sees request-relevant overview without manage actions
-
-## Phase 9: Log and Request Pages
-
-- [ ] Create transaction log API
-- [x] Create Log page
-- [x] Show `Transaction ID`, `Asset`, `Borrower`, `Borrow Date`, `Status`
-- [x] Add filters and search for log page
-- [x] Create Request page
-- [x] Show request list for current staff user
-- [x] Show current draft request/cart
-- [x] Add transaction PDF export from request popup and log page
-
-Acceptance checks:
-
-- log page is driven by transactions, not only asset histories
-- log page supports `BORROWED`, `RETURNED`, `OVERDUE`, `ACTIVE`, `COMPLETED`
-- staff can view their own request history
-
-## Phase 10: Users and Settings
-
-- [x] Create user list page
-- [ ] Create user form
-- [ ] Assign `system_role` to users
-- [ ] Assign domain permissions to users
-- [ ] Activate/deactivate users
-- [x] Store position and last login
-- [x] Support block/unblock in UI
-
-Acceptance checks:
-
-- admin can manage users and permissions
-- non-admin users cannot manage permissions
-- inactive users cannot login
-
-## Phase 11: Quality and Hardening
-
-- [ ] Add unit tests for permission checker
-- [ ] Add unit tests for asset status transition rules
-- [ ] Add unit tests for transaction status rules
-- [ ] Add unit tests for overdue calculation
-- [ ] Add integration tests for request hold flow
-- [ ] Add integration tests for submit transaction flow
-- [ ] Add integration tests for return flow
-- [ ] Add integration tests for domain permission blocking
-- [ ] Add integration tests for SharePoint import
-- [ ] Add integration test proving runtime asset reads come from PostgreSQL after import
-- [ ] Add integration test for asset detail PDF export
-- [ ] Add UI smoke tests for login, asset search, request cart, submit transaction, and log page
-- [ ] Review all API authorization checks
-- [ ] Review all status update transactions
-- [ ] Review loading, empty, and error states
-- [x] Run lint
-- [ ] Run tests
-- [ ] Run build
-
-Acceptance checks:
-
-- lint passes
-- tests pass
-- build passes
-- request and transaction workflows work manually
-- no API can mutate assets outside the user's allowed permission
-
-## Backlog
-
-- [ ] Generate PDF ใบยืม/คืนราย transaction
-- [ ] Upload paper documents as image/PDF
-- [ ] Digital signature
-- [ ] Approval workflow
-- [ ] Export reports to Excel
-- [ ] Notifications for overdue or need check items
-- [ ] Mobile-friendly stock check
-
-## Known Risks
-
-- request lock อาจซ้อนกันถ้า transaction isolation ไม่พอ
-- overdue job อาจไม่อัปเดตทันถ้า scheduler ยังไม่ถูกตั้งค่า
-- CSV parser อาจ fail ถ้า SharePoint export format เปลี่ยน
-- ทีมอาจเผลอใช้ CSV เป็น mock runtime data หลัง import ต้องกันด้วย architecture และ tests
-- สิทธิ์ข้าม domain อาจหลุดถ้า API ไม่ตรวจซ้ำฝั่ง server
-
-## Notes
-
-- `assets.status` คือ current asset state
-- `asset_status_history` คือ asset audit trail
-- `transactions` และ `transactions_items` คือ business workflow records
-- `REQUEST` ใช้กันของซ้ำก่อน submit
-- `OVERDUE` อยู่ใน transaction layer
-- CSV/SharePoint เป็น migration input เท่านั้น PostgreSQL เป็น source of truth ของระบบจริง
+# Task Plan: Asset Flow Management System
+
+อัปเดตล่าสุด: 2026-07-22
+
+Legend:
+
+- `[x]` ทำแล้วหรือใช้งานได้เป็นหลัก
+- `[~]` ทำบางส่วน ต้องต่อให้ครบ
+- `[ ]` ยังไม่ทำหรือควรกลับมาทำ
+
+## 1. Product / Naming / Docs
+
+- [x] เปลี่ยนชื่อระบบในเอกสารหลักเป็น Asset Flow / Asset Flow Management System
+- [~] ไล่เปลี่ยนชื่อใน UI จากชื่อเดิมเป็น Asset Flow ให้ครบทุกจุด
+- [x] ใช้คำว่า `domain` เป็นคำหลักของคลังในเอกสาร
+- [~] ตรวจ root README และ docs ให้สะท้อนระบบจริงล่าสุดต่อเนื่อง
+
+## 2. Data Migration / Source of Truth
+
+- [x] กำหนดให้ CSV/SharePoint เป็น migration/bootstrap input เท่านั้น
+- [x] Runtime ใช้ PostgreSQL เป็น source of truth
+- [~] ตรวจ import script ให้รองรับข้อมูล Server/Network ปัจจุบันครบ
+- [ ] เพิ่ม migration verification report หลัง import เช่น row count, duplicate, missing serial, missing type
+
+## 3. Roles / Users / Profile
+
+- [x] Role หลักเหลือ `ADMIN`, `STOCK_CONTROLLER`, `USER`
+- [x] User Management เพิ่ม `StockControllerTag`
+- [x] เอา tag field เดิมที่ไม่จำเป็นออกจาก User Management
+- [x] Profile page ถูกปรับให้เรียบขึ้น
+- [x] Signature upload ยังมีเพื่อรองรับเอกสาร
+- [~] ตรวจ permission edge case ของ Stock Controller หลาย domain/ไม่มี domain
+- [ ] สรุป UX สำหรับ user ที่มีหลายบริบทในอนาคต เช่น manager ที่เป็น lead project ด้วย
+
+## 4. Domain / Category / Type
+
+- [x] มี domain model และ dynamic domain page
+- [x] Admin สร้าง domain ได้
+- [x] Admin/Stock Controller จัดการ category/type ได้ตาม permission บางส่วน
+- [~] เปลี่ยน helper/filter ที่ยัง hardcode `SERVER`, `NETWORK` ให้ data-driven
+- [~] ตรวจ `AssetType.trackMethod` ตอนสร้าง/แก้ไข type ให้ตรง requirement SERIAL/QUANTITY
+- [ ] เพิ่ม tests สำหรับ category/type permission และ type ที่มี asset ใช้งานอยู่
+
+## 5. Inventory / Asset
+
+- [x] เพิ่ม Brand filter ใน Inventory
+- [x] Inventory table รองรับ sort หลักๆ
+- [x] แสดง availability สำหรับ quantity asset
+- [x] Asset detail แสดงข้อมูลหลักและ status history
+- [~] Asset detail แสดง related transaction แล้ว แต่ควรตรวจ field ให้ครบตาม requirement "ข้อมูลทั้งหมด"
+- [ ] Asset detail export PDF
+- [ ] ตรวจว่า delete action ไม่ขัดกับ business rule ที่ไม่ควรลบ asset ใน flow ปกติ
+
+## 6. Request Cart / Quantity
+
+- [x] SERIAL asset request แล้ว lock เป็น `REQUEST`
+- [x] QUANTITY asset request แล้ว reserve ตามจำนวน
+- [x] Request modal มีช่องระบุ quantity
+- [x] Request cart แสดง requested quantity
+- [x] Submit transaction ส่ง item quantity เข้า backend
+- [~] ตรวจ availability calculation กับ transaction ที่ partial return / sold-return ให้ครบทุกกรณี
+- [ ] เพิ่ม tests สำหรับ over-request, release reservation, edit quantity ใน pending request
+
+## 7. Requisition No.
+
+- [x] ใช้รูปแบบ `REQ-YYYYMMDD-XX`
+- [x] เลขท้าย reset รายเดือน
+- [x] มี limit ต่อเดือนและ error ถ้าเกิน
+- [ ] เพิ่ม test สำหรับ sequence ข้ามเดือนและ concurrency
+
+## 8. Approval Workflow
+
+- [x] มี `TransactionApproval` ใช้งานจริง
+- [x] Submit transaction สร้าง approval steps
+- [x] Transaction เริ่มที่ `workflowStatus = PENDING`
+- [x] Asset/quantity ยังถูก lock/reserve ระหว่างรอ approval
+- [x] Approval ตรวจ current step และ user/tag/domain
+- [x] Multi-domain request สร้าง Stock Controller approval ทุก domain
+- [x] เพิ่มขั้น `STOCK_CONTROLLER`, `HEAD_STOCK_CONTROLLER`, `BSD_STAFF`, `BSD_MANAGER`
+- [x] Reject request พร้อมเหตุผล
+- [x] Reject release lock/reservation
+- [x] Requester แก้ไข pending request ได้ถ้ายังไม่มีใคร approve
+- [~] ยืนยัน business rule ว่า `BORROW`/`USING` ต้องผ่าน `BSD_MANAGER` ด้วยหรือจบที่ `BSD_STAFF`
+- [ ] เพิ่ม cancel request endpoint/UX
+- [ ] เพิ่ม notification/indicator ให้ approver รู้ว่ามีงานค้าง
+- [ ] เพิ่ม tests approval chain ครบทุก role/tag
+
+## 9. Sold Price
+
+- [x] SOLD approval ที่ `BSD_STAFF` บังคับกรอกราคา
+- [x] เก็บ sold price ลง transaction/item
+- [~] Return-to-sold สร้าง SOLD approval transaction แล้ว
+- [ ] ตรวจรูปแบบเอกสาร/รายงานที่ต้องแสดงราคาขาย
+- [ ] ยืนยันว่าราคาขายแก้ได้ตอนไหนและโดยใคร
+
+## 10. Return / Close
+
+- [x] Transaction Log เพิ่ม Return Date
+- [x] Return ทำได้หลัง request approval ครบและ transaction เป็น `IN_PROGRESS`
+- [x] Return ราย item เป็น `READY` ได้
+- [x] Return outcome เป็น `SOLD` ได้ผ่าน SOLD approval transaction
+- [~] Full return approval สำหรับคืน/ขาย/พัง/หาย ยังไม่ครบตาม target
+- [~] Outcome `FAIL`, `LOST`, `NEED_CHECK` ยังไม่ครบใน return UI/API
+- [ ] เพิ่ม BSD approval สำหรับ return ทุกกรณีตาม business rule ล่าสุด
+- [ ] เพิ่ม remark auto-generate สำหรับ fail/lost เช่น `Fail from REQ-...`
+- [ ] เพิ่ม tests partial return, multi-item return, return-to-sold
+
+## 11. Transaction Log / Report / PDF
+
+- [x] Transaction History เป็น internal public view และใช้ filter แยกดู
+- [x] มี Approve tab
+- [x] มี Return Date
+- [x] Transaction PDF endpoint มีแล้ว
+- [~] Action column ยังควรปรับเป็น dropdown ถ้าต้องมีหลาย action
+- [~] PDF format ยังรอ template สุดท้ายจากธุรกิจ
+- [ ] Asset detail PDF
+- [ ] เพิ่ม filters เพิ่มเติมตาม requirement เช่น project/domain/requester/status/date ถ้ายังไม่ครบ
+
+## 12. Project
+
+- [x] มีหน้า Project แล้ว
+- [~] Project page ตอนนี้ยังเป็น local UI/mock data
+- [~] Migration มี `projects`/`project_members` แต่ `schema.prisma` ยังไม่ตรง
+- [ ] เพิ่ม Prisma model สำหรับ Project/ProjectMember ให้ตรง migration หรือทำ migration ใหม่ให้สะอาด
+- [ ] เพิ่ม Project API และ persistence
+- [ ] ผูก project กับ transaction จริง
+- [ ] Lead Project จัดการ team member ใน project ของตัวเอง
+
+## 13. Status Cleanup
+
+- [ ] ลบหรือซ่อนร่องรอยสถานะเกินกำหนดคืนเก่าจาก schema/code/UI
+- [ ] ตรวจ badge/filter/test ที่เคยอิงสถานะนี้
+- [ ] คง `dueDate`/`returnDate` เป็นข้อมูลประกอบ transaction/report โดยไม่สร้าง status อัตโนมัติ
+
+## 14. Quality / Tests
+
+- [ ] Run lint/typecheck/test หลังแก้ workflow รอบใหญ่
+- [ ] เพิ่ม test สำหรับ approval routing
+- [ ] เพิ่ม test สำหรับ quantity reservation
+- [ ] เพิ่ม test สำหรับ project schema consistency
+- [ ] เพิ่ม regression test สำหรับ transaction no
+- [ ] เพิ่ม regression test สำหรับ role/tag permission

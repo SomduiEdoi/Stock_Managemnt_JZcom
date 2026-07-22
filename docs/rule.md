@@ -1,145 +1,122 @@
-# กฎของระบบ
+# Rules: Asset Flow Management System
 
-อัปเดตล่าสุด: 2026-07-03
+อัปเดตล่าสุด: 2026-07-22
 
-## Core Data Rules
+## 1. Naming Rules
 
-- PostgreSQL เป็น runtime source of truth เพียงตัวเดียว
-- CSV/SharePoint ใช้เฉพาะสำหรับ initial migration/bootstrap
-- หลัง migration แล้ว runtime pages และ APIs ห้ามอ่านข้อมูลจาก CSV/SharePoint อีก
+- ชื่อสั้นของระบบคือ Asset Flow
+- ชื่อเต็มคือ Asset Flow Management System
+- ใช้คำว่า `domain` สำหรับคลัง/กลุ่ม asset ทั้งหมด
+- ใช้คำว่า domain ใน code/docs ใหม่ให้สม่ำเสมอ
 
-## การเข้าสู่ระบบ
+## 2. Source of Truth Rules
 
-- ใช้ login flow เดิมไปก่อน
-- Microsoft 365, Azure AD, LDAP และ SSO เป็น future enhancements
-- ทุก mutating API ต้อง validate authenticated user และ permission ที่ server-side
+- CSV/SharePoint ใช้เฉพาะ migration/bootstrap
+- Runtime ต้องอ่าน/เขียน PostgreSQL เท่านั้น
+- ห้ามแก้ flow ใหม่ให้กลับไปพึ่ง CSV หรือ SharePoint
+- ทุก action สำคัญต้องมี audit trail ใน transaction/status/history ที่เกี่ยวข้อง
 
-## Roles และ Tags
+## 3. Asset Status Rules
 
-- `ADMIN` จัดการได้ทุก domain, user, project, category, type, asset, approval และ report
-- `STOCK_CONTROLLER` จัดการได้เฉพาะ domain ที่ได้รับมอบหมาย และเห็น domain อื่นแบบ read-only
-- `USER` ดู assets/logs และสร้าง request ได้
-- ระบบมี system role แค่ 3 ตัวเท่านั้น: `ADMIN`, `STOCK_CONTROLLER`, `USER`
-- Scope ของ Stock Controller กำหนดด้วย domain permission tags เช่น `SERVER` และ `NETWORK`
-- Organization level tags ได้แก่ `EXECUTIVE`, `MANAGER`, `SUPERVISOR`, `STAFF`
-- Organization unit tags ได้แก่ `BSD_MANAGER`, `BSD_STAFF`, `SCN_MANAGER`, `S1_SUPERVISOR`, `S1_STAFF`, `N1_SUPERVISOR`, `N1_STAFF`, `C1_SUPERVISOR`, `C1_STAFF`, `DL_MANAGER`, `DL_STAFF`, `EN_MANAGER`, `CMS_SUPERVISOR`, `CMS_STAFF`, `SD_SUPERVISOR`, `SD_STAFF`
-- Project tags ได้แก่ `LEAD_PROJECT`, `TEAM_MEMBER`
-- `USER` คนใดก็สามารถเป็น `LEAD_PROJECT` หรือ `TEAM_MEMBER` ได้ผ่าน project membership
-- BSD เป็น organization/approval context ไม่ใช่ system role แยก
+- Asset ห้ามถูกลบจากระบบใน flow ปกติ
+- `SOLD` เป็น terminal status
+- `READY` เท่านั้นที่ request ได้เต็มรูปแบบ
+- `REQUEST` หมายถึงถูก lock/reserve แล้ว คนอื่นเห็นได้แต่ request ซ้ำไม่ได้ในส่วนที่ไม่ available
+- `BORROW` และ `USING` ต้องเกิดหลัง approval ครบ
+- `FAIL`, `LOST`, `NEED_CHECK` ใช้สำหรับ outcome/ตรวจสอบ และต้องมี reason/history
+- ทุก status change ต้องบันทึก `asset_status_history`
 
-## Domains
+## 4. SERIAL / QUANTITY Rules
 
-- Domains ต้องเป็น dynamic data
-- Initial domains คือ Server และ Network
-- อนาคตสามารถเพิ่ม domains สำหรับฝ่ายอื่นได้
-- Category และ type ต้อง belong to domain
-- Admin สร้าง/แก้ไข domain/category/type ได้
-- Stock Controller สร้าง/แก้ไข category/type ได้เฉพาะ assigned domain
+- `SERIAL` asset ต้องมี serial number และ track รายตัว
+- `QUANTITY` asset track เป็นจำนวน ไม่ควรบังคับ serial number
+- Request ของ `QUANTITY` ต้องระบุ `requestedQuantity`
+- ห้าม request quantity เกิน available
+- Availability ต้องคิดจาก total quantity, reservation และ open transaction
+- Return quantity ต้องคืนจำนวนกลับเข้า available อย่างถูกต้อง
 
-## การ Track Asset
+## 5. Transaction Status Rules
 
-- Asset tracking method คือ `SERIAL` หรือ `QUANTITY`
-- `SERIAL` asset มี quantity เป็น 1 และควรมี serial number
-- `QUANTITY` asset ใช้ `asset_quantity` และอาจไม่มี serial number
-- `transactions_items` ต้องเก็บ `requested_quantity`
-- Request ห้าม reserve quantity เกินจำนวนที่ available
+- `BORROW` ใช้ business status `BORROWED`, `RETURNED`
+- `USING` ใช้ business status `ACTIVE`, `RETURNED`
+- `SOLD` ใช้ business status `COMPLETED`
+- `workflowStatus` ใช้แยก approval lifecycle: `PENDING`, `IN_PROGRESS`, `REJECTED`, `COMPLETED`
+- Submit request ต้องสร้าง transaction ที่ `workflowStatus = PENDING`
+- Asset final status ห้ามเปลี่ยนเป็น `BORROW`/`USING`/`SOLD` จนกว่า approve ครบ
+- ระบบไม่มีสถานะเกินกำหนดคืนอัตโนมัติแล้ว
 
-## Asset Status Rules
+## 6. Requisition No. Rules
 
-- Valid statuses: `READY`, `REQUEST`, `BORROW`, `USING`, `SOLD`, `FAIL`, `LOST`, `NEED_CHECK`
-- `READY` สามารถถูก request ได้
-- `REQUEST` หมายถึงมีคน request asset นั้นแล้ว หรือ quantity ถูก reserve แล้ว
-- `BORROW` หมายถึงการยืมชั่วคราว
-- `USING` หมายถึงการเบิกใช้ภายในบริษัท
-- `SOLD` เป็น terminal status สำหรับ normal workflow
-- `FAIL` สามารถกลับเป็น `READY` ได้หลังซ่อม/ตรวจสอบ
-- `LOST` ไม่สามารถถูก request ได้
-- `NEED_CHECK` ต้องถูก resolve ไปเป็น `READY`, `FAIL`, หรือ `LOST`
-- ทุก status change ต้องเขียน `asset_status_history`
+- Request/transaction ใช้เลขรูปแบบ `REQ-YYYYMMDD-XX`
+- Sequence `XX` เป็นเลข 2 หลัก
+- Sequence reset รายเดือน โดยนับจาก prefix `REQ-YYYYMM`
+- ถ้าเลขรายเดือนเต็ม ต้อง error ชัดเจน
 
-## Request Lock Rules
+## 7. Approval Rules
 
-- Request ทำงานเหมือน cart
-- User สามารถ request หลาย assets ใน transaction เดียวได้
-- Request เดียวสามารถรวม Server, Network หรือ future domain items ได้
-- Serial asset ต้องถูก set เป็น `REQUEST` ทันทีหลังคลิก request
-- Quantity asset ต้อง reserve ตาม requested quantity ทันที
-- User คนอื่นยังเห็น requested assets ได้ แต่ request asset/quantity ที่ถูก lock อยู่ซ้ำไม่ได้
-- Submit จะเริ่ม approval และคง lock/reservation ไว้จนกว่า approval จะจบ
-- Reject หรือ cancel ต้อง release lock/reservation เว้นแต่มีการ resubmit
+- Approver approve/reject ได้เฉพาะ current step
+- Approval step ต้องตรวจทั้ง user id, organization tag, project tag และ domain controller tag ตาม context
+- `STAFF` ต้องส่งไป supervisor ของทีมตัวเอง
+- `SUPERVISOR` ต้องส่งไป manager ของฝ่าย
+- `MANAGER` และ `EXECUTIVE` ข้าม business tier ได้
+- Project-bound request จาก `TEAM_MEMBER` ต้องผ่าน `LEAD_PROJECT`
+- Multi-domain transaction ต้องผ่าน Stock Controller ทุก domain ที่เกี่ยวข้อง
+- Stock Controller หลาย domain ใน step เดียวกัน approve แบบ parallel ได้
+- หลัง `STOCK_CONTROLLER` ต้องมี `HEAD_STOCK_CONTROLLER`
+- ระบบปัจจุบันมี `BSD_STAFF` และ `BSD_MANAGER` ใน chain
+- Reject ต้องระบุ reason และต้อง release lock/reservation
+- Requester แก้ไข pending request ได้เฉพาะตอนยังไม่มี approval ใดถูก approve
 
-## Approve Rules
+## 8. Sold Price Rules
 
-- Requester ที่เป็น `STAFF` ต้อง route ไปที่ `SUPERVISOR` ของทีมตัวเอง
-- Requester ที่เป็น `SUPERVISOR` ต้อง route ไปที่ department `MANAGER`
-- Requester ที่เป็น `MANAGER` หรือ `EXECUTIVE` ให้ skip business approver tier
-- Project-bound request ที่ requester เป็น `TEAM_MEMBER` ต้อง route ไปที่ project `LEAD_PROJECT`
-- ถ้า requester เป็น `LEAD_PROJECT` ของ project นั้นอยู่แล้ว ให้ skip project approver tier
-- Transaction ที่มีหลาย domains ต้องได้รับ approval จาก Stock Controller ของทุก domain ที่เกี่ยวข้อง
-- Multi-domain Stock Controller approvals สามารถ run parallel ได้
-- `BORROW` และ `USING` ต้องผ่าน `BSD_STAFF`
-- `RETURN` และ `SOLD` ต้องผ่าน `BSD_STAFF -> BSD_MANAGER`
-- Reject ต้องมี reason
-- Approval state ต้องแยกจาก business status
-- ต้อง snapshot ชื่อ/tag ของ approver เพื่อ audit
+- กรณี SOLD ต้องรองรับให้ BSD เป็นผู้กรอกราคา
+- Implementation ปัจจุบันบังคับ sold price เมื่อ current approver เป็น `BSD_STAFF`
+- Sold price ต้องถูกบันทึกใน transaction และ/หรือ transaction item
+- เอกสารและ report ต้องอ่านราคาจาก PostgreSQL
 
-## Transaction Rules
+## 9. Return Rules
 
-Approval State
+- Return ทำได้เมื่อ transaction เป็น `IN_PROGRESS`
+- Return ของ `BORROW`/`USING` ต้องเป็นราย transaction หรือราย item ได้
+- Implementation ปัจจุบันรองรับ outcome `READY` และ `SOLD`
+- Return to `READY` คืน asset/quantity และ update returned date
+- Return to `SOLD` สร้าง SOLD approval transaction ใหม่
+- Target ต้องรองรับ outcome `FAIL`, `LOST`, `NEED_CHECK`
+- Target ต้องให้ return/ขาย/พัง/หายผ่าน BSD ตาม business rule
 
-- `PENDING` = รออนุมัติ (อยู่ระหว่างการพิจารณา)
-- `APPROVED` = อนุมัติแล้ว
-- `REJECTED` = ปฏิเสธคำขอ
-- `IN_PROGRESS` = อยู่ระหว่างดำเนินการ (ใบคำขอนี้มีผลสัมฤทธิ์ ณ ปัจจุบัน)
-- `COMPLETED` = คำขอเสร็จสมบุรณ์ 
+## 10. Log / Visibility Rules
 
-## Return และ Sold Outcome Rules
+- Transaction History เป็น internal public view
+- User เห็น queue/request/approval/completed ของทุกคนและทุก project
+- การแยกข้อมูลให้ใช้ filter ไม่ใช่ซ่อนข้อมูลเป็นหลัก
+- Log ต้องแสดง request date, return date, requester/returner, status และ detail/action ที่เกี่ยวข้อง
+- Request queue ต้องแสดง item ที่ยังถูก request/reserve อยู่
 
-- Return ต้องผ่าน Stock Controller approvals ที่จำเป็น และ `BSD_STAFF -> BSD_MANAGER`
-- Approved borrow/using return ต้อง set asset เป็น `READY` หรือ restore quantity
-- Sold outcome ต้องผ่าน Stock Controller approvals ที่จำเป็น และ `BSD_STAFF -> BSD_MANAGER`
-- Approved sold outcome ต้อง set asset เป็น `SOLD`
-- Sold asset ห้ามถูก borrow, request หรือ set เป็น using อีกผ่าน normal workflow
-- ตอน return ผู้ใช้สามารถเลือก Lost/Fail 
+## 11. Project Rules
 
+- `LEAD_PROJECT` และ `TEAM_MEMBER` เป็น project tag ที่ user ใดก็เป็นได้
+- Project request ต้องผูก transaction กับ project จริงใน target
+- สถานะปัจจุบันของ Project page ยังไม่ใช่ source of truth เพราะยังเป็น local UI/mock
+- ก่อนใช้งานจริงต้องทำ `Project`/`ProjectMember` model และ API ให้ตรงกับ migration/ER
 
-## Transaction History
+## 12. PDF Rules
 
-- Transaction History เห็นได้โดย authenticated users ทุกคน
-- ต้องรวมทุก queue, pending approvals, rejected transactions, completed transactions, ทุก projects และทุก users
-- UI ต้องมี filters สำหรับ project, requester, type, status และ action
-- Action column ต้องแสดงเฉพาะ action ที่ permission และ current status อนุญาต
+- Transaction PDF มี endpoint แล้ว และควรรวม requisition no, item list, approval/signature และข้อมูล return/sold ที่จำเป็น
+- Asset detail ต้อง export PDF ได้ใน target
+- Official borrow/return document format ยังรอ template จากธุรกิจ
+- ห้าม hardcode format สุดท้ายจนกว่าจะได้ template จริง
 
-## Asset Detail
+## 13. Dynamic Domain Rules
 
-- Asset detail page ต้องแสดง asset fields ทั้งหมด
-- ต้องแสดง current status และ availability
-- ต้องแสดง asset status history
-- ต้องแสดง related transaction history
+- ฟีเจอร์ใหม่ต้องออกแบบจาก domain ใน DB
+- ห้ามเพิ่ม hardcode `SERVER`/`NETWORK` ใน helper กลาง
+- Dedicated page สำหรับ Server/Network ทำได้เพื่อ UX แต่ logic กลางต้องรองรับ domain ใหม่
+- Stock code ต้องใช้ domain prefix
+- Permission และ approval ต้องใช้ domain code ของ asset item จริง
 
-## การ Generate Code
+## 14. Code Maintenance Rules
 
-- Stock code format: `xx-yy0000`
-- `xx` คือ domain prefix เช่น `SV` หรือ `NW`
-- `yy` คือ type code
-- `0000` คือ sequence
-- Requisition format: `REQ-yyyymmdd-00`
-- Stock code และ requisition number ต้อง unique
-
-## ความถูกต้องของข้อมูล
-
-- ห้าม delete assets 
-- ห้าม duplicate serial numbers สำหรับ active serialized assets
-- ห้ามใช้ category/type จากคนละ domain กับ asset
-- ห้ามให้ quantity ต่ำกว่า zero
-- Approval, status และ quantity changes ทั้งหมดควรทำแบบ transactional
-
-## UI Color Rules
-
-- Core product palette is fixed: `#FE7743`, `#EFEEEA`, `#273F4F`, `#000000`.
-- Use `#FE7743` for active states, hover emphasis, badges that represent system counts, and primary accent actions.
-- Use `#273F4F` for headings, navigation text, breadcrumbs, and primary dark buttons.
-- Use `#EFEEEA` for page/surface backgrounds.
-- Use `#000000` for high-contrast body text where needed.
-- Do not use arbitrary blue color utilities such as `text-blue-*`, `bg-blue-*`, or `border-blue-*` in product UI.
-- Status labels are the only exception and must follow the approved status color map.
+- Prisma schema, migration และ docs ต้องไม่ขัดกัน
+- ถ้าเพิ่ม enum/status ใหม่ ต้องอัปเดต badge, filter, log, PDF และ tests
+- ถ้าเปลี่ยน workflow ต้องเพิ่ม/แก้ test ของ permission และ approval route
+- ถ้าแก้ quantity logic ต้องเพิ่ม test สำหรับ over-request, partial return และ reservation release

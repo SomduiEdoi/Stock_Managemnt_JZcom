@@ -1,442 +1,269 @@
 # Design: Asset Flow Management System
 
-Last updated: 2026-07-03
+อัปเดตล่าสุด: 2026-07-22
 
 ## 1. Architecture Baseline
 
-- Frontend: ใช้ web application เดิม
-- Backend: ใช้ server-side API routes/services
+- Frontend/Backend: Next.js full-stack monolith
+- Language: TypeScript
 - Database: PostgreSQL
-- ORM: Prisma หรือ database abstraction ที่ระบบใช้อยู่
-- Runtime source of truth: ใช้ PostgreSQL เป็นแหล่งข้อมูลจริงเพียงตัวเดียว
-- CSV/SharePoint: ใช้เฉพาะเป็น input สำหรับ migration/bootstrap ครั้งแรกเท่านั้น
-- Authentication: ใช้ login flow เดิมไปก่อน
-- Future authentication: LDAP/SSO/Microsoft 365 สามารถเพิ่มภายหลังได้ โดยไม่ควรเปลี่ยน business workflow ของระบบเบิก/ยืม/คืน
+- ORM: Prisma
+- Styling: Tailwind CSS
+- Auth: login/session แบบเดิมไปก่อน
+- Source of truth หลัง migration: PostgreSQL
+- CSV/SharePoint: ใช้เฉพาะ import/bootstrap data
 
-## 2. Design Principles
+## 2. Current Implementation Snapshot
 
-- ห้ามลบ asset จากระบบเพราะผลลัพธ์ทางธุรกิจตามปกติ เช่น ยืม ขาย เสีย หาย ให้เปลี่ยนสถานะและเก็บประวัติแทน
-- แยกสถานะ approval/workflow ออกจากสถานะทางธุรกิจของ transaction
-- ต้องเก็บ asset status history และ transaction history ให้ตรวจสอบย้อนหลังได้
-- การตรวจสิทธิ์ต้องทำที่ server-side API ไม่ใช่พึ่ง UI อย่างเดียว
-- Domain ต้องเป็น data-driven และไม่ hardcode แค่ Server กับ Network เพื่อรองรับ domain อื่นในอนาคต
-- รองรับทั้งอุปกรณ์แบบระบุ serial รายตัว และ stock แบบนับจำนวนใน data model เดียวกัน
-- Transaction history เป็นข้อมูลภายในที่ user ทุกคนเห็นได้ แต่ UI ต้องมี filter เพื่อให้ใช้งานง่าย
+ระบบจริงตอนนี้ขยับจาก MVP เดิมไปแล้วหลายส่วน:
 
-## 3. Core Data Model ตาม ER ล่าสุด
+- Branding ฝั่งเอกสารใช้ Asset Flow Management System แล้ว แต่ UI บางจุดยังต้องไล่เปลี่ยนจากชื่อเดิม
+- Role หลักเหลือ `ADMIN`, `STOCK_CONTROLLER`, `USER`
+- User schema/UI มี `organizationLevel`, `organizationTag`, `projectTag`, `stockControllerTag`
+- Profile page ถูกทำให้เรียบขึ้นและยังรองรับ signature upload
+- User Management รองรับ Stock Controller tag และ domain permission
+- Inventory รองรับ Brand filter, sort, availability และ quantity request
+- Request cart รองรับ SERIAL lock และ QUANTITY reservation
+- Transaction submit สร้าง `workflowStatus = PENDING`, transaction items และ approval steps แล้ว
+- Approval/reject/edit pending request เริ่มใช้งานจริง
+- Transaction PDF endpoint มีแล้ว
+- Transaction Log เพิ่ม Return Date และมี Approve tab
+- Return flow รองรับ return เป็น `READY` และ return-to-sold ผ่าน SOLD approval transaction
+- Project page มี UI แล้ว แต่ยังเป็น local mock state ไม่ใช่ database-backed feature
 
-ส่วนนี้ยึดตาม ER diagram ล่าสุด ชื่อตารางใน implementation ใช้ lower snake case และอ้างอิง entity จาก ER ได้แก่ `USER`, `DOMAINS`, `ASSETS_CATEGORIES`, `ASSETS_TYPES`, `ASSETS`, `PROJECT`, `PROJECT_MEMBERS`, `TRANSACTIONS`, `TRANSACTIONS_ITEMS`, `TRANSACTIONS_APPROVALS`, และ `ASSET_STATUS_HISTORY`
+## 3. Data Model Mapping
 
-### user
+| Concept | Current Prisma model/table | สถานะ |
+| --- | --- | --- |
+| User | `User` -> `users` | implemented |
+| Role | `Role`, `UserRole` | implemented แม้ business role หลักเหลือ 3 แบบ |
+| Domain | `AssetDomain` -> `asset_domains` | implemented |
+| Category | `AssetCategory` -> `asset_categories` | implemented |
+| Type | `AssetType` -> `asset_types` | implemented มี `trackMethod` |
+| Asset | `Asset` -> `assets` | implemented |
+| Quantity Reservation | `AssetReservation` -> `asset_reservations` | implemented |
+| Transaction | `Transaction` -> `transactions` | implemented |
+| Transaction Item | `TransactionItem` -> `transaction_items` | implemented |
+| Approval | `TransactionApproval` -> `transaction_approvals` | implemented and used |
+| Asset Status History | `AssetStatusHistory` -> `asset_status_histories` | implemented |
+| Project | migration มี `projects` แต่ `schema.prisma` ปัจจุบันยังไม่มี model | schema mismatch / pending |
+| Project Member | migration มี `project_members` แต่ `schema.prisma` ปัจจุบันยังไม่มี model | schema mismatch / pending |
 
-```text
-user_id             uuid primary key
-user_name           varchar not null
-email               varchar not null
-system_role         enum ADMIN | STOCK_CONTROLLER | USER
-organization_tag    varchar not null
-```
+### Schema Risk
 
-หมายเหตุ:
+มี migration `20260706090000_backend_foundation` ที่สร้าง `projects`, `project_members` และ `project_id` แต่ `schema.prisma` ปัจจุบันยังไม่มี `Project`, `ProjectMember` หรือ `Transaction.projectId` ดังนั้น Project page ตอนนี้จึงไม่ควรถูกนับเป็น source of truth จนกว่าจะ reconcile schema/migration ให้ตรงกัน
 
-- `system_role` มีได้เฉพาะ `ADMIN`, `STOCK_CONTROLLER`, หรือ `USER`
-- `organization_tag` เป็น field ใน ER สำหรับเก็บบริบทองค์กร ต้องรองรับ tag ที่ตกลงไว้ เช่น `EXECUTIVE`, `MANAGER`, `SUPERVISOR`, `STAFF`, `BSD_MANAGER`, `BSD_STAFF`, `S1_SUPERVISOR`, `S1_STAFF`, `DL_MANAGER`, และ `SD_STAFF`
-- Field สำหรับ credential ของ login เดิมเป็นรายละเอียดเชิง implementation และไม่ได้แสดงอยู่ใน ER
-- LDAP/SSO identity fields ยังไม่จำเป็นใน scope ปัจจุบัน
+## 4. Domain Design
 
-### domains
+คำว่า domain คือคำหลักสำหรับคลัง/กลุ่ม asset ทั้งหมด
 
-```text
-domain_id       uuid primary key
-domain_name     varchar not null
-domain_prefix   varchar not null
-```
+Implemented:
 
-ตัวอย่าง:
+- `AssetDomain` มี `code`, `name`, `prefix`, `inventoryFamily`
+- Domain ใช้แยก Server/Network และรองรับ domain อื่นในอนาคต
+- Stock Controller permission ผูกกับ domain ผ่าน `user_domain_permissions`
+- Dynamic domain page มีอยู่แล้ว
+- Admin/Stock Controller สามารถจัดการ category/type ตามสิทธิ์ domain ได้บางส่วน
 
-- `Server` ใช้ prefix `SV`
-- `Network` ใช้ prefix `NW`
+Technical debt:
 
-### assets_categories
+- `src/lib/permissions.ts` ยังมี `domainCodes = ["SERVER", "NETWORK"]`
+- Sidebar ยังมีทางลัดเฉพาะ Server/Network ซึ่งทำได้ แต่ helper หลักควร data-driven
+- Import script ยังผูกกับ CSV Server/Network ซึ่งยอมรับได้สำหรับ initial migration
 
-```text
-category_id     uuid primary key
-domain_id       uuid references domains(domain_id)
-category_name   varchar not null
-```
+## 5. Asset Design
 
-ความสัมพันธ์:
+### SERIAL
 
-- `domains` 1 record มี `assets_categories` ได้หลาย record
+- ใช้ `serialNo`
+- `assetQuantity` ควรเป็น 1
+- Request แล้ว set status เป็น `REQUEST` และ lock ด้วย `requestLockedById`
+- Submit แล้ว asset ยังถูก lock ระหว่าง approval
+- Approve ครบแล้วจึงเปลี่ยนเป็น `BORROW`, `USING`, หรือ `SOLD`
 
-### assets_types
+### QUANTITY
 
-```text
-assets_type_id    uuid primary key
-category_id       uuid references assets_categories(category_id)
-assets_type_name  varchar not null
-track_method      enum SERIAL | QUANTITY
-```
+- ใช้ `assetQuantity`
+- ไม่ต้องใช้ serial number
+- Request ใช้ `AssetReservation.quantity`
+- Submit ใช้ `TransactionItem.requestedQuantity`
+- Availability คำนวณจาก total quantity ลบ reservation และ open transaction
+- Asset table แสดง availability เพื่อให้รู้ว่ายัง request ได้เท่าไร
 
-ความสัมพันธ์:
+## 6. Transaction and Approval Design
 
-- `assets_categories` 1 record มี `assets_types` ได้หลาย record
+### Submit Flow ปัจจุบัน
 
-### assets
+1. User มี item อยู่ใน request cart
+2. `submitTransaction` ตรวจ hold/reservation และ normalize quantity
+3. ระบบสร้าง transaction no ด้วย `createMonthlyRequisitionNo`
+4. ระบบสร้าง `transactions`, `transaction_items`, `transaction_approvals`
+5. Transaction อยู่ที่ `workflowStatus = PENDING`
+6. Asset/quantity ยังอยู่ในสถานะ lock/reserve
 
-```text
-asset_id          uuid primary key
-assets_type_id    uuid references assets_types(assets_type_id)
-category_id       uuid references assets_categories(category_id)
-stock_code        varchar not null
-serial_number     varchar nullable
-brand             varchar nullable
-model             varchar nullable
-asset_location    varchar nullable
-part_no           varchar nullable
-asset_status      enum READY | REQUEST | BORROW | USING | SOLD | LOST | FAIL | NEED_CHECK
-asset_quantity    int not null
-```
+### Approval Step Generation
 
-กฎ:
+ลำดับ step ใน code ปัจจุบัน:
 
-- `SERIAL`: ควรมี `serial_number` และ `asset_quantity = 1`
-- `QUANTITY`: `serial_number` เป็น null ได้ และ `asset_quantity >= 0`
-- `stock_code` ใช้รูปแบบ domain prefix + type code + sequence
-- `SOLD` เป็น terminal status สำหรับ workflow ปกติ
+1. Business approver
+   - `STAFF` -> supervisor ของทีมตัวเอง
+   - `SUPERVISOR` -> manager ของฝ่าย
+   - manager/executive skip
+2. Project approver
+   - ถ้าเป็น project request และ requester เป็น `TEAM_MEMBER` -> `LEAD_PROJECT`
+3. Stock Controller per domain
+   - required tag: `STOCK_CONTROLLER:<domainCode>`
+4. Head Stock Controller per domain
+   - required tag: `HEAD_STOCK_CONTROLLER:<domainCode>`
+5. BSD Staff
+   - required tag: `BSD_STAFF`
+6. BSD Manager
+   - required tag: `BSD_MANAGER`
 
-### project
+Approval หลาย domain ใน step เดียวกันเป็น parallel approval
 
-```text
-project_id       uuid primary key
-project_name     varchar not null
-project_status   enum ACTIVE | CLOSED
-```
+### Approve
 
-### project_members
+- Approver ทำได้เฉพาะ current step
+- ระบบตรวจด้วย `approvalMatchesUser`
+- ถ้าเป็น SOLD และ current approver เป็น `BSD_STAFF` ต้องกรอก sold price
+- เมื่อ approval ทั้งหมดผ่าน:
+  - `BORROW` / `USING` -> `workflowStatus = IN_PROGRESS`
+  - `SOLD` -> `workflowStatus = COMPLETED`
+  - Asset status และ quantity จะถูก apply ตอนนี้
 
-```text
-project_member_id  uuid primary key
-project_id         uuid references project(project_id)
-user_id            uuid references user(user_id)
-project_tag        varchar not null
-```
+### Reject
 
-กฎ:
+- Reject ต้องมี reason
+- Transaction เป็น `REJECTED` และถือว่าจบ workflow
+- Serial asset ถูก release กลับ `READY`
+- Quantity reservation ถูก release
 
-- ค่า `project_tag` คือ `LEAD_PROJECT` และ `TEAM_MEMBER`
-- `USER` คนใดก็สามารถเป็น `LEAD_PROJECT` หรือ `TEAM_MEMBER` ได้ตามบริบท project
+### Edit Pending Request
 
-### transactions
+- Requester แก้ไขได้เฉพาะ transaction ที่ยัง `PENDING`
+- ถ้ามี approval ใดถูก approve แล้ว จะ edit ไม่ได้
+- Edit สามารถเปลี่ยน purpose/detail/items/quantity และ rebuild approval steps
 
-```text
-transaction_id          uuid primary key
-user_id                 uuid references user(user_id)
-project_id              uuid references project(project_id) nullable
-transaction_type        enum BORROW | USING | SOLD
-transaction_status      varchar not null
-transaction_created_at  timestamp not null
-```
+## 7. Return and Close Design
 
-Field ที่ workflow ต้องใช้ แต่ยังไม่อยู่ใน ER:
+Implemented:
 
-- `requisition_no` ยังจำเป็นสำหรับงาน document/report
-- สามารถเพิ่ม field เหล่านี้ไว้ใน `transactions` หรือทำเป็น transaction metadata extension ตอน implementation
+- Return ทำได้เฉพาะ transaction `BORROW`/`USING` ที่ `workflowStatus = IN_PROGRESS`
+- Return เป็นราย item ได้
+- Outcome ปัจจุบันรองรับ `READY` และ `SOLD`
+- Return to `READY` update asset/quantity ทันที
+- Return to `SOLD` สร้าง SOLD approval transaction ใหม่
+- ถ้า sold flow ถึง `BSD_STAFF` ต้องกรอกราคาขาย
+- Transaction หลักจะ completed เมื่อทุก item resolved แล้ว
 
-### transactions_items
+Pending/Target:
 
-```text
-transaction_item_id  uuid primary key
-transaction_id       uuid references transactions(transaction_id)
-asset_id             uuid references assets(asset_id)
-requested_quantity   int not null
-```
+- Return outcome ยังควรรองรับ `FAIL`, `LOST`, `NEED_CHECK`
+- Return/close ทุกกรณีควรมี approval chain ที่สรุปด้วย BSD ตาม business rule
+- ต้องยืนยันว่าการ return to ready ต้องผ่าน BSD หรือ apply ทันทีแบบปัจจุบัน
 
-กฎ:
+## 8. API Surface
 
-- สำหรับ `SERIAL`, `requested_quantity = 1`
-- สำหรับ `QUANTITY`, `requested_quantity` ต้องไม่เกินจำนวนที่ available
-- การเคลื่อนไหวของ quantity ให้คำนวณจาก `transactions_items` ร่วมกับ transaction status ไม่ใช่การลบ record
-
-### transactions_approvals
-
-```text
-approval_id              uuid primary key
-transaction_id           uuid references transactions(transaction_id)
-user_id                  uuid references user(user_id)
-approval_step_sequence   int not null
-approval_required_tag    varchar not null
-approver_name_snapshot   varchar not null
-approver_tag_snapshot    varchar not null
-approval_acted_at        timestamp nullable
-approval_comment         text nullable
-approval_status          enum PENDING | APPROVED | REJECTED
-```
-
-พฤติกรรมที่ต้องรองรับ:
-
-- Stock Controller approval ต้องสร้างตาม domain ที่เกี่ยวข้องในคำขอ
-- Parallel approval แทนด้วย `transactions_approvals` หลาย record ที่มี `approval_step_sequence` เดียวกัน แต่มี `approval_required_tag` ต่างกัน
-- Workflow จะไป step ถัดไปได้ก็ต่อเมื่อ approval ทุก record ใน `approval_step_sequence` ปัจจุบันเป็น approved แล้ว
-- `BORROW` และ `USING` ต้องผ่าน `BSD_STAFF` หลังจากผ่าน Stock Controller แล้ว
-- `RETURN` และ `SOLD` ต้องผ่าน `BSD_STAFF` แล้วตามด้วย `BSD_MANAGER`
-- การ reject ต้องมี `approval_comment`
-- Snapshot fields ต้องเก็บชื่อ/tag ของผู้อนุมัติ ณ เวลานั้น แม้ข้อมูล user จะเปลี่ยนภายหลัง
-
-### asset_status_history
+Implemented endpoints ที่เกี่ยวข้อง:
 
 ```text
-status_history_id       uuid primary key
-asset_id                uuid references assets(asset_id)
-user_id                 uuid references user(user_id)
-transaction_id          uuid references transactions(transaction_id) nullable
-previous_status         varchar nullable
-new_status              varchar not null
-status_change_reason    text nullable
-status_changed_at       timestamp not null
-```
+POST   /api/auth/login
+POST   /api/auth/logout
+GET    /api/auth/me
 
-ทุกครั้งที่ asset status เปลี่ยน ต้องสร้าง record ในตารางนี้ 1 record
-
-## 4. การคำนวณ Availability
-
-### SERIAL Asset
-
-- Available เฉพาะเมื่อ `asset_status = READY`
-- เมื่อกด Request ให้เปลี่ยน asset status เป็น `REQUEST` ทันที
-- เมื่ออนุมัติสำเร็จ ให้เปลี่ยนเป็น `BORROW`, `USING`, หรือ `SOLD`
-- ถ้า cancel/reject ให้ปลด lock กลับไปยังสถานะที่ถูกต้องก่อนหน้า โดยปกติคือ `READY`
-
-### QUANTITY Asset
-
-Field ที่แนะนำให้ derive:
-
-```text
-available_quantity =
-  asset_quantity
-  - pending_requested_quantity
-  - active_borrowed_quantity
-  - active_using_quantity
-  - completed_sold_quantity
-```
-
-กฎ:
-
-- เมื่อ Request ต้อง reserve quantity ทันที
-- เมื่อ Submit ต้องคง reservation ไว้จนกว่า approval จะจบ
-- Reject/cancel ต้องคืน reserved quantity
-- Approved borrow/using/sold ต้องย้าย quantity ไปอยู่ใน bucket ที่เกี่ยวข้อง
-- Approved return ต้องคืน quantity กลับมาในกรณีที่คืนได้
-
-## 5. โมเดลสิทธิ์การใช้งาน
-
-### การดู Asset
-
-- Admin: เห็นทุก domain
-- Stock Controller: manage domain ที่รับผิดชอบ และเห็น domain อื่นแบบ read-only
-- User: เห็นทุก domain แบบ read-only
-
-### การจัดการ Asset
-
-- Admin: จัดการได้ทุก domain
-- Stock Controller: จัดการได้เฉพาะ domain ที่รับผิดชอบ
-- User: แก้ไข asset โดยตรงไม่ได้
-
-### การจัดการ Category/Type
-
-- Admin: จัดการได้ทุก domain
-- Stock Controller: จัดการได้เฉพาะ domain ที่รับผิดชอบ
-
-### การจัดการ User
-
-- Admin เท่านั้น
-
-### การดู Transaction History
-
-- User ที่ login แล้วทุกคนสามารถเห็น transaction history ทั้งหมด
-- UI ต้องมี filter สำหรับ user/project/status/domain/type/date
-
-### Approval
-
-- การตรวจว่าใคร approve ได้ ต้องดูจาก required system role, domain permission, organization context, project membership หรือ approval tag
-- BSD ถูกแทนด้วย organization/approval tags เช่น `BSD_STAFF` และ `BSD_MANAGER` ไม่ใช่ system role แยก
-- API ต้อง validate ว่าคนที่กด approve มีสิทธิ์ใน approval step นั้นจริง
-
-## 6. การออกแบบ Workflow
-
-### การ Lock ตอน Request
-
-เมื่อ requester กด request:
-
-1. Validate availability
-2. Create หรือ update draft transaction/cart
-3. ถ้าเป็น serial asset ให้ set asset status เป็น `REQUEST`
-4. ถ้าเป็น quantity asset ให้ reserve requested quantity ใน transaction item
-5. สร้าง status history หรือ reservation history
-
-Lock นี้เกิดก่อน submit เพื่อให้ user คนอื่นยังเห็น asset ได้ แต่ request asset/quantity เดิมซ้ำไม่ได้
-
-### การ Submit Request
-
-1. Validate required fields ทั้งหมด
-2. Validate cart items ว่ายัง available หรือยังถูก reserve ให้ requester อยู่
-3. Set transaction `workflow_status = PENDING_APPROVAL`
-4. Generate requisition no ถ้ายังไม่มี
-5. Generate approval steps
-6. คง asset status เป็น `REQUEST` หรือคง quantity reservation ไว้
-
-### ลำดับการ Approve
-
-Business approver tier:
-
-1. ถ้า requester เป็น `STAFF` ให้ส่งไปที่ `SUPERVISOR` ของทีมตัวเอง
-2. ถ้า requester เป็น `SUPERVISOR` ให้ส่งไปที่ `MANAGER` ของฝ่าย
-3. ถ้า requester เป็น `MANAGER` หรือ `EXECUTIVE` ให้ข้าม business approver tier
-4. ถ้า transaction ผูกกับ project และ requester เป็น `TEAM_MEMBER` ให้ส่งไปที่ `LEAD_PROJECT` ของ project นั้น แต่ถ้า requester เป็น `LEAD_PROJECT` อยู่แล้วให้ข้าม project approver tier
-
-Stock Controller tier:
-
-1. Resolve domain ทุก domain ที่อยู่ใน `transactions_items`
-2. สร้าง approval requirement 1 รายการต่อ Stock Controller/domain ที่เกี่ยวข้อง
-3. Stock Controller approvals สามารถเป็น parallel ได้
-4. Workflow ไปต่อได้เมื่อ Stock Controller ของทุก domain ที่เกี่ยวข้อง approve ครบแล้ว
-
-BSD tier:
-
-1. `BORROW` และ `USING`: ต้องผ่าน `BSD_STAFF`
-2. `RETURN` และ `SOLD`: ต้องผ่าน `BSD_STAFF` แล้วตามด้วย `BSD_MANAGER`
-
-### ผลลัพธ์ของการ Approve
-
-ถ้า approval ครบทุก required steps:
-
-- `BORROW`: asset status เป็น `BORROW`
-- `USING`: asset status เป็น `USING`
-- `SOLD`: asset status เป็น `SOLD`
-
-ถ้า rejected:
-
-- transaction `workflow_status = REJECTED`
-- ต้องมี reject reason
-- requester สามารถแก้ไขแล้ว resubmit หรือ cancel ได้
-
-ถ้า cancelled:
-
-- ไม่มีเก็บประวัติ
-- serial asset lock กลับไปสถานะก่อนหน้า โดยปกติคือ `READY`
-- quantity reservation ถูก release
-
-### Return / Close Outcome
-
-1. User เปิด log/return page
-2. เลือก transaction/item
-3. กรอกรายละเอียด return/sold/lost/fail outcome
-4. System สร้าง return workflow และ approval steps
-5. Asset อาจถูก set เป็น `NEED_CHECK` ระหว่างรอตรวจสอบ/อนุมัติ
-6. Approval chain ต้องผ่าน Stock Controller ทุก domain ที่เกี่ยวข้อง แล้วตามด้วย `BSD_STAFF -> BSD_MANAGER`
-7. Approved return เปลี่ยน asset/quantity เป็น `READY` และ business status เป็น `RETURNED`
-8. Approved sold outcome เปลี่ยน asset เป็น `SOLD` และ business status เป็น `COMPLETED`
-
-## 7. API Surface
-
-Endpoints ที่แนะนำ:
-
-```text
-GET    /api/domains
 POST   /api/domains
-PATCH  /api/domains/:id
+GET    /api/domains/:code
+PATCH  /api/domains/:code
+GET    /api/domains/:code/categories
+PATCH  /api/domains/:code/categories
 
-GET    /api/categories
-POST   /api/categories
-PATCH  /api/categories/:id
-
-GET    /api/types
-POST   /api/types
-PATCH  /api/types/:id
-
-GET    /api/assets
 POST   /api/assets
-GET    /api/assets/:id
 PATCH  /api/assets/:id
-GET    /api/assets/:id/history
-GET    /api/assets/:id/transactions
-GET    /api/assets/:id/export.pdf
+DELETE /api/assets/:id
+PATCH  /api/assets/:id/status
 
-GET    /api/projects
-POST   /api/projects
-PATCH  /api/projects/:id
-POST   /api/projects/:id/members
-PATCH  /api/projects/:id/members/:memberId
+POST   /api/requests/hold
+POST   /api/requests/release
 
-POST   /api/request-cart/items
-PATCH  /api/request-cart/items/:id
-DELETE /api/request-cart/items/:id
-POST   /api/transactions/submit
-GET    /api/transactions
+POST   /api/transactions
 GET    /api/transactions/:id
+PATCH  /api/transactions/:id
 POST   /api/transactions/:id/approve
 POST   /api/transactions/:id/reject
-POST   /api/transactions/:id/cancel
 POST   /api/transactions/:id/return
+POST   /api/transactions/:id/items/:itemId/return
+GET    /api/transactions/:id/pdf
 
-POST   /api/migrations/csv/import
+POST   /api/users
+PATCH  /api/users/:id
+DELETE /api/users/:id
+PATCH  /api/users/:id/status
+PATCH  /api/users/:id/assignment
 ```
 
-## 8. ข้อกำหนดด้าน UI
+Pending endpoints:
 
-- Table ต้อง sort ได้ราย column
-- Column header dropdown ต้องรองรับ A-Z/Z-A หรือ contextual filter
-- Active button ใช้สี orange
-- Request page ทำงานเหมือน cart
-- Asset detail page ต้องแสดงข้อมูล asset ทั้งหมด, status history, related transactions, current availability และ export PDF ได้
-- Transaction log เป็น global internal view และต้องมี filter ที่ละเอียด
-- Action column ใน transaction history ควรใช้ dropdown actions ตาม permission/status
-- Staff dashboard ไม่ควรแสดง problem item section ถ้าไม่เกี่ยวข้อง
-- Required fields ต้องแสดง warning ก่อน save/submit
+```text
+GET/POST/PATCH /api/projects
+GET/POST/PATCH /api/projects/:id/members
+POST /api/transactions/:id/cancel
+GET /api/assets/:id/pdf
+```
 
-## 9. การออกแบบ Migration
+## 9. UI Design Status
 
-1. อ่าน CSV files ครั้งเดียวตอน migration
-2. Map source file หรือ source metadata ไปยัง domain
-3. Normalize category/type
-4. Generate หรือ validate stock code
-5. Detect serial duplicates
-6. Insert assets, categories, types และ status history เข้า PostgreSQL
-7. เขียน import summary เช่น created, updated, skipped, errors
-8. หลัง migration แล้ว runtime ต้องใช้ PostgreSQL เท่านั้น
+Implemented / Mostly implemented:
 
+- Dashboard
+- Server Inventory
+- Network Inventory
+- Dynamic Domain Inventory
+- Brand filter
+- Sortable inventory table
+- Quantity request modal/input
+- Request Cart
+- Transaction Log with Return Date
+- Approval Queue tab
+- Transaction detail approve/reject/edit/return
+- User Management with Stock Controller tag
+- Profile cleanup/signature
+- Asset detail with status history
+- Project page UI
 
-## 10. การออกแบบ PDF
+Partial / Pending:
 
-### Scope ปัจจุบัน
+- Project persistence/API/schema
+- Asset detail PDF export button + API
+- Full return approval workflow
+- Return outcomes `FAIL`/`LOST`/`NEED_CHECK`
+- Cleanup legacy status ที่ไม่อยู่ใน requirement แล้ว
+- Complete dynamic domain replacement for hardcoded Server/Network helpers
+- Complete UI branding ให้เป็น Asset Flow ทุกจุด
 
-- Data source: PostgreSQL
-- ข้อมูลที่ต้องมี: asset fields ทั้งหมด, current status, availability, status history, transaction history และ generated date
+## 10. Status Cleanup
 
-### Backlog
+Requirement ล่าสุดตัดสถานะเกินกำหนดคืนออกจากระบบแล้ว
 
-- Borrow/return transaction PDF หลังจากได้ final document format
-- E-signature และ user uploaded signature
-- Document template customization
+Cleanup ที่ควรทำ:
 
-## 11. แนวทางการทดสอบ
+- ตรวจ enum/schema/code ที่ยังมีสถานะ legacy นี้อยู่
+- เอา filter/badge/test ที่เกี่ยวข้องกับสถานะนี้ออกหรือไม่ให้แสดงใน UI
+- เก็บ `dueDate`/`returnDate` เป็นข้อมูล transaction/report ได้ แต่ไม่สร้าง business status ใหม่จากวันที่
 
-- Unit tests สำหรับ status transitions
-- Unit tests สำหรับ quantity availability
-- Unit tests สำหรับ permission checks
-- Integration tests สำหรับ request -> submit -> approve -> final status
-- Integration tests สำหรับ reject/cancel release lock
-- Integration tests สำหรับ return approval รวม BSD
-- Migration tests สำหรับ CSV -> PostgreSQL
-- UI tests สำหรับ table sorting/filtering, request cart, asset detail และ transaction log
+## 11. Test Strategy
 
-## UI Color Palette Requirement
+ควรเพิ่ม/คง test สำหรับ:
 
-The system UI must use the approved core palette only for product-level surfaces, navigation, breadcrumbs, buttons, active states, borders, and non-status emphasis:
-
-- Brand accent / active / hover: `#FE7743`
-- Surface / page background: `#EFEEEA`
-- Primary navy / headings / navigation: `#273F4F`
-- Ink / high contrast text: `#000000`
-
-Do not introduce unrelated blues or other ad-hoc brand colors such as Tailwind `blue-*` utilities for product UI. If a link or breadcrumb needs color, use navy (`#273F4F`) and hover with brand accent (`#FE7743`). Status badges may use the separate status color map already defined for statuses such as Ready, Borrow, Sold, Lost, Need Check, Request, Fail, and Using.
+- Monthly requisition no reset
+- SERIAL request lock/release
+- QUANTITY reservation/availability
+- Multi-domain approval step generation
+- Stock Controller และ Head Stock Controller permission
+- BSD sold price approval
+- Reject request release lock/reservation
+- Edit pending request only before approval
+- Return to ready และ return to sold
+- Transaction log visibility/filter/return date
+- Dynamic domain ไม่ hardcode Server/Network ในจุดสำคัญ
+- Prisma schema/migration consistency สำหรับ Project
