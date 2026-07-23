@@ -48,6 +48,8 @@ export type PrintableTransaction = {
   internalRequest?: boolean;
   items?: PrintableTransactionItem[];
   note?: string | null;
+  project?: { id?: string | null; name?: string | null; projectId?: string | null } | null;
+  projectId?: string | null;
   projectRequest?: boolean;
   purpose?: string | null;
   requestDate?: Date | string | null;
@@ -373,6 +375,14 @@ function sectionTitleFor(kind: DocumentKind) {
   return "รายการอุปกรณ์ (เบิก/ยืม) :";
 }
 
+function customerName(transaction: PrintableTransaction) {
+  if (transaction.projectRequest) {
+    return transaction.project?.name ?? transaction.purpose ?? "-";
+  }
+
+  return transaction.purpose ?? "-";
+}
+
 function header(document: ExportDocument, pageIndex: number, pageTotal: number) {
   const displayReference = document.showFromReference
     ? `from ${document.referenceNo}`
@@ -393,7 +403,7 @@ function header(document: ExportDocument, pageIndex: number, pageTotal: number) 
     <section class="meta-grid">
       <div class="meta-box">
         <span class="meta-label">Customer Name :</span>
-        <span class="meta-value">${escapeHtml(document.transaction.purpose)}</span>
+        <span class="meta-value">${escapeHtml(customerName(document.transaction))}</span>
       </div>
       <div class="meta-box">
         <span class="meta-label">Requisition No. :</span>

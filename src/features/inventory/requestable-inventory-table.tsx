@@ -61,11 +61,11 @@ const serialInventoryColumns: InventoryColumnKey[] = [
 ];
 
 const quantityInventoryColumns: InventoryColumnKey[] = [
+  "stockCode",
   "model",
   "category",
   "type",
   "brand",
-  "stockCode",
   "availability",
   "status",
 ];
@@ -291,6 +291,7 @@ function RequestConfirmDialog({
   asset,
   domainLabel,
   error,
+  inventoryFamily,
   isSubmitting,
   onClose,
   onConfirm,
@@ -300,6 +301,7 @@ function RequestConfirmDialog({
   asset: RequestableInventoryRow;
   domainLabel: string;
   error: string | null;
+  inventoryFamily: InventoryFamily;
   isSubmitting: boolean;
   onClose: () => void;
   onConfirm: (quantity: number) => void;
@@ -307,7 +309,9 @@ function RequestConfirmDialog({
   quantity: number;
 }) {
   const isReady = asset.status === AssetStatus.READY && asset.availableQuantity > 0;
-  const isQuantityAsset = asset.assetModel.assetType?.trackMethod === "QUANTITY";
+  const isQuantityAsset =
+    inventoryFamily === "QUANTITY" ||
+    asset.assetModel.assetType?.trackMethod === "QUANTITY";
   const maxQuantity = Math.max(1, asset.availableQuantity);
 
   return (
@@ -961,6 +965,7 @@ export function RequestableInventoryTable({
           asset={activeAsset}
           domainLabel={domainLabel}
           error={error}
+          inventoryFamily={inventoryFamily}
           isSubmitting={isSubmitting}
           onClose={() => {
             setActiveAsset(null);

@@ -1,4 +1,3 @@
-import { AssetTrackMethod } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { apiErrorResponse, readJsonBody, requireApiUser } from "@/lib/api";
@@ -43,7 +42,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
     const body = saveCategoriesSchema.parse(await readJsonBody(request));
     const domain = await db.assetDomain.findFirst({
-      select: { id: true },
+      select: { id: true, inventoryFamily: true },
       where: { code: domainCode, isActive: true },
     });
 
@@ -180,7 +179,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
             code: cleanCode(typeInput.code),
             isActive: true,
             name: typeInput.name,
-            trackMethod: AssetTrackMethod.SERIAL,
+            trackMethod: domain.inventoryFamily,
           };
 
           if (typeInput.id) {

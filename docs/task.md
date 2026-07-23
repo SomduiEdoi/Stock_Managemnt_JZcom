@@ -152,3 +152,14 @@ Legend:
 - [x] Asset Detail and Request Detail breadcrumbs use blue links with orange hover while preserving existing navigation.
 - [x] Project ID is required at DB/schema level after backfill.
 - [x] Ran `npx.cmd prisma migrate deploy`, `npx.cmd prisma generate --no-engine`, `npm.cmd run typecheck`, and `npm.cmd run lint` successfully.
+
+## 2026-07-23 Quantity Inventory Update
+
+- [x] Quantity domain/category type creation now follows the domain `inventoryFamily` instead of defaulting new types to SERIAL.
+- [x] Quantity inventory table column order now follows requirement: Stock Code, Model, Category, Type, Brand, Availability, Status, Request/Action.
+- [x] Quantity request modal now detects QUANTITY by domain family as well as asset type, so dynamic quantity domains show the quantity input correctly.
+- [x] Availability now subtracts draft reservations plus open PENDING/IN_PROGRESS transaction items for BORROW, USING, and SOLD.
+- [x] Submit transaction now moves quantity draft reservation from `asset_reservations` into `transaction_items.requestedQuantity`, preventing submitted items from staying in request cart.
+- [x] Approve/reject/edit pending request refreshes quantity asset availability/status from transaction items instead of relying on stale draft reservations.
+- [x] Ran `npm.cmd run typecheck`, `npm.cmd run lint`, and `npm.cmd test` successfully after quantity changes.
+- [ ] Add focused quantity workflow tests for over-request, pending edit quantity, reject release, partial return, and sold quantity depletion.

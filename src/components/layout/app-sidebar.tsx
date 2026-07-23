@@ -93,7 +93,7 @@ function canShowUsers(roles: RoleCode[]) {
 }
 
 function canShowProjects(roles: RoleCode[]) {
-  return roles.includes("ADMIN");
+  return roles.includes("ADMIN") || roles.includes("STOCK_CONTROLLER") || roles.includes("USER");
 }
 
 function canCreateDomain(roles: RoleCode[]) {

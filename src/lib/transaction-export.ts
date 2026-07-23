@@ -10,6 +10,8 @@ const transactionExportSelect = Prisma.validator<Prisma.TransactionSelect>()({
   id: true,
   internalRequest: true,
   note: true,
+  project: { select: { id: true, name: true, projectId: true } },
+  projectId: true,
   projectRequest: true,
   purpose: true,
   requestDate: true,

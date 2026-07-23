@@ -1,6 +1,7 @@
 import { ApprovalStatus, TransactionWorkflowStatus } from "@prisma/client";
 import { notFound } from "next/navigation";
 import { requireCurrentUser } from "@/lib/auth";
+import { db } from "@/lib/db";
 import {
   getTransactionResolutionForUser,
   WorkflowError,
@@ -147,6 +148,7 @@ function serializeTransaction(
     internalRequest: transaction.internalRequest,
     kindLabel,
     note: transaction.note,
+    projectId: transaction.projectId,
     projectRequest: transaction.projectRequest,
     purpose: transaction.purpose,
     rejectBlockedReason: currentApproval ? null : "No approval is waiting for this user.",
@@ -165,10 +167,20 @@ export async function TransactionReturnPage({
   const user = await requireCurrentUser(`/logs/${transactionId}/return`);
 
   try {
-    const transaction = await getTransactionResolutionForUser(user, transactionId);
+    const [transaction, projects] = await Promise.all([
+      getTransactionResolutionForUser(user, transactionId),
+      db.project.findMany({
+        orderBy: [{ name: "asc" }],
+        select: { id: true, name: true, projectId: true },
+        where: { status: "ACTIVE" },
+      }),
+    ]);
 
     return (
-      <TransactionReturnClient transaction={serializeTransaction(transaction, user)} />
+      <TransactionReturnClient
+        projects={projects}
+        transaction={serializeTransaction(transaction, user)}
+      />
     );
   } catch (error) {
     if (error instanceof WorkflowError && error.statusCode === 404) {

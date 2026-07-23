@@ -25,6 +25,7 @@ const submitTransactionSchema = z.object({
   dueDate: optionalDateSchema,
   internalRequest: z.boolean().optional().default(false),
   note: z.string().max(1000).optional().nullable(),
+  projectId: z.string().uuid().optional().nullable(),
   projectRequest: z.boolean().optional().default(false),
   purpose: z.string().min(1).max(1000),
   serviceRequest: z.boolean().optional().default(false),

@@ -72,6 +72,8 @@ const transactionDetailSelect = Prisma.validator<Prisma.TransactionSelect>()({
   dueDate: true,
   internalRequest: true,
   note: true,
+  projectId: true,
+  project: { select: { id: true, name: true, projectId: true } },
   projectRequest: true,
   purpose: true,
   requestDate: true,
@@ -157,6 +159,7 @@ export type SubmitTransactionInput = {
   dueDate?: Date | null;
   internalRequest?: boolean;
   note?: string | null;
+  projectId?: string | null;
   projectRequest?: boolean;
   purpose: string;
   requestDate: Date;
@@ -419,7 +422,10 @@ function toWorkflowCurrentUser(user: WorkflowUserRecord): CurrentUser {
 }
 
 function isQuantityAsset(asset: WorkflowAsset) {
-  return asset.assetModel.assetType?.trackMethod === AssetTrackMethod.QUANTITY;
+  return (
+    asset.domain.inventoryFamily === AssetTrackMethod.QUANTITY ||
+    asset.assetModel.assetType?.trackMethod === AssetTrackMethod.QUANTITY
+  );
 }
 
 function assetDisplayName(asset: WorkflowAsset) {
@@ -454,9 +460,14 @@ async function sumOpenTransactionQuantities(
     where: {
       assetId: { in: assetIds },
       returnedAt: null,
-      toStatus: { in: [AssetStatus.BORROW, AssetStatus.USING] },
+      toStatus: { in: [AssetStatus.BORROW, AssetStatus.USING, AssetStatus.SOLD] },
       transaction: {
-        workflowStatus: TransactionWorkflowStatus.IN_PROGRESS,
+        workflowStatus: {
+          in: [
+            TransactionWorkflowStatus.PENDING,
+            TransactionWorkflowStatus.IN_PROGRESS,
+          ],
+        },
       },
     },
   });
@@ -596,8 +607,15 @@ async function refreshQuantityRequestStatus(
       where: {
         assetId,
         returnedAt: null,
-        toStatus: { in: [AssetStatus.BORROW, AssetStatus.USING] },
-        transaction: { workflowStatus: TransactionWorkflowStatus.IN_PROGRESS },
+        toStatus: { in: [AssetStatus.BORROW, AssetStatus.USING, AssetStatus.SOLD] },
+        transaction: {
+          workflowStatus: {
+            in: [
+              TransactionWorkflowStatus.PENDING,
+              TransactionWorkflowStatus.IN_PROGRESS,
+            ],
+          },
+        },
       },
     }),
   ]);
@@ -605,7 +623,11 @@ async function refreshQuantityRequestStatus(
   const reserved =
     (draftReserved._sum.quantity ?? 0) +
     (openReserved._sum.requestedQuantity ?? 0);
-  const nextStatus = reserved >= asset.assetQuantity ? AssetStatus.REQUEST : AssetStatus.READY;
+  const nextStatus = asset.assetQuantity <= 0
+    ? AssetStatus.SOLD
+    : reserved >= asset.assetQuantity
+      ? AssetStatus.REQUEST
+      : AssetStatus.READY;
 
   if (asset.status !== nextStatus) {
     await tx.asset.update({
@@ -805,8 +827,26 @@ async function assertAssetsCanRelease(
 }
 
 function assertTransactionInput(input: SubmitTransactionInput) {
-  const purpose = requireText(input.purpose, "Purpose");
+  const purpose = requireText(input.purpose, input.projectRequest ? "Project" : "Customer Name");
   const soldPrice = cleanText(input.soldPrice);
+
+  if (input.type === TransactionType.USING && !input.internalRequest) {
+    throw new WorkflowError("Using requests must be Internal.");
+  }
+
+  if (input.type !== TransactionType.USING) {
+    if (input.internalRequest) {
+      throw new WorkflowError("Borrow and sold requests must be Service or Project only.");
+    }
+
+    if (Boolean(input.serviceRequest) === Boolean(input.projectRequest)) {
+      throw new WorkflowError("Choose either Service or Project.");
+    }
+  }
+
+  if (input.projectRequest && !cleanText(input.projectId)) {
+    throw new WorkflowError("Project is required.");
+  }
 
   if (Number.isNaN(input.requestDate.getTime())) {
     throw new WorkflowError("Request date is required.");
@@ -918,19 +958,41 @@ async function findOrganizationApprover(
 async function findProjectApprover(
   tx: Prisma.TransactionClient,
   requesterId: string,
+  projectId: string | null | undefined,
 ) {
+  const select = {
+    domainPermissions: {
+      select: { canManage: true, domain: { select: { code: true } } },
+    },
+    id: true,
+    name: true,
+    organizationTag: true,
+    projectTag: true,
+    stockControllerTag: true,
+  } satisfies Prisma.UserSelect;
+
+  if (projectId) {
+    const project = await tx.project.findFirst({
+      where: { id: projectId, status: "ACTIVE" },
+      select: {
+        leadUser: { select },
+        members: {
+          orderBy: { createdAt: "asc" },
+          select: { user: { select } },
+          where: { projectTag: "LEAD_PROJECT", userId: { not: requesterId } },
+        },
+      },
+    });
+
+    const projectLead = project?.members[0]?.user ?? project?.leadUser ?? null;
+    if (projectLead && projectLead.id !== requesterId) {
+      return projectLead;
+    }
+  }
+
   return tx.user.findFirst({
     orderBy: { name: "asc" },
-    select: {
-      domainPermissions: {
-        select: { canManage: true, domain: { select: { code: true } } },
-      },
-      id: true,
-      name: true,
-      organizationTag: true,
-      projectTag: true,
-      stockControllerTag: true,
-    },
+    select,
     where: {
       id: { not: requesterId },
       isActive: true,
@@ -1010,7 +1072,7 @@ async function buildApprovalCandidates(
   if (input.projectRequest && user.projectTag === ProjectTag.TEAM_MEMBER) {
     approvals.push(
       candidateForUser(
-        await findProjectApprover(tx, user.id),
+        await findProjectApprover(tx, user.id, input.projectId),
         ProjectTag.LEAD_PROJECT,
         stepSequence++,
       ),
@@ -1188,8 +1250,6 @@ async function updateSubmittedQuantityAsset(
   userId: string,
   toStatus: AssetStatus,
 ) {
-  await consumeQuantityReservation(tx, item, userId);
-
   if (toStatus === AssetStatus.SOLD) {
     await decrementQuantityAsset(tx, item, userId);
   }
@@ -1351,7 +1411,10 @@ function buildResolutionMap(items: ResolveTransactionItemInput[]) {
 }
 
 function isQuantityTransactionItem(item: TransactionDetail["items"][number]) {
-  return item.asset.assetModel.assetType?.trackMethod === AssetTrackMethod.QUANTITY;
+  return (
+    item.asset.domain.inventoryFamily === AssetTrackMethod.QUANTITY ||
+    item.asset.assetModel.assetType?.trackMethod === AssetTrackMethod.QUANTITY
+  );
 }
 
 function transactionItemAssetName(item: TransactionDetail["items"][number]) {
@@ -1541,7 +1604,27 @@ export async function submitTransaction(
         Boolean(input.items?.length),
       );
       assertAssetsCanSubmit(user, items);
-      const approvals = await buildApprovalCandidates(tx, user, input, items);
+      let requestPurpose = purpose;
+      let projectId = cleanText(input.projectId);
+
+      if (input.projectRequest) {
+        const project = await tx.project.findFirst({
+          where: { id: projectId ?? "", status: "ACTIVE" },
+          select: { id: true, name: true },
+        });
+
+        if (!project) {
+          throw new WorkflowError("Project not found or inactive.", 404, "PROJECT_NOT_FOUND");
+        }
+
+        projectId = project.id;
+        requestPurpose = project.name;
+      } else {
+        projectId = null;
+      }
+
+      const approvalInput = { ...input, projectId, purpose: requestPurpose };
+      const approvals = await buildApprovalCandidates(tx, user, approvalInput, items);
       const transaction = await tx.transaction.create({
         data: {
           completedAt: null,
@@ -1550,8 +1633,9 @@ export async function submitTransaction(
           dueDate: input.dueDate ?? null,
           internalRequest: input.internalRequest ?? false,
           note,
+          projectId,
           projectRequest: input.projectRequest ?? false,
-          purpose,
+          purpose: requestPurpose,
           requestDate: input.requestDate,
           requestedById: user.id,
           serviceRequest: input.serviceRequest ?? false,
@@ -1575,6 +1659,13 @@ export async function submitTransaction(
           transactionId: transaction.id,
         })),
       });
+
+      for (const item of items) {
+        if (isQuantityAsset(item.asset)) {
+          await consumeQuantityReservation(tx, item, user.id);
+          await refreshQuantityRequestStatus(tx, item.asset.id, user.id);
+        }
+      }
 
       if (approvals.length > 0) {
         await tx.transactionApproval.createMany({
@@ -1654,6 +1745,12 @@ async function applyApprovedTransaction(
           : TransactionWorkflowStatus.IN_PROGRESS,
     },
   });
+
+  for (const item of transaction.items) {
+    if (isQuantityTransactionItem(item)) {
+      await refreshQuantityRequestStatus(tx, item.assetId, userId);
+    }
+  }
 }
 
 async function applyApprovedReturnSaleTransaction(
@@ -1889,7 +1986,7 @@ async function releaseRejectedTransactionItems(
     };
 
     if (isQuantityTransactionItem(item)) {
-      await releaseQuantityReservation(tx, workflowItem, transaction.requestedBy.id);
+      await refreshQuantityRequestStatus(tx, item.assetId, userId);
     } else {
       await releaseHeldAsset(tx, workflowItem.asset, transaction.requestedBy.id);
     }
@@ -1964,71 +2061,19 @@ export type UpdatePendingTransactionRequestInput = {
   items?: RequestAssetItemInput[];
   internalRequest?: boolean;
   note?: string | null;
+  projectId?: string | null;
   projectRequest?: boolean;
   purpose: string;
   serviceRequest?: boolean;
   type: TransactionType;
 };
 
-async function updatePendingQuantityReservation(
-  tx: Prisma.TransactionClient,
-  item: WorkflowRequestItem,
-  userId: string,
-  nextQuantity: number,
-  previousQuantity: number,
-) {
-  const reservation = await tx.assetReservation.findUnique({
-    where: {
-      assetId_userId: {
-        assetId: item.asset.id,
-        userId,
-      },
-    },
-  });
-
-  if (!reservation || reservation.quantity < previousQuantity) {
-    throw new WorkflowError(
-      `Asset ${assetDisplayName(item.asset)} reservation changed before edit.`,
-      409,
-      "ASSET_RESERVATION_CONFLICT",
-    );
-  }
-
-  const delta = nextQuantity - previousQuantity;
-
-  if (delta === 0) {
-    return;
-  }
-
-  if (delta > 0) {
-    await tx.assetReservation.update({
-      data: { quantity: { increment: delta } },
-      where: { id: reservation.id },
-    });
-    await refreshQuantityRequestStatus(tx, item.asset.id, userId);
-    return;
-  }
-
-  const decrement = Math.abs(delta);
-
-  if (reservation.quantity === decrement) {
-    await tx.assetReservation.delete({ where: { id: reservation.id } });
-  } else {
-    await tx.assetReservation.update({
-      data: { quantity: { decrement } },
-      where: { id: reservation.id },
-    });
-  }
-
-  await refreshQuantityRequestStatus(tx, item.asset.id, userId);
-}
-
 export async function updatePendingTransactionRequest(
   user: CurrentUser,
   transactionId: string,
   input: UpdatePendingTransactionRequestInput,
 ) {
-  const purpose = requireText(input.purpose, "Use detail");
+  const purpose = requireText(input.purpose, input.projectRequest ? "Project" : "Customer Name");
   const note = cleanText(input.note);
   const toStatus = getTransactionAssetStatus(input.type);
   const requestedItems = input.items ? normalizeRequestItems(input) : null;
@@ -2049,13 +2094,49 @@ export async function updatePendingTransactionRequest(
         throw new WorkflowError("This request is locked because approval has already started.", 409);
       }
 
+      if (input.type === TransactionType.USING && !input.internalRequest) {
+        throw new WorkflowError("Using requests must be Internal.");
+      }
+
+      if (input.type !== TransactionType.USING) {
+        if (input.internalRequest) {
+          throw new WorkflowError("Borrow and sold requests must be Service or Project only.");
+        }
+
+        if (Boolean(input.serviceRequest) === Boolean(input.projectRequest)) {
+          throw new WorkflowError("Choose either Service or Project.");
+        }
+      }
+
+      let requestPurpose = purpose;
+      let projectId = cleanText(input.projectId);
+
+      if (input.projectRequest) {
+        const project = await tx.project.findFirst({
+          where: { id: projectId ?? "", status: "ACTIVE" },
+          select: { id: true, name: true },
+        });
+
+        if (!project) {
+          throw new WorkflowError("Project not found or inactive.", 404, "PROJECT_NOT_FOUND");
+        }
+
+        projectId = project.id;
+        requestPurpose = project.name;
+      } else {
+        projectId = null;
+      }
+
+      const approvalInput = { ...input, projectId, purpose: requestPurpose };
+
       await tx.transaction.update({
         where: { id: transactionId },
         data: {
           internalRequest: input.internalRequest ?? false,
           note,
+          projectId,
           projectRequest: input.projectRequest ?? false,
-          purpose,
+          purpose: requestPurpose,
           serviceRequest: input.serviceRequest ?? false,
           type: input.type,
         },
@@ -2075,7 +2156,7 @@ export async function updatePendingTransactionRequest(
         await replaceTransactionApprovals(
           tx,
           transactionId,
-          await buildApprovalCandidates(tx, requester, { ...input, requestDate: transaction.requestDate }, workflowItems),
+          await buildApprovalCandidates(tx, requester, { ...approvalInput, requestDate: transaction.requestDate }, workflowItems),
         );
 
         return findTransactionDetail(tx, transactionId);
@@ -2161,6 +2242,8 @@ export async function updatePendingTransactionRequest(
         previousByAssetId.has(item.asset.id),
       );
 
+      const quantityAssetIdsToRefresh = new Set<string>();
+
       for (const removed of removedItems) {
         const workflowItem = {
           asset: removed.asset as unknown as WorkflowAsset,
@@ -2168,7 +2251,7 @@ export async function updatePendingTransactionRequest(
         };
 
         if (isQuantityTransactionItem(removed)) {
-          await releaseQuantityReservation(tx, workflowItem, transaction.requestedBy.id);
+          quantityAssetIdsToRefresh.add(removed.assetId);
         } else {
           await releaseHeldAsset(tx, workflowItem.asset, transaction.requestedBy.id);
         }
@@ -2176,27 +2259,15 @@ export async function updatePendingTransactionRequest(
 
       for (const added of addedItems) {
         if (isQuantityAsset(added.asset)) {
-          await reserveQuantityAsset(tx, added, user, note);
+          quantityAssetIdsToRefresh.add(added.asset.id);
         } else {
           await holdAsset(tx, added.asset, user, new Date());
         }
       }
 
       for (const kept of keptItems) {
-        const previous = previousByAssetId.get(kept.asset.id);
-
-        if (!previous) {
-          continue;
-        }
-
         if (isQuantityAsset(kept.asset)) {
-          await updatePendingQuantityReservation(
-            tx,
-            kept,
-            transaction.requestedBy.id,
-            kept.quantity,
-            previous.requestedQuantity,
-          );
+          quantityAssetIdsToRefresh.add(kept.asset.id);
         }
       }
 
@@ -2241,11 +2312,15 @@ export async function updatePendingTransactionRequest(
         });
       }
 
+      for (const assetId of quantityAssetIdsToRefresh) {
+        await refreshQuantityRequestStatus(tx, assetId, user.id);
+      }
+
       const requester = await requireWorkflowUserById(tx, transaction.requestedBy.id);
       await replaceTransactionApprovals(
         tx,
         transactionId,
-        await buildApprovalCandidates(tx, requester, { ...input, requestDate: transaction.requestDate }, nextItems),
+        await buildApprovalCandidates(tx, requester, { ...approvalInput, requestDate: transaction.requestDate }, nextItems),
       );
 
       const historyRows = [
@@ -2360,6 +2435,7 @@ async function createReturnSaleApprovalTransaction(
       quantity: item.quantity,
     })),
     note,
+    projectId: sourceTransaction.projectId,
     projectRequest: sourceTransaction.projectRequest,
     purpose: sourceTransaction.purpose,
     requestDate: now,
@@ -2381,6 +2457,7 @@ async function createReturnSaleApprovalTransaction(
       dueDate: null,
       internalRequest: false,
       note,
+      projectId: sourceTransaction.projectId,
       projectRequest: sourceTransaction.projectRequest,
       purpose: sourceTransaction.purpose,
       requestDate: now,

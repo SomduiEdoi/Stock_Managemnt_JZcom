@@ -43,8 +43,15 @@ export type RequestCartAssetClient = {
   totalQuantity: number;
 };
 
+export type RequestCartProjectClient = {
+  id: string;
+  name: string;
+  projectId: string | null;
+};
+
 type RequestCartClientProps = {
   initialAssets: RequestCartAssetClient[];
+  projects: RequestCartProjectClient[];
 };
 
 
@@ -52,11 +59,7 @@ function formatDomain(domainCode: string) {
   return domainCode.charAt(0) + domainCode.slice(1).toLowerCase();
 }
 
-function getReferenceLabel() {
-  return "Customer Name";
-}
-
-function getReferencePlaceholder() {
+function getServiceReferencePlaceholder() {
   return "Enter customer name";
 }
 
@@ -200,12 +203,15 @@ function TransactionForm({
   isSubmitting,
   note,
   onNoteChange,
+  onProjectChange,
   onProjectRequestChange,
   onReferenceChange,
   onServiceRequestChange,
   onSubmit,
   onTypeChange,
+  projectId,
   projectRequest,
+  projects,
   referenceName,
   serviceRequest,
   type,
@@ -215,17 +221,26 @@ function TransactionForm({
   isSubmitting: boolean;
   note: string;
   onNoteChange: (value: string) => void;
+  onProjectChange: (value: string) => void;
   onProjectRequestChange: (checked: boolean) => void;
   onReferenceChange: (value: string) => void;
   onServiceRequestChange: (checked: boolean) => void;
   onSubmit: () => void;
   onTypeChange: (value: TransactionTypeCode) => void;
+  projectId: string;
   projectRequest: boolean;
+  projects: RequestCartProjectClient[];
   referenceName: string;
   serviceRequest: boolean;
   type: TransactionTypeCode;
 }) {
   const showReferenceName = type !== "USING";
+  const projectOptions = projects.map((project) => ({
+    description: project.projectId ?? undefined,
+    label: project.name,
+    searchText: [project.name, project.projectId].filter(Boolean).join(" "),
+    value: project.id,
+  }));
 
   return (
     <aside className="flex flex-col gap-4">
@@ -277,18 +292,33 @@ function TransactionForm({
               </div>
             )}
           </div>
-          {showReferenceName ? (
-          <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-            <span>
-              {getReferenceLabel()} <RequiredMark />
-            </span>
-            <input
-              className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold normal-case tracking-normal text-ink outline-none ring-brand-accent/20 focus:ring-4"
-              onChange={(event) => onReferenceChange(event.target.value)}
-              placeholder={getReferencePlaceholder()}
-              value={referenceName}
-            />
-          </label>
+          {showReferenceName && serviceRequest ? (
+            <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              <span>
+                Customer Name <RequiredMark />
+              </span>
+              <input
+                className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold normal-case tracking-normal text-ink outline-none ring-brand-accent/20 focus:ring-4"
+                onChange={(event) => onReferenceChange(event.target.value)}
+                placeholder={getServiceReferencePlaceholder()}
+                value={referenceName}
+              />
+            </label>
+          ) : null}
+          {showReferenceName && projectRequest ? (
+            <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              <span>
+                Project <RequiredMark />
+              </span>
+              <SearchableDropdown
+                emptyText="No active projects found."
+                onChange={onProjectChange}
+                options={projectOptions}
+                placeholder="Select project"
+                searchPlaceholder="Search project"
+                value={projectId}
+              />
+            </label>
           ) : null}
           <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
             <span>
@@ -433,7 +463,7 @@ async function readApiMessage(response: Response) {
   return data;
 }
 
-export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
+export function RequestCartClient({ initialAssets, projects }: RequestCartClientProps) {
   const [assets, setAssets] = useState(initialAssets);
   const [error, setError] = useState<string | null>(null);
   const [type, setType] = useState<TransactionTypeCode>("BORROW");
@@ -441,6 +471,7 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
   const [isClearing, setIsClearing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [note, setNote] = useState("");
+  const [projectId, setProjectId] = useState("");
   const [projectRequest, setProjectRequest] = useState(false);
   const [referenceName, setReferenceName] = useState("");
   const [removingAssetId, setRemovingAssetId] = useState<string | null>(null);
@@ -454,6 +485,7 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
       setServiceRequest(false);
       setProjectRequest(false);
       setReferenceName("");
+      setProjectId("");
     }
 
   }
@@ -463,6 +495,7 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
 
     if (checked) {
       setProjectRequest(false);
+      setProjectId("");
     }
   }
 
@@ -471,6 +504,7 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
 
     if (checked) {
       setServiceRequest(false);
+      setReferenceName("");
     }
   }
 
@@ -525,8 +559,12 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
       missingFields.push("Request list");
     }
 
-    if (type !== "USING" && !referenceName.trim()) {
-      missingFields.push(getReferenceLabel());
+    if (type !== "USING" && serviceRequest && !referenceName.trim()) {
+      missingFields.push("Customer Name");
+    }
+
+    if (type !== "USING" && projectRequest && !projectId) {
+      missingFields.push("Project");
     }
 
     if (!note.trim()) {
@@ -576,8 +614,9 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
           dueDate: null,
           internalRequest,
           note,
+          projectId: type === "USING" || !projectRequest ? null : projectId,
           projectRequest: type === "USING" ? false : projectRequest,
-          purpose: type === "USING" ? "Internal use" : referenceName,
+          purpose: type === "USING" ? "Internal use" : projectRequest ? projects.find((project) => project.id === projectId)?.name ?? "Project" : referenceName,
           serviceRequest: type === "USING" ? false : serviceRequest,
           soldPrice: null,
           type,
@@ -612,12 +651,15 @@ export function RequestCartClient({ initialAssets }: RequestCartClientProps) {
           isSubmitting={isSubmitting}
           note={note}
           onNoteChange={setNote}
+          onProjectChange={setProjectId}
           onProjectRequestChange={handleProjectRequestChange}
           onReferenceChange={setReferenceName}
           onServiceRequestChange={handleServiceRequestChange}
           onSubmit={handleSubmit}
           onTypeChange={handleTypeChange}
+          projectId={projectId}
           projectRequest={projectRequest}
+          projects={projects}
           referenceName={referenceName}
           serviceRequest={serviceRequest}
           type={type}

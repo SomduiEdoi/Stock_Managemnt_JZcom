@@ -11,8 +11,11 @@ export type ProjectUserOption = {
 };
 
 export type ProjectRow = {
+  canDelete: boolean;
+  canManage: boolean;
   id: string;
   lead: ProjectUserOption | null;
+  leads: ProjectUserOption[];
   members: ProjectUserOption[];
   name: string;
   projectId: string | null;
@@ -20,15 +23,17 @@ export type ProjectRow = {
 };
 
 export type ProjectManagementData = {
+  canCreate: boolean;
   projects: ProjectRow[];
   users: ProjectUserOption[];
 };
 
 export type UpsertProjectInput = {
-  leadUserId: string;
+  leadUserId?: string;
+  leadUserIds?: string[];
   memberUserIds: string[];
-  name: string;
-  projectId: string;
+  name?: string;
+  projectId?: string;
   status?: ProjectStatus;
 };
 
@@ -36,12 +41,11 @@ const projectSelect = Prisma.validator<Prisma.ProjectSelect>()({
   id: true,
   leadUser: { select: { email: true, id: true, name: true } },
   members: {
-    orderBy: { user: { name: "asc" } },
+    orderBy: [{ projectTag: "asc" }, { user: { name: "asc" } }],
     select: {
       projectTag: true,
       user: { select: { email: true, id: true, name: true } },
     },
-    where: { projectTag: ProjectMemberTag.TEAM_MEMBER },
   },
   name: true,
   projectId: true,
@@ -49,12 +53,6 @@ const projectSelect = Prisma.validator<Prisma.ProjectSelect>()({
 });
 
 type ProjectRecord = Prisma.ProjectGetPayload<{ select: typeof projectSelect }>;
-
-function ensureAdmin(user: CurrentUser) {
-  if (!hasRole(user, "ADMIN")) {
-    throw new WorkflowError("Only admin users can manage projects.", 403, "FORBIDDEN");
-  }
-}
 
 function cleanText(value: string | null | undefined) {
   const trimmed = value?.trim();
@@ -79,11 +77,44 @@ function requireText(value: string | null | undefined, label: string) {
   return text;
 }
 
-function toProjectRow(project: ProjectRecord): ProjectRow {
+function hasProjectLeadPermission(user: CurrentUser, project: Pick<ProjectRecord, "leadUser" | "members">) {
+  return (
+    project.leadUser?.id === user.id ||
+    project.members.some(
+      (member) => member.projectTag === ProjectMemberTag.LEAD_PROJECT && member.user.id === user.id,
+    )
+  );
+}
+
+function canManageProject(user: CurrentUser, project: Pick<ProjectRecord, "leadUser" | "members">) {
+  return hasRole(user, "ADMIN") || (hasRole(user, "USER") && hasProjectLeadPermission(user, project));
+}
+
+function toUniqueUsers(users: ProjectUserOption[]) {
+  const seen = new Set<string>();
+  return users.filter((user) => {
+    if (seen.has(user.id)) return false;
+    seen.add(user.id);
+    return true;
+  });
+}
+
+function toProjectRow(project: ProjectRecord, user: CurrentUser): ProjectRow {
+  const leadMembers = project.members
+    .filter((member) => member.projectTag === ProjectMemberTag.LEAD_PROJECT)
+    .map((member) => member.user);
+  const leads = toUniqueUsers(project.leadUser ? [project.leadUser, ...leadMembers] : leadMembers);
+  const canManage = canManageProject(user, project);
+
   return {
+    canDelete: canManage,
+    canManage,
     id: project.id,
-    lead: project.leadUser,
-    members: project.members.map((member) => member.user),
+    lead: leads[0] ?? null,
+    leads,
+    members: project.members
+      .filter((member) => member.projectTag === ProjectMemberTag.TEAM_MEMBER)
+      .map((member) => member.user),
     name: project.name,
     projectId: project.projectId,
     status: project.status,
@@ -118,23 +149,19 @@ async function assertUserOptions(userIds: string[]) {
   const foundIds = new Set(users.map((entry) => entry.id));
 
   if (foundIds.size !== uniqueIds.length) {
-    throw new WorkflowError("Lead Project and Team Member must be active User accounts.");
+    throw new WorkflowError("Lead Team and Team Member must be active User accounts.");
   }
 
   return foundIds;
 }
 
-function normalizeProjectInput(input: UpsertProjectInput, requireStatus = false) {
+function normalizeCreateProjectInput(input: UpsertProjectInput) {
   const name = requireText(input.name, "Project name");
   const projectId = requireText(input.projectId, "Project ID").toUpperCase();
-  const leadUserId = cleanText(input.leadUserId);
+  const leadUserIds = [...new Set([...(input.leadUserIds ?? []), input.leadUserId].filter(Boolean) as string[])];
 
-  if (!leadUserId) {
-    throw new WorkflowError("Lead Project is required.");
-  }
-
-  if (requireStatus && !input.status) {
-    throw new WorkflowError("Project status is required.");
+  if (leadUserIds.length === 0) {
+    throw new WorkflowError("Lead Team is required.");
   }
 
   const status = input.status ?? ProjectStatus.ACTIVE;
@@ -142,14 +169,32 @@ function normalizeProjectInput(input: UpsertProjectInput, requireStatus = false)
     throw new WorkflowError("Project status must be Active or Closed.");
   }
 
-  const memberUserIds = [...new Set(input.memberUserIds.filter((id) => id && id !== leadUserId))];
+  const memberUserIds = [...new Set(input.memberUserIds.filter((id) => id && !leadUserIds.includes(id)))];
 
-  return { leadUserId, memberUserIds, name, projectId, status };
+  return { leadUserIds, memberUserIds, name, projectId, status };
 }
 
-export async function getProjectManagementForAdmin(user: CurrentUser): Promise<ProjectManagementData> {
-  ensureAdmin(user);
+function normalizeUpdateProjectInput(input: UpsertProjectInput) {
+  const leadUserIds = [...new Set([...(input.leadUserIds ?? []), input.leadUserId].filter(Boolean) as string[])];
 
+  if (leadUserIds.length === 0) {
+    throw new WorkflowError("Lead Team is required.");
+  }
+
+  if (!input.status) {
+    throw new WorkflowError("Project status is required.");
+  }
+
+  if (![ProjectStatus.ACTIVE, ProjectStatus.CLOSED].includes(input.status)) {
+    throw new WorkflowError("Project status must be Active or Closed.");
+  }
+
+  const memberUserIds = [...new Set(input.memberUserIds.filter((id) => id && !leadUserIds.includes(id)))];
+
+  return { leadUserIds, memberUserIds, status: input.status };
+}
+
+export async function getProjectManagementData(user: CurrentUser): Promise<ProjectManagementData> {
   const [projects, users] = await Promise.all([
     db.project.findMany({
       orderBy: [{ status: "asc" }, { updatedAt: "desc" }, { name: "asc" }],
@@ -159,15 +204,21 @@ export async function getProjectManagementForAdmin(user: CurrentUser): Promise<P
   ]);
 
   return {
-    projects: projects.map(toProjectRow),
+    canCreate: hasRole(user, "ADMIN"),
+    projects: projects.map((project) => toProjectRow(project, user)),
     users,
   };
 }
 
+export const getProjectManagementForAdmin = getProjectManagementData;
+
 export async function createProjectForAdmin(user: CurrentUser, input: UpsertProjectInput) {
-  ensureAdmin(user);
-  const clean = normalizeProjectInput(input);
-  await assertUserOptions([clean.leadUserId, ...clean.memberUserIds]);
+  if (!hasRole(user, "ADMIN")) {
+    throw new WorkflowError("Only admin users can create projects.", 403, "FORBIDDEN");
+  }
+
+  const clean = normalizeCreateProjectInput(input);
+  await assertUserOptions([...clean.leadUserIds, ...clean.memberUserIds]);
 
   const duplicate = await db.project.findFirst({
     select: { id: true },
@@ -181,7 +232,7 @@ export async function createProjectForAdmin(user: CurrentUser, input: UpsertProj
   const project = await db.$transaction(async (tx) => {
     const created = await tx.project.create({
       data: {
-        leadUserId: clean.leadUserId,
+        leadUserId: clean.leadUserIds[0],
         name: clean.name,
         projectId: clean.projectId,
         status: clean.status,
@@ -189,16 +240,21 @@ export async function createProjectForAdmin(user: CurrentUser, input: UpsertProj
       select: { id: true },
     });
 
-    if (clean.memberUserIds.length > 0) {
-      await tx.projectMember.createMany({
-        data: clean.memberUserIds.map((memberId) => ({
+    await tx.projectMember.createMany({
+      data: [
+        ...clean.leadUserIds.map((leadId) => ({
+          projectId: created.id,
+          projectTag: ProjectMemberTag.LEAD_PROJECT,
+          userId: leadId,
+        })),
+        ...clean.memberUserIds.map((memberId) => ({
           projectId: created.id,
           projectTag: ProjectMemberTag.TEAM_MEMBER,
           userId: memberId,
         })),
-        skipDuplicates: true,
-      });
-    }
+      ],
+      skipDuplicates: true,
+    });
 
     return tx.project.findUniqueOrThrow({
       select: projectSelect,
@@ -206,7 +262,7 @@ export async function createProjectForAdmin(user: CurrentUser, input: UpsertProj
     });
   });
 
-  return toProjectRow(project);
+  return toProjectRow(project, user);
 }
 
 export async function updateProjectForAdmin(
@@ -214,12 +270,11 @@ export async function updateProjectForAdmin(
   projectId: string,
   input: UpsertProjectInput,
 ) {
-  ensureAdmin(user);
-  const clean = normalizeProjectInput(input, true);
-  await assertUserOptions([clean.leadUserId, ...clean.memberUserIds]);
+  const clean = normalizeUpdateProjectInput(input);
+  await assertUserOptions([...clean.leadUserIds, ...clean.memberUserIds]);
 
   const existing = await db.project.findUnique({
-    select: { id: true },
+    select: projectSelect,
     where: { id: projectId },
   });
 
@@ -227,40 +282,36 @@ export async function updateProjectForAdmin(
     throw new WorkflowError("Project not found.", 404);
   }
 
-  const duplicate = await db.project.findFirst({
-    select: { id: true },
-    where: { id: { not: projectId }, projectId: clean.projectId },
-  });
-
-  if (duplicate) {
-    throw new WorkflowError("Project ID already exists.", 409, "DUPLICATE_PROJECT");
+  if (!canManageProject(user, existing)) {
+    throw new WorkflowError("Only admin users or project leads can manage this project.", 403, "FORBIDDEN");
   }
 
   const project = await db.$transaction(async (tx) => {
     await tx.project.update({
       data: {
-        leadUserId: clean.leadUserId,
-        name: clean.name,
-        projectId: clean.projectId,
+        leadUserId: clean.leadUserIds[0],
         status: clean.status,
       },
       where: { id: projectId },
     });
 
-    await tx.projectMember.deleteMany({
-      where: { projectId, projectTag: ProjectMemberTag.TEAM_MEMBER },
-    });
+    await tx.projectMember.deleteMany({ where: { projectId } });
 
-    if (clean.memberUserIds.length > 0) {
-      await tx.projectMember.createMany({
-        data: clean.memberUserIds.map((memberId) => ({
+    await tx.projectMember.createMany({
+      data: [
+        ...clean.leadUserIds.map((leadId) => ({
+          projectId,
+          projectTag: ProjectMemberTag.LEAD_PROJECT,
+          userId: leadId,
+        })),
+        ...clean.memberUserIds.map((memberId) => ({
           projectId,
           projectTag: ProjectMemberTag.TEAM_MEMBER,
           userId: memberId,
         })),
-        skipDuplicates: true,
-      });
-    }
+      ],
+      skipDuplicates: true,
+    });
 
     return tx.project.findUniqueOrThrow({
       select: projectSelect,
@@ -268,19 +319,21 @@ export async function updateProjectForAdmin(
     });
   });
 
-  return toProjectRow(project);
+  return toProjectRow(project, user);
 }
 
 export async function deleteProjectForAdmin(user: CurrentUser, projectId: string) {
-  ensureAdmin(user);
-
   const existing = await db.project.findUnique({
-    select: { id: true, name: true, projectId: true },
+    select: projectSelect,
     where: { id: projectId },
   });
 
   if (!existing) {
     throw new WorkflowError("Project not found.", 404);
+  }
+
+  if (!canManageProject(user, existing)) {
+    throw new WorkflowError("Only admin users or project leads can delete this project.", 403, "FORBIDDEN");
   }
 
   await db.project.delete({ where: { id: projectId } });

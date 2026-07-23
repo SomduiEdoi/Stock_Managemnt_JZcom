@@ -7,7 +7,8 @@ import { PermissionError } from "@/lib/permissions";
 import { WorkflowError } from "@/lib/workflow";
 
 const projectSchema = z.object({
-  leadUserId: z.string().trim().uuid("Lead Project is required."),
+  leadUserId: z.string().trim().uuid().optional(),
+  leadUserIds: z.array(z.string().trim().uuid()).default([]),
   memberUserIds: z.array(z.string().trim().uuid()).default([]),
   name: z.string().trim().min(1, "Project name is required."),
   projectId: z.string().trim().min(1, "Project ID is required."),

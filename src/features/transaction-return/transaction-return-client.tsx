@@ -48,6 +48,7 @@ export type TransactionReturnRecord = {
   items: TransactionReturnItem[];
   kindLabel: string;
   note: string | null;
+  projectId: string | null;
   projectRequest: boolean;
   purpose: string | null;
   rejectBlockedReason: string | null;
@@ -96,9 +97,17 @@ function fallback(value: string | null | undefined) {
   return value?.trim() ? value : "-";
 }
 
+type TransactionProjectOption = {
+  id: string;
+  name: string;
+  projectId: string | null;
+};
+
 export function TransactionReturnClient({
+  projects,
   transaction,
 }: {
+  projects: TransactionProjectOption[];
   transaction: TransactionReturnRecord;
 }) {
   const router = useRouter();
@@ -111,6 +120,7 @@ export function TransactionReturnClient({
   const [rejectReason, setRejectReason] = useState("");
   const [remark, setRemark] = useState("");
   const [approvalMode, setApprovalMode] = useState<"APPROVE" | "REJECT" | null>(null);
+  const [editProjectId, setEditProjectId] = useState(transaction.projectId ?? "");
   const [editPurpose, setEditPurpose] = useState(transaction.purpose ?? "");
   const [editNote, setEditNote] = useState(transaction.note ?? "");
   const [editType, setEditType] = useState<TransactionType>(transaction.type);
@@ -138,10 +148,16 @@ export function TransactionReturnClient({
     () => transaction.items.filter((item) => !item.resolvedAt),
     [transaction.items],
   );
+  const projectOptions = projects.map((project) => ({
+    description: project.projectId ?? undefined,
+    label: project.name,
+    searchText: [project.name, project.projectId].filter(Boolean).join(" "),
+    value: project.id,
+  }));
 
   async function savePendingEdit() {
-    if (!editPurpose.trim()) {
-      setError("Use detail is required.");
+    if ((editScope === "project" && !editProjectId) || (editScope !== "project" && !editPurpose.trim())) {
+      setError(editScope === "project" ? "Project is required." : "Customer Name is required.");
       return;
     }
 
@@ -157,8 +173,9 @@ export function TransactionReturnClient({
           })),
           internalRequest: editScope === "internal",
           note: editNote.trim() || null,
+          projectId: editScope === "project" ? editProjectId : null,
           projectRequest: editScope === "project",
-          purpose: editPurpose.trim(),
+          purpose: editScope === "project" ? projects.find((project) => project.id === editProjectId)?.name ?? "Project" : editPurpose.trim(),
           serviceRequest: editScope === "service",
           type: editType,
         }),
@@ -409,19 +426,42 @@ export function TransactionReturnClient({
                 value={editType}
               />
             </label>
-            <label className="flex flex-col gap-2">
-              <span className="text-xs font-bold uppercase text-ink">Use Detail</span>
-              <input
-                className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold text-ink outline-none ring-brand-accent/20 focus:ring-4"
-                onChange={(event) => setEditPurpose(event.target.value)}
-                value={editPurpose}
-              />
-            </label>
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-bold uppercase text-ink">
+                {editType === "USING" ? "Internal" : editScope === "project" ? "Project" : "Customer Name"}
+              </span>
+              {editType === "USING" ? (
+                <div className="flex h-11 items-center rounded-md border border-border bg-surface/40 px-3 text-sm font-semibold text-navy">
+                  Internal use
+                </div>
+              ) : editScope === "project" ? (
+                <SearchableDropdown
+                  emptyText="No active projects found."
+                  onChange={setEditProjectId}
+                  options={projectOptions}
+                  placeholder="Select project"
+                  searchPlaceholder="Search project"
+                  value={editProjectId}
+                />
+              ) : (
+                <input
+                  className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold text-ink outline-none ring-brand-accent/20 focus:ring-4"
+                  onChange={(event) => setEditPurpose(event.target.value)}
+                  placeholder="Enter customer name"
+                  value={editPurpose}
+                />
+              )}
+            </div>
             <label className="flex flex-col gap-2">
               <span className="text-xs font-bold uppercase text-ink">Scope</span>
               <SearchableDropdown
                 disabled={editType === "USING"}
-                onChange={(value) => setEditScope(value as "internal" | "service" | "project")}
+                onChange={(value) => {
+                        const nextScope = value as "internal" | "service" | "project";
+                        setEditScope(nextScope);
+                        if (nextScope !== "project") setEditProjectId("");
+                        if (nextScope === "project" || nextScope === "internal") setEditPurpose("");
+                      }}
                 options={editType === "USING"
                   ? [{ label: "Internal", value: "internal" }]
                   : [

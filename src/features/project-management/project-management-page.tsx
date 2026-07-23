@@ -21,7 +21,7 @@ import type { ProjectRow, ProjectUserOption } from "@/lib/project-management";
 type ProjectStatus = "ACTIVE" | "CLOSED";
 
 type ProjectFormState = {
-  leadUserId: string;
+  leadUserIds: string[];
   memberUserIds: string[];
   name: string;
   projectId: string;
@@ -36,7 +36,7 @@ type DialogState =
 
 function emptyForm(): ProjectFormState {
   return {
-    leadUserId: "",
+    leadUserIds: [],
     memberUserIds: [],
     name: "",
     projectId: "",
@@ -46,7 +46,7 @@ function emptyForm(): ProjectFormState {
 
 function toForm(project: ProjectRow): ProjectFormState {
   return {
-    leadUserId: project.lead?.id ?? "",
+    leadUserIds: project.leads.map((lead) => lead.id),
     memberUserIds: project.members.map((member) => member.id),
     name: project.name,
     projectId: project.projectId ?? "",
@@ -186,46 +186,51 @@ function SearchableUserSelect({
   );
 }
 
-function MemberPicker({
-  leadUserId,
-  memberUserIds,
+function UserMultiPicker({
+  disabledIds = [],
+  label,
   onChange,
   options,
+  required = false,
+  selectedIds,
 }: {
-  leadUserId: string;
-  memberUserIds: string[];
+  disabledIds?: string[];
+  label: string;
   onChange: (value: string[]) => void;
   options: ProjectUserOption[];
+  required?: boolean;
+  selectedIds: string[];
 }) {
   const [candidateId, setCandidateId] = useState("");
-  const selectedMembers = memberUserIds
+  const selectedUsers = selectedIds
     .map((id) => options.find((option) => option.id === id))
     .filter(Boolean) as ProjectUserOption[];
 
   return (
     <div className="md:col-span-2">
       <SearchableUserSelect
-        disabledIds={[leadUserId, ...memberUserIds].filter(Boolean)}
-        label="Team Member"
+        disabledIds={[...disabledIds, ...selectedIds].filter(Boolean)}
+        label={label}
         onChange={(id) => {
           if (!id) return;
-          onChange([...memberUserIds, id]);
+          onChange([...selectedIds, id]);
           setCandidateId("");
         }}
         options={options}
+        required={required}
         value={candidateId}
       />
-      {selectedMembers.length > 0 ? (
+      {selectedUsers.length > 0 ? (
         <div className="mt-3 flex flex-wrap gap-2">
-          {selectedMembers.map((member) => (
+          {selectedUsers.map((user) => (
             <span
               className="inline-flex items-center gap-2 rounded-full bg-surface px-3 py-1 text-sm font-bold text-navy"
-              key={member.id}
+              key={user.id}
             >
-              {member.name}
+              {user.name}
               <button
                 className="text-muted-foreground hover:text-status-fail"
-                onClick={() => onChange(memberUserIds.filter((id) => id !== member.id))}
+                onClick={() => onChange(selectedIds.filter((id) => id !== user.id))}
                 type="button"
               >
                 <X className="h-3.5 w-3.5" />
@@ -268,7 +273,7 @@ function ProjectFormModal({
     const missingFields = [];
     if (!form.name.trim()) missingFields.push("Project Name");
     if (!form.projectId.trim()) missingFields.push("Project ID");
-    if (!form.leadUserId) missingFields.push("Lead Project");
+    if (form.leadUserIds.length === 0) missingFields.push("Lead Project");
 
     if (missingFields.length > 0) {
       setError(`Required fields missing: ${missingFields.join(", ")}.`);
@@ -281,7 +286,7 @@ function ProjectFormModal({
     try {
       const response = await fetch(mode === "EDIT" ? `/api/projects/${projectId}` : "/api/projects", {
         body: JSON.stringify({
-          leadUserId: form.leadUserId,
+          leadUserIds: form.leadUserIds,
           memberUserIds: form.memberUserIds,
           name: form.name.trim(),
           projectId: form.projectId.trim().toUpperCase(),
@@ -317,6 +322,7 @@ function ProjectFormModal({
         <Field label="Project Name" required>
           <input
             className={inputClass()}
+            disabled={mode === "EDIT"}
             onChange={(event) => setField("name", event.target.value)}
             type="text"
             value={form.name}
@@ -326,44 +332,46 @@ function ProjectFormModal({
         <Field label="Project ID" required>
           <input
             className={inputClass()}
+            disabled={mode === "EDIT"}
             onChange={(event) => setField("projectId", event.target.value.toUpperCase())}
             type="text"
             value={form.projectId}
           />
         </Field>
 
-        <div className="md:col-span-2">
-          <SearchableUserSelect
-            disabledIds={form.memberUserIds}
-            label="Lead Project"
-            onChange={(id) => setField("leadUserId", id)}
-            options={userOptions}
-            required
-            value={form.leadUserId}
-          />
-        </div>
+        <UserMultiPicker
+          disabledIds={form.memberUserIds}
+          label="Lead Project"
+          onChange={(ids) => setField("leadUserIds", ids)}
+          options={userOptions}
+          required
+          selectedIds={form.leadUserIds}
+        />
 
-        {mode === "EDIT" ? (
-          <Field label="Project Status" required>
-            <SearchableDropdown
-              onChange={(value) => setField("status", value as ProjectStatus)}
-              options={[
-                { label: "Active", value: "ACTIVE" },
-                { label: "Closed", value: "CLOSED" },
-              ]}
-              placeholder="Select project status"
-              searchPlaceholder="Search status"
-              value={form.status}
-            />
-          </Field>
-        ) : null}
-
-        <MemberPicker
-          leadUserId={form.leadUserId}
-          memberUserIds={form.memberUserIds}
+        <UserMultiPicker
+          disabledIds={form.leadUserIds}
+          label="Team Member"
           onChange={(ids) => setField("memberUserIds", ids)}
           options={userOptions}
+          selectedIds={form.memberUserIds}
         />
+
+        {mode === "EDIT" ? (
+          <div className="md:col-span-2">
+            <Field label="Project Status" required>
+              <SearchableDropdown
+                onChange={(value) => setField("status", value as ProjectStatus)}
+                options={[
+                  { label: "Active", value: "ACTIVE" },
+                  { label: "Closed", value: "CLOSED" },
+                ]}
+                placeholder="Select project status"
+                searchPlaceholder="Search status"
+                value={form.status}
+              />
+            </Field>
+          </div>
+        ) : null}
       </div>
 
       {error ? (
@@ -513,9 +521,11 @@ function ProjectActionMenu({
 }
 
 export function ProjectManagementPage({
+  canCreate,
   initialProjects,
   userOptions,
 }: {
+  canCreate: boolean;
   initialProjects: ProjectRow[];
   userOptions: ProjectUserOption[];
 }) {
@@ -525,9 +535,9 @@ export function ProjectManagementPage({
   const [query, setQuery] = useState("");
 
   const searchSuggestions = useMemo(() => projects.flatMap((project) => [
-    { category: "PROJECT", label: project.name, searchText: `${project.projectId ?? ""} ${project.lead?.name ?? ""}`, value: project.name },
+    { category: "PROJECT", label: project.name, searchText: `${project.projectId ?? ""} ${project.leads.map((lead) => lead.name).join(" ")}`, value: project.name },
     ...(project.projectId ? [{ category: "ID", label: project.projectId, searchText: project.name, value: project.projectId }] : []),
-    ...(project.lead ? [{ category: "LEAD", label: project.lead.name, searchText: `${project.lead.email} ${project.name}`, value: project.lead.name }] : []),
+    ...(project.leads.map((lead) => ({ category: "LEAD", label: lead.name, searchText: `${lead.email} ${project.name}`, value: lead.name }))),
     ...project.members.map((member) => ({ category: "MEMBER", label: member.name, searchText: `${member.email} ${project.name}`, value: member.name })),
   ]), [projects]);
 
@@ -542,8 +552,8 @@ export function ProjectManagementPage({
       [
         project.name,
         project.projectId ?? "",
-        project.lead?.name ?? "",
-        project.lead?.email ?? "",
+        project.leads.map((lead) => lead.name).join(" "),
+        project.leads.map((lead) => lead.email).join(" "),
         project.status,
         ...project.members.flatMap((member) => [member.name, member.email]),
       ]
@@ -608,14 +618,16 @@ export function ProjectManagementPage({
           value={query}
         />
 
-        <button
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-navy px-4 text-sm font-bold text-white shadow-sm hover:bg-navy/90"
-          onClick={() => setDialog({ type: "ADD" })}
-          type="button"
-        >
-          <Plus className="h-4 w-4" />
-          Add Project
-        </button>
+        {canCreate ? (
+          <button
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-navy px-4 text-sm font-bold text-white shadow-sm hover:bg-navy/90"
+            onClick={() => setDialog({ type: "ADD" })}
+            type="button"
+          >
+            <Plus className="h-4 w-4" />
+            Add Project
+          </button>
+        ) : null}
       </section>
 
       <section className="overflow-hidden rounded-md border border-border bg-white shadow-sm">
@@ -636,8 +648,8 @@ export function ProjectManagementPage({
                 <tr className="align-middle" key={project.id}>
                   <td className="truncate px-5 py-4 font-bold text-navy" title={project.name}>{project.name}</td>
                   <td className="truncate px-5 py-4 font-semibold text-ink" title={project.projectId ?? "-"}>{project.projectId ?? "-"}</td>
-                  <td className="truncate px-5 py-4 text-ink" title={project.lead ? optionLabel(project.lead) : "-"}>
-                    {project.lead?.name ?? "-"}
+                  <td className="truncate px-5 py-4 text-ink" title={project.leads.map(optionLabel).join(", ") || "-"}>
+                    {project.leads.length > 0 ? project.leads.map((lead) => lead.name).join(", ") : "-"}
                   </td>
                   <td className="truncate px-5 py-4 text-ink" title={project.members.map((member) => member.name).join(", ") || "-"}>
                     {project.members.length > 0
@@ -648,10 +660,14 @@ export function ProjectManagementPage({
                     <StatusBadge status={project.status} />
                   </td>
                   <td className="px-5 py-4">
-                    <ProjectActionMenu
-                      onDelete={() => setDialog({ project, type: "DELETE" })}
-                      onEdit={() => setDialog({ project, type: "EDIT" })}
-                    />
+                    {project.canManage ? (
+                      <ProjectActionMenu
+                        onDelete={() => setDialog({ project, type: "DELETE" })}
+                        onEdit={() => setDialog({ project, type: "EDIT" })}
+                      />
+                    ) : (
+                      <span className="text-xs font-semibold text-muted-foreground">Read only</span>
+                    )}
                   </td>
                 </tr>
               ))}

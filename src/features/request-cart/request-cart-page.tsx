@@ -1,4 +1,5 @@
 import { ClipboardList } from "lucide-react";
+import { db } from "@/lib/db";
 import type { CurrentUser } from "@/lib/auth";
 import type { RequestCartAsset } from "@/lib/request-cart";
 import { RequestCartClient, type RequestCartAssetClient } from "./request-cart-client";
@@ -15,12 +16,18 @@ function toClientAsset(asset: RequestCartAsset): RequestCartAssetClient {
   };
 }
 
-export function RequestCartPage({ assets, user }: RequestCartPageProps) {
+export async function RequestCartPage({ assets, user }: RequestCartPageProps) {
   void user;
+  const projects = await db.project.findMany({
+    orderBy: [{ name: "asc" }],
+    select: { id: true, name: true, projectId: true },
+    where: { status: "ACTIVE" },
+  });
 
   return (
     <RequestCartClient
       initialAssets={assets.map(toClientAsset)}
+      projects={projects}
     />
   );
 }

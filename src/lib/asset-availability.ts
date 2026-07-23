@@ -1,4 +1,4 @@
-﻿import {
+import {
   AssetStatus,
   AssetTrackMethod,
   Prisma,
@@ -74,9 +74,14 @@ async function sumOpenTransactionQuantities(
     where: {
       assetId: { in: assetIds },
       returnedAt: null,
-      toStatus: { in: [AssetStatus.BORROW, AssetStatus.USING] },
+      toStatus: { in: [AssetStatus.BORROW, AssetStatus.USING, AssetStatus.SOLD] },
       transaction: {
-        workflowStatus: TransactionWorkflowStatus.IN_PROGRESS,
+        workflowStatus: {
+          in: [
+            TransactionWorkflowStatus.PENDING,
+            TransactionWorkflowStatus.IN_PROGRESS,
+          ],
+        },
       },
     },
   });
