@@ -4,14 +4,14 @@
 
 :root {
   --brand-accent: 14 99% 63%;
-  --surface: 60 13% 92%;
+  --surface: 48 14% 93%;
   --navy: 202 34% 23%;
   --ink: 0 0% 0%;
   --background: var(--surface);
   --foreground: var(--ink);
-  --border: 210 7% 78%;
+  --border: 202 34% 23%;
   --muted: var(--surface);
-  --muted-foreground: 210 7% 28%;
+  --muted-foreground: var(--navy);
   --primary: var(--navy);
   --primary-foreground: 0 0% 100%;
   --status-ready: 142 76% 36%;

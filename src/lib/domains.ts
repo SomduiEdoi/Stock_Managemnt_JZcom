@@ -9,6 +9,7 @@ export type SidebarDomain = {
   code: string;
   controllerId: string | null;
   headControllerId: string | null;
+  headControllerIds: string[];
   inventoryFamily: AssetTrackMethod;
   name: string;
   prefix: string;
@@ -62,13 +63,18 @@ function requirePrefix(value: string | null | undefined) {
 const sidebarDomainSelect = {
   _count: { select: { assets: true } },
   code: true,
+  headStockControllerId: true,
   inventoryFamily: true,
   name: true,
   permissions: {
     orderBy: { createdAt: "asc" as const },
-    select: { userId: true },
-    take: 1,
-    where: { canManage: true },
+    select: {
+      canManage: true,
+      canView: true,
+      user: { select: { stockControllerTag: true } },
+      userId: true,
+    },
+    where: { OR: [{ canManage: true }, { canView: true }] },
   },
   prefix: true,
 };
@@ -76,9 +82,15 @@ const sidebarDomainSelect = {
 type SidebarDomainRecord = {
   _count: { assets: number };
   code: string;
+  headStockControllerId: string | null;
   inventoryFamily: AssetTrackMethod;
   name: string;
-  permissions: Array<{ userId: string }>;
+  permissions: Array<{
+    canManage: boolean;
+    canView: boolean;
+    user: { stockControllerTag: string | null };
+    userId: string;
+  }>;
   prefix: string;
 };
 
@@ -128,6 +140,7 @@ async function ensureDomainViewPermissionsForActiveUsers(
 async function findStockControllerOrThrow(
   tx: DomainTx,
   userId: string,
+  controllerTag: "HEAD_STOCK_CONTROLLER" | "STOCK_CONTROLLER",
   label: string,
 ) {
   const controller = await tx.user.findFirst({
@@ -136,6 +149,7 @@ async function findStockControllerOrThrow(
       id: userId,
       isActive: true,
       roles: { some: { role: { code: "STOCK_CONTROLLER" } } },
+      stockControllerTag: controllerTag,
     },
   });
 
@@ -146,20 +160,44 @@ async function findStockControllerOrThrow(
   return controller;
 }
 
-async function upsertDomainManagerPermission(
+async function assertStockControllerManageSlot(
+  tx: DomainTx,
+  userId: string,
+  domainId?: string,
+) {
+  const existingManagedDomain = await tx.userDomainPermission.findFirst({
+    select: { domain: { select: { name: true } } },
+    where: {
+      canManage: true,
+      domain: { isActive: true, ...(domainId ? { id: { not: domainId } } : {}) },
+      userId,
+    },
+  });
+
+  if (existingManagedDomain) {
+    throw new WorkflowError(
+      `This stock controller already manages ${existingManagedDomain.domain.name}.`,
+      409,
+      "STOCK_CONTROLLER_ALREADY_MANAGES_DOMAIN",
+    );
+  }
+}
+
+async function upsertDomainPermission(
   tx: DomainTx,
   domainId: string,
   userId: string,
+  canManage: boolean,
 ) {
   await tx.userDomainPermission.upsert({
     create: {
-      canManage: true,
+      canManage,
       canView: true,
       domainId,
       userId,
     },
     update: {
-      canManage: true,
+      canManage,
       canView: true,
     },
     where: {
@@ -172,11 +210,29 @@ async function upsertDomainManagerPermission(
 }
 
 function toSidebarDomain(domain: SidebarDomainRecord): SidebarDomain {
+  const headControllerIds = domain.permissions
+    .filter(
+      (permission) =>
+        permission.user.stockControllerTag === "HEAD_STOCK_CONTROLLER" &&
+        (permission.canView || permission.canManage),
+    )
+    .map((permission) => permission.userId);
+
+  if (domain.headStockControllerId && !headControllerIds.includes(domain.headStockControllerId)) {
+    headControllerIds.unshift(domain.headStockControllerId);
+  }
+
+  const controllerId = domain.permissions.find(
+    (permission) =>
+      permission.canManage && permission.user.stockControllerTag === "STOCK_CONTROLLER",
+  )?.userId ?? null;
+
   return {
     assetCount: domain._count.assets,
     code: domain.code,
-    controllerId: domain.permissions[0]?.userId ?? null,
-    headControllerId: null,
+    controllerId,
+    headControllerId: headControllerIds[0] ?? null,
+    headControllerIds,
     inventoryFamily: domain.inventoryFamily,
     name: domain.name,
     prefix: domain.prefix,
@@ -226,6 +282,7 @@ export type CreateDomainInput = {
   controllerId: string;
   domainName: string;
   headControllerId?: string | null;
+  headControllerIds?: string[];
   prefix: string;
   trackMethod: AssetTrackMethod;
 };
@@ -234,7 +291,13 @@ export type UpdateDomainInput = {
   controllerId: string;
   domainName: string;
   headControllerId?: string | null;
+  headControllerIds?: string[];
+  prefix?: string;
 };
+
+function uniqueControllerIds(values: Array<string | null | undefined>) {
+  return [...new Set(values.filter((value): value is string => Boolean(value)))];
+}
 
 export async function createDomainForUser(user: CurrentUser, input: CreateDomainInput) {
   if (!hasRole(user, "ADMIN")) {
@@ -250,10 +313,20 @@ export async function createDomainForUser(user: CurrentUser, input: CreateDomain
   }
 
   return db.$transaction(async (tx) => {
-    const controller = await findStockControllerOrThrow(tx, input.controllerId, "Stock controller");
-    const headController = input.headControllerId
-      ? await findStockControllerOrThrow(tx, input.headControllerId, "Head stock controller")
-      : null;
+    const controller = await findStockControllerOrThrow(
+      tx,
+      input.controllerId,
+      "STOCK_CONTROLLER",
+      "Stock controller",
+    );
+    await assertStockControllerManageSlot(tx, controller.id);
+    const headControllerIds = uniqueControllerIds([...(input.headControllerIds ?? []), input.headControllerId]);
+    const headControllers = await Promise.all(
+      headControllerIds.map((id) =>
+        findStockControllerOrThrow(tx, id, "HEAD_STOCK_CONTROLLER", "Head stock controller"),
+      ),
+    );
+    const managerIds = uniqueControllerIds([controller.id]);
 
     const duplicate = await tx.assetDomain.findFirst({
       select: { id: true },
@@ -267,7 +340,7 @@ export async function createDomainForUser(user: CurrentUser, input: CreateDomain
     const domain = await tx.assetDomain.create({
       data: {
         code,
-        headStockControllerId: headController?.id ?? null,
+        headStockControllerId: headControllers[0]?.id ?? null,
         inventoryFamily: input.trackMethod,
         name,
         prefix,
@@ -296,26 +369,26 @@ export async function createDomainForUser(user: CurrentUser, input: CreateDomain
 
     await tx.userDomainPermission.createMany({
       data: nonAdminUsers.map((entry) => ({
-        canManage: entry.id === controller.id || entry.id === headController?.id,
+        canManage: managerIds.includes(entry.id),
         canView: true,
         domainId: domain.id,
         userId: entry.id,
       })),
     });
     await ensureDomainViewPermissionsForActiveUsers(tx, domain.id, [
-      controller.id,
-      headController?.id ?? "",
+      ...managerIds,
     ]);
-    await upsertDomainManagerPermission(tx, domain.id, controller.id);
-    if (headController) {
-      await upsertDomainManagerPermission(tx, domain.id, headController.id);
+    await upsertDomainPermission(tx, domain.id, controller.id, true);
+    for (const headController of headControllers) {
+      await upsertDomainPermission(tx, domain.id, headController.id, false);
     }
 
     return {
       assetCount: 0,
       code: domain.code,
       controllerId: controller.id,
-      headControllerId: headController?.id ?? null,
+      headControllerId: headControllers[0]?.id ?? null,
+      headControllerIds: headControllers.map((entry) => entry.id),
       inventoryFamily: domain.inventoryFamily,
       name: domain.name,
       prefix: domain.prefix,
@@ -333,6 +406,7 @@ export async function updateDomainForUser(
   }
 
   const name = requireName(input.domainName, "Domain name");
+  const prefix = input.prefix ? requirePrefix(input.prefix) : null;
 
   if (!input.controllerId) {
     throw new WorkflowError("Stock controller is required.");
@@ -348,16 +422,26 @@ export async function updateDomainForUser(
       throw new WorkflowError("Domain not found.", 404);
     }
 
-    const controller = await findStockControllerOrThrow(tx, input.controllerId, "Stock controller");
-    const headController = input.headControllerId
-      ? await findStockControllerOrThrow(tx, input.headControllerId, "Head stock controller")
-      : null;
+    const controller = await findStockControllerOrThrow(
+      tx,
+      input.controllerId,
+      "STOCK_CONTROLLER",
+      "Stock controller",
+    );
+    await assertStockControllerManageSlot(tx, controller.id);
+    const headControllerIds = uniqueControllerIds([...(input.headControllerIds ?? []), input.headControllerId]);
+    const headControllers = await Promise.all(
+      headControllerIds.map((id) =>
+        findStockControllerOrThrow(tx, id, "HEAD_STOCK_CONTROLLER", "Head stock controller"),
+      ),
+    );
+    const managerIds = uniqueControllerIds([controller.id]);
 
     const duplicate = await tx.assetDomain.findFirst({
       select: { id: true },
       where: {
         id: { not: domain.id },
-        name,
+        OR: prefix ? [{ name }, { prefix }] : [{ name }],
       },
     });
 
@@ -366,7 +450,11 @@ export async function updateDomainForUser(
     }
 
     await tx.assetDomain.update({
-      data: { headStockControllerId: headController?.id ?? null, name },
+      data: {
+        headStockControllerId: headControllers[0]?.id ?? null,
+        name,
+        ...(prefix ? { prefix } : {}),
+      },
       where: { id: domain.id },
     });
 
@@ -375,12 +463,11 @@ export async function updateDomainForUser(
       where: { domainId: domain.id },
     });
     await ensureDomainViewPermissionsForActiveUsers(tx, domain.id, [
-      controller.id,
-      headController?.id ?? "",
+      ...managerIds,
     ]);
-    await upsertDomainManagerPermission(tx, domain.id, controller.id);
-    if (headController) {
-      await upsertDomainManagerPermission(tx, domain.id, headController.id);
+    await upsertDomainPermission(tx, domain.id, controller.id, true);
+    for (const headController of headControllers) {
+      await upsertDomainPermission(tx, domain.id, headController.id, false);
     }
 
     const updated = await tx.assetDomain.findUniqueOrThrow({

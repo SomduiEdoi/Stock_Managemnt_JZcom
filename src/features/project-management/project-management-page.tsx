@@ -6,10 +6,10 @@ import {
   ArrowLeft,
   ArrowRight,
   BriefcaseBusiness,
-  CheckCircle2,
   Layers,
   MoreVertical,
-  Plus,
+  CirclePlus,
+  SquarePen,
   Trash2,
   UserCheck,
   X,
@@ -500,7 +500,7 @@ function ProjectActionMenu({
             }}
             type="button"
           >
-            <CheckCircle2 className="h-4 w-4" />
+            <SquarePen className="h-4 w-4" />
             Edit
           </button>
           <button
@@ -624,7 +624,7 @@ export function ProjectManagementPage({
             onClick={() => setDialog({ type: "ADD" })}
             type="button"
           >
-            <Plus className="h-4 w-4" />
+            <CirclePlus className="h-4 w-4" />
             Add Project
           </button>
         ) : null}

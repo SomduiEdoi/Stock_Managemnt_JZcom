@@ -43,6 +43,24 @@ describe("domain approval matching", () => {
     ).toBe(true);
   });
 
+
+
+  it("does not let domain approval user id bypass current domain permission", () => {
+    const approver = user({
+      id: "old-controller",
+      roles: ["STOCK_CONTROLLER"],
+      stockControllerTag: "STOCK_CONTROLLER",
+      permissions: [{ canManage: false, canView: true, domainCode: "SERVER" }],
+    });
+
+    expect(
+      approvalMatchesUser(approver, {
+        requiredTag: domainStockControllerRequiredTag("SERVER"),
+        userId: "old-controller",
+      }),
+    ).toBe(false);
+  });
+
   it("does not let a regular stock controller match head controller approval", () => {
     const approver = user({
       roles: ["STOCK_CONTROLLER"],
@@ -58,11 +76,43 @@ describe("domain approval matching", () => {
     ).toBe(false);
   });
 
-  it("matches head stock controllers by head tag and managed domain", () => {
+
+
+  it("does not match stock controller approval with read-only domain permission", () => {
+    const approver = user({
+      roles: ["STOCK_CONTROLLER"],
+      stockControllerTag: "STOCK_CONTROLLER",
+      permissions: [{ canManage: false, canView: true, domainCode: "SERVER" }],
+    });
+
+    expect(
+      approvalMatchesUser(approver, {
+        requiredTag: domainStockControllerRequiredTag("SERVER"),
+        userId: null,
+      }),
+    ).toBe(false);
+  });
+
+  it("does not match head stock controller approval without domain visibility", () => {
     const approver = user({
       roles: ["STOCK_CONTROLLER"],
       stockControllerTag: "HEAD_STOCK_CONTROLLER",
-      permissions: [{ canManage: true, canView: true, domainCode: "NETWORK" }],
+      permissions: [{ canManage: false, canView: false, domainCode: "NETWORK" }],
+    });
+
+    expect(
+      approvalMatchesUser(approver, {
+        requiredTag: domainHeadStockControllerRequiredTag("NETWORK"),
+        userId: null,
+      }),
+    ).toBe(false);
+  });
+
+  it("matches head stock controllers by head tag and visible domain", () => {
+    const approver = user({
+      roles: ["STOCK_CONTROLLER"],
+      stockControllerTag: "HEAD_STOCK_CONTROLLER",
+      permissions: [{ canManage: false, canView: true, domainCode: "NETWORK" }],
     });
 
     expect(

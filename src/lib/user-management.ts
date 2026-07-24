@@ -212,15 +212,6 @@ function sortUsers(users: UserManagementRow[]) {
 
 async function loadAllUsers() {
   const users = await db.user.findMany({
-    where: {
-      roles: {
-        none: {
-          role: {
-            code: "ADMIN",
-          },
-        },
-      },
-    },
     orderBy: [{ isActive: "desc" }, { name: "asc" }],
     select: userRowSelect,
   });
@@ -557,4 +548,5 @@ export async function getUserManagementOptions(user: CurrentUser) {
     domains: await getDomainOptions(),
   };
 }
+
 

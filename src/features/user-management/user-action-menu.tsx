@@ -4,16 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import {
   Ban,
   EllipsisVertical,
-  Pencil,
-  Tags,
+  SquarePen,
   Trash2,
   UnlockKeyhole,
 } from "lucide-react";
 
 type UserActionMenuProps = {
-  canAssign: boolean;
   isActive: boolean;
-  onAssign: () => void;
   onDelete: () => void;
   onEdit: () => void;
   onToggleBlock: () => void;
@@ -21,9 +18,7 @@ type UserActionMenuProps = {
 };
 
 export function UserActionMenu({
-  canAssign,
   isActive,
-  onAssign,
   onDelete,
   onEdit,
   onToggleBlock,
@@ -60,7 +55,11 @@ export function UserActionMenu({
   }
 
   return (
-    <div className="relative flex justify-end" ref={menuRef}>
+    <div
+      className="relative flex justify-end"
+      onClick={(event) => event.stopPropagation()}
+      ref={menuRef}
+    >
       <button
         aria-expanded={isOpen}
         aria-label={`Open actions for ${userName}`}
@@ -78,20 +77,9 @@ export function UserActionMenu({
             onClick={() => handleClick(onEdit)}
             type="button"
           >
-            <Pencil className="h-4 w-4" />
+            <SquarePen className="h-4 w-4" />
             Edit
           </button>
-
-          {canAssign ? (
-            <button
-              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-semibold text-navy hover:bg-surface"
-              onClick={() => handleClick(onAssign)}
-              type="button"
-            >
-              <Tags className="h-4 w-4" />
-              Assign
-            </button>
-          ) : null}
 
           <button
             className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-semibold text-navy hover:bg-surface"

@@ -6,7 +6,7 @@ import {
   Check,
   ChevronDown,
   MoreVertical,
-  Plus,
+  CirclePlus,
   SlidersHorizontal,
   Trash2,
   X,
@@ -822,7 +822,7 @@ export function ServerInventoryControls({
               className="inline-flex h-11 items-center gap-2 rounded-md bg-navy px-4 text-sm font-bold text-white shadow-sm transition hover:bg-black"
               href={addAssetHref}
             >
-              <Plus className="h-4 w-4" />
+              <CirclePlus className="h-4 w-4" />
               Add Asset
             </Link>
           ) : null}

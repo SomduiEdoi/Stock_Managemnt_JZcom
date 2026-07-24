@@ -41,22 +41,30 @@ export function approvalMatchesUser(
   user: CurrentUser,
   approval: { requiredTag: string; userId: string | null },
 ) {
-  if (approval.userId === user.id) {
-    return true;
-  }
-
   const domainController = parseDomainControllerTag(approval.requiredTag);
 
   if (domainController) {
+    const hasDomainPermission = user.permissions.some((permission) => {
+      if (permission.domainCode !== domainController.domainCode) {
+        return false;
+      }
+
+      if (domainController.controllerTag === STOCK_CONTROLLER_REQUIRED_TAG) {
+        return permission.canManage;
+      }
+
+      return permission.canView || permission.canManage;
+    });
+
     return (
       hasRole(user, "STOCK_CONTROLLER") &&
       user.stockControllerTag === domainController.controllerTag &&
-      user.permissions.some(
-        (permission) =>
-          permission.domainCode === domainController.domainCode &&
-          permission.canManage,
-      )
+      hasDomainPermission
     );
+  }
+
+  if (approval.userId === user.id) {
+    return true;
   }
 
   return (

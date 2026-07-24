@@ -12,19 +12,22 @@ export const transactionLogStatusOptions = [
   "USING",
   "SOLD",
   "RETURN",
+  "REJECTED",
 ] as const;
 export type TransactionLogStatusFilter =
   | "ALL"
   | "BORROW"
   | "USING"
   | "SOLD"
-  | "RETURN";
+  | "RETURN"
+  | "REJECTED";
 
 export const transactionLogStatusChoices = [
   "BORROW",
   "USING",
   "SOLD",
   "RETURN",
+  "REJECTED",
 ] as const;
 
 export type TransactionLogFilters = {
@@ -51,6 +54,8 @@ const transactionLogSelect = Prisma.validator<Prisma.TransactionSelect>()({
   id: true,
   requestDate: true,
   returnedAt: true,
+  sourceTransactionId: true,
+  sourceTransaction: { select: { documentRef: true, id: true, transactionNo: true } },
   requestedBy: { select: { email: true, name: true } },
   status: true,
   transactionNo: true,
@@ -62,7 +67,6 @@ const transactionLogSelect = Prisma.validator<Prisma.TransactionSelect>()({
       id: true,
       requestedQuantity: true,
       resolvedStatus: true,
-      soldPrice: true,
       returnedAt: true,
       toStatus: true,
       returnedBy: { select: { email: true, name: true } },
@@ -105,6 +109,8 @@ const approvalTransactionSelect = Prisma.validator<Prisma.TransactionApprovalSel
       requestDate: true,
       requestedBy: { select: { email: true, name: true } },
       transactionNo: true,
+      sourceTransactionId: true,
+      sourceTransaction: { select: { documentRef: true, id: true, transactionNo: true } },
       type: true,
       workflowStatus: true,
       approvals: {
@@ -212,14 +218,19 @@ function buildStatusWhere(
 ) {
   const clauses: Prisma.TransactionWhereInput[] = [];
 
-  if (filters.status === "RETURN") {
+  if (filters.status === "REJECTED") {
+    clauses.push({ workflowStatus: TransactionWorkflowStatus.REJECTED });
+  } else if (filters.status === "RETURN") {
     clauses.push({
-      OR: [
-        { status: TransactionStatus.RETURNED },
-        { returnedAt: { not: null } },
-        { items: { some: { returnedAt: { not: null } } } },
-      ],
+      items: {
+        some: {
+          returnedAt: { not: null },
+          NOT: { resolvedStatus: AssetStatus.SOLD },
+        },
+      },
     });
+  } else if (filters.status === "SOLD") {
+    clauses.push({ type: "SOLD" });
   } else if (filters.status !== "ALL") {
     clauses.push({
       type: filters.status,

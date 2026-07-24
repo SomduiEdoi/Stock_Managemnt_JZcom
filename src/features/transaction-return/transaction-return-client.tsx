@@ -51,6 +51,9 @@ export type TransactionReturnRecord = {
   projectId: string | null;
   projectRequest: boolean;
   purpose: string | null;
+  rejectedAt: string | null;
+  rejectedBy: string | null;
+  rejectReason: string | null;
   rejectBlockedReason: string | null;
   requestedBy: string;
   requiresSoldPriceApproval: boolean;
@@ -381,12 +384,12 @@ export function TransactionReturnClient({
             aria-label="Breadcrumb"
             className="flex flex-wrap items-center gap-2 text-sm font-bold"
           >
-            <Link className="text-[#2563EB] transition hover:text-brand-accent" href="/logs">
+            <Link className="text-navy transition hover:text-brand-accent" href="/logs">
               Logs
             </Link>
             <span className="text-muted-foreground">&gt;</span>
             <Link
-              className="text-[#2563EB] transition hover:text-brand-accent"
+              className="text-navy transition hover:text-brand-accent"
               href={`/logs/${transaction.id}/return`}
             >
               {transaction.transactionNo}
@@ -400,6 +403,17 @@ export function TransactionReturnClient({
           </p>
         </div>
       </header>
+
+      {transaction.workflowStatus === "REJECTED" && transaction.rejectReason ? (
+        <section className="rounded-md border border-status-fail bg-status-fail/10 p-4 shadow-sm">
+          <h2 className="text-lg font-bold text-status-fail">Request Rejected</h2>
+          <p className="mt-2 text-sm font-semibold text-ink">{transaction.rejectReason}</p>
+          <p className="mt-2 text-xs font-bold uppercase text-muted-foreground">
+            {transaction.rejectedBy ? `Rejected by ${transaction.rejectedBy}` : "Rejected"}
+            {transaction.rejectedAt ? ` on ${new Date(transaction.rejectedAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}` : ""}
+          </p>
+        </section>
+      ) : null}
 
       {transaction.canEditPendingRequest ? (
         <section className="rounded-md border border-border bg-white p-4 shadow-sm">

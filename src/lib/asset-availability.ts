@@ -91,6 +91,35 @@ async function sumOpenTransactionQuantities(
   );
 }
 
+async function findOpenTransactionAssetIds(
+  client: QueryClient,
+  assetIds: string[],
+) {
+  if (assetIds.length === 0) {
+    return new Set<string>();
+  }
+
+  const items = await client.transactionItem.findMany({
+    distinct: ["assetId"],
+    select: { assetId: true },
+    where: {
+      assetId: { in: assetIds },
+      returnedAt: null,
+      toStatus: { in: [AssetStatus.BORROW, AssetStatus.USING, AssetStatus.SOLD] },
+      transaction: {
+        workflowStatus: {
+          in: [
+            TransactionWorkflowStatus.PENDING,
+            TransactionWorkflowStatus.IN_PROGRESS,
+          ],
+        },
+      },
+    },
+  });
+
+  return new Set(items.map((item) => item.assetId));
+}
+
 export async function getAvailabilityByAssetId(
   assets: AvailabilityAsset[],
   options: {
@@ -101,19 +130,21 @@ export async function getAvailabilityByAssetId(
   const client = options.client ?? db;
   const quantityAssets = assets.filter(isQuantityAsset);
   const quantityAssetIds = quantityAssets.map((asset) => asset.id);
-  const [allReservations, ownReservations, openTransactions] = await Promise.all([
+  const [allReservations, ownReservations, openTransactions, openTransactionAssetIds] = await Promise.all([
     sumDraftReservations(client, quantityAssetIds),
     sumDraftReservations(client, quantityAssetIds, options.userId),
     sumOpenTransactionQuantities(client, quantityAssetIds),
+    findOpenTransactionAssetIds(client, assets.map((asset) => asset.id)),
   ]);
 
   return new Map<string, AssetAvailability>(
     assets.map<[string, AssetAvailability]>((asset) => {
       if (!isQuantityAsset(asset)) {
-        const availableQuantity = asset.status === AssetStatus.READY ? 1 : 0;
+        const hasOpenTransaction = openTransactionAssetIds.has(asset.id);
+        const availableQuantity = asset.status === AssetStatus.READY && !hasOpenTransaction ? 1 : 0;
         const ownReservedQuantity =
           asset.requestLockedById && asset.requestLockedById === options.userId ? 1 : 0;
-        const reservedQuantity = asset.status === AssetStatus.REQUEST ? 1 : 0;
+        const reservedQuantity = asset.status === AssetStatus.REQUEST || hasOpenTransaction ? 1 : 0;
 
         return [
           asset.id,

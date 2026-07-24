@@ -4,16 +4,16 @@ import Link from "next/link";
 import {
   ArrowRight,
   ChevronRight,
-  ClipboardList,
+  Info,
   FileText,
-  Boxes,
+  PackageCheck,
   Hash,
   History,
   LockKeyhole,
   MapPin,
   Package,
   Pencil,
-  Tag,
+  ScanLine,
   UserRound,
 } from "lucide-react";
 import type { AssetDetailRecord } from "@/lib/asset-detail";
@@ -154,7 +154,7 @@ function AssetHeader({ asset, canManage }: AssetDetailPageProps) {
           aria-label="Breadcrumb"
           className="flex flex-wrap items-center gap-2 text-sm font-bold text-muted-foreground"
         >
-          <Link className="text-[#2563EB] transition hover:text-brand-accent" href={domainHref(asset.domain.code)}>
+          <Link className="text-navy transition hover:text-brand-accent" href={domainHref(asset.domain.code)}>
             {domainLabel(asset)}
           </Link>
           <ChevronRight className="h-4 w-4" />
@@ -201,7 +201,7 @@ function AssetDetails({ asset }: { asset: AssetDetailRecord }) {
       <AssetImagePanel asset={asset} />
       <div className="rounded-md border border-border bg-white p-5 shadow-sm">
         <div className="mb-5 flex items-center gap-2">
-          <ClipboardList className="h-5 w-5 text-navy" />
+          <Info className="h-5 w-5 text-navy" />
           <h2 className="text-xl font-bold text-navy">Details</h2>
         </div>
         <DetailGrid items={buildPrimaryDetails(asset)} />
@@ -238,12 +238,12 @@ function SummaryTiles({ asset }: { asset: AssetDetailRecord }) {
   return (
     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       {isQuantityAsset ? (
-        <SummaryTile icon={Boxes} label="Available" value={availabilityTitle} />
+        <SummaryTile icon={PackageCheck} label="Available" value={availabilityTitle} />
       ) : (
         <SummaryTile icon={Hash} label="Serial No." value={fallback(asset.serialNo)} />
       )}
       <SummaryTile
-        icon={Tag}
+        icon={ScanLine}
         label="Stock Code"
         value={fallback(asset.stockCode)}
       />

@@ -39,7 +39,7 @@ type AppSidebarProps = {
 
 type DomainFormState = {
   controllerId: string;
-  headControllerId: string;
+  headControllerIds: string[];
   domainName: string;
   prefix: string;
   trackMethod: AssetTrackMethod;
@@ -134,7 +134,7 @@ function Field({
 function emptyDomainForm(): DomainFormState {
   return {
     controllerId: "",
-    headControllerId: "",
+    headControllerIds: [],
     domainName: "",
     prefix: "",
     trackMethod: AssetTrackMethod.SERIAL,
@@ -145,13 +145,18 @@ function inventoryFamilyLabel(value: AssetTrackMethod) {
   return value === AssetTrackMethod.QUANTITY ? "Quantity" : "Serial";
 }
 
-function stockControllerOptions(stockControllers: StockControllerOption[]) {
-  return stockControllers.map((controller) => ({
-    description: controller.email,
-    label: controller.name,
-    searchText: `${controller.name} ${controller.email}`,
-    value: controller.id,
-  }));
+function stockControllerOptions(
+  stockControllers: StockControllerOption[],
+  tag: "HEAD_STOCK_CONTROLLER" | "STOCK_CONTROLLER",
+) {
+  return stockControllers
+    .filter((controller) => controller.stockControllerTag === tag)
+    .map((controller) => ({
+      description: controller.email,
+      label: controller.name,
+      searchText: `${controller.name} ${controller.email}`,
+      value: controller.id,
+    }));
 }
 
 const inventoryFamilyOptions = [
@@ -187,7 +192,8 @@ function AddDomainModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           controllerId: form.controllerId,
-          headControllerId: form.headControllerId || null,
+          headControllerId: form.headControllerIds[0] ?? null,
+          headControllerIds: form.headControllerIds,
           domainName: form.domainName.trim(),
           prefix: form.prefix.trim().toUpperCase(),
           trackMethod: form.trackMethod,
@@ -249,6 +255,27 @@ function AddDomainModal({
             />
           </Field>
 
+          <Field label="Head Stock Controller">
+            <SearchableDropdown
+              multiple
+              onChange={(value) => setField("headControllerIds", value)}
+              options={stockControllerOptions(stockControllers, "HEAD_STOCK_CONTROLLER")}
+              placeholder="Select head stock controller"
+              searchPlaceholder="Search by name or email"
+              value={form.headControllerIds}
+            />
+          </Field>
+
+          <Field label="Stock Controller" required>
+            <SearchableDropdown
+              onChange={(value) => setField("controllerId", value)}
+              options={stockControllerOptions(stockControllers, "STOCK_CONTROLLER")}
+              placeholder="Select stock controller"
+              searchPlaceholder="Search by name or email"
+              value={form.controllerId}
+            />
+          </Field>
+
           <Field label="Inventory Family" required>
             <SearchableDropdown
               onChange={(value) => setField("trackMethod", value as AssetTrackMethod)}
@@ -256,29 +283,6 @@ function AddDomainModal({
               placeholder="Select inventory family"
               searchPlaceholder="Search inventory family"
               value={form.trackMethod}
-            />
-          </Field>
-
-          <Field label="Stock Controller" required>
-            <SearchableDropdown
-              onChange={(value) => setField("controllerId", value)}
-              options={stockControllerOptions(stockControllers)}
-              placeholder="Select stock controller"
-              searchPlaceholder="Search by name or email"
-              value={form.controllerId}
-            />
-          </Field>
-
-          <Field label="Head Stock Controller">
-            <SearchableDropdown
-              onChange={(value) => setField("headControllerId", value)}
-              options={[
-                { label: "No head stock controller", value: "" },
-                ...stockControllerOptions(stockControllers),
-              ]}
-              placeholder="No head stock controller"
-              searchPlaceholder="Search by name or email"
-              value={form.headControllerId}
             />
           </Field>
         </div>
@@ -325,7 +329,7 @@ function EditDomainModal({
   const router = useRouter();
   const [form, setForm] = useState<DomainFormState>({
     controllerId: domain.controllerId ?? "",
-    headControllerId: domain.headControllerId ?? "",
+    headControllerIds: domain.headControllerIds ?? (domain.headControllerId ? [domain.headControllerId] : []),
     domainName: domain.name,
     prefix: domain.prefix,
     trackMethod: domain.inventoryFamily,
@@ -347,8 +351,10 @@ function EditDomainModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           controllerId: form.controllerId,
-          headControllerId: form.headControllerId || null,
+          headControllerId: form.headControllerIds[0] ?? null,
+          headControllerIds: form.headControllerIds,
           domainName: form.domainName.trim(),
+          prefix: form.prefix.trim().toUpperCase(),
         }),
       });
 
@@ -392,37 +398,34 @@ function EditDomainModal({
             />
           </Field>
 
-          <Field label="Prefix">
+          <Field label="Prefix" required>
             <input
-              aria-readonly="true"
-              className={inputClass(true)}
-              readOnly
-              title="Prefix is locked after domain creation. New stock codes will continue using this prefix."
+              className={inputClass()}
+              maxLength={2}
+              onChange={(event) => setField("prefix", event.target.value.toUpperCase())}
               type="text"
               value={form.prefix}
+            />
+          </Field>
+
+          <Field label="Head Stock Controller">
+            <SearchableDropdown
+              multiple
+              onChange={(value) => setField("headControllerIds", value)}
+              options={stockControllerOptions(stockControllers, "HEAD_STOCK_CONTROLLER")}
+              placeholder="Select head stock controller"
+              searchPlaceholder="Search by name or email"
+              value={form.headControllerIds}
             />
           </Field>
 
           <Field label="Stock Controller" required>
             <SearchableDropdown
               onChange={(value) => setField("controllerId", value)}
-              options={stockControllerOptions(stockControllers)}
+              options={stockControllerOptions(stockControllers, "STOCK_CONTROLLER")}
               placeholder="Select stock controller"
               searchPlaceholder="Search by name or email"
               value={form.controllerId}
-            />
-          </Field>
-
-          <Field label="Head Stock Controller">
-            <SearchableDropdown
-              onChange={(value) => setField("headControllerId", value)}
-              options={[
-                { label: "No head stock controller", value: "" },
-                ...stockControllerOptions(stockControllers),
-              ]}
-              placeholder="No head stock controller"
-              searchPlaceholder="Search by name or email"
-              value={form.headControllerId}
             />
           </Field>
 
@@ -720,7 +723,7 @@ export function AppSidebar({
 
                     {canCreateDomain(roles) ? (
                       <button
-                        className="mt-2 flex min-h-9 w-full items-center gap-3 rounded-md px-3 text-sm font-semibold text-[#B45309] transition hover:bg-[#FE7743]/10"
+                        className="mt-2 flex min-h-9 w-full items-center gap-3 rounded-md px-3 text-sm font-semibold text-brand-accent transition hover:bg-brand-accent/10"
                         onClick={() => setDomainDialog({ type: "ADD" })}
                         type="button"
                       >
@@ -738,7 +741,7 @@ export function AppSidebar({
                 <ShoppingBasket className="h-4 w-4 shrink-0" />
                 <span>Request Cart</span>
                 {requestCount > 0 ? (
-                  <span className="ml-auto rounded-full bg-[#FE7743] px-2 py-0.5 text-[11px] font-bold text-white">
+                  <span className="ml-auto rounded-full bg-brand-accent px-2 py-0.5 text-[11px] font-bold text-white">
                     {requestCount}
                   </span>
                 ) : null}

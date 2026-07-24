@@ -157,6 +157,10 @@ function chunkItems(items: PrintableTransactionItem[], size: number) {
 }
 
 function transactionNo(transaction: PrintableTransaction) {
+  if (transaction.type === "SOLD" && transaction.sourceTransactionId) {
+    return `From ${sourceReference(transaction)}`;
+  }
+
   return transaction.transactionNo ?? transaction.documentRef ?? transaction.id ?? "-";
 }
 
@@ -590,7 +594,7 @@ function documentsFor(transaction: PrintableTransaction): ExportDocument[] {
     documents.push({
       kind: "SALE",
       items,
-      referenceNo: transaction.sourceTransaction ? sourceReference(transaction) : referenceNo,
+      referenceNo,
       showFromReference: Boolean(transaction.sourceTransaction),
       transaction,
     });

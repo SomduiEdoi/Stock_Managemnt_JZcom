@@ -19,7 +19,6 @@ import {
   buildUserManagementHref,
   organizationLevelOptions,
   organizationUnitOptions,
-  projectTagOptions,
   stockControllerTagOptions,
   type UserManagementFilters,
   type UserManagementMetrics,
@@ -50,7 +49,6 @@ type UserFormState = {
 
 type DialogMode =
   | { type: "ADD" }
-  | { type: "ASSIGN"; user: UserManagementRow }
   | { type: "DELETE"; user: UserManagementRow }
   | { type: "EDIT"; user: UserManagementRow }
   | { type: "STATUS"; user: UserManagementRow };
@@ -245,9 +243,6 @@ function organizationUnitDropdownOptions() {
   }));
 }
 
-function projectDropdownOptions() {
-  return projectTagOptions.map((option) => ({ label: projectLabels[option], value: option }));
-}
 function baseInputClass(disabled = false) {
   return `h-11 w-full rounded-md border border-border bg-white px-3 text-sm font-medium text-ink outline-none ring-brand-accent/20 transition focus:ring-4 ${
     disabled ? "cursor-not-allowed bg-surface text-muted-foreground" : ""
@@ -544,93 +539,6 @@ function ConfirmModal({
   );
 }
 
-function AssignModal({
-  onClose,
-  onSaved,
-  user,
-}: {
-  onClose: () => void;
-  onSaved: (message: string) => void;
-  user: UserManagementRow;
-}) {
-  const router = useRouter();
-  const [projectTag, setProjectTag] = useState(user.projectTag ?? "");
-  const [error, setError] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  async function handleSave() {
-    setError("");
-    setIsSubmitting(true);
-
-    try {
-      const response = await fetch(`/api/users/${user.id}/assignment`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          projectTag: projectTag || null,
-        }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        setError(data.message ?? "Unable to update assignment.");
-        setIsSubmitting(false);
-        return;
-      }
-
-      router.refresh();
-      onSaved("Project assignment updated successfully.");
-    } catch {
-      setError("Unable to update assignment right now.");
-      setIsSubmitting(false);
-    }
-  }
-
-  return (
-    <ModalShell onClose={onClose} title="Assign Project Tag">
-      <div className="rounded-md border border-border bg-surface px-4 py-3">
-        <p className="text-sm font-bold text-navy">{user.name}</p>
-        <p className="mt-1 text-sm text-muted-foreground">{user.email}</p>
-      </div>
-
-      <div className="mt-4">
-        <Field label="Project Tag">
-          <SearchableDropdown
-            onChange={(value) => setProjectTag(value)}
-            options={[{ label: "Not assigned", value: "" }, ...projectDropdownOptions()]}
-            placeholder="Not assigned"
-            searchPlaceholder="Search project tag"
-            value={projectTag}
-          />
-        </Field>
-      </div>
-
-      {error ? (
-        <div className="mt-4 rounded-md border border-status-fail/20 bg-status-fail/10 px-4 py-3 text-sm font-semibold text-status-fail">
-          {error}
-        </div>
-      ) : null}
-
-      <div className="mt-5 flex items-center justify-end gap-3">
-        <button
-          className="h-11 rounded-md border border-border px-4 text-sm font-bold text-navy hover:bg-surface"
-          onClick={onClose}
-          type="button"
-        >
-          Cancel
-        </button>
-        <button
-          className="h-11 rounded-md bg-navy px-4 text-sm font-bold text-white hover:bg-navy/90 disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={isSubmitting}
-          onClick={handleSave}
-          type="button"
-        >
-          {isSubmitting ? "Saving..." : "Save"}
-        </button>
-      </div>
-    </ModalShell>
-  );
-}
-
 function ManagementDialogs({
   dialog,
   onClose,
@@ -665,10 +573,6 @@ function ManagementDialogs({
         user={dialog.user}
       />
     );
-  }
-
-  if (dialog.type === "ASSIGN") {
-    return <AssignModal onClose={onClose} onSaved={onSaved} user={dialog.user} />;
   }
 
   if (dialog.type === "DELETE") {
@@ -898,10 +802,83 @@ function EditUserModal({
   );
 }
 
+function DetailSection({ label, values }: { label: string; values: string[] }) {
+  if (values.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="rounded-md border border-border bg-surface/40 p-4">
+      <h3 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </h3>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {values.map((value) => (
+          <span
+            className="rounded-md bg-white px-3 py-1.5 text-sm font-bold text-navy shadow-sm"
+            key={value}
+          >
+            {value}
+          </span>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function UserDetailModal({
+  onClose,
+  user,
+}: {
+  onClose: () => void;
+  user: UserManagementRow;
+}) {
+  const organizationLevelValues = user.organizationLevel ? [user.organizationLevel] : [];
+  const organizationTagValues = user.organizationTag ? [user.organizationTag] : [];
+  const projectValues = user.projectTag ? [projectLabels[user.projectTag]] : [];
+  const controllerValues = user.stockControllerTag
+    ? [stockControllerTagLabels[user.stockControllerTag]]
+    : [];
+  const domainValues = user.domainPermissions.map((permission) => {
+    const access = permission.canManage ? "Manage" : permission.canView ? "View" : "No access";
+    return `${permission.domain.name} (${access})`;
+  });
+
+  return (
+    <ModalShell onClose={onClose} title="User Detail">
+      <div className="flex items-start gap-4 rounded-md border border-border bg-surface p-4">
+        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md bg-navy text-lg font-bold text-white">
+          {getUserInitials(user.name)}
+        </span>
+        <div className="min-w-0">
+          <h3 className="text-xl font-bold text-navy">{user.name}</h3>
+          <p className="mt-1 text-sm font-medium text-muted-foreground">{user.email}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className={`rounded-full px-3 py-1 text-xs font-bold ${roleTone(user.systemRole)}`}>
+              {roleLabels[user.systemRole]}
+            </span>
+            <StatusBadge isActive={user.isActive} />
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3">
+        <DetailSection label="Organization Level" values={organizationLevelValues} />
+        <DetailSection label="Organization Unit / Team" values={organizationTagValues} />
+        <DetailSection label="Project" values={projectValues} />
+        <DetailSection label="Controller Tag" values={controllerValues} />
+        <DetailSection label="Domain Permission" values={domainValues} />
+      </div>
+    </ModalShell>
+  );
+}
+
 function UserTable({
+  onOpenDetail,
   onOpenDialog,
   users,
 }: {
+  onOpenDetail: (user: UserManagementRow) => void;
   onOpenDialog: (dialog: DialogMode) => void;
   users: UserManagementRow[];
 }) {
@@ -914,7 +891,6 @@ function UserTable({
               <th className="px-5 py-4 font-bold">Name</th>
               <th className="px-5 py-4 font-bold">Mail</th>
               <th className="px-5 py-4 font-bold">Role</th>
-              <th className="px-5 py-4 font-bold">Tag</th>
               <th className="px-5 py-4 font-bold">Status</th>
               <th className="px-5 py-4 font-bold">Action</th>
               <th className="px-5 py-4 font-bold">Last Login</th>
@@ -922,7 +898,7 @@ function UserTable({
           </thead>
           <tbody className="divide-y divide-border">
             {users.map((user) => (
-              <tr className="align-middle" key={user.id}>
+              <tr className="cursor-pointer align-middle hover:bg-surface/50" key={user.id} onClick={() => onOpenDetail(user)}>
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-3">
                     <span className="flex h-10 w-10 items-center justify-center rounded-md bg-navy text-sm font-bold text-white">
@@ -947,29 +923,11 @@ function UserTable({
                   </span>
                 </td>
                 <td className="px-5 py-4">
-                  <div className="flex flex-wrap gap-1.5">
-                    {tagPills(user).length > 0 ? (
-                      tagPills(user).map((tag) => (
-                        <span
-                          className="rounded-md bg-surface px-2 py-1 text-xs font-bold text-navy"
-                          key={tag}
-                        >
-                          {tag}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-xs font-semibold text-muted-foreground">-</span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-5 py-4">
                   <StatusBadge isActive={user.isActive} />
                 </td>
                 <td className="px-5 py-4">
                   <UserActionMenu
-                    canAssign={user.systemRole === "USER"}
                     isActive={user.isActive}
-                    onAssign={() => onOpenDialog({ type: "ASSIGN", user })}
                     onDelete={() => onOpenDialog({ type: "DELETE", user })}
                     onEdit={() => onOpenDialog({ type: "EDIT", user })}
                     onToggleBlock={() => onOpenDialog({ type: "STATUS", user })}
@@ -1002,6 +960,7 @@ export function UserManagementPage({
   users,
 }: UserManagementPageProps) {
   const [dialog, setDialog] = useState<DialogMode | null>(null);
+  const [detailUser, setDetailUser] = useState<UserManagementRow | null>(null);
   const [notice, setNotice] = useState("");
   const [roleFilter, setRoleFilter] = useState(filters.role);
   const [statusFilter, setStatusFilter] = useState(filters.status);
@@ -1115,7 +1074,11 @@ export function UserManagementPage({
         </div>
       ) : null}
 
-      <UserTable onOpenDialog={setDialog} users={users} />
+      <UserTable onOpenDetail={setDetailUser} onOpenDialog={setDialog} users={users} />
+
+      {detailUser ? (
+        <UserDetailModal onClose={() => setDetailUser(null)} user={detailUser} />
+      ) : null}
 
       <footer className="flex flex-col gap-3 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
         <p>{pageLabel}</p>

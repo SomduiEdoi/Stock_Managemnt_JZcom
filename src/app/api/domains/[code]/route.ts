@@ -17,6 +17,8 @@ const updateDomainSchema = z.object({
   controllerId: z.string().trim().min(1, "Stock controller is required.").uuid("Stock controller is required."),
   domainName: z.string().trim().min(1, "Domain name is required."),
   headControllerId: z.string().trim().uuid("Head stock controller is required.").nullable().optional(),
+  headControllerIds: z.array(z.string().trim().uuid("Head stock controller is required.")).optional(),
+  prefix: z.string().trim().min(1, "Prefix is required.").regex(/^[A-Za-z0-9]{2}$/, "Prefix must be exactly 2 English letters or numbers.").optional(),
 }).strict();
 
 function errorResponse(error: unknown) {
@@ -40,9 +42,6 @@ export async function PATCH(request: Request, context: RouteContext) {
     const user = await requireCurrentUser("/dashboard");
     const { code } = paramsSchema.parse(await context.params);
     const payload = await request.json();
-    if (payload && typeof payload === "object" && "prefix" in payload) {
-      return NextResponse.json({ message: "Prefix cannot be edited after domain creation." }, { status: 400 });
-    }
     const body = updateDomainSchema.parse(payload);
     const domain = await updateDomainForUser(user, decodeURIComponent(code), body);
 

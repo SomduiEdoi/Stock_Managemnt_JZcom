@@ -234,31 +234,6 @@ function BorrowerCell({ row }: { row: TransactionLogRow }) {
   );
 }
 
-function ReturnerCell({ row }: { row: TransactionLogRow }) {
-  const names = Array.from(
-    new Set(
-      row.items
-        .map((item) => personName(item.returnedBy))
-        .filter((name) => name !== "-"),
-    ),
-  );
-
-  if (names.length === 0) {
-    return <span className="font-medium text-muted-foreground">-</span>;
-  }
-
-  return (
-    <div>
-      <p className="font-semibold text-ink">{names.slice(0, 2).join(", ")}</p>
-      {names.length > 2 ? (
-        <p className="mt-1 text-xs font-medium text-muted-foreground">
-          +{names.length - 2} more
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
 function TransactionLink({
   children,
   transactionId,
@@ -373,14 +348,16 @@ function RequestQueueTable({
   );
 }
 
-type LogDisplayStatus = "PENDING" | "BORROW" | "USING" | "SOLD" | "RETURN";
+type LogDisplayStatus = "PENDING" | "BORROW" | "USING" | "SOLD" | "RETURN" | "REJECTED" | "SOLD_FROM_RETURN";
 
 const logStatusLabels = {
   PENDING: "Pending",
   BORROW: "Borrow",
   USING: "Using",
   SOLD: "Sold",
+  SOLD_FROM_RETURN: "Sold from Return",
   RETURN: "Return",
+  REJECTED: "Rejected",
 } as const satisfies Record<LogDisplayStatus, string>;
 
 const logStatusColors = {
@@ -388,12 +365,30 @@ const logStatusColors = {
   BORROW: assetStatusHexColors[AssetStatus.BORROW],
   USING: assetStatusHexColors[AssetStatus.USING],
   SOLD: assetStatusHexColors[AssetStatus.SOLD],
+  SOLD_FROM_RETURN: assetStatusHexColors[AssetStatus.SOLD],
   RETURN: assetStatusHexColors[AssetStatus.READY],
+  REJECTED: assetStatusHexColors[AssetStatus.FAIL],
 } as const satisfies Record<LogDisplayStatus, string>;
 
+function getTransactionDisplayNo(row: TransactionLogRow) {
+  if (row.type === "SOLD" && row.sourceTransactionId) {
+    return `From ${row.sourceTransaction?.transactionNo ?? row.sourceTransaction?.documentRef ?? row.sourceTransactionId}`;
+  }
+
+  return row.transactionNo ?? row.id;
+}
+
 function getLogDisplayStatus(row: TransactionLogRow): LogDisplayStatus {
+  if (row.workflowStatus === TransactionWorkflowStatus.REJECTED) {
+    return "REJECTED";
+  }
+
   if (row.workflowStatus === TransactionWorkflowStatus.PENDING) {
     return "PENDING";
+  }
+
+  if (row.type === "SOLD" && row.sourceTransactionId) {
+    return "SOLD_FROM_RETURN";
   }
 
   const allItemsReturned =
@@ -518,7 +513,6 @@ function TransactionTable({
             <tr>
               <th className="px-5 py-4 font-bold">Transaction ID</th>
               <th className="px-5 py-4 font-bold">Borrower</th>
-              <th className="px-5 py-4 font-bold">Returner</th>
               <th className="px-5 py-4 font-bold">Request Date</th>
               <th className="px-5 py-4 font-bold">Return Date</th>
               <th className="px-5 py-4 font-bold">Status</th>
@@ -533,7 +527,7 @@ function TransactionTable({
               >
                 <td className="px-5 py-4 font-bold text-navy">
                   <TransactionLink transactionId={row.id}>
-                    {row.transactionNo ?? row.id}
+                    {getTransactionDisplayNo(row)}
                     <p className="mt-1 text-xs font-medium text-muted-foreground">
                       {row.items.length.toLocaleString("en-US")} lines / {transactionQuantity(row).toLocaleString("en-US")} qty
                     </p>
@@ -544,11 +538,7 @@ function TransactionTable({
                     <BorrowerCell row={row} />
                   </TransactionLink>
                 </td>
-                <td className="px-5 py-4">
-                  <TransactionLink transactionId={row.id}>
-                    <ReturnerCell row={row} />
-                  </TransactionLink>
-                </td>
+
                 <td className="px-5 py-4 font-medium text-ink">
                   <TransactionLink transactionId={row.id}>
                     {formatDate(row.requestDate)}

@@ -115,9 +115,12 @@ function serializeTransaction(
     (approval) => approval.status === ApprovalStatus.APPROVED,
   );
   const canEditPendingRequest =
-    transaction.workflowStatus === TransactionWorkflowStatus.PENDING &&
+    (transaction.workflowStatus === TransactionWorkflowStatus.PENDING ||
+      transaction.workflowStatus === TransactionWorkflowStatus.REJECTED) &&
     transaction.requestedBy.id === user.id &&
     !hasApprovedApproval;
+
+  const rejectedApproval = transaction.approvals.find((approval) => approval.status === ApprovalStatus.REJECTED);
 
   return {
     approvalStep: currentApproval?.stepSequence ?? null,
@@ -151,6 +154,9 @@ function serializeTransaction(
     projectId: transaction.projectId,
     projectRequest: transaction.projectRequest,
     purpose: transaction.purpose,
+    rejectedAt: rejectedApproval?.actedAt?.toISOString() ?? null,
+    rejectedBy: rejectedApproval?.user ? personName(rejectedApproval.user) : null,
+    rejectReason: rejectedApproval?.comment ?? null,
     rejectBlockedReason: currentApproval ? null : "No approval is waiting for this user.",
     requestedBy: personName(transaction.requestedBy),
     requiresSoldPriceApproval: Boolean(currentApproval?.requiredTag === "BSD_STAFF" && transaction.type === "SOLD"),

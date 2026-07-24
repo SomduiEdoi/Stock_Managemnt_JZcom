@@ -504,6 +504,48 @@ async function getAvailableQuantities(
   );
 }
 
+async function assertNoOpenSerialTransactionItems(
+  tx: Prisma.TransactionClient,
+  items: WorkflowRequestItem[],
+  previousAssetIds = new Set<string>(),
+) {
+  const serialAssetIds = items
+    .filter((item) => !isQuantityAsset(item.asset) && !previousAssetIds.has(item.asset.id))
+    .map((item) => item.asset.id);
+
+  if (serialAssetIds.length === 0) {
+    return;
+  }
+
+  const existingItem = await tx.transactionItem.findFirst({
+    select: {
+      asset: { select: { assetModel: { select: { name: true } }, serialNo: true } },
+      transaction: { select: { transactionNo: true } },
+    },
+    where: {
+      assetId: { in: serialAssetIds },
+      returnedAt: null,
+      toStatus: { in: [AssetStatus.BORROW, AssetStatus.USING, AssetStatus.SOLD] },
+      transaction: {
+        workflowStatus: {
+          in: [
+            TransactionWorkflowStatus.PENDING,
+            TransactionWorkflowStatus.IN_PROGRESS,
+          ],
+        },
+      },
+    },
+  });
+
+  if (existingItem) {
+    throw new WorkflowError(
+      `Asset ${existingItem.asset.serialNo ?? existingItem.asset.assetModel.name} is already in ${existingItem.transaction.transactionNo}.`,
+      409,
+      "ASSET_ALREADY_IN_OPEN_TRANSACTION",
+    );
+  }
+}
+
 function assertAssetsCanBeHeld(
   user: CurrentUser,
   items: WorkflowRequestItem[],
@@ -874,7 +916,7 @@ type ApprovalUser = {
   organizationTag: OrganizationTag | null;
   projectTag: ProjectTag | null;
   stockControllerTag: StockControllerTag | null;
-  domainPermissions: Array<{ canManage: boolean; domain: { code: string } }>;
+  domainPermissions: Array<{ canManage: boolean; canView?: boolean; domain: { code: string } }>;
 };
 
 function managerTagFor(tag: string | null) {
@@ -1006,11 +1048,16 @@ async function findStockControllerApprovers(
   domainCode: string,
   stockControllerTag: StockControllerTag,
 ) {
+  const domainPermissionWhere =
+    stockControllerTag === StockControllerTag.STOCK_CONTROLLER
+      ? { canManage: true, domain: { code: domainCode } }
+      : { canView: true, domain: { code: domainCode } };
+
   return tx.user.findMany({
     orderBy: { name: "asc" },
     select: {
       domainPermissions: {
-        select: { canManage: true, domain: { select: { code: true } } },
+        select: { canManage: true, canView: true, domain: { select: { code: true } } },
       },
       id: true,
       name: true,
@@ -1020,7 +1067,7 @@ async function findStockControllerApprovers(
     },
     where: {
       domainPermissions: {
-        some: { canManage: true, domain: { code: domainCode } },
+        some: domainPermissionWhere,
       },
       isActive: true,
       roles: { some: { role: { code: "STOCK_CONTROLLER" } } },
@@ -1263,8 +1310,12 @@ async function releaseHeldAsset(
   const result = await tx.asset.updateMany({
     where: {
       id: asset.id,
-      requestLockedById: userId,
-      status: AssetStatus.REQUEST,
+      isActive: true,
+      OR: [
+        { requestLockedById: userId },
+        { requestLockedById: null },
+      ],
+      status: { in: [AssetStatus.READY, AssetStatus.REQUEST] },
     },
     data: {
       requestLockedAt: null,
@@ -1274,11 +1325,23 @@ async function releaseHeldAsset(
     },
   });
 
-  if (result.count !== 1) {
+  if (result.count === 1) {
+    return;
+  }
+
+  const currentAsset = await tx.asset.findUnique({
+    where: { id: asset.id },
+    select: { requestLockedById: true, status: true },
+  });
+
+  if (
+    currentAsset?.requestLockedById &&
+    currentAsset.requestLockedById !== userId
+  ) {
     throw new WorkflowError(
-      `Asset ${assetDisplayName(asset)} request lock changed before release.`,
+      `Asset ${assetDisplayName(asset)} is locked by another user.`,
       409,
-      "ASSET_RELEASE_CONFLICT",
+      "ASSET_LOCKED_BY_ANOTHER_USER",
     );
   }
 }
@@ -1550,6 +1613,7 @@ export async function holdAssetsForRequest(
   return db.$transaction(
     async (tx) => {
       const items = await findRequestItems(tx, requestItems);
+      await assertNoOpenSerialTransactionItems(tx, items);
       const availableQuantities = await getAvailableQuantities(
         tx,
         items.map((item) => item.asset),
@@ -1818,7 +1882,9 @@ async function applyApprovedReturnSaleTransaction(
       assetId: item.assetId,
       changedById: userId,
       fromStatus: item.fromStatus,
-      note: "Approved sale from return",
+      previousQuantity: isQuantityTransactionItem(item) ? item.asset.assetQuantity : null,
+      newQuantity: isQuantityTransactionItem(item) ? Math.max(0, item.asset.assetQuantity - item.requestedQuantity) : null,
+      note: `Sold from return; source ${sourceTransaction.transactionNo ?? sourceTransaction.documentRef ?? sourceTransaction.id}`,
       toStatus: AssetStatus.SOLD,
       transactionId: transaction.id,
     })),
@@ -1854,6 +1920,8 @@ export async function approveTransaction(
         where: { id: transactionId },
         select: {
           id: true,
+          projectId: true,
+          requestedById: true,
           soldPrice: true,
           type: true,
           workflowStatus: true,
@@ -1878,10 +1946,48 @@ export async function approveTransaction(
         throw new WorkflowError("Transaction is not pending approval.", 409);
       }
 
-      const pendingApprovals = transaction.approvals.filter(
+      let pendingApprovals = transaction.approvals.filter(
         (approval) => approval.status === ApprovalStatus.PENDING,
       );
       const currentStep = Math.min(...pendingApprovals.map((approval) => approval.stepSequence));
+      const currentStepApprovals = pendingApprovals.filter(
+        (approval) => approval.stepSequence === currentStep,
+      );
+
+      if (
+        transaction.projectId &&
+        currentStepApprovals.some((approval) => approval.requiredTag === ProjectTag.LEAD_PROJECT)
+      ) {
+        const currentLead = await findProjectApprover(
+          tx,
+          transaction.requestedById,
+          transaction.projectId,
+        );
+
+        if (!currentLead) {
+          throw new WorkflowError("Lead Project approver is not configured.", 409, "PROJECT_LEAD_NOT_FOUND");
+        }
+
+        await tx.transactionApproval.updateMany({
+          where: {
+            requiredTag: ProjectTag.LEAD_PROJECT,
+            status: ApprovalStatus.PENDING,
+            stepSequence: currentStep,
+            transactionId,
+          },
+          data: {
+            approverNameSnapshot: currentLead.name,
+            userId: currentLead.id,
+          },
+        });
+
+        pendingApprovals = pendingApprovals.map((approval) =>
+          approval.requiredTag === ProjectTag.LEAD_PROJECT && approval.stepSequence === currentStep
+            ? { ...approval, userId: currentLead.id }
+            : approval,
+        );
+      }
+
       const currentApproval = pendingApprovals.find(
         (approval) =>
           approval.stepSequence === currentStep && approvalMatchesUser(user, approval),
@@ -1978,6 +2084,7 @@ async function releaseRejectedTransactionItems(
   tx: Prisma.TransactionClient,
   transaction: TransactionDetail,
   userId: string,
+  reason: string,
 ) {
   for (const item of transaction.items) {
     const workflowItem = {
@@ -1998,7 +2105,7 @@ async function releaseRejectedTransactionItems(
       assetId: item.assetId,
       changedById: userId,
       fromStatus: AssetStatus.REQUEST,
-      note: "Rejected request",
+      note: `Rejected request: ${reason}`,
       toStatus: AssetStatus.READY,
       transactionId: transaction.id,
     })),
@@ -2021,7 +2128,53 @@ export async function rejectTransaction(
         throw new WorkflowError("Transaction is not pending approval.", 409);
       }
 
-      const currentApproval = currentPendingApproval(user, transaction.approvals);
+      let approvalsForMatch = transaction.approvals;
+      const pendingApprovals = transaction.approvals.filter(
+        (approval) => approval.status === ApprovalStatus.PENDING,
+      );
+      const currentStep = pendingApprovals.length > 0
+        ? Math.min(...pendingApprovals.map((approval) => approval.stepSequence))
+        : null;
+
+      if (
+        transaction.projectId &&
+        currentStep !== null &&
+        pendingApprovals.some(
+          (approval) =>
+            approval.stepSequence === currentStep && approval.requiredTag === ProjectTag.LEAD_PROJECT,
+        )
+      ) {
+        const currentLead = await findProjectApprover(
+          tx,
+          transaction.requestedBy.id,
+          transaction.projectId,
+        );
+
+        if (!currentLead) {
+          throw new WorkflowError("Lead Project approver is not configured.", 409, "PROJECT_LEAD_NOT_FOUND");
+        }
+
+        await tx.transactionApproval.updateMany({
+          where: {
+            requiredTag: ProjectTag.LEAD_PROJECT,
+            status: ApprovalStatus.PENDING,
+            stepSequence: currentStep,
+            transactionId,
+          },
+          data: {
+            approverNameSnapshot: currentLead.name,
+            userId: currentLead.id,
+          },
+        });
+
+        approvalsForMatch = transaction.approvals.map((approval) =>
+          approval.requiredTag === ProjectTag.LEAD_PROJECT && approval.stepSequence === currentStep
+            ? { ...approval, userId: currentLead.id }
+            : approval,
+        );
+      }
+
+      const currentApproval = currentPendingApproval(user, approvalsForMatch);
 
       if (!currentApproval) {
         throw new WorkflowError("No approval is waiting for this user.", 403);
@@ -2048,7 +2201,7 @@ export async function rejectTransaction(
         },
       });
 
-      await releaseRejectedTransactionItems(tx, transaction, user.id);
+      await releaseRejectedTransactionItems(tx, transaction, user.id, reason);
 
       return findTransactionDetail(tx, transactionId);
     },
@@ -2086,11 +2239,19 @@ export async function updatePendingTransactionRequest(
         throw new WorkflowError("Only the requester can edit this request.", 403);
       }
 
-      if (transaction.workflowStatus !== TransactionWorkflowStatus.PENDING) {
-        throw new WorkflowError("Only pending requests can be edited.", 409);
+      const isRejectedEdit = transaction.workflowStatus === TransactionWorkflowStatus.REJECTED;
+
+      if (
+        transaction.workflowStatus !== TransactionWorkflowStatus.PENDING &&
+        transaction.workflowStatus !== TransactionWorkflowStatus.REJECTED
+      ) {
+        throw new WorkflowError("Only pending or rejected requests can be edited.", 409);
       }
 
-      if (transaction.approvals.some((approval) => approval.status === ApprovalStatus.APPROVED)) {
+      if (
+        !isRejectedEdit &&
+        transaction.approvals.some((approval) => approval.status === ApprovalStatus.APPROVED)
+      ) {
         throw new WorkflowError("This request is locked because approval has already started.", 409);
       }
 
@@ -2139,6 +2300,10 @@ export async function updatePendingTransactionRequest(
           purpose: requestPurpose,
           serviceRequest: input.serviceRequest ?? false,
           type: input.type,
+          workflowStatus: TransactionWorkflowStatus.PENDING,
+          status: getInitialTransactionStatus(input.type),
+          completedAt: null,
+          returnedAt: null,
         },
       });
 
@@ -2153,6 +2318,17 @@ export async function updatePendingTransactionRequest(
           asset: item.asset as unknown as WorkflowAsset,
           quantity: item.requestedQuantity,
         }));
+
+        if (isRejectedEdit) {
+          for (const workflowItem of workflowItems) {
+            if (isQuantityAsset(workflowItem.asset)) {
+              await refreshQuantityRequestStatus(tx, workflowItem.asset.id, requester.id);
+            } else {
+              await holdAsset(tx, workflowItem.asset, user, new Date());
+            }
+          }
+        }
+
         await replaceTransactionApprovals(
           tx,
           transactionId,
@@ -2167,6 +2343,11 @@ export async function updatePendingTransactionRequest(
       const nextItems = await findRequestItems(tx, requestedItems);
       const previousByAssetId = new Map(
         transaction.items.map((item) => [item.assetId, item]),
+      );
+      await assertNoOpenSerialTransactionItems(
+        tx,
+        nextItems,
+        new Set(previousByAssetId.keys()),
       );
       const nextByAssetId = new Map(
         nextItems.map((item) => [item.asset.id, item]),
@@ -2268,6 +2449,8 @@ export async function updatePendingTransactionRequest(
       for (const kept of keptItems) {
         if (isQuantityAsset(kept.asset)) {
           quantityAssetIdsToRefresh.add(kept.asset.id);
+        } else if (isRejectedEdit) {
+          await holdAsset(tx, kept.asset, user, new Date());
         }
       }
 
@@ -2371,6 +2554,95 @@ export async function updatePendingTransactionRequest(
   );
 }
 
+
+export async function getEditablePendingRequestsForUser(user: CurrentUser) {
+  const transactions = await db.transaction.findMany({
+    orderBy: { createdAt: "desc" },
+    select: {
+      createdAt: true,
+      id: true,
+      purpose: true,
+      transactionNo: true,
+      type: true,
+      _count: { select: { items: true } },
+    },
+    where: {
+      approvals: { none: { status: ApprovalStatus.APPROVED } },
+      requestedById: user.id,
+      workflowStatus: TransactionWorkflowStatus.PENDING,
+    },
+  });
+
+  return transactions.map((transaction) => ({
+    createdAt: transaction.createdAt,
+    id: transaction.id,
+    itemCount: transaction._count.items,
+    purpose: transaction.purpose,
+    transactionNo: transaction.transactionNo,
+    type: transaction.type,
+  }));
+}
+
+export async function addItemsToPendingTransaction(
+  user: CurrentUser,
+  transactionId: string,
+  input: { items?: RequestAssetItemInput[] },
+) {
+  const requestItems = normalizeRequestItems(input);
+  assertHasItems(requestItems, "Asset items");
+
+  const transaction = await db.transaction.findUnique({
+    select: {
+      id: true,
+      internalRequest: true,
+      items: { select: { assetId: true, requestedQuantity: true } },
+      note: true,
+      projectId: true,
+      projectRequest: true,
+      purpose: true,
+      requestedById: true,
+      serviceRequest: true,
+      type: true,
+    },
+    where: { id: transactionId },
+  });
+
+  if (!transaction) {
+    throw new WorkflowError("Transaction not found.", 404);
+  }
+
+  if (transaction.requestedById !== user.id) {
+    throw new WorkflowError("Only the requester can edit this request.", 403);
+  }
+
+  const nextItems = new Map<string, RequestAssetItemInput>();
+  for (const item of transaction.items) {
+    nextItems.set(item.assetId, {
+      assetId: item.assetId,
+      quantity: item.requestedQuantity,
+    });
+  }
+
+  for (const item of requestItems) {
+    const existing = nextItems.get(item.assetId);
+    nextItems.set(item.assetId, {
+      assetId: item.assetId,
+      quantity: existing ? (existing.quantity ?? 1) + item.quantity : item.quantity,
+    });
+  }
+
+  return updatePendingTransactionRequest(user, transactionId, {
+    internalRequest: transaction.internalRequest,
+    items: [...nextItems.values()],
+    note: transaction.note,
+    projectId: transaction.projectId,
+    projectRequest: transaction.projectRequest,
+    purpose: transaction.purpose,
+    serviceRequest: transaction.serviceRequest,
+    type: transaction.type,
+  });
+}
+
 export async function releaseAssetsFromRequest(
   user: CurrentUser,
   input: ReleaseAssetsInput,
@@ -2466,7 +2738,7 @@ async function createReturnSaleApprovalTransaction(
       soldPrice: null,
       sourceTransactionId: sourceTransaction.id,
       status: TransactionStatus.COMPLETED,
-      transactionNo: await createRequisitionNo(tx, now),
+      transactionNo: null,
       type: TransactionType.SOLD,
       workflowStatus: TransactionWorkflowStatus.PENDING,
     },
@@ -2492,7 +2764,7 @@ async function createReturnSaleApprovalTransaction(
       assetId: item.assetId,
       changedById: actor.id,
       fromStatus: item.toStatus,
-      note: [note, `Created sale approval request ${transaction.transactionNo}`]
+      note: [note, `Created sold-from-return approval from ${sourceTransaction.transactionNo ?? sourceTransaction.documentRef ?? sourceTransaction.id}`]
         .filter(Boolean)
         .join("\n"),
       toStatus: item.toStatus,
@@ -2606,7 +2878,9 @@ export async function resolveTransactionItems(
               assetId: item.assetId,
               changedById: user.id,
               fromStatus: item.toStatus,
-              note: cleanText(resolution?.note),
+              previousQuantity: isQuantityTransactionItem(item) ? item.asset.assetQuantity : null,
+              newQuantity: isQuantityTransactionItem(item) ? item.asset.assetQuantity : null,
+              note: ["Returned from transaction", cleanText(resolution?.note)].filter(Boolean).join("; "),
               toStatus,
               transactionId: transaction.id,
             };

@@ -4,7 +4,7 @@ import { AssetStatus } from "@prisma/client";
 import { ArrowDownAZ, ArrowUpAZ, CheckCircle2, ChevronDown, Loader2, Package, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { AssetStatusBadge } from "@/components/status/asset-status-badge";
 import { assetStatusHexColors, assetStatusLabels } from "@/lib/status-style";
 
@@ -80,6 +80,15 @@ const inventoryColumnLabels = {
   stockCode: "Stock Code",
   type: "Type",
 } as const satisfies Record<InventoryColumnKey, string>;
+
+type PendingRequestOption = {
+  createdAt: string;
+  id: string;
+  itemCount: number;
+  purpose: string;
+  transactionNo: string;
+  type: string;
+};
 
 type RequestableInventoryTableProps = {
   activeSort?: { by: SortKey; direction: SortDirection };
@@ -296,6 +305,7 @@ function RequestConfirmDialog({
   onClose,
   onConfirm,
   onQuantityChange,
+  pendingRequests,
   quantity,
 }: {
   asset: RequestableInventoryRow;
@@ -304,10 +314,13 @@ function RequestConfirmDialog({
   inventoryFamily: InventoryFamily;
   isSubmitting: boolean;
   onClose: () => void;
-  onConfirm: (quantity: number) => void;
+  onConfirm: (quantity: number, transactionId: string | null) => void;
   onQuantityChange: (quantity: number) => void;
+  pendingRequests: PendingRequestOption[];
   quantity: number;
 }) {
+  const [mode, setMode] = useState<"NEW" | "EXISTING">("NEW");
+  const [transactionId, setTransactionId] = useState("");
   const isReady = asset.status === AssetStatus.READY && asset.availableQuantity > 0;
   const isQuantityAsset =
     inventoryFamily === "QUANTITY" ||
@@ -360,6 +373,57 @@ function RequestConfirmDialog({
           </div>
         </div>
 
+        {pendingRequests.length > 0 ? (
+          <div className="mt-5 rounded-md border border-border p-3">
+            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              Request Destination
+            </p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <button
+                className={`h-10 rounded-md border px-3 text-sm font-bold transition ${
+                  mode === "NEW"
+                    ? "border-navy bg-navy text-white"
+                    : "border-border bg-white text-navy hover:bg-surface"
+                }`}
+                onClick={() => {
+                  setMode("NEW");
+                  setTransactionId("");
+                }}
+                type="button"
+              >
+                Create new request
+              </button>
+              <button
+                className={`h-10 rounded-md border px-3 text-sm font-bold transition ${
+                  mode === "EXISTING"
+                    ? "border-navy bg-navy text-white"
+                    : "border-border bg-white text-navy hover:bg-surface"
+                }`}
+                onClick={() => {
+                  setMode("EXISTING");
+                  setTransactionId(pendingRequests[0]?.id ?? "");
+                }}
+                type="button"
+              >
+                Add to existing
+              </button>
+            </div>
+            {mode === "EXISTING" ? (
+              <select
+                className="mt-3 h-11 w-full rounded-md border border-border bg-white px-3 text-sm font-semibold text-navy outline-none ring-brand-accent/20 focus:ring-4"
+                onChange={(event) => setTransactionId(event.target.value)}
+                value={transactionId}
+              >
+                {pendingRequests.map((request) => (
+                  <option key={request.id} value={request.id}>
+                    {request.transactionNo} - {request.purpose} ({request.itemCount} items)
+                  </option>
+                ))}
+              </select>
+            ) : null}
+          </div>
+        ) : null}
+
         {isQuantityAsset ? (
           <label className="mt-5 block">
             <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
@@ -401,7 +465,7 @@ function RequestConfirmDialog({
           <button
             className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-navy px-4 text-sm font-bold text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
             disabled={!isReady || isSubmitting}
-            onClick={() => onConfirm(quantity)}
+            onClick={() => onConfirm(quantity, mode === "EXISTING" ? transactionId : null)}
             type="button"
           >
             {isSubmitting ? (
@@ -690,6 +754,31 @@ export function RequestableInventoryTable({
   const [openSortKey, setOpenSortKey] = useState<SortKey | null>(null);
   const [statusNote, setStatusNote] = useState("");
   const [isChangingStatus, setIsChangingStatus] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState<PendingRequestOption[]>([]);
+
+  useEffect(() => {
+    if (!activeAsset || !canRequest) {
+      return;
+    }
+
+    let ignore = false;
+    fetch("/api/transactions/pending")
+      .then((response) => (response.ok ? response.json() : { transactions: [] }))
+      .then((data: { transactions?: PendingRequestOption[] }) => {
+        if (!ignore) {
+          setPendingRequests(data.transactions ?? []);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setPendingRequests([]);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [activeAsset, canRequest]);
 
   const columns = inventoryFamily === "QUANTITY" ? quantityInventoryColumns : serialInventoryColumns;
 
@@ -705,7 +794,7 @@ export function RequestableInventoryTable({
     router.push(`/dashboard/assets/${asset.id}`);
   }
 
-  async function handleConfirm(quantity: number) {
+  async function handleConfirm(quantity: number, transactionId: string | null) {
     if (!activeAsset) {
       return;
     }
@@ -714,19 +803,25 @@ export function RequestableInventoryTable({
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("/api/requests/hold", {
-        body: JSON.stringify({
-          items: [
-            {
-              assetId: activeAsset.id,
-              quantity,
-            },
-          ],
-          note: `Requested from ${domainLabel} inventory.`,
-        }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      });
+      const payload = {
+        items: [
+          {
+            assetId: activeAsset.id,
+            quantity,
+          },
+        ],
+        note: `Requested from ${domainLabel} inventory.`,
+      };
+      const response = await fetch(
+        transactionId
+          ? `/api/transactions/${transactionId}/items`
+          : "/api/requests/hold",
+        {
+          body: JSON.stringify(payload),
+          headers: { "Content-Type": "application/json" },
+          method: "POST",
+        },
+      );
       const data = (await response.json().catch(() => ({}))) as {
         message?: string;
       };
@@ -736,7 +831,7 @@ export function RequestableInventoryTable({
       }
 
       router.refresh();
-      router.push("/request");
+      router.push(transactionId ? `/logs/${transactionId}/return` : "/request");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to request asset.");
     } finally {
@@ -977,6 +1072,7 @@ export function RequestableInventoryTable({
               Math.min(Math.max(1, quantity), Math.max(1, activeAsset.availableQuantity)),
             )
           }
+          pendingRequests={pendingRequests}
           quantity={requestQuantity}
         />
       ) : null}

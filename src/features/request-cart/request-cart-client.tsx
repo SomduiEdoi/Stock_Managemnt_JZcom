@@ -6,7 +6,7 @@ import {
   AlertCircle,
   ArrowRight,
   CheckCircle2,
-  ClipboardList,
+  ShoppingBasket,
   FileDown,
   Loader2,
   Package,
@@ -118,7 +118,7 @@ function RequestItemCard({
 function EmptyRequestList() {
   return (
     <div className="rounded-md border border-dashed border-border bg-white p-8 text-center">
-      <ClipboardList className="mx-auto h-10 w-10 text-muted-foreground" />
+      <ShoppingBasket className="mx-auto h-10 w-10 text-muted-foreground" />
       <h3 className="mt-4 text-lg font-bold text-navy">Request list is empty</h3>
       <p className="mt-2 text-sm font-medium text-muted-foreground">
         Select ready assets from inventory before submitting a request.

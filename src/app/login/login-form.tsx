@@ -52,18 +52,18 @@ export function LoginForm() {
   return (
     <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
       <label className="flex flex-col gap-2">
-        <span className="text-[10px] font-bold uppercase leading-3 text-[#1b1c1a]">
+        <span className="text-[10px] font-bold uppercase leading-3 text-ink">
           Work Email
         </span>
         <span className="relative">
           <Mail
             aria-hidden="true"
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-[#42474c]"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-navy/80"
             size={18}
           />
           <input
             autoComplete="email"
-            className="h-10 w-full rounded-[4px] border border-[#c3c7cc] bg-white pl-9 pr-4 text-sm text-[#1b1c1a] outline-none transition placeholder:text-[#42474c] focus:border-[#0f2938] focus:ring-2 focus:ring-[#0f2938]/15"
+            className="h-10 w-full rounded-[4px] border border-border/25 bg-white pl-9 pr-4 text-sm text-ink outline-none transition placeholder:text-navy/80 focus:border-navy focus:ring-2 focus:ring-navy/15"
             onChange={(event) => setEmail(event.target.value)}
             placeholder="name@company.com"
             type="email"
@@ -74,22 +74,22 @@ export function LoginForm() {
 
       <label className="flex flex-col gap-2">
         <span className="flex items-center justify-between gap-4">
-          <span className="text-[10px] font-bold uppercase leading-3 text-[#1b1c1a]">
+          <span className="text-[10px] font-bold uppercase leading-3 text-ink">
             Secure Password
           </span>
-          <span className="text-[10px] font-bold leading-3 text-[#0f2938]">
+          <span className="text-[10px] font-bold leading-3 text-navy">
             Forgot password?
           </span>
         </span>
         <span className="relative">
           <LockKeyhole
             aria-hidden="true"
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-[#42474c]"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-navy/80"
             size={18}
           />
           <input
             autoComplete="current-password"
-            className="h-10 w-full rounded-[4px] border border-[#c3c7cc] bg-white pl-9 pr-11 text-sm text-[#1b1c1a] outline-none transition placeholder:text-[#42474c] focus:border-[#0f2938] focus:ring-2 focus:ring-[#0f2938]/15"
+            className="h-10 w-full rounded-[4px] border border-border/25 bg-white pl-9 pr-11 text-sm text-ink outline-none transition placeholder:text-navy/80 focus:border-navy focus:ring-2 focus:ring-navy/15"
             onChange={(event) => setPassword(event.target.value)}
             placeholder="Password"
             type={showPassword ? "text" : "password"}
@@ -97,7 +97,7 @@ export function LoginForm() {
           />
           <button
             aria-label={showPassword ? "Hide password" : "Show password"}
-            className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-[#42474c] transition hover:bg-[#efeeea] hover:text-[#0f2938]"
+            className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-navy/80 transition hover:bg-surface hover:text-navy"
             onClick={() => setShowPassword((value) => !value)}
             type="button"
           >
@@ -112,22 +112,22 @@ export function LoginForm() {
 
       <label className="flex items-center gap-3">
         <input
-          className="h-4 w-4 rounded border-[#c3c7cc] text-[#0f2938] focus:ring-[#0f2938]"
+          className="h-4 w-4 rounded border-border/25 text-navy focus:ring-navy"
           type="checkbox"
         />
-        <span className="select-none text-xs leading-4 text-[#42474c]">
+        <span className="select-none text-xs leading-4 text-navy/80">
           Maintain session for 8 hours
         </span>
       </label>
 
       {error ? (
-        <p className="rounded-md border border-[#ffdad6] bg-[#fff0ee] px-3 py-2 text-sm text-[#93000a]">
+        <p className="rounded-md border border-status-fail/20 bg-status-fail/10 px-3 py-2 text-sm text-status-fail">
           {error}
         </p>
       ) : null}
 
       <button
-        className="mt-1 flex h-[52px] w-full items-center justify-center gap-3 rounded-md bg-[#0f2938] px-4 text-base font-semibold text-white shadow-[0_7px_14px_rgba(15,41,56,0.2)] transition hover:bg-[#32495a] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70"
+        className="mt-1 flex h-[52px] w-full items-center justify-center gap-3 rounded-md bg-navy px-4 text-base font-semibold text-white shadow-[0_7px_14px_rgba(15,41,56,0.2)] transition hover:bg-brand-accent active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70"
         disabled={isSubmitting}
         type="submit"
       >
