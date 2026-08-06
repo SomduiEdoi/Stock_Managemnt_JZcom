@@ -11,6 +11,7 @@ import {
 import { assetStatusLabels } from "@/lib/status-style";
 import { AssetStatusBadge } from "@/components/status/asset-status-badge";
 import { ProblemFiltersClient } from "@/app/dashboard/assets/problem-filters-client";
+import { TablePagination } from "@/components/table/table-pagination";
 
 type AssetsPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -204,30 +205,13 @@ function Pagination({
   totalPages: number;
 }) {
   return (
-    <footer className="flex flex-col gap-3 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
-      <p>
-        Page {formatNumber(filters.page)} of {formatNumber(totalPages)}
-      </p>
-      <div className="flex gap-2">
-        <Link
-          aria-disabled={filters.page <= 1}
-          className="rounded-md border border-border bg-white px-3 py-2 font-semibold aria-disabled:pointer-events-none aria-disabled:opacity-50"
-          href={buildPageHref(Math.max(1, filters.page - 1), filters)}
-        >
-          Previous
-        </Link>
-        <Link
-          aria-disabled={filters.page >= totalPages}
-          className="rounded-md border border-border bg-white px-3 py-2 font-semibold aria-disabled:pointer-events-none aria-disabled:opacity-50"
-          href={buildPageHref(Math.min(totalPages, filters.page + 1), filters)}
-        >
-          Next
-        </Link>
-      </div>
-    </footer>
+    <TablePagination
+      currentPage={filters.page}
+      hrefForPage={(page) => buildPageHref(page, filters)}
+      totalPages={totalPages}
+    />
   );
 }
-
 export default async function AssetsPage({ searchParams }: AssetsPageProps) {
   const user = await requireCurrentUser("/dashboard/assets");
   const filters = normalizeAssetListFilters(await searchParams);

@@ -15,7 +15,7 @@ const dataDirectory = process.env.STOCK_DATA_DIR ?? path.resolve(process.cwd(), 
 const sourceSystem = "SharePoint";
 
 type CsvRecord = Record<string, string>;
-type DomainCode = "NETWORK" | "SERVER";
+type DomainCode = string;
 
 type SourceFile = {
   domainCode: DomainCode;
@@ -38,9 +38,10 @@ type MappedRow = {
   modelName: string;
   note: string | null;
   partNo: string | null;
-  serialNo: string;
+  serialNo: string | null;
   status: AssetStatus;
   stockCode: string | null;
+  trackMethod: AssetTrackMethod;
   typeCode: string | null;
   typeName: string | null;
 };
@@ -48,6 +49,7 @@ type MappedRow = {
 const sourceFiles: SourceFile[] = [
   { domainCode: "NETWORK", fileName: "Network_reclassified.csv" },
   { domainCode: "SERVER", fileName: "Server_reclassified.csv" },
+  { domainCode: "BSD", fileName: "BSD_reclassified.csv" },
 ];
 
 const statusMap = new Map<string, AssetStatus>([
@@ -107,6 +109,32 @@ const typeCodeByDomain: Record<DomainCode, Record<string, string>> = {
     "ssd sas": "SDS",
     "ssd sata": "SDT",
     "tower server": "TWR",
+  },
+  BSD: {
+    adapter: "ADP",
+    bag: "BAG",
+    battery: "BAT",
+    component: "CMP",
+    enclosure: "ENC",
+    "hdd": "HDD",
+    hdmi: "HDM",
+    headphones: "HPN",
+    keypad: "KPD",
+    "memory card": "MCD",
+    "mini pc": "MPC",
+    monitor: "MON",
+    mouse: "MSE",
+    "mouse pad": "MPD",
+    notebook: "NBK",
+    "office accessory": "OFA",
+    "pc/desktop": "PCD",
+    ram: "RAM",
+    ssd: "SSD",
+    switch: "SWT",
+    ups: "UPS",
+    "usb cable": "UCB",
+    "usb flash drive": "UFD",
+    "vga cable": "VGA",
   },
 };
 
@@ -269,6 +297,30 @@ function combineNote(row: CsvRecord) {
 }
 
 function mapRow(domainCode: DomainCode, row: CsvRecord): MappedRow {
+  if (domainCode === "BSD") {
+    const quantity = parseInteger(row.QTY) ?? 0;
+    const typeName = clean(row.Types);
+
+    return {
+      brand: clean(row.Brand),
+      categoryName: clean(row.Category),
+      description: clean(row.Description) ?? clean(row.Comment),
+      imageRef: clean(row.Image),
+      legacyFg: parseInteger(row.FG),
+      legacyQty: quantity,
+      locationText: clean(row.Location),
+      modelName: clean(row.Model) ?? clean(row.Description) ?? "Unknown Model",
+      note: combineNote(row),
+      partNo: clean(row["Part No."]),
+      serialNo: null,
+      status: quantity > 0 ? AssetStatus.READY : AssetStatus.NEED_CHECK,
+      stockCode: null,
+      trackMethod: AssetTrackMethod.QUANTITY,
+      typeCode: typeCodeFor(domainCode, typeName),
+      typeName,
+    };
+  }
+
   const serialNo = clean(row["Serial No."]);
 
   if (!serialNo) {
@@ -291,6 +343,7 @@ function mapRow(domainCode: DomainCode, row: CsvRecord): MappedRow {
     serialNo,
     status: mapStatus(row.Status),
     stockCode: null,
+    trackMethod: AssetTrackMethod.SERIAL,
     typeCode: typeCodeFor(domainCode, typeName),
     typeName,
   };
@@ -332,6 +385,7 @@ async function findOrCreateAssetType(
   categoryId: string | null,
   name: string | null,
   code: string | null,
+  trackMethod: AssetTrackMethod,
 ) {
   if (!categoryId || !name) {
     return null;
@@ -344,7 +398,7 @@ async function findOrCreateAssetType(
       categoryId,
       code,
       name,
-      trackMethod: AssetTrackMethod.SERIAL,
+      trackMethod,
     },
   });
 }
@@ -394,6 +448,10 @@ function toJsonObject(value: Record<string, unknown>) {
 }
 
 function toAssetQuantity(mapped: MappedRow) {
+  if (mapped.trackMethod === AssetTrackMethod.QUANTITY) {
+    return mapped.legacyQty ?? 0;
+  }
+
   return mapped.legacyQty && mapped.legacyQty > 0 ? mapped.legacyQty : 1;
 }
 
@@ -461,6 +519,7 @@ async function upsertAssetFromRow(
     category?.id ?? null,
     mapped.typeName,
     mapped.typeCode,
+    mapped.trackMethod,
   );
   const location = await findOrCreateLocation(tx, mapped.locationText);
   const model = await findOrCreateModel(
@@ -479,9 +538,17 @@ async function upsertAssetFromRow(
     batchId,
     sourceRecordId,
   );
-  const existing = await tx.asset.findUnique({
-    where: { serialNo: mapped.serialNo },
-  });
+  const existing =
+    mapped.serialNo
+      ? await tx.asset.findUnique({ where: { serialNo: mapped.serialNo } })
+      : mapped.stockCode
+        ? await tx.asset.findFirst({
+            where: {
+              domainId,
+              stockCode: mapped.stockCode,
+            },
+          })
+        : null;
 
   if (!existing) {
     const asset = await tx.asset.create({
@@ -533,16 +600,19 @@ async function importParsedRow(
 ) {
   const mapped = mapRow(domainCode, row.data);
   mapped.stockCode = nextImportedStockCode(domainPrefix, mapped.typeCode, stockCodeCounters);
-  const serialKey = mapped.serialNo.toLowerCase();
 
-  if (seenSerials.has(serialKey)) {
-    throw new Error(`Duplicate serial no. in source files: ${mapped.serialNo}`);
+  if (mapped.serialNo) {
+    const serialKey = mapped.serialNo.toLowerCase();
+
+    if (seenSerials.has(serialKey)) {
+      throw new Error(`Duplicate serial no. in source files: ${mapped.serialNo}`);
+    }
+
+    seenSerials.add(serialKey);
   }
 
-  seenSerials.add(serialKey);
-
   return prisma.$transaction(async (tx) => {
-    const sourceRecordId = `${batchId}:${row.rowNumber}:${mapped.serialNo}`;
+    const sourceRecordId = `${batchId}:${row.rowNumber}:${mapped.serialNo ?? mapped.stockCode ?? mapped.modelName}`;
     const asset = await upsertAssetFromRow(
       tx,
       mapped,

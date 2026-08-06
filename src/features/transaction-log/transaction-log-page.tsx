@@ -1,8 +1,6 @@
 import type { ComponentType, ReactNode } from "react";
 import Link from "next/link";
 import {
-  ArrowLeft,
-  ArrowRight,
   BadgeCheck,
   Clock3,
   FileText,
@@ -26,6 +24,7 @@ import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { InventoryDataUnavailable } from "@/components/inventory/inventory-data-unavailable";
 import { TransactionLogControls } from "@/features/transaction-log/transaction-log-controls";
 import { TransactionRowActions } from "@/features/transaction-log/transaction-row-actions";
+import { TablePagination } from "@/components/table/table-pagination";
 
 type TransactionLogPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -584,33 +583,14 @@ function Pagination({
   totalPages: number;
 }) {
   return (
-    <footer className="flex flex-col gap-3 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
-      <p>
-        Showing {formatNumber(Math.min(total, page * filters.pageSize))} of{" "}
-        {formatNumber(total)} entries
-      </p>
-      <div className="flex gap-2">
-        <Link
-          aria-disabled={page <= 1}
-          className="flex h-9 items-center gap-2 rounded-md border border-border bg-white px-3 font-semibold aria-disabled:pointer-events-none aria-disabled:opacity-50"
-          href={buildTransactionLogHref(filters, { page: Math.max(1, page - 1) })}
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Previous
-        </Link>
-        <Link
-          aria-disabled={page >= totalPages}
-          className="flex h-9 items-center gap-2 rounded-md border border-border bg-navy px-3 font-semibold text-white aria-disabled:pointer-events-none aria-disabled:opacity-50"
-          href={buildTransactionLogHref(filters, { page: Math.min(totalPages, page + 1) })}
-        >
-          Next
-          <ArrowRight className="h-4 w-4" />
-        </Link>
-      </div>
-    </footer>
+    <TablePagination
+      currentPage={page}
+      hrefForPage={(nextPage) => buildTransactionLogHref(filters, { page: nextPage })}
+      summary={`Showing ${formatNumber(Math.min(total, page * filters.pageSize))} of ${formatNumber(total)} entries`}
+      totalPages={totalPages}
+    />
   );
 }
-
 function NoLogAccess() {
   return (
     <section className="rounded-md border border-border bg-white p-8 text-center shadow-sm">

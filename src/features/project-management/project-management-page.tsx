@@ -3,8 +3,6 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft,
-  ArrowRight,
   BriefcaseBusiness,
   Layers,
   MoreVertical,
@@ -16,6 +14,7 @@ import {
 } from "lucide-react";
 import { SearchCombobox } from "@/components/form/search-combobox";
 import { SearchableDropdown } from "@/components/form/searchable-dropdown";
+import { TablePagination } from "@/components/table/table-pagination";
 import type { ProjectRow, ProjectUserOption } from "@/lib/project-management";
 
 type ProjectStatus = "ACTIVE" | "CLOSED";
@@ -682,30 +681,12 @@ export function ProjectManagementPage({
         ) : null}
       </section>
 
-      <footer className="flex flex-col gap-3 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
-        <p>
-          Showing {filteredProjects.length.toLocaleString("en-US")} of{" "}
-          {projects.length.toLocaleString("en-US")} projects
-        </p>
-        <div className="flex gap-2">
-          <button
-            aria-disabled="true"
-            className="flex h-9 items-center gap-2 rounded-md border border-border bg-white px-3 font-semibold opacity-50"
-            type="button"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Previous
-          </button>
-          <button
-            aria-disabled="true"
-            className="flex h-9 items-center gap-2 rounded-md border border-border bg-navy px-3 font-semibold text-white opacity-50"
-            type="button"
-          >
-            Next
-            <ArrowRight className="h-4 w-4" />
-          </button>
-        </div>
-      </footer>
+      <TablePagination
+        currentPage={1}
+        hrefForPage={() => "#"}
+        summary={`Showing ${filteredProjects.length.toLocaleString("en-US")} of ${projects.length.toLocaleString("en-US")} projects`}
+        totalPages={1}
+      />
 
       {dialog?.type === "ADD" ? (
         <ProjectFormModal

@@ -1,5 +1,7 @@
 import bcrypt from "bcryptjs";
-import {  type OrganizationLevel,
+import {
+  AssetTrackMethod,
+  type OrganizationLevel,
   type OrganizationTag,
   PrismaClient,
   type RoleCode,
@@ -36,6 +38,7 @@ const seedUsers: SeedUser[] = [
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: true },
       { domainCode: "NETWORK", canView: true, canManage: true },
+      { domainCode: "BSD", canView: true, canManage: true },
     ],
   },
   {
@@ -49,6 +52,7 @@ const seedUsers: SeedUser[] = [
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: true },
       { domainCode: "NETWORK", canView: true, canManage: false },
+      { domainCode: "BSD", canView: true, canManage: false },
     ],
   },
   {
@@ -62,6 +66,7 @@ const seedUsers: SeedUser[] = [
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: false },
       { domainCode: "NETWORK", canView: true, canManage: true },
+      { domainCode: "BSD", canView: true, canManage: false },
     ],
   },
   {
@@ -75,6 +80,7 @@ const seedUsers: SeedUser[] = [
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: true },
       { domainCode: "NETWORK", canView: true, canManage: false },
+      { domainCode: "BSD", canView: true, canManage: false },
     ],
   },
   {
@@ -88,6 +94,7 @@ const seedUsers: SeedUser[] = [
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: false },
       { domainCode: "NETWORK", canView: true, canManage: true },
+      { domainCode: "BSD", canView: true, canManage: false },
     ],
   },
   {
@@ -100,6 +107,7 @@ const seedUsers: SeedUser[] = [
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: false },
       { domainCode: "NETWORK", canView: true, canManage: false },
+      { domainCode: "BSD", canView: true, canManage: false },
     ],
   },
   {
@@ -112,6 +120,7 @@ const seedUsers: SeedUser[] = [
     permissions: [
       { domainCode: "SERVER", canView: true, canManage: false },
       { domainCode: "NETWORK", canView: true, canManage: false },
+      { domainCode: "BSD", canView: true, canManage: false },
     ],
   },
 ];
@@ -161,12 +170,14 @@ async function upsertDomains() {
         name: "Server",
         prefix: "SV",
         description: "Server hardware, parts, and accessories.",
+        inventoryFamily: AssetTrackMethod.SERIAL,
       },
       create: {
         code: "SERVER",
         name: "Server",
         prefix: "SV",
         description: "Server hardware, parts, and accessories.",
+        inventoryFamily: AssetTrackMethod.SERIAL,
       },
     }),
     prisma.assetDomain.upsert({
@@ -175,15 +186,89 @@ async function upsertDomains() {
         name: "Network",
         prefix: "NW",
         description: "Network hardware, modules, cables, and accessories.",
+        inventoryFamily: AssetTrackMethod.SERIAL,
       },
       create: {
         code: "NETWORK",
         name: "Network",
         prefix: "NW",
         description: "Network hardware, modules, cables, and accessories.",
+        inventoryFamily: AssetTrackMethod.SERIAL,
+      },
+    }),
+    prisma.assetDomain.upsert({
+      where: { code: "BSD" },
+      update: {
+        name: "BSD",
+        description: "Business Support Dept. hardware stock.",
+        inventoryFamily: AssetTrackMethod.QUANTITY,
+      },
+      create: {
+        code: "BSD",
+        name: "BSD",
+        prefix: "BS",
+        description: "Business Support Dept. hardware stock.",
+        inventoryFamily: AssetTrackMethod.QUANTITY,
       },
     }),
   ]);
+}
+
+const bsdTaxonomy: Array<{ category: string; type: string; code: string }> = [
+  { category: "Power", type: "UPS", code: "UPS" },
+  { category: "Power", type: "Battery", code: "BAT" },
+  { category: "Storage", type: "HDD", code: "HDD" },
+  { category: "Storage", type: "SSD", code: "SSD" },
+  { category: "Storage", type: "USB Flash Drive", code: "UFD" },
+  { category: "Storage", type: "Memory Card", code: "MCD" },
+  { category: "Memory", type: "RAM", code: "RAM" },
+  { category: "Computer", type: "Notebook", code: "NBK" },
+  { category: "Computer", type: "Mini PC", code: "MPC" },
+  { category: "Computer", type: "PC/Desktop", code: "PCD" },
+  { category: "Computer", type: "Monitor", code: "MON" },
+  { category: "Computer", type: "Component", code: "CMP" },
+  { category: "Cables", type: "HDMI", code: "HDM" },
+  { category: "Cables", type: "USB Cable", code: "UCB" },
+  { category: "Cables", type: "VGA Cable", code: "VGA" },
+  { category: "Adapter & Converter", type: "Adapter", code: "ADP" },
+  { category: "Accessories", type: "Mouse pad", code: "MPD" },
+  { category: "Accessories", type: "Bag", code: "BAG" },
+  { category: "Accessories", type: "Mouse", code: "MSE" },
+  { category: "Accessories", type: "Headphones", code: "HPN" },
+  { category: "Accessories", type: "Keypad", code: "KPD" },
+  { category: "Accessories", type: "Enclosure", code: "ENC" },
+  { category: "Accessories", type: "Office Accessory", code: "OFA" },
+  { category: "Accessories", type: "switch", code: "SWT" },
+];
+
+async function upsertBsdTaxonomy(domainId: string) {
+  const categories = new Map<string, string>();
+
+  for (const item of bsdTaxonomy) {
+    let categoryId = categories.get(item.category);
+
+    if (!categoryId) {
+      const category = await prisma.assetCategory.upsert({
+        where: { domainId_name: { domainId, name: item.category } },
+        update: { isActive: true },
+        create: { domainId, isActive: true, name: item.category },
+      });
+      categoryId = category.id;
+      categories.set(item.category, categoryId);
+    }
+
+    await prisma.assetType.upsert({
+      where: { categoryId_name: { categoryId, name: item.type } },
+      update: { isActive: true, trackMethod: AssetTrackMethod.QUANTITY },
+      create: {
+        categoryId,
+        code: item.code,
+        isActive: true,
+        name: item.type,
+        trackMethod: AssetTrackMethod.QUANTITY,
+      },
+    });
+  }
 }
 
 async function upsertSeedUser(
@@ -285,6 +370,13 @@ async function main() {
   const domainByCode = new Map(
     domains.map((domain) => [domain.code, domain.id]),
   );
+  const bsdDomainId = domainByCode.get("BSD");
+
+  if (!bsdDomainId) {
+    throw new Error("Missing domain BSD");
+  }
+
+  await upsertBsdTaxonomy(bsdDomainId);
 
   for (const user of seedUsers) {
     await upsertSeedUser(user, passwordHash, roleByCode, domainByCode);

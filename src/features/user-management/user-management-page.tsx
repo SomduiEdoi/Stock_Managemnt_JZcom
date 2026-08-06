@@ -1,11 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft,
-  ArrowRight,
   Filter,
   Mail,
   ShieldCheck,
@@ -29,6 +26,7 @@ import {
 import { SearchCombobox } from "@/components/form/search-combobox";
 import { SearchableDropdown } from "@/components/form/searchable-dropdown";
 import { UserActionMenu } from "@/features/user-management/user-action-menu";
+import { TablePagination } from "@/components/table/table-pagination";
 
 type UserManagementPageProps = {
   filters: UserManagementFilters;
@@ -1080,31 +1078,12 @@ export function UserManagementPage({
         <UserDetailModal onClose={() => setDetailUser(null)} user={detailUser} />
       ) : null}
 
-      <footer className="flex flex-col gap-3 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
-        <p>{pageLabel}</p>
-        <div className="flex gap-2">
-          <Link
-            aria-disabled={filters.page <= 1}
-            className="flex h-9 items-center gap-2 rounded-md border border-border bg-white px-3 font-semibold aria-disabled:pointer-events-none aria-disabled:opacity-50"
-            href={buildUserManagementHref(filters, {
-              page: Math.max(1, filters.page - 1),
-            })}
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Previous
-          </Link>
-          <Link
-            aria-disabled={filters.page >= totalPages}
-            className="flex h-9 items-center gap-2 rounded-md border border-border bg-navy px-3 font-semibold text-white aria-disabled:pointer-events-none aria-disabled:opacity-50"
-            href={buildUserManagementHref(filters, {
-              page: Math.min(totalPages, filters.page + 1),
-            })}
-          >
-            Next
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-      </footer>
+      <TablePagination
+        currentPage={filters.page}
+        hrefForPage={(page) => buildUserManagementHref(filters, { page })}
+        summary={pageLabel}
+        totalPages={totalPages}
+      />
 
       <ManagementDialogs
         dialog={dialog}

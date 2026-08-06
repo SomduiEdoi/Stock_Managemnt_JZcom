@@ -1,8 +1,5 @@
 import type { ComponentType } from "react";
-import Link from "next/link";
-import {
-  ArrowLeft,
-  ArrowRight,
+import {
   ArrowRightLeft,
   CheckCircle2,
   ClipboardList,
@@ -27,6 +24,7 @@ import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { InventoryDataUnavailable } from "@/components/inventory/inventory-data-unavailable";
 import { ServerInventoryControls } from "@/components/inventory/server-inventory-controls";
 import { RequestableInventoryTable } from "@/features/inventory/requestable-inventory-table";
+import { TablePagination } from "@/components/table/table-pagination";
 
 type DomainInventoryPageProps = {
   domainCode: string;
@@ -168,19 +166,11 @@ function Pagination({
   totalPages: number;
 }) {
   return (
-    <footer className="flex flex-col gap-3 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
-      <p>Page {formatNumber(page)} of {formatNumber(totalPages)}</p>
-      <div className="flex gap-2">
-        <Link aria-disabled={page <= 1} className="flex h-9 items-center gap-2 rounded-md border border-border bg-white px-3 font-semibold aria-disabled:pointer-events-none aria-disabled:opacity-50" href={buildPageHref(domainCode, Math.max(1, page - 1), filters)}>
-          <ArrowLeft className="h-4 w-4" />
-          Previous
-        </Link>
-        <Link aria-disabled={page >= totalPages} className="flex h-9 items-center gap-2 rounded-md border border-border bg-white px-3 font-semibold aria-disabled:pointer-events-none aria-disabled:opacity-50" href={buildPageHref(domainCode, Math.min(totalPages, page + 1), filters)}>
-          Next
-          <ArrowRight className="h-4 w-4" />
-        </Link>
-      </div>
-    </footer>
+    <TablePagination
+      currentPage={page}
+      hrefForPage={(nextPage) => buildPageHref(domainCode, nextPage, filters)}
+      totalPages={totalPages}
+    />
   );
 }
 
