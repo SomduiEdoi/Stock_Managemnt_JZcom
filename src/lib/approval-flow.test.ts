@@ -108,7 +108,7 @@ describe("domain approval matching", () => {
     ).toBe(false);
   });
 
-  it("matches head stock controllers by head tag and visible domain", () => {
+  it("does not match head stock controllers without being assigned to the approval", () => {
     const approver = user({
       roles: ["STOCK_CONTROLLER"],
       stockControllerTag: "HEAD_STOCK_CONTROLLER",
@@ -119,6 +119,22 @@ describe("domain approval matching", () => {
       approvalMatchesUser(approver, {
         requiredTag: domainHeadStockControllerRequiredTag("NETWORK"),
         userId: null,
+      }),
+    ).toBe(false);
+  });
+
+  it("matches assigned head stock controllers by user id and visible domain", () => {
+    const approver = user({
+      id: "assigned-head",
+      roles: ["STOCK_CONTROLLER"],
+      stockControllerTag: "HEAD_STOCK_CONTROLLER",
+      permissions: [{ canManage: false, canView: true, domainCode: "NETWORK" }],
+    });
+
+    expect(
+      approvalMatchesUser(approver, {
+        requiredTag: domainHeadStockControllerRequiredTag("NETWORK"),
+        userId: "assigned-head",
       }),
     ).toBe(true);
   });

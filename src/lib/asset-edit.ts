@@ -102,7 +102,6 @@ export type UpdateAssetInput = {
   sourceRecordId?: string | null;
   sourceSystem?: string | null;
   status: AssetStatus;
-  stockCode?: string | null;
   quantity?: number | null;
   typeName?: string | null;
 };
@@ -189,7 +188,7 @@ function stockTypeCode(assetType: { code: string | null; name: string }) {
   const source = cleanText(assetType.code) ?? assetType.name;
   const normalized = source.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
 
-  return (normalized || "XX").padEnd(2, "X").slice(0, 2);
+  return (normalized || "XXX").padEnd(3, "X").slice(0, 3);
 }
 
 async function generateStockCode(

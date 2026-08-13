@@ -138,7 +138,7 @@ Workflow status:
 
 รูปแบบหลัก:
 
-```text
+```
 XX-YYY0000
 ```
 
@@ -150,7 +150,7 @@ XX-YYY0000
 
 รูปแบบที่ใช้งาน:
 
-```text
+```
 REQ-YYYYMMDD-XX
 ```
 

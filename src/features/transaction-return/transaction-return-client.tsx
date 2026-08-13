@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, Loader2, XCircle } from "lucide-react";
@@ -141,8 +141,7 @@ export function TransactionReturnClient({
         stockCode: item.stockCode,
       })),
   );
-  const [newAssetId, setNewAssetId] = useState("");
-  const [newAssetQuantity, setNewAssetQuantity] = useState(1);
+  const [lastInventoryHref, setLastInventoryHref] = useState("/dashboard/server");
   const [resolutions, setResolutions] = useState<ResolutionState>(() =>
     buildInitialState(transaction.items),
   );
@@ -157,6 +156,24 @@ export function TransactionReturnClient({
     searchText: [project.name, project.projectId].filter(Boolean).join(" "),
     value: project.id,
   }));
+
+  useEffect(() => {
+    const storedHref = window.localStorage.getItem("stock:lastInventoryHref");
+
+    if (storedHref) {
+      setLastInventoryHref(storedHref);
+    }
+  }, []);
+
+  const addItemHref = useMemo(() => {
+    const [pathAndSearch, hash] = lastInventoryHref.split("#");
+    const [pathname, search = ""] = pathAndSearch.split("?");
+    const params = new URLSearchParams(search);
+    params.set("pendingTransactionId", transaction.id);
+    const nextHref = `${pathname}?${params.toString()}`;
+
+    return hash ? `${nextHref}#${hash}` : nextHref;
+  }, [lastInventoryHref, transaction.id]);
 
   async function savePendingEdit() {
     if ((editScope === "project" && !editProjectId) || (editScope !== "project" && !editPurpose.trim())) {
@@ -213,34 +230,6 @@ export function TransactionReturnClient({
     );
   }
 
-  function addEditItem() {
-    const assetId = newAssetId.trim();
-
-    if (!assetId) {
-      setError("Asset ID is required before adding an item.");
-      return;
-    }
-
-    if (editItems.some((item) => item.assetId === assetId)) {
-      setError("This asset is already in the request.");
-      return;
-    }
-
-    setEditItems((items) => [
-      ...items,
-      {
-        assetId,
-        isQuantityAsset: true,
-        model: "New asset",
-        quantity: Math.max(1, newAssetQuantity),
-        serialNo: null,
-        stockCode: null,
-      },
-    ]);
-    setNewAssetId("");
-    setNewAssetQuantity(1);
-    setError(null);
-  }
   function updateResolution(itemId: string, value: string) {
     setResolutions((current) => ({
       ...current,
@@ -498,33 +487,13 @@ export function TransactionReturnClient({
             />
           </label>
           <div className="mt-4 overflow-hidden rounded-md border border-border">
-            <div className="flex flex-col gap-3 border-b border-border bg-surface px-4 py-3 lg:flex-row lg:items-end">
-              <label className="flex flex-1 flex-col gap-2">
-                <span className="text-xs font-bold uppercase text-ink">Add Asset ID</span>
-                <input
-                  className="h-10 rounded-md border border-border bg-white px-3 text-sm font-semibold text-ink outline-none ring-brand-accent/20 focus:ring-4"
-                  onChange={(event) => setNewAssetId(event.target.value)}
-                  placeholder="Paste asset id"
-                  value={newAssetId}
-                />
-              </label>
-              <label className="flex w-32 flex-col gap-2">
-                <span className="text-xs font-bold uppercase text-ink">Qty</span>
-                <input
-                  className="h-10 rounded-md border border-border bg-white px-3 text-sm font-semibold text-ink outline-none ring-brand-accent/20 focus:ring-4"
-                  min={1}
-                  onChange={(event) => setNewAssetQuantity(Number(event.target.value) || 1)}
-                  type="number"
-                  value={newAssetQuantity}
-                />
-              </label>
-              <button
-                className="h-10 rounded-md bg-navy px-4 text-sm font-bold text-white hover:bg-black"
-                onClick={addEditItem}
-                type="button"
+            <div className="flex justify-end border-b border-border bg-surface px-4 py-3">
+              <Link
+                className="inline-flex h-10 items-center justify-center rounded-md bg-navy px-4 text-sm font-bold text-white hover:bg-black"
+                href={addItemHref}
               >
                 Add Item
-              </button>
+              </Link>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full table-fixed text-left text-sm">

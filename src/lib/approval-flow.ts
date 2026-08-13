@@ -53,7 +53,7 @@ export function approvalMatchesUser(
         return permission.canManage;
       }
 
-      return permission.canView || permission.canManage;
+      return approval.userId === user.id && (permission.canView || permission.canManage);
     });
 
     return (

@@ -163,3 +163,34 @@ Legend:
 - [x] Approve/reject/edit pending request refreshes quantity asset availability/status from transaction items instead of relying on stale draft reservations.
 - [x] Ran `npm.cmd run typecheck`, `npm.cmd run lint`, and `npm.cmd test` successfully after quantity changes.
 - [ ] Add focused quantity workflow tests for over-request, pending edit quantity, reject release, partial return, and sold quantity depletion.
+
+## 2026-08-06 Prefix Lock Update
+
+- [x] Domain prefix can be set only during domain creation.
+- [x] Edit Domain UI now shows prefix as read-only/disabled and no longer submits prefix in PATCH payload.
+- [x] Domain update API schema no longer accepts prefix; direct PATCH attempts with prefix are rejected by strict validation.
+- [x] Domain update service no longer validates duplicates or updates `asset_domains.prefix` during edit.
+- [x] Type/category prefixes were already locked after creation and remain unchanged.
+- [x] Ran `npm.cmd run typecheck` and `npm.cmd run lint` successfully.
+
+## 2026-08-06 Stock Code / Dynamic Domain Check
+
+- [x] Confirmed the required stock code format is `XX-YYY0000`.
+- [x] New asset stock code generation now uses a 2-character domain prefix plus a 3-character type prefix.
+- [x] Type prefix creation now requires exactly 3 English letters/numbers.
+- [x] Removed `stockCode` from create/edit asset API payload schemas; stock code remains system-generated only.
+- [x] Sidebar domain menu now reads active domains directly from DB so newly created domains appear in the menu for existing users.
+- [ ] Existing DB check found 12 stock codes that do not match `XX-YYY0000`; rewrite needs a controlled data migration before changing real identifiers.
+
+## 2026-08-06 Head Stock Controller Assignment
+
+- [x] Head Stock Controller is no longer treated as a global approver.
+- [x] Approval generation now uses the domain's assigned `headStockControllerId`.
+- [x] Approval matching requires the assigned approval `userId` for `HEAD_STOCK_CONTROLLER:<domainCode>`.
+- [x] Added approval-flow tests for assigned vs unassigned Head Stock Controller behavior.
+
+## 2026-08-13 Domain Delete Guard
+
+- [x] Domain delete now counts active assets and blocks deletion when any active asset remains.
+- [x] Delete Domain dialog now tells admin how many assets are still in the domain and disables Delete until the count is 0.
+- [x] Delete Domain API returns a 409 `DOMAIN_HAS_ASSETS` error if deletion is attempted while assets remain.

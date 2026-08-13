@@ -39,6 +39,7 @@ const seedUsers: SeedUser[] = [
       { domainCode: "SERVER", canView: true, canManage: true },
       { domainCode: "NETWORK", canView: true, canManage: true },
       { domainCode: "BSD", canView: true, canManage: true },
+      { domainCode: "DL", canView: true, canManage: true },
     ],
   },
   {
@@ -53,6 +54,7 @@ const seedUsers: SeedUser[] = [
       { domainCode: "SERVER", canView: true, canManage: true },
       { domainCode: "NETWORK", canView: true, canManage: false },
       { domainCode: "BSD", canView: true, canManage: false },
+      { domainCode: "DL", canView: true, canManage: false },
     ],
   },
   {
@@ -67,6 +69,7 @@ const seedUsers: SeedUser[] = [
       { domainCode: "SERVER", canView: true, canManage: false },
       { domainCode: "NETWORK", canView: true, canManage: true },
       { domainCode: "BSD", canView: true, canManage: false },
+      { domainCode: "DL", canView: true, canManage: false },
     ],
   },
   {
@@ -81,6 +84,7 @@ const seedUsers: SeedUser[] = [
       { domainCode: "SERVER", canView: true, canManage: true },
       { domainCode: "NETWORK", canView: true, canManage: false },
       { domainCode: "BSD", canView: true, canManage: false },
+      { domainCode: "DL", canView: true, canManage: false },
     ],
   },
   {
@@ -95,6 +99,7 @@ const seedUsers: SeedUser[] = [
       { domainCode: "SERVER", canView: true, canManage: false },
       { domainCode: "NETWORK", canView: true, canManage: true },
       { domainCode: "BSD", canView: true, canManage: false },
+      { domainCode: "DL", canView: true, canManage: false },
     ],
   },
   {
@@ -108,6 +113,7 @@ const seedUsers: SeedUser[] = [
       { domainCode: "SERVER", canView: true, canManage: false },
       { domainCode: "NETWORK", canView: true, canManage: false },
       { domainCode: "BSD", canView: true, canManage: false },
+      { domainCode: "DL", canView: true, canManage: false },
     ],
   },
   {
@@ -121,6 +127,7 @@ const seedUsers: SeedUser[] = [
       { domainCode: "SERVER", canView: true, canManage: false },
       { domainCode: "NETWORK", canView: true, canManage: false },
       { domainCode: "BSD", canView: true, canManage: false },
+      { domainCode: "DL", canView: true, canManage: false },
     ],
   },
 ];
@@ -211,6 +218,21 @@ async function upsertDomains() {
         inventoryFamily: AssetTrackMethod.QUANTITY,
       },
     }),
+    prisma.assetDomain.upsert({
+      where: { code: "DL" },
+      update: {
+        name: "DL",
+        description: "Delivery and Client warehouse stock.",
+        inventoryFamily: AssetTrackMethod.QUANTITY,
+      },
+      create: {
+        code: "DL",
+        name: "DL",
+        prefix: "DL",
+        description: "Delivery and Client warehouse stock.",
+        inventoryFamily: AssetTrackMethod.QUANTITY,
+      },
+    }),
   ]);
 }
 
@@ -245,6 +267,60 @@ async function upsertBsdTaxonomy(domainId: string) {
   const categories = new Map<string, string>();
 
   for (const item of bsdTaxonomy) {
+    let categoryId = categories.get(item.category);
+
+    if (!categoryId) {
+      const category = await prisma.assetCategory.upsert({
+        where: { domainId_name: { domainId, name: item.category } },
+        update: { isActive: true },
+        create: { domainId, isActive: true, name: item.category },
+      });
+      categoryId = category.id;
+      categories.set(item.category, categoryId);
+    }
+
+    await prisma.assetType.upsert({
+      where: { categoryId_name: { categoryId, name: item.type } },
+      update: { isActive: true, trackMethod: AssetTrackMethod.QUANTITY },
+      create: {
+        categoryId,
+        code: item.code,
+        isActive: true,
+        name: item.type,
+        trackMethod: AssetTrackMethod.QUANTITY,
+      },
+    });
+  }
+}
+
+const dlTaxonomy: Array<{ category: string; type: string; code: string }> = [
+  { category: "Access Control", type: "Access Control", code: "ACT" },
+  { category: "CCTV", type: "CCTV Equipment", code: "CCT" },
+  { category: "Cable", type: "Back Box / Outlet Box", code: "BOX" },
+  { category: "Cable", type: "Cable Tie / Cable Management", code: "CTL" },
+  { category: "Cable", type: "Faceplate", code: "FAC" },
+  { category: "Cable", type: "Fiber Adapter / Fiber Module", code: "FAM" },
+  { category: "Cable", type: "Fiber Splice / Fiber Accessories", code: "FSP" },
+  { category: "Cable", type: "LAN Cable", code: "LAN" },
+  { category: "Cable", type: "Modular Jack / Keystone Jack", code: "MOJ" },
+  { category: "Cable", type: "Modular Plug (RJ45 Plug)", code: "MOP" },
+  { category: "Cable", type: "Patch Cord", code: "PCL" },
+  { category: "Component", type: "Accessories", code: "ACC" },
+  {
+    category: "Electrical",
+    type: "Electrical Cable / Electrical Material",
+    code: "ECT",
+  },
+  { category: "Electrical", type: "Plug / Socket / Power Plug", code: "PUG" },
+  { category: "Rack", type: "Rack", code: "RAK" },
+  { category: "Rack", type: "Rack Accessories", code: "RAC" },
+  { category: "Telephone", type: "Telephone Accessories", code: "TEL" },
+];
+
+async function upsertDlTaxonomy(domainId: string) {
+  const categories = new Map<string, string>();
+
+  for (const item of dlTaxonomy) {
     let categoryId = categories.get(item.category);
 
     if (!categoryId) {
@@ -371,12 +447,17 @@ async function main() {
     domains.map((domain) => [domain.code, domain.id]),
   );
   const bsdDomainId = domainByCode.get("BSD");
+  const dlDomainId = domainByCode.get("DL");
 
   if (!bsdDomainId) {
     throw new Error("Missing domain BSD");
   }
+  if (!dlDomainId) {
+    throw new Error("Missing domain DL");
+  }
 
   await upsertBsdTaxonomy(bsdDomainId);
+  await upsertDlTaxonomy(dlDomainId);
 
   for (const user of seedUsers) {
     await upsertSeedUser(user, passwordHash, roleByCode, domainByCode);

@@ -34,6 +34,7 @@ const transactionExportSelect = Prisma.validator<Prisma.TransactionSelect>()({
     orderBy: [{ stepSequence: "asc" }, { createdAt: "asc" }],
     select: {
       actedAt: true,
+      approverSignatureSnapshot: true,
       requiredTag: true,
       status: true,
       stepSequence: true,

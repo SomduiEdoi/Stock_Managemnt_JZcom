@@ -12,6 +12,12 @@ import {
 
 const prisma = new PrismaClient();
 const dataDirectory = process.env.STOCK_DATA_DIR ?? path.resolve(process.cwd(), "..", "data");
+const selectedDomains = new Set(
+  (process.env.STOCK_IMPORT_DOMAINS ?? "")
+    .split(",")
+    .map((domain) => normalizeKey(domain).toUpperCase())
+    .filter(Boolean),
+);
 const sourceSystem = "SharePoint";
 
 type CsvRecord = Record<string, string>;
@@ -50,6 +56,7 @@ const sourceFiles: SourceFile[] = [
   { domainCode: "NETWORK", fileName: "Network_reclassified.csv" },
   { domainCode: "SERVER", fileName: "Server_reclassified.csv" },
   { domainCode: "BSD", fileName: "BSD_reclassified.csv" },
+  { domainCode: "DL", fileName: "DL_reclassified.csv" },
 ];
 
 const statusMap = new Map<string, AssetStatus>([
@@ -135,6 +142,25 @@ const typeCodeByDomain: Record<DomainCode, Record<string, string>> = {
     "usb cable": "UCB",
     "usb flash drive": "UFD",
     "vga cable": "VGA",
+  },
+  DL: {
+    "access control": "ACT",
+    "cctv equipment": "CCT",
+    "back box / outlet box": "BOX",
+    "cable tie / cable management": "CTL",
+    faceplate: "FAC",
+    "fiber adapter / fiber module": "FAM",
+    "fiber splice / fiber accessories": "FSP",
+    "lan cable": "LAN",
+    "modular jack / keystone jack": "MOJ",
+    "modular plug (rj45 plug)": "MOP",
+    "patch cord": "PCL",
+    accessories: "ACC",
+    "electrical cable / electrical material": "ECT",
+    "plug / socket / power plug": "PUG",
+    rack: "RAK",
+    "rack accessories": "RAC",
+    "telephone accessories": "TEL",
   },
 };
 
@@ -297,7 +323,7 @@ function combineNote(row: CsvRecord) {
 }
 
 function mapRow(domainCode: DomainCode, row: CsvRecord): MappedRow {
-  if (domainCode === "BSD") {
+  if (domainCode === "BSD" || domainCode === "DL") {
     const quantity = parseInteger(row.QTY) ?? 0;
     const typeName = clean(row.Types);
 
@@ -734,6 +760,10 @@ async function main() {
   const summaries = [];
 
   for (const sourceFile of sourceFiles) {
+    if (selectedDomains.size > 0 && !selectedDomains.has(sourceFile.domainCode)) {
+      continue;
+    }
+
     summaries.push(await importFile(sourceFile, admin.id, seenSerials));
   }
 

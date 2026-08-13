@@ -61,7 +61,7 @@ function requirePrefix(value: string | null | undefined) {
 }
 
 const sidebarDomainSelect = {
-  _count: { select: { assets: true } },
+  _count: { select: { assets: { where: { isActive: true } } } },
   code: true,
   headStockControllerId: true,
   inventoryFamily: true,
@@ -210,17 +210,9 @@ async function upsertDomainPermission(
 }
 
 function toSidebarDomain(domain: SidebarDomainRecord): SidebarDomain {
-  const headControllerIds = domain.permissions
-    .filter(
-      (permission) =>
-        permission.user.stockControllerTag === "HEAD_STOCK_CONTROLLER" &&
-        (permission.canView || permission.canManage),
-    )
-    .map((permission) => permission.userId);
-
-  if (domain.headStockControllerId && !headControllerIds.includes(domain.headStockControllerId)) {
-    headControllerIds.unshift(domain.headStockControllerId);
-  }
+  const headControllerIds = domain.headStockControllerId
+    ? [domain.headStockControllerId]
+    : [];
 
   const controllerId = domain.permissions.find(
     (permission) =>
@@ -239,29 +231,11 @@ function toSidebarDomain(domain: SidebarDomainRecord): SidebarDomain {
   };
 }
 
-export async function getSidebarDomainsForUser(user: CurrentUser) {
-  if (hasRole(user, "ADMIN")) {
-    const domains = await db.assetDomain.findMany({
-      orderBy: { name: "asc" },
-      select: sidebarDomainSelect,
-      where: { isActive: true },
-    });
-
-    return domains.map(toSidebarDomain);
-  }
-
-  const visibleCodes = user.permissions
-    .filter((permission) => permission.canView || permission.canManage)
-    .map((permission) => permission.domainCode);
-
-  if (visibleCodes.length === 0) {
-    return [];
-  }
-
+export async function getSidebarDomainsForUser() {
   const domains = await db.assetDomain.findMany({
     orderBy: { name: "asc" },
     select: sidebarDomainSelect,
-    where: { code: { in: visibleCodes }, isActive: true },
+    where: { isActive: true },
   });
 
   return domains.map(toSidebarDomain);
@@ -292,7 +266,6 @@ export type UpdateDomainInput = {
   domainName: string;
   headControllerId?: string | null;
   headControllerIds?: string[];
-  prefix?: string;
 };
 
 function uniqueControllerIds(values: Array<string | null | undefined>) {
@@ -406,7 +379,6 @@ export async function updateDomainForUser(
   }
 
   const name = requireName(input.domainName, "Domain name");
-  const prefix = input.prefix ? requirePrefix(input.prefix) : null;
 
   if (!input.controllerId) {
     throw new WorkflowError("Stock controller is required.");
@@ -428,7 +400,7 @@ export async function updateDomainForUser(
       "STOCK_CONTROLLER",
       "Stock controller",
     );
-    await assertStockControllerManageSlot(tx, controller.id);
+    await assertStockControllerManageSlot(tx, controller.id, domain.id);
     const headControllerIds = uniqueControllerIds([...(input.headControllerIds ?? []), input.headControllerId]);
     const headControllers = await Promise.all(
       headControllerIds.map((id) =>
@@ -441,7 +413,7 @@ export async function updateDomainForUser(
       select: { id: true },
       where: {
         id: { not: domain.id },
-        OR: prefix ? [{ name }, { prefix }] : [{ name }],
+        OR: [{ name }],
       },
     });
 
@@ -453,7 +425,6 @@ export async function updateDomainForUser(
       data: {
         headStockControllerId: headControllers[0]?.id ?? null,
         name,
-        ...(prefix ? { prefix } : {}),
       },
       where: { id: domain.id },
     });
@@ -497,6 +468,14 @@ export async function deleteDomainForUser(user: CurrentUser, domainCode: string)
     const assetCount = await tx.asset.count({
       where: { domainId: domain.id, isActive: true },
     });
+
+    if (assetCount > 0) {
+      throw new WorkflowError(
+        `This domain currently contains ${assetCount.toLocaleString("en-US")} assets. Please delete all assets in this domain before deleting the domain.`,
+        409,
+        "DOMAIN_HAS_ASSETS",
+      );
+    }
 
     await tx.assetDomain.update({
       data: { isActive: false },

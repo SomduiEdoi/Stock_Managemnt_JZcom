@@ -31,6 +31,7 @@ export type PrintableTransactionItem = {
 export type PrintableTransaction = {
   approvals?: Array<{
     actedAt?: Date | string | null;
+    approverSignatureSnapshot?: string | null;
     requiredTag?: string | null;
     status?: string | null;
     stepSequence?: number | null;
@@ -274,7 +275,7 @@ function approvalSignatureImages(
   approvals: NonNullable<PrintableTransaction["approvals"]>,
 ) {
   return approvals
-    .map((approval) => approval.user?.signatureDataUrl)
+    .map((approval) => approval.approverSignatureSnapshot ?? approval.user?.signatureDataUrl)
     .filter(Boolean)
     .map(
       (signatureDataUrl) =>

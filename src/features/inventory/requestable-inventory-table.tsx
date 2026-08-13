@@ -757,6 +757,17 @@ export function RequestableInventoryTable({
   const [pendingRequests, setPendingRequests] = useState<PendingRequestOption[]>([]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    params.delete("pendingTransactionId");
+    const search = params.toString();
+
+    window.localStorage.setItem(
+      "stock:lastInventoryHref",
+      `${window.location.pathname}${search ? `?${search}` : ""}`,
+    );
+  }, []);
+
+  useEffect(() => {
     if (!activeAsset || !canRequest) {
       return;
     }

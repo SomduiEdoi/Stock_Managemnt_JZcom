@@ -6,7 +6,15 @@ import { assertCanManageDomain } from "@/lib/permissions";
 import { WorkflowError } from "@/lib/workflow";
 
 const typeInputSchema = z.object({
-  code: z.string().trim().max(12).nullable().optional(),
+  code: z
+    .string()
+    .trim()
+    .regex(
+      /^[A-Za-z0-9]{3}$/,
+      "Type prefix must be exactly 3 English letters or numbers.",
+    )
+    .nullable()
+    .optional(),
   delete: z.boolean().optional(),
   id: z.string().uuid().optional(),
   name: z.string().trim().min(1).max(80),

@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireCurrentUser } from "@/lib/auth";
 import { deleteDomainForUser, updateDomainForUser } from "@/lib/domains";
@@ -18,7 +18,6 @@ const updateDomainSchema = z.object({
   domainName: z.string().trim().min(1, "Domain name is required."),
   headControllerId: z.string().trim().uuid("Head stock controller is required.").nullable().optional(),
   headControllerIds: z.array(z.string().trim().uuid("Head stock controller is required.")).optional(),
-  prefix: z.string().trim().min(1, "Prefix is required.").regex(/^[A-Za-z0-9]{2}$/, "Prefix must be exactly 2 English letters or numbers.").optional(),
 }).strict();
 
 function errorResponse(error: unknown) {

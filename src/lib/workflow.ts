@@ -1048,10 +1048,39 @@ async function findStockControllerApprovers(
   domainCode: string,
   stockControllerTag: StockControllerTag,
 ) {
+  if (stockControllerTag === StockControllerTag.HEAD_STOCK_CONTROLLER) {
+    const domain = await tx.assetDomain.findFirst({
+      select: { headStockControllerId: true },
+      where: { code: domainCode, isActive: true },
+    });
+
+    if (!domain?.headStockControllerId) {
+      return [];
+    }
+
+    return tx.user.findMany({
+      orderBy: { name: "asc" },
+      select: {
+        domainPermissions: {
+          select: { canManage: true, canView: true, domain: { select: { code: true } } },
+        },
+        id: true,
+        name: true,
+        organizationTag: true,
+        projectTag: true,
+        stockControllerTag: true,
+      },
+      where: {
+        id: domain.headStockControllerId,
+        isActive: true,
+        roles: { some: { role: { code: "STOCK_CONTROLLER" } } },
+        stockControllerTag,
+      },
+    });
+  }
+
   const domainPermissionWhere =
-    stockControllerTag === StockControllerTag.STOCK_CONTROLLER
-      ? { canManage: true, domain: { code: domainCode } }
-      : { canView: true, domain: { code: domainCode } };
+    { canManage: true, domain: { code: domainCode } };
 
   return tx.user.findMany({
     orderBy: { name: "asc" },
@@ -1914,6 +1943,14 @@ export async function approveTransaction(
 ) {
   const now = new Date();
 
+  if (!user.signatureDataUrl) {
+    throw new WorkflowError(
+      "Please upload your signature before approving the document.",
+      400,
+      "SIGNATURE_REQUIRED",
+    );
+  }
+
   return db.$transaction(
     async (tx) => {
       const transaction = await tx.transaction.findUnique({
@@ -2025,6 +2062,7 @@ export async function approveTransaction(
         data: {
           actedAt: now,
           approverNameSnapshot: user.name,
+          approverSignatureSnapshot: user.signatureDataUrl,
           approverTagSnapshot: currentApproval.requiredTag,
           comment: cleanText(input.comment),
           status: ApprovalStatus.APPROVED,

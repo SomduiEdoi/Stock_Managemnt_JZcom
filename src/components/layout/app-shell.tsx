@@ -15,7 +15,7 @@ type AppShellProps = {
 export async function AppShell({ children, title, user }: AppShellProps) {
   const [requestCart, domains, stockControllers] = await Promise.all([
     getRequestCartForUser(user as CurrentUser),
-    getSidebarDomainsForUser(user),
+    getSidebarDomainsForUser(),
     user.roles.includes("ADMIN") ? getStockControllersForDomainForm() : Promise.resolve([]),
   ]);
   const requestCount = requestCart.canRequest ? requestCart.assets.length : 0;

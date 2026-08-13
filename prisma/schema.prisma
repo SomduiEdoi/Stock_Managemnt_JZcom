@@ -500,20 +500,21 @@ model TransactionItem {
 }
 
 model TransactionApproval {
-  id                   String         @id @default(uuid()) @db.Uuid
-  transactionId        String         @map("transaction_id") @db.Uuid
-  userId               String?        @map("user_id") @db.Uuid
-  stepSequence         Int            @map("approval_step_sequence")
-  requiredTag          String         @map("approval_required_tag")
-  approverNameSnapshot String?        @map("approver_name_snapshot")
-  approverTagSnapshot  String?        @map("approver_tag_snapshot")
-  actedAt              DateTime?      @map("approval_acted_at")
-  comment              String?        @map("approval_comment")
-  status               ApprovalStatus @default(PENDING) @map("approval_status")
-  createdAt            DateTime       @default(now()) @map("created_at")
-  updatedAt            DateTime       @updatedAt @map("updated_at")
-  transaction          Transaction    @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  user                 User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  id                        String         @id @default(uuid()) @db.Uuid
+  transactionId             String         @map("transaction_id") @db.Uuid
+  userId                    String?        @map("user_id") @db.Uuid
+  stepSequence              Int            @map("approval_step_sequence")
+  requiredTag               String         @map("approval_required_tag")
+  approverNameSnapshot      String?        @map("approver_name_snapshot")
+  approverTagSnapshot       String?        @map("approver_tag_snapshot")
+  approverSignatureSnapshot String?        @map("approver_signature_snapshot")
+  actedAt                   DateTime?      @map("approval_acted_at")
+  comment                   String?        @map("approval_comment")
+  status                    ApprovalStatus @default(PENDING) @map("approval_status")
+  createdAt                 DateTime       @default(now()) @map("created_at")
+  updatedAt                 DateTime       @updatedAt @map("updated_at")
+  transaction               Transaction    @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  user                      User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([transactionId])
   @@index([userId])

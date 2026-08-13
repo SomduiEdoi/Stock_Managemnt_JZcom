@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -354,7 +354,6 @@ function EditDomainModal({
           headControllerId: form.headControllerIds[0] ?? null,
           headControllerIds: form.headControllerIds,
           domainName: form.domainName.trim(),
-          prefix: form.prefix.trim().toUpperCase(),
         }),
       });
 
@@ -398,11 +397,11 @@ function EditDomainModal({
             />
           </Field>
 
-          <Field label="Prefix" required>
+          <Field label="Prefix">
             <input
-              className={inputClass()}
-              maxLength={2}
-              onChange={(event) => setField("prefix", event.target.value.toUpperCase())}
+              className={inputClass(true)}
+              disabled
+              title="Prefix is locked after domain creation."
               type="text"
               value={form.prefix}
             />
@@ -479,8 +478,16 @@ function DeleteDomainModal({
   const router = useRouter();
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const hasAssets = domain.assetCount > 0;
 
   async function handleDelete() {
+    if (hasAssets) {
+      setError(
+        `This domain currently contains ${domain.assetCount.toLocaleString("en-US")} assets. Please delete all assets in this domain before deleting the domain.`,
+      );
+      return;
+    }
+
     setError("");
     setIsSubmitting(true);
 
@@ -526,11 +533,18 @@ function DeleteDomainModal({
           </p>
           <div className="flex gap-3 rounded-md border border-status-fail/20 bg-status-fail/10 p-4 text-sm font-semibold text-status-fail">
             <AlertTriangle className="h-5 w-5 shrink-0" />
-            <p>This domain currently contains {domain.assetCount.toLocaleString("en-US")} assets.</p>
+            <p>
+              This domain currently contains {domain.assetCount.toLocaleString("en-US")} assets.
+              {hasAssets
+                ? " Please delete all assets in this domain before deleting the domain."
+                : null}
+            </p>
           </div>
-          <p className="text-sm font-medium text-ink">
-            Are you sure you want to delete this domain?
-          </p>
+          {hasAssets ? null : (
+            <p className="text-sm font-medium text-ink">
+              Are you sure you want to delete this domain?
+            </p>
+          )}
 
           {error ? (
             <div className="rounded-md border border-status-fail/20 bg-status-fail/10 px-4 py-3 text-sm font-semibold text-status-fail">
@@ -549,7 +563,7 @@ function DeleteDomainModal({
           </button>
           <button
             className="h-11 rounded-md bg-status-fail px-4 text-sm font-bold text-white hover:bg-status-fail/90 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={isSubmitting}
+            disabled={hasAssets || isSubmitting}
             onClick={handleDelete}
             type="button"
           >
