@@ -69,14 +69,14 @@ function fallback(value: number | string | null | undefined) {
   return String(value);
 }
 
-function domainHref(code: string) {
+function warehouseHref(code: string) {
   if (code === "SERVER") return "/dashboard/server";
   if (code === "NETWORK") return "/dashboard/network";
   return `/dashboard/inventory/${encodeURIComponent(code)}`;
 }
 
-function domainLabel(asset: AssetDetailRecord) {
-  return asset.domain.name || asset.domain.code.toLowerCase();
+function warehouseLabel(asset: AssetDetailRecord) {
+  return asset.warehouse.name || asset.warehouse.code.toLowerCase();
 }
 
 function AssetImagePanel({ asset }: { asset: AssetDetailRecord }) {
@@ -99,7 +99,7 @@ function AssetImagePanel({ asset }: { asset: AssetDetailRecord }) {
     <div className="flex aspect-[4/3] items-center justify-center rounded-md border border-border bg-surface">
       <div className="text-center">
         <Package className="mx-auto h-14 w-14 text-navy" />
-        <p className="mt-3 text-sm font-bold text-navy">{asset.domain.name}</p>
+        <p className="mt-3 text-sm font-bold text-navy">{asset.warehouse.name}</p>
       </div>
     </div>
   );
@@ -154,8 +154,8 @@ function AssetHeader({ asset, canManage }: AssetDetailPageProps) {
           aria-label="Breadcrumb"
           className="flex flex-wrap items-center gap-2 text-sm font-bold text-muted-foreground"
         >
-          <Link className="text-navy transition hover:text-brand-accent" href={domainHref(asset.domain.code)}>
-            {domainLabel(asset)}
+          <Link className="text-navy transition hover:text-brand-accent" href={warehouseHref(asset.warehouse.code)}>
+            {warehouseLabel(asset)}
           </Link>
           <ChevronRight className="h-4 w-4" />
           <span className="text-navy">{asset.assetModel.name}</span>
@@ -244,7 +244,7 @@ function AssetDetails({ asset }: { asset: AssetDetailRecord }) {
 }
 
 function SummaryTiles({ asset }: { asset: AssetDetailRecord }) {
-  const isQuantityAsset = asset.domain.inventoryFamily === "QUANTITY";
+  const isQuantityAsset = asset.warehouse.inventoryFamily === "QUANTITY";
   const availabilityValue = `${asset.availableQuantity.toLocaleString("en-US")} / ${asset.totalQuantity.toLocaleString("en-US")}`;
   const availabilityTitle = asset.reservedQuantity > 0
     ? `${availabilityValue} (${asset.reservedQuantity.toLocaleString("en-US")} reserved)`

@@ -8,8 +8,8 @@ import type { CurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
   assertCanDeleteAssets,
-  assertCanManageDomain,
-  canManageDomainForUser,
+  assertCanManageWarehouse,
+  canManageWarehouseForUser,
   hasRole,
 } from "@/lib/permissions";
 import { canTransitionAssetStatus, getManualStatusAction } from "@/lib/workflow-rules";
@@ -45,7 +45,7 @@ const assetEditSelect = Prisma.validator<Prisma.AssetSelect>()({
         },
       },
       description: true,
-      domain: { select: { code: true, id: true, inventoryFamily: true, name: true } },
+      warehouse: { select: { code: true, id: true, inventoryFamily: true, name: true } },
       id: true,
       modelNo: true,
       name: true,
@@ -53,7 +53,7 @@ const assetEditSelect = Prisma.validator<Prisma.AssetSelect>()({
       typeName: true,
     },
   },
-  domain: { select: { code: true, id: true, inventoryFamily: true, name: true } },
+  warehouse: { select: { code: true, id: true, inventoryFamily: true, name: true } },
   id: true,
   imageRef: true,
   isActive: true,
@@ -98,19 +98,19 @@ export type AssetEditOptions = {
       sortOrder: number;
       unit: string | null;
     }>;
-    domainCode: string;
+    warehouseCode: string;
     name: string;
   }>;
-  domains: Array<{ code: string; inventoryFamily: AssetTrackMethod; name: string }>;
+  warehouses: Array<{ code: string; inventoryFamily: AssetTrackMethod; name: string }>;
   locations: Array<{ code: string | null; name: string }>;
   statuses: AssetStatus[];
-  types: Array<{ categoryName: string; code: string | null; domainCode: string; name: string; trackMethod: AssetTrackMethod }>;
+  types: Array<{ categoryName: string; code: string | null; warehouseCode: string; name: string; trackMethod: AssetTrackMethod }>;
 };
 
 export type AssetEditResult =
   | {
       asset: AssetEditRecord;
-      canChangeDomain: boolean;
+      canChangeWarehouse: boolean;
       kind: "ok";
       options: AssetEditOptions;
     }
@@ -119,8 +119,8 @@ export type AssetEditResult =
 
 export type AssetCreateResult =
   | {
-      canChangeDomain: boolean;
-      initialDomainCode: string;
+      canChangeWarehouse: boolean;
+      initialWarehouseCode: string;
       kind: "ok";
       options: AssetEditOptions;
     }
@@ -132,7 +132,7 @@ export type UpdateAssetInput = {
   categoryName?: string | null;
   customFields?: Record<string, string | null | undefined>;
   description?: string | null;
-  domainCode: string;
+  warehouseCode: string;
   imageRef?: string | null;
   isActive?: boolean;
   legacyFg?: number | null;
@@ -225,7 +225,7 @@ function validateSerialNo(
   });
 }
 
-const fallbackDomainStockPrefixes: Record<string, string> = {
+const fallbackWarehouseStockPrefixes: Record<string, string> = {
   NETWORK: "NW",
   SERVER: "SV",
 };
@@ -239,15 +239,15 @@ function stockTypeCode(assetType: { code: string | null; name: string }) {
 
 async function generateStockCode(
   tx: Prisma.TransactionClient,
-  domainCode: string,
+  warehouseCode: string,
   assetType: { code: string | null; name: string },
 ) {
-  const domain = await tx.assetDomain.findUnique({
+  const warehouse = await tx.assetWarehouse.findUnique({
     select: { prefix: true },
-    where: { code: domainCode },
+    where: { code: warehouseCode },
   });
-  const domainPrefix = cleanText(domain?.prefix) ?? fallbackDomainStockPrefixes[domainCode] ?? domainCode.replace(/[^A-Za-z0-9]/g, "").toUpperCase().padEnd(2, "X").slice(0, 2);
-  const prefix = `${domainPrefix}-${stockTypeCode(assetType)}`;
+  const warehousePrefix = cleanText(warehouse?.prefix) ?? fallbackWarehouseStockPrefixes[warehouseCode] ?? warehouseCode.replace(/[^A-Za-z0-9]/g, "").toUpperCase().padEnd(2, "X").slice(0, 2);
+  const prefix = `${warehousePrefix}-${stockTypeCode(assetType)}`;
   const latest = await tx.asset.findFirst({
     orderBy: { stockCode: "desc" },
     select: { stockCode: true },
@@ -293,22 +293,22 @@ function editableStatuses(currentStatus: AssetStatus) {
 }
 
 async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus) {
-  const manageableDomainCodes = hasRole(user, "ADMIN")
+  const manageableWarehouseCodes = hasRole(user, "ADMIN")
     ? null
     : user.permissions
         .filter((permission) => permission.canManage)
-        .map((permission) => permission.domainCode);
+        .map((permission) => permission.warehouseCode);
 
-  const domainWhere = {
+  const warehouseWhere = {
     isActive: true,
-    ...(manageableDomainCodes ? { code: { in: manageableDomainCodes } } : {}),
+    ...(manageableWarehouseCodes ? { code: { in: manageableWarehouseCodes } } : {}),
   };
 
-  const [domains, categories, locations, types] = await Promise.all([
-    db.assetDomain.findMany({
+  const [warehouses, categories, locations, types] = await Promise.all([
+    db.assetWarehouse.findMany({
       orderBy: { name: "asc" },
       select: { code: true, inventoryFamily: true, name: true },
-      where: domainWhere,
+      where: warehouseWhere,
     }),
     db.assetCategory.findMany({
       orderBy: [{ name: "asc" }],
@@ -330,11 +330,11 @@ async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus
           },
           where: { isActive: true },
         },
-        domain: { select: { code: true } },
+        warehouse: { select: { code: true } },
         name: true,
       },
       where: {
-        domain: domainWhere,
+        warehouse: warehouseWhere,
         isActive: true,
       },
     }),
@@ -348,7 +348,7 @@ async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus
       select: {
         category: {
           select: {
-            domain: { select: { code: true } },
+            warehouse: { select: { code: true } },
             name: true,
           },
         },
@@ -357,7 +357,7 @@ async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus
         trackMethod: true,
       },
       where: {
-        category: { domain: domainWhere },
+        category: { warehouse: warehouseWhere },
         isActive: true,
       },
     }),
@@ -367,11 +367,11 @@ async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus
     new Map(
       types
         .map((type) => [
-          `${type.category.domain.code}:${type.name}`,
+          `${type.category.warehouse.code}:${type.name}`,
           {
             categoryName: type.category.name,
             code: type.code,
-            domainCode: type.category.domain.code,
+            warehouseCode: type.category.warehouse.code,
             name: type.name,
             trackMethod: type.trackMethod,
           },
@@ -394,10 +394,10 @@ async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus
         sortOrder: field.sortOrder,
         unit: field.unit,
       })),
-      domainCode: category.domain.code,
+      warehouseCode: category.warehouse.code,
       name: category.name,
     })),
-    domains,
+    warehouses,
     locations,
     statuses: editableStatuses(currentStatus),
     types: uniqueTypes,
@@ -417,13 +417,13 @@ export async function getAssetEditForUser(
     return { kind: "notFound" };
   }
 
-  if (!canManageDomainForUser(user, asset.domain.code)) {
+  if (!canManageWarehouseForUser(user, asset.warehouse.code)) {
     return { kind: "forbidden" };
   }
 
   return {
     asset,
-    canChangeDomain: hasRole(user, "ADMIN"),
+    canChangeWarehouse: hasRole(user, "ADMIN"),
     kind: "ok",
     options: await getAssetEditOptions(user, asset.status),
   };
@@ -431,25 +431,25 @@ export async function getAssetEditForUser(
 
 export async function getAssetCreateForUser(
   user: CurrentUser,
-  preferredDomainCode?: string | null,
+  preferredWarehouseCode?: string | null,
 ): Promise<AssetCreateResult> {
   const options = await getAssetEditOptions(user, AssetStatus.READY);
 
-  if (options.domains.length === 0) {
+  if (options.warehouses.length === 0) {
     return { kind: "forbidden" };
   }
 
-  const requestedDomainCode = cleanText(preferredDomainCode);
+  const requestedWarehouseCode = cleanText(preferredWarehouseCode);
 
-  const initialDomainCode =
-    requestedDomainCode &&
-    options.domains.some((domain) => domain.code === requestedDomainCode)
-      ? requestedDomainCode
-      : options.domains[0].code;
+  const initialWarehouseCode =
+    requestedWarehouseCode &&
+    options.warehouses.some((warehouse) => warehouse.code === requestedWarehouseCode)
+      ? requestedWarehouseCode
+      : options.warehouses[0].code;
 
   return {
-    canChangeDomain: hasRole(user, "ADMIN"),
-    initialDomainCode,
+    canChangeWarehouse: hasRole(user, "ADMIN"),
+    initialWarehouseCode,
     kind: "ok",
     options,
   };
@@ -457,7 +457,7 @@ export async function getAssetCreateForUser(
 
 async function resolveCategory(
   tx: Prisma.TransactionClient,
-  domainId: string,
+  warehouseId: string,
   categoryName: string | null,
 ) {
   if (!categoryName) {
@@ -465,7 +465,7 @@ async function resolveCategory(
   }
 
   const existing = await tx.assetCategory.findFirst({
-    where: { domainId, name: categoryName },
+    where: { warehouseId, name: categoryName },
   });
 
   if (existing) {
@@ -474,7 +474,7 @@ async function resolveCategory(
 
   return tx.assetCategory.create({
     data: {
-      domainId,
+      warehouseId,
       name: categoryName,
     },
   });
@@ -558,7 +558,7 @@ async function resolveAssetModel(
     brand: string | null;
     categoryId: string | null;
     description: string | null;
-    domainId: string;
+    warehouseId: string;
     modelName: string;
     modelNo: string | null;
     partNo: string | null;
@@ -569,7 +569,7 @@ async function resolveAssetModel(
     where: {
       brand: input.brand,
       categoryId: input.categoryId,
-      domainId: input.domainId,
+      warehouseId: input.warehouseId,
       assetTypeId: input.assetTypeId,
       modelNo: input.modelNo,
       name: input.modelName,
@@ -591,7 +591,7 @@ async function resolveAssetModel(
       categoryId: input.categoryId,
       assetTypeId: input.assetTypeId,
       description: input.description,
-      domainId: input.domainId,
+      warehouseId: input.warehouseId,
       modelNo: input.modelNo,
       name: input.modelName,
       partNo: input.partNo,
@@ -676,7 +676,7 @@ export async function updateAssetForUser(
     async (tx) => {
       const asset = await tx.asset.findUnique({
         select: {
-          domain: { select: { code: true } },
+          warehouse: { select: { code: true } },
           assetQuantity: true,
           id: true,
           serialNo: true,
@@ -689,16 +689,16 @@ export async function updateAssetForUser(
         throw new WorkflowError("Asset not found.", 404);
       }
 
-      assertCanManageDomain(user, asset.domain.code);
+      assertCanManageWarehouse(user, asset.warehouse.code);
 
       if (
-        input.domainCode !== asset.domain.code &&
-        !canManageDomainForUser(user, input.domainCode)
+        input.warehouseCode !== asset.warehouse.code &&
+        !canManageWarehouseForUser(user, input.warehouseCode)
       ) {
         throw new WorkflowError(
-          `Cannot move asset to ${input.domainCode}.`,
+          `Cannot move asset to ${input.warehouseCode}.`,
           403,
-          "CANNOT_CHANGE_DOMAIN",
+          "CANNOT_CHANGE_WAREHOUSE",
         );
       }
 
@@ -728,16 +728,16 @@ export async function updateAssetForUser(
         throw new WorkflowError("Remark is required when changing status.");
       }
 
-      const targetDomain = await tx.assetDomain.findFirst({
+      const targetWarehouse = await tx.assetWarehouse.findFirst({
         select: { code: true, id: true, inventoryFamily: true, name: true },
-        where: { code: input.domainCode, isActive: true },
+        where: { code: input.warehouseCode, isActive: true },
       });
 
-      if (!targetDomain) {
-        throw new WorkflowError("Target domain not found.", 404);
+      if (!targetWarehouse) {
+        throw new WorkflowError("Target warehouse not found.", 404);
       }
 
-      const category = await resolveCategory(tx, targetDomain.id, categoryName);
+      const category = await resolveCategory(tx, targetWarehouse.id, categoryName);
       const assetType = await resolveAssetType(
         tx,
         category?.id ?? null,
@@ -748,8 +748,8 @@ export async function updateAssetForUser(
         throw new WorkflowError("Type is required.");
       }
 
-      const serialNo = validateSerialNo(input.serialNo, targetDomain.inventoryFamily);
-      const nextQuantity = targetDomain.inventoryFamily === AssetTrackMethod.QUANTITY
+      const serialNo = validateSerialNo(input.serialNo, targetWarehouse.inventoryFamily);
+      const nextQuantity = targetWarehouse.inventoryFamily === AssetTrackMethod.QUANTITY
         ? requirePositiveAssetQuantity(input.quantity)
         : 1;
 
@@ -780,7 +780,7 @@ export async function updateAssetForUser(
         brand,
         categoryId: category?.id ?? null,
         description,
-        domainId: targetDomain.id,
+        warehouseId: targetWarehouse.id,
         modelName,
         modelNo,
         partNo,
@@ -792,7 +792,7 @@ export async function updateAssetForUser(
           assetModelId: assetModel.id,
           assetNo,
           assetQuantity: nextQuantity,
-          domainId: targetDomain.id,
+          warehouseId: targetWarehouse.id,
           imageRef,
           isActive: input.isActive ?? true,
           legacyFg: null,
@@ -828,7 +828,7 @@ export async function updateAssetForUser(
       }
 
       if (
-        targetDomain.inventoryFamily === AssetTrackMethod.QUANTITY &&
+        targetWarehouse.inventoryFamily === AssetTrackMethod.QUANTITY &&
         nextQuantity !== asset.assetQuantity
       ) {
         if (!note) {
@@ -859,7 +859,7 @@ export async function deleteAssetForUser(user: CurrentUser, assetId: string) {
     async (tx) => {
       const asset = await tx.asset.findUnique({
         select: {
-          domain: { select: { code: true } },
+          warehouse: { select: { code: true } },
           id: true,
           isActive: true,
           status: true,
@@ -871,7 +871,7 @@ export async function deleteAssetForUser(user: CurrentUser, assetId: string) {
         throw new WorkflowError("Asset not found.", 404);
       }
 
-      assertCanDeleteAssets(user, asset.domain.code);
+      assertCanDeleteAssets(user, asset.warehouse.code);
 
       const deletedAsset = await tx.asset.update({
         data: {
@@ -942,20 +942,20 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
     );
   }
 
-  assertCanManageDomain(user, input.domainCode);
+  assertCanManageWarehouse(user, input.warehouseCode);
 
   return db.$transaction(
     async (tx) => {
-      const targetDomain = await tx.assetDomain.findFirst({
+      const targetWarehouse = await tx.assetWarehouse.findFirst({
         select: { code: true, id: true, inventoryFamily: true, name: true },
-        where: { code: input.domainCode, isActive: true },
+        where: { code: input.warehouseCode, isActive: true },
       });
 
-      if (!targetDomain) {
-        throw new WorkflowError("Target domain not found.", 404);
+      if (!targetWarehouse) {
+        throw new WorkflowError("Target warehouse not found.", 404);
       }
 
-      const category = await resolveCategory(tx, targetDomain.id, categoryName);
+      const category = await resolveCategory(tx, targetWarehouse.id, categoryName);
       const assetType = await resolveAssetType(
         tx,
         category?.id ?? null,
@@ -966,8 +966,8 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
         throw new WorkflowError("Type is required.");
       }
 
-      const serialNo = validateSerialNo(input.serialNo, targetDomain.inventoryFamily);
-      const nextQuantity = targetDomain.inventoryFamily === AssetTrackMethod.QUANTITY
+      const serialNo = validateSerialNo(input.serialNo, targetWarehouse.inventoryFamily);
+      const nextQuantity = targetWarehouse.inventoryFamily === AssetTrackMethod.QUANTITY
         ? requirePositiveAssetQuantity(input.quantity)
         : 1;
 
@@ -986,7 +986,7 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
         }
       }
 
-      const stockCode = await generateStockCode(tx, input.domainCode, assetType);
+      const stockCode = await generateStockCode(tx, input.warehouseCode, assetType);
       const location = await resolveLocation(tx, {
         locationCode: null,
         locationName: locationText,
@@ -996,7 +996,7 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
         brand,
         categoryId: category?.id ?? null,
         description,
-        domainId: targetDomain.id,
+        warehouseId: targetWarehouse.id,
         modelName,
         modelNo,
         partNo,
@@ -1009,7 +1009,7 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
           assetNo,
           assetQuantity: nextQuantity,
           createdById: user.id,
-          domainId: targetDomain.id,
+          warehouseId: targetWarehouse.id,
           imageRef,
           isActive: input.isActive ?? true,
           legacyFg: null,
@@ -1036,8 +1036,8 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
           changedById: user.id,
           fromStatus: null,
           note: note
-            ? `Asset registered in ${targetDomain.name} inventory. ${note}`
-            : `Asset registered in ${targetDomain.name} inventory.`,
+            ? `Asset registered in ${targetWarehouse.name} inventory. ${note}`
+            : `Asset registered in ${targetWarehouse.name} inventory.`,
           toStatus: input.status,
         },
       });

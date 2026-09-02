@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import type { DomainPermission, RoleCode } from "@/lib/permissions";
+import type { WarehousePermission, RoleCode } from "@/lib/permissions";
 import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 export type CurrentUser = {
@@ -19,7 +19,7 @@ export type CurrentUser = {
   signatureUploadedBy: { email: string; name: string } | null;
   stockControllerTag: string | null;
   roles: RoleCode[];
-  permissions: DomainPermission[];
+  permissions: WarehousePermission[];
 };
 
 async function findActiveUser(userId: string) {
@@ -56,12 +56,12 @@ async function findActiveUser(userId: string) {
           },
         },
       },
-      domainPermissions: {
-        where: { domain: { isActive: true } },
+      warehousePermissions: {
+        where: { warehouse: { isActive: true } },
         select: {
           canManage: true,
           canView: true,
-          domain: {
+          warehouse: {
             select: {
               code: true,
             },
@@ -90,10 +90,10 @@ function toCurrentUser(
     signatureUploadedBy: user.signatureUploadedBy,
     stockControllerTag: user.stockControllerTag,
     roles: user.roles.map(({ role }) => role.code as RoleCode),
-    permissions: user.domainPermissions.map((permission) => ({
+    permissions: user.warehousePermissions.map((permission) => ({
       canManage: permission.canManage,
       canView: permission.canView,
-      domainCode: permission.domain.code,
+      warehouseCode: permission.warehouse.code,
     })),
   };
 }

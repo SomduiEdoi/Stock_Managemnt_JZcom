@@ -10,8 +10,8 @@ import { requireCurrentUser } from "@/lib/auth";
 import {
   canChangeAssetStatusForUser,
   canDeleteAssetsForUser,
-  canManageDomainForUser,
-  canRequestDomainForUser,
+  canManageWarehouseForUser,
+  canRequestWarehouseForUser,
 } from "@/lib/permissions";
 import {
   getNetworkInventoryForUser,
@@ -151,7 +151,7 @@ function NetworkMetrics({
   return (
     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
       <MetricCard
-        detail="Network domain only"
+        detail="Network warehouse only"
         icon={Package}
         label="Total Network Equipment"
         tone="total"
@@ -232,7 +232,7 @@ export default async function NetworkInventoryPage({
     if (isDatabaseUnavailableError(error)) {
       return (
         <InventoryDataUnavailable
-          domainLabel="Network inventory"
+          warehouseLabel="Network inventory"
           retryHref="/dashboard/network"
         />
       );
@@ -245,8 +245,8 @@ export default async function NetworkInventoryPage({
     return <NoNetworkAccess />;
   }
 
-  const addAssetHref = canManageDomainForUser(user, "NETWORK")
-    ? "/dashboard/assets/new?domain=NETWORK"
+  const addAssetHref = canManageWarehouseForUser(user, "NETWORK")
+    ? "/dashboard/assets/new?warehouse=NETWORK"
     : null;
 
   return (
@@ -261,7 +261,7 @@ export default async function NetworkInventoryPage({
 
       <NetworkInventoryControls
         addAssetHref={addAssetHref}
-        canManageCategories={canManageDomainForUser(user, "NETWORK")}
+        canManageCategories={canManageWarehouseForUser(user, "NETWORK")}
         brands={result.filterOptions.brands}
         categories={result.filterOptions.categories}
         categoryGroups={result.filterOptions.categoryGroups}
@@ -286,8 +286,8 @@ export default async function NetworkInventoryPage({
         activeSort={{ by: filters.sortBy, direction: filters.sortDirection }}
         canChangeStatus={canChangeAssetStatusForUser(user, "NETWORK")}
         canDelete={canDeleteAssetsForUser(user, "NETWORK")}
-        canRequest={canRequestDomainForUser(user, "NETWORK")}
-        domainLabel="Network"
+        canRequest={canRequestWarehouseForUser(user, "NETWORK")}
+        warehouseLabel="Network"
         customFieldDefinitions={[...new Map(result.filterOptions.categoryGroups.flatMap((category) => category.customFields).map((field) => [field.key, { key: field.key, label: field.label, unit: field.unit }])).values()]}
         inventoryFamily="SERIAL"
         rows={result.rows}

@@ -72,7 +72,7 @@ const transactionLogSelect = Prisma.validator<Prisma.TransactionSelect>()({
       returnedBy: { select: { email: true, name: true } },
       asset: {
         select: {
-          domain: { select: { code: true } },
+          warehouse: { select: { code: true } },
           id: true,
           location: { select: { name: true } },
           locationText: true,
@@ -125,7 +125,7 @@ const approvalTransactionSelect = Prisma.validator<Prisma.TransactionApprovalSel
             select: {
               serialNo: true,
               stockCode: true,
-              domain: { select: { code: true } },
+              warehouse: { select: { code: true } },
               assetModel: { select: { brand: true, name: true } },
             },
           },
@@ -255,8 +255,7 @@ function buildVisibleLogWhere(
   if (filters.scope === "COMPLETED") {
     clauses.push({
       OR: [
-        { status: TransactionStatus.COMPLETED },
-        { status: TransactionStatus.RETURNED },
+        { workflowStatus: TransactionWorkflowStatus.COMPLETED },
         { returnedAt: { not: null } },
         {
           AND: [
@@ -327,8 +326,7 @@ async function getTransactionLogMetrics() {
   } satisfies Prisma.AssetWhereInput;
   const completedWhere = {
     OR: [
-      { status: TransactionStatus.COMPLETED },
-      { status: TransactionStatus.RETURNED },
+      { workflowStatus: TransactionWorkflowStatus.COMPLETED },
       { returnedAt: { not: null } },
       {
         AND: [

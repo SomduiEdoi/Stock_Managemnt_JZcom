@@ -21,7 +21,7 @@ type SeedUser = {
   organizationTag?: OrganizationTag;
   azureAdObjectId?: string;
   permissions: Array<{
-    domainCode: string;
+    warehouseCode: string;
     canView: boolean;
     canManage: boolean;
   }>;
@@ -36,10 +36,10 @@ const seedUsers: SeedUser[] = [
     organizationLevel: "EXECUTIVE",
     organizationTag: "BSD_MANAGER",
     permissions: [
-      { domainCode: "SERVER", canView: true, canManage: true },
-      { domainCode: "NETWORK", canView: true, canManage: true },
-      { domainCode: "BSD", canView: true, canManage: true },
-      { domainCode: "DL", canView: true, canManage: true },
+      { warehouseCode: "SERVER", canView: true, canManage: true },
+      { warehouseCode: "NETWORK", canView: true, canManage: true },
+      { warehouseCode: "BSD", canView: true, canManage: true },
+      { warehouseCode: "DL", canView: true, canManage: true },
     ],
   },
   {
@@ -51,10 +51,10 @@ const seedUsers: SeedUser[] = [
     organizationLevel: "STAFF",
     organizationTag: "S1_STAFF",
     permissions: [
-      { domainCode: "SERVER", canView: true, canManage: true },
-      { domainCode: "NETWORK", canView: true, canManage: false },
-      { domainCode: "BSD", canView: true, canManage: false },
-      { domainCode: "DL", canView: true, canManage: false },
+      { warehouseCode: "SERVER", canView: true, canManage: true },
+      { warehouseCode: "NETWORK", canView: true, canManage: false },
+      { warehouseCode: "BSD", canView: true, canManage: false },
+      { warehouseCode: "DL", canView: true, canManage: false },
     ],
   },
   {
@@ -66,10 +66,10 @@ const seedUsers: SeedUser[] = [
     organizationLevel: "STAFF",
     organizationTag: "N1_STAFF",
     permissions: [
-      { domainCode: "SERVER", canView: true, canManage: false },
-      { domainCode: "NETWORK", canView: true, canManage: true },
-      { domainCode: "BSD", canView: true, canManage: false },
-      { domainCode: "DL", canView: true, canManage: false },
+      { warehouseCode: "SERVER", canView: true, canManage: false },
+      { warehouseCode: "NETWORK", canView: true, canManage: true },
+      { warehouseCode: "BSD", canView: true, canManage: false },
+      { warehouseCode: "DL", canView: true, canManage: false },
     ],
   },
   {
@@ -81,10 +81,10 @@ const seedUsers: SeedUser[] = [
     organizationLevel: "MANAGER",
     organizationTag: "SCN_MANAGER",
     permissions: [
-      { domainCode: "SERVER", canView: true, canManage: true },
-      { domainCode: "NETWORK", canView: true, canManage: false },
-      { domainCode: "BSD", canView: true, canManage: false },
-      { domainCode: "DL", canView: true, canManage: false },
+      { warehouseCode: "SERVER", canView: true, canManage: true },
+      { warehouseCode: "NETWORK", canView: true, canManage: false },
+      { warehouseCode: "BSD", canView: true, canManage: false },
+      { warehouseCode: "DL", canView: true, canManage: false },
     ],
   },
   {
@@ -96,10 +96,10 @@ const seedUsers: SeedUser[] = [
     organizationLevel: "MANAGER",
     organizationTag: "SCN_MANAGER",
     permissions: [
-      { domainCode: "SERVER", canView: true, canManage: false },
-      { domainCode: "NETWORK", canView: true, canManage: true },
-      { domainCode: "BSD", canView: true, canManage: false },
-      { domainCode: "DL", canView: true, canManage: false },
+      { warehouseCode: "SERVER", canView: true, canManage: false },
+      { warehouseCode: "NETWORK", canView: true, canManage: true },
+      { warehouseCode: "BSD", canView: true, canManage: false },
+      { warehouseCode: "DL", canView: true, canManage: false },
     ],
   },
   {
@@ -110,10 +110,10 @@ const seedUsers: SeedUser[] = [
     organizationLevel: "STAFF",
     organizationTag: "BSD_STAFF",
     permissions: [
-      { domainCode: "SERVER", canView: true, canManage: false },
-      { domainCode: "NETWORK", canView: true, canManage: false },
-      { domainCode: "BSD", canView: true, canManage: false },
-      { domainCode: "DL", canView: true, canManage: false },
+      { warehouseCode: "SERVER", canView: true, canManage: false },
+      { warehouseCode: "NETWORK", canView: true, canManage: false },
+      { warehouseCode: "BSD", canView: true, canManage: false },
+      { warehouseCode: "DL", canView: true, canManage: false },
     ],
   },
   {
@@ -124,10 +124,10 @@ const seedUsers: SeedUser[] = [
     organizationLevel: "STAFF",
     organizationTag: "DL_STAFF",
     permissions: [
-      { domainCode: "SERVER", canView: true, canManage: false },
-      { domainCode: "NETWORK", canView: true, canManage: false },
-      { domainCode: "BSD", canView: true, canManage: false },
-      { domainCode: "DL", canView: true, canManage: false },
+      { warehouseCode: "SERVER", canView: true, canManage: false },
+      { warehouseCode: "NETWORK", canView: true, canManage: false },
+      { warehouseCode: "BSD", canView: true, canManage: false },
+      { warehouseCode: "DL", canView: true, canManage: false },
     ],
   },
 ];
@@ -141,12 +141,12 @@ async function upsertRoles() {
     {
       code: "ADMIN",
       name: "Admin",
-      description: "Can manage all domains, users, imports, and settings.",
+      description: "Can manage all warehouses, users, imports, and settings.",
     },
     {
       code: "STOCK_CONTROLLER",
       name: "Stock Controller",
-      description: "Can manage assigned inventory domains and view other allowed domains.",
+      description: "Can manage assigned inventory warehouses and view other allowed warehouses.",
     },
     {
       code: "USER",
@@ -169,9 +169,9 @@ async function upsertRoles() {
   );
 }
 
-async function upsertDomains() {
+async function upsertWarehouses() {
   return Promise.all([
-    prisma.assetDomain.upsert({
+    prisma.assetWarehouse.upsert({
       where: { code: "SERVER" },
       update: {
         name: "Server",
@@ -187,7 +187,7 @@ async function upsertDomains() {
         inventoryFamily: AssetTrackMethod.SERIAL,
       },
     }),
-    prisma.assetDomain.upsert({
+    prisma.assetWarehouse.upsert({
       where: { code: "NETWORK" },
       update: {
         name: "Network",
@@ -203,7 +203,7 @@ async function upsertDomains() {
         inventoryFamily: AssetTrackMethod.SERIAL,
       },
     }),
-    prisma.assetDomain.upsert({
+    prisma.assetWarehouse.upsert({
       where: { code: "BSD" },
       update: {
         name: "BSD",
@@ -218,7 +218,7 @@ async function upsertDomains() {
         inventoryFamily: AssetTrackMethod.QUANTITY,
       },
     }),
-    prisma.assetDomain.upsert({
+    prisma.assetWarehouse.upsert({
       where: { code: "DL" },
       update: {
         name: "DL",
@@ -263,7 +263,7 @@ const bsdTaxonomy: Array<{ category: string; type: string; code: string }> = [
   { category: "Accessories", type: "switch", code: "SWT" },
 ];
 
-async function upsertBsdTaxonomy(domainId: string) {
+async function upsertBsdTaxonomy(warehouseId: string) {
   const categories = new Map<string, string>();
 
   for (const item of bsdTaxonomy) {
@@ -271,9 +271,9 @@ async function upsertBsdTaxonomy(domainId: string) {
 
     if (!categoryId) {
       const category = await prisma.assetCategory.upsert({
-        where: { domainId_name: { domainId, name: item.category } },
+        where: { warehouseId_name: { warehouseId, name: item.category } },
         update: { isActive: true },
-        create: { domainId, isActive: true, name: item.category },
+        create: { warehouseId, isActive: true, name: item.category },
       });
       categoryId = category.id;
       categories.set(item.category, categoryId);
@@ -317,7 +317,7 @@ const dlTaxonomy: Array<{ category: string; type: string; code: string }> = [
   { category: "Telephone", type: "Telephone Accessories", code: "TEL" },
 ];
 
-async function upsertDlTaxonomy(domainId: string) {
+async function upsertDlTaxonomy(warehouseId: string) {
   const categories = new Map<string, string>();
 
   for (const item of dlTaxonomy) {
@@ -325,9 +325,9 @@ async function upsertDlTaxonomy(domainId: string) {
 
     if (!categoryId) {
       const category = await prisma.assetCategory.upsert({
-        where: { domainId_name: { domainId, name: item.category } },
+        where: { warehouseId_name: { warehouseId, name: item.category } },
         update: { isActive: true },
-        create: { domainId, isActive: true, name: item.category },
+        create: { warehouseId, isActive: true, name: item.category },
       });
       categoryId = category.id;
       categories.set(item.category, categoryId);
@@ -351,7 +351,7 @@ async function upsertSeedUser(
   user: SeedUser,
   passwordHash: string,
   roleByCode: Map<RoleCode, string>,
-  domainByCode: Map<string, string>,
+  warehouseByCode: Map<string, string>,
 ) {
   const identityData = user.azureAdObjectId
     ? { azureAdObjectId: user.azureAdObjectId }
@@ -411,16 +411,16 @@ async function upsertSeedUser(
   });
 
   for (const permission of user.permissions) {
-    const domainId = domainByCode.get(permission.domainCode);
-    if (!domainId) {
-      throw new Error(`Missing domain ${permission.domainCode}`);
+    const warehouseId = warehouseByCode.get(permission.warehouseCode);
+    if (!warehouseId) {
+      throw new Error(`Missing warehouse ${permission.warehouseCode}`);
     }
 
-    await prisma.userDomainPermission.upsert({
+    await prisma.userWarehousePermission.upsert({
       where: {
-        userId_domainId: {
+        userId_warehouseId: {
           userId: createdUser.id,
-          domainId,
+          warehouseId,
         },
       },
       update: {
@@ -429,7 +429,7 @@ async function upsertSeedUser(
       },
       create: {
         userId: createdUser.id,
-        domainId,
+        warehouseId,
         canView: permission.canView,
         canManage: permission.canManage,
       },
@@ -440,27 +440,27 @@ async function upsertSeedUser(
 }
 
 async function main() {
-  const [roles, domains] = await Promise.all([upsertRoles(), upsertDomains()]);
+  const [roles, warehouses] = await Promise.all([upsertRoles(), upsertWarehouses()]);
   const passwordHash = await bcrypt.hash(defaultPassword, 10);
   const roleByCode = new Map(roles.map((role) => [role.code, role.id]));
-  const domainByCode = new Map(
-    domains.map((domain) => [domain.code, domain.id]),
+  const warehouseByCode = new Map(
+    warehouses.map((warehouse) => [warehouse.code, warehouse.id]),
   );
-  const bsdDomainId = domainByCode.get("BSD");
-  const dlDomainId = domainByCode.get("DL");
+  const bsdWarehouseId = warehouseByCode.get("BSD");
+  const dlWarehouseId = warehouseByCode.get("DL");
 
-  if (!bsdDomainId) {
-    throw new Error("Missing domain BSD");
+  if (!bsdWarehouseId) {
+    throw new Error("Missing warehouse BSD");
   }
-  if (!dlDomainId) {
-    throw new Error("Missing domain DL");
+  if (!dlWarehouseId) {
+    throw new Error("Missing warehouse DL");
   }
 
-  await upsertBsdTaxonomy(bsdDomainId);
-  await upsertDlTaxonomy(dlDomainId);
+  await upsertBsdTaxonomy(bsdWarehouseId);
+  await upsertDlTaxonomy(dlWarehouseId);
 
   for (const user of seedUsers) {
-    await upsertSeedUser(user, passwordHash, roleByCode, domainByCode);
+    await upsertSeedUser(user, passwordHash, roleByCode, warehouseByCode);
   }
 
   console.info("Seed complete.");

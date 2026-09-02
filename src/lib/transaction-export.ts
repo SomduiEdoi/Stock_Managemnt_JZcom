@@ -57,7 +57,7 @@ const transactionExportSelect = Prisma.validator<Prisma.TransactionSelect>()({
           locationText: true,
           serialNo: true,
           stockCode: true,
-          domain: { select: { code: true, inventoryFamily: true, name: true } },
+          warehouse: { select: { code: true, inventoryFamily: true, name: true } },
           location: { select: { name: true } },
           assetModel: {
             select: {

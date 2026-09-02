@@ -31,7 +31,7 @@ export type RequestCartAssetClient = {
     typeName: string | null;
   };
   availableQuantity: number;
-  domain: { code: string; name: string };
+  warehouse: { code: string; name: string };
   id: string;
   location: { name: string } | null;
   locationText: string | null;
@@ -56,8 +56,8 @@ type RequestCartClientProps = {
 };
 
 
-function formatDomain(domainCode: string) {
-  return formatWarehouseName(domainCode.charAt(0) + domainCode.slice(1).toLowerCase());
+function formatWarehouse(warehouseCode: string) {
+  return formatWarehouseName(warehouseCode.charAt(0) + warehouseCode.slice(1).toLowerCase());
 }
 
 function getServiceReferencePlaceholder() {
@@ -86,7 +86,7 @@ function RequestItemCard({
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="font-bold text-navy">{asset.assetModel.name}</h3>
           <span className="rounded-full bg-brand-accent/15 px-2.5 py-1 text-[11px] font-bold uppercase text-brand-accent">
-            {formatDomain(asset.domain.code)}
+            {formatWarehouse(asset.warehouse.code)}
           </span>
         </div>
         <p className="mt-2 text-sm font-medium text-muted-foreground">

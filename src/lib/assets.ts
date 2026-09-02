@@ -2,14 +2,14 @@
 import type { CurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
-  canManageDomainForUser,
-  canViewDomainForUser,
-  domainCodes,
-  type DomainCode,
+  canManageWarehouseForUser,
+  canViewWarehouseForUser,
+  warehouseCodes,
+  type WarehouseCode,
   type PermissionUser,
 } from "@/lib/permissions";
 
-export const assetDomainOptions: string[] = [...domainCodes];
+export const assetWarehouseOptions: string[] = [...warehouseCodes];
 export const assetStatusOptions = [
   "READY",
   "REQUEST",
@@ -27,14 +27,14 @@ export const problemAssetStatusOptions = [
   AssetStatus.NEED_CHECK,
 ] as const satisfies readonly AssetStatus[];
 
-export type AssetDomainFilter = DomainCode | "ALL";
+export type AssetWarehouseFilter = WarehouseCode | "ALL";
 export type AssetStatusFilter = (typeof problemAssetStatusOptions)[number] | "ALL";
-export type AssetDomainAccess = "MANAGE" | "READ_ONLY" | "NONE";
+export type AssetWarehouseAccess = "MANAGE" | "READ_ONLY" | "NONE";
 
 export type AssetListFilters = {
   brand: string;
   category: string;
-  domain: AssetDomainFilter;
+  warehouse: AssetWarehouseFilter;
   page: number;
   pageSize: number;
   search: string;
@@ -47,7 +47,7 @@ type SearchParams = Record<string, string | string[] | undefined>;
 const defaultFilters: AssetListFilters = {
   brand: "ALL",
   category: "ALL",
-  domain: "ALL",
+  warehouse: "ALL",
   page: 1,
   pageSize: 25,
   search: "",
@@ -72,7 +72,7 @@ const assetListSelect = Prisma.validator<Prisma.AssetSelect>()({
       typeName: true,
     },
   },
-  domain: { select: { code: true, name: true } },
+  warehouse: { select: { code: true, name: true } },
   location: { select: { name: true } },
 });
 
@@ -81,14 +81,14 @@ type AssetListRecord = Prisma.AssetGetPayload<{
 }>;
 
 export type AssetListRow = AssetListRecord & {
-  domainAccess: AssetDomainAccess;
+  warehouseAccess: AssetWarehouseAccess;
 };
 
 function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function isDomainCode(value: string | undefined): value is DomainCode {
+function isWarehouseCode(value: string | undefined): value is WarehouseCode {
   return Boolean(value && value !== "ALL");
 }
 
@@ -115,13 +115,13 @@ function cleanFilterValue(value: string | undefined) {
 export function normalizeAssetListFilters(
   searchParams: SearchParams,
 ): AssetListFilters {
-  const domain = firstParam(searchParams.domain);
+  const warehouse = firstParam(searchParams.warehouse);
   const status = firstParam(searchParams.status);
 
   return {
     brand: cleanFilterValue(firstParam(searchParams.brand)),
     category: cleanFilterValue(firstParam(searchParams.category)),
-    domain: isDomainCode(domain) ? domain : defaultFilters.domain,
+    warehouse: isWarehouseCode(warehouse) ? warehouse : defaultFilters.warehouse,
     page: parsePage(firstParam(searchParams.page)),
     pageSize: defaultFilters.pageSize,
     search: firstParam(searchParams.q)?.trim() ?? defaultFilters.search,
@@ -130,81 +130,81 @@ export function normalizeAssetListFilters(
   };
 }
 
-export function getVisibleDomainCodes(user: PermissionUser) {
+export function getVisibleWarehouseCodes(user: PermissionUser) {
   if (user.roles.includes("ADMIN")) {
-    return assetDomainOptions;
+    return assetWarehouseOptions;
   }
 
   return user.permissions
     .filter((permission) => permission.canView || permission.canManage)
-    .map((permission) => permission.domainCode);
+    .map((permission) => permission.warehouseCode);
 }
 
-async function getActiveDomainCodes() {
-  const domains = await db.assetDomain.findMany({
+async function getActiveWarehouseCodes() {
+  const warehouses = await db.assetWarehouse.findMany({
     orderBy: { name: "asc" },
     select: { code: true, name: true },
     where: { isActive: true },
   });
 
-  return domains;
+  return warehouses;
 }
 
-export async function getVisibleDomainOptionsForUser(user: PermissionUser) {
-  const activeDomains = await getActiveDomainCodes();
+export async function getVisibleWarehouseOptionsForUser(user: PermissionUser) {
+  const activeWarehouses = await getActiveWarehouseCodes();
 
   if (user.roles.includes("ADMIN")) {
-    return activeDomains;
+    return activeWarehouses;
   }
 
   const permittedCodes = new Set(
     user.permissions
       .filter((permission) => permission.canView || permission.canManage)
-      .map((permission) => permission.domainCode),
+      .map((permission) => permission.warehouseCode),
   );
 
-  return activeDomains.filter((domain) => permittedCodes.has(domain.code));
+  return activeWarehouses.filter((warehouse) => permittedCodes.has(warehouse.code));
 }
 
-export async function getVisibleDomainCodesForUser(user: PermissionUser) {
-  const domains = await getVisibleDomainOptionsForUser(user);
+export async function getVisibleWarehouseCodesForUser(user: PermissionUser) {
+  const warehouses = await getVisibleWarehouseOptionsForUser(user);
 
-  return domains.map((domain) => domain.code);
+  return warehouses.map((warehouse) => warehouse.code);
 }
 
-export function getDomainAccess(
+export function getWarehouseAccess(
   user: PermissionUser,
-  domainCode: DomainCode,
-): AssetDomainAccess {
-  if (canManageDomainForUser(user, domainCode)) {
+  warehouseCode: WarehouseCode,
+): AssetWarehouseAccess {
+  if (canManageWarehouseForUser(user, warehouseCode)) {
     return "MANAGE";
   }
 
-  return canViewDomainForUser(user, domainCode) ? "READ_ONLY" : "NONE";
+  return canViewWarehouseForUser(user, warehouseCode) ? "READ_ONLY" : "NONE";
 }
 
-export function getSelectedDomainCodes(
+export function getSelectedWarehouseCodes(
   user: PermissionUser,
-  domainFilter: AssetDomainFilter,
+  warehouseFilter: AssetWarehouseFilter,
 ) {
-  const visibleDomainCodes = getVisibleDomainCodes(user);
+  const visibleWarehouseCodes = getVisibleWarehouseCodes(user);
 
-  if (domainFilter === "ALL") {
-    return visibleDomainCodes;
+  if (warehouseFilter === "ALL") {
+    return visibleWarehouseCodes;
   }
 
-  return visibleDomainCodes.includes(domainFilter) ? [domainFilter] : [];
+  return visibleWarehouseCodes.includes(warehouseFilter) ? [warehouseFilter] : [];
 }
 
-export function getSelectedDomainCodesFromVisible(
-  visibleDomainCodes: string[],
-  domainFilter: AssetDomainFilter,
+export function getSelectedWarehouseCodesFromVisible(
+  visibleWarehouseCodes: string[],
+  warehouseFilter: AssetWarehouseFilter,
 ) {
-  if (domainFilter === "ALL") {
-    return visibleDomainCodes;
+  if (warehouseFilter === "ALL") {
+    return visibleWarehouseCodes;
   }
 
-  return visibleDomainCodes.includes(domainFilter) ? [domainFilter] : [];
+  return visibleWarehouseCodes.includes(warehouseFilter) ? [warehouseFilter] : [];
 }
 
 function containsText(search: string) {
@@ -239,7 +239,7 @@ function buildSearchWhere(search: string): Prisma.AssetWhereInput | undefined {
 
 export function buildAssetWhere(
   filters: AssetListFilters,
-  selectedDomainCodes: string[],
+  selectedWarehouseCodes: string[],
 ): Prisma.AssetWhereInput {
   const clauses: Prisma.AssetWhereInput[] = [];
   const searchWhere = buildSearchWhere(filters.search);
@@ -264,7 +264,7 @@ export function buildAssetWhere(
 
   return {
     isActive: true,
-    domain: { code: { in: selectedDomainCodes } },
+    warehouse: { code: { in: selectedWarehouseCodes } },
     ...(filters.status === "ALL"
       ? { status: { in: [...problemAssetStatusOptions] } }
       : { status: filters.status }),
@@ -272,13 +272,13 @@ export function buildAssetWhere(
   };
 }
 
-function withDomainAccess(
+function withWarehouseAccess(
   user: CurrentUser,
   asset: AssetListRecord,
 ): AssetListRow {
   return {
     ...asset,
-    domainAccess: getDomainAccess(user, asset.domain.code),
+    warehouseAccess: getWarehouseAccess(user, asset.warehouse.code),
   };
 }
 
@@ -286,16 +286,16 @@ export async function listAssetsForUser(
   user: CurrentUser,
   filters: AssetListFilters,
 ) {
-  const visibleDomainOptions = await getVisibleDomainOptionsForUser(user);
-  const visibleDomainCodes = visibleDomainOptions.map((domain) => domain.code);
-  const filterDomainCodes = getSelectedDomainCodesFromVisible(
-    visibleDomainCodes,
-    filters.domain,
+  const visibleWarehouseOptions = await getVisibleWarehouseOptionsForUser(user);
+  const visibleWarehouseCodes = visibleWarehouseOptions.map((warehouse) => warehouse.code);
+  const filterWarehouseCodes = getSelectedWarehouseCodesFromVisible(
+    visibleWarehouseCodes,
+    filters.warehouse,
   );
-  const where = buildAssetWhere(filters, filterDomainCodes);
+  const where = buildAssetWhere(filters, filterWarehouseCodes);
   const skip = (filters.page - 1) * filters.pageSize;
-  const filterOptionDomainCodes =
-    filterDomainCodes.length > 0 ? filterDomainCodes : visibleDomainCodes;
+  const filterOptionWarehouseCodes =
+    filterWarehouseCodes.length > 0 ? filterWarehouseCodes : visibleWarehouseCodes;
   const [assets, total, brands, categories, types] = await db.$transaction([
     db.asset.findMany({
       orderBy: [{ updatedAt: "desc" }, { serialNo: "asc" }],
@@ -311,7 +311,7 @@ export async function listAssetsForUser(
       select: { brand: true },
       where: {
         brand: { not: null },
-        domain: { code: { in: filterOptionDomainCodes } },
+        warehouse: { code: { in: filterOptionWarehouseCodes } },
         isActive: true,
       },
     }),
@@ -319,7 +319,7 @@ export async function listAssetsForUser(
       orderBy: { name: "asc" },
       select: { name: true },
       where: {
-        domain: { code: { in: filterOptionDomainCodes } },
+        warehouse: { code: { in: filterOptionWarehouseCodes } },
         isActive: true,
       },
     }),
@@ -328,7 +328,7 @@ export async function listAssetsForUser(
       orderBy: { typeName: "asc" },
       select: { typeName: true },
       where: {
-        domain: { code: { in: filterOptionDomainCodes } },
+        warehouse: { code: { in: filterOptionWarehouseCodes } },
         isActive: true,
         typeName: { not: null },
       },
@@ -336,7 +336,7 @@ export async function listAssetsForUser(
   ]);
 
   return {
-    assets: assets.map((asset) => withDomainAccess(user, asset)),
+    assets: assets.map((asset) => withWarehouseAccess(user, asset)),
     filterOptions: {
       brands: brands.map((brand) => brand.brand).filter(Boolean) as string[],
       categories: categories.map((category) => category.name),
@@ -345,18 +345,18 @@ export async function listAssetsForUser(
     filters,
     total,
     totalPages: Math.max(1, Math.ceil(total / filters.pageSize)),
-    domainOptions: visibleDomainOptions,
-    visibleDomainCodes,
+    warehouseOptions: visibleWarehouseOptions,
+    visibleWarehouseCodes,
   };
 }
 
 export async function getAssetOverviewForUser(user: CurrentUser) {
-  const visibleDomainCodes = await getVisibleDomainCodesForUser(user);
+  const visibleWarehouseCodes = await getVisibleWarehouseCodesForUser(user);
   const where: Prisma.AssetWhereInput = {
     isActive: true,
-    domain: { code: { in: visibleDomainCodes } },
+    warehouse: { code: { in: visibleWarehouseCodes } },
   };
-  const [total, byStatus, byDomain] = await Promise.all([
+  const [total, byStatus, byWarehouse] = await Promise.all([
     db.asset.count({ where }),
     Promise.all(
       assetStatusOptions.map(async (status) => ({
@@ -365,17 +365,17 @@ export async function getAssetOverviewForUser(user: CurrentUser) {
       })),
     ),
     Promise.all(
-      visibleDomainCodes.map(async (domainCode) => ({
-        domainCode,
+      visibleWarehouseCodes.map(async (warehouseCode) => ({
+        warehouseCode,
         total: await db.asset.count({
-          where: { isActive: true, domain: { code: domainCode } },
+          where: { isActive: true, warehouse: { code: warehouseCode } },
         }),
       })),
     ),
   ]);
 
   return {
-    byDomain,
+    byWarehouse,
     byStatus,
     total,
   };

@@ -36,7 +36,7 @@ export default async function AssetEditRoute({
   return (
     <AssetEditPage
       asset={result.asset}
-      canChangeDomain={result.canChangeDomain}
+      canChangeWarehouse={result.canChangeWarehouse}
       options={result.options}
     />
   );

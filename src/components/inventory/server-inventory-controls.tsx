@@ -55,8 +55,8 @@ type InventoryControlsProps = {
   addAssetHref?: string | null;
   baseHref?: string;
   canManageCategories?: boolean;
-  domainCode?: string;
-  domainLabel?: string;
+  warehouseCode?: string;
+  warehouseLabel?: string;
   brands: string[];
   categories: string[];
   categoryGroups: CategoryGroup[];
@@ -188,14 +188,14 @@ function toDraftCategories(groups: CategoryGroup[]): DraftCategory[] {
 }
 
 function ManageCategoriesDialog({
-  domainCode,
-  domainLabel,
+  warehouseCode,
+  warehouseLabel,
   initialCategory,
   groups,
   onClose,
 }: {
-  domainCode: string;
-  domainLabel: string;
+  warehouseCode: string;
+  warehouseLabel: string;
   groups: CategoryGroup[];
   initialCategory: string | null;
   onClose: () => void;
@@ -312,7 +312,7 @@ function ManageCategoriesDialog({
     }
 
     if (duplicatePrefix) {
-      setError(`Prefix ${duplicatePrefix.code.trim().toUpperCase()} is duplicated in this domain.`);
+      setError(`Prefix ${duplicatePrefix.code.trim().toUpperCase()} is duplicated in this warehouse.`);
       return;
     }
 
@@ -327,7 +327,7 @@ function ManageCategoriesDialog({
     }
 
     setIsSaving(true);
-    const response = await fetch(`/api/domains/${encodeURIComponent(domainCode)}/categories`, {
+    const response = await fetch(`/api/warehouses/${encodeURIComponent(warehouseCode)}/categories`, {
       body: JSON.stringify({ categories }),
       headers: { "Content-Type": "application/json" },
       method: "PUT",
@@ -347,7 +347,7 @@ function ManageCategoriesDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6">
       <section className="w-full max-w-4xl rounded-lg bg-white shadow-2xl">
         <header className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h2 className="text-lg font-bold text-navy">Manage {domainLabel} Categories & Types</h2>
+          <h2 className="text-lg font-bold text-navy">Manage {warehouseLabel} Categories & Types</h2>
           <button className="rounded-md p-2 text-muted-foreground hover:bg-surface" onClick={onClose} type="button">
             <X className="h-5 w-5" />
           </button>
@@ -557,16 +557,16 @@ function CategoryChips({
   baseHref,
   canManageCategories,
   categories,
-  domainCode,
-  domainLabel,
+  warehouseCode,
+  warehouseLabel,
   filters,
   groups,
 }: {
   canManageCategories: boolean;
   baseHref: string;
   categories: string[];
-  domainCode: string;
-  domainLabel: string;
+  warehouseCode: string;
+  warehouseLabel: string;
   filters: InventoryControlFilters;
   groups: CategoryGroup[];
 }) {
@@ -628,8 +628,8 @@ function CategoryChips({
       </div>
       {dialogCategory !== undefined ? (
         <ManageCategoriesDialog
-          domainCode={domainCode}
-          domainLabel={domainLabel}
+          warehouseCode={warehouseCode}
+          warehouseLabel={warehouseLabel}
           groups={groups}
           initialCategory={dialogCategory}
           onClose={() => setDialogCategory(undefined)}
@@ -887,8 +887,8 @@ export function ServerInventoryControls({
   brands,
   categories,
   categoryGroups,
-  domainCode = "SERVER",
-  domainLabel = "Server",
+  warehouseCode = "SERVER",
+  warehouseLabel = "Server",
   filters,
   statuses,
   total,
@@ -917,8 +917,8 @@ export function ServerInventoryControls({
         baseHref={baseHref}
         canManageCategories={canManageCategories}
         categories={categories}
-        domainCode={domainCode}
-        domainLabel={domainLabel}
+        warehouseCode={warehouseCode}
+        warehouseLabel={warehouseLabel}
         filters={filters}
         groups={categoryGroups}
       />
@@ -968,8 +968,8 @@ export function ServerInventoryControls({
         brands={brands}
         categories={categories}
         categoryGroups={categoryGroups}
-        domainCode={domainCode}
-        domainLabel={domainLabel}
+        warehouseCode={warehouseCode}
+        warehouseLabel={warehouseLabel}
         filters={filters}
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}

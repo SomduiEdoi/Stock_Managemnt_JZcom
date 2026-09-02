@@ -91,11 +91,16 @@ function serializeTransaction(
     isReturnableTransaction(transaction.type);
   const canReturnByUser =
     transaction.requestedBy.id === user.id || hasRole(user, "ADMIN");
-  const canReturn = canReturnByWorkflow && canReturnByUser;
+  const pendingResolution = transaction.derivedTransactions.find(
+    (derivedTransaction) => derivedTransaction.items.length > 0,
+  );
+  const canReturn = canReturnByWorkflow && canReturnByUser && !pendingResolution;
   const returnBlockedReason = !canReturnByWorkflow
     ? "This request is not fully approved yet. You can review the request details, but return actions are disabled."
     : !canReturnByUser
       ? "Only the requester or an admin can return this transaction."
+      : pendingResolution
+        ? `Return approval is already pending in ${pendingResolution.transactionNo ?? pendingResolution.id}.`
       : null;
   const stepLabel = currentStepLabel(transaction);
   const kindLabel = `${titleCase(transaction.type)} / ${requestScopeLabel(transaction)}`;

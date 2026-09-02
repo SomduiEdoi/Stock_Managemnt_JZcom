@@ -370,7 +370,7 @@ const logStatusColors = {
 } as const satisfies Record<LogDisplayStatus, string>;
 
 function getTransactionDisplayNo(row: TransactionLogRow) {
-  if (row.type === "SOLD" && row.sourceTransactionId) {
+  if (row.type === "SOLD" && row.sourceTransactionId && !row.transactionNo) {
     return `From ${row.sourceTransaction?.transactionNo ?? row.sourceTransaction?.documentRef ?? row.sourceTransactionId}`;
   }
 
@@ -675,7 +675,7 @@ export default async function TransactionLogPageRoute({
     if (isDatabaseUnavailableError(error)) {
       return (
         <InventoryDataUnavailable
-          domainLabel="Transaction log"
+          warehouseLabel="Transaction log"
           retryHref="/logs"
         />
       );

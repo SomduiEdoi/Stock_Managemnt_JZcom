@@ -55,7 +55,7 @@ export function getInitialTransactionStatus(type: TransactionType) {
   }
 
   if (type === TransactionType.USING) {
-    return TransactionStatus.ACTIVE;
+    return TransactionStatus.USING;
   }
 
   return TransactionStatus.COMPLETED;
@@ -79,9 +79,8 @@ export function isTransactionItemResolutionStatus(status: AssetStatus) {
 export function canReturnTransactionStatus(status: TransactionStatus) {
   return (
     [
-      TransactionStatus.ACTIVE,
       TransactionStatus.BORROWED,
-      TransactionStatus.OVERDUE,
+      TransactionStatus.USING,
     ] as readonly TransactionStatus[]
   ).includes(status);
 }

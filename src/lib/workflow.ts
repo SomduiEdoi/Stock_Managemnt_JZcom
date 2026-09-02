@@ -15,8 +15,8 @@ import {
 import type { CurrentUser } from "@/lib/auth";
 import {
   approvalMatchesUser,
-  domainHeadStockControllerRequiredTag,
-  domainStockControllerRequiredTag,
+  warehouseHeadStockControllerRequiredTag,
+  warehouseStockControllerRequiredTag,
 } from "@/lib/approval-flow";
 import { db } from "@/lib/db";
 import {
@@ -25,8 +25,8 @@ import {
 } from "@/lib/requisition-no";
 import {
   assertCanChangeAssetStatus,
-  assertCanRequestDomain,
-  assertCanViewDomain,
+  assertCanRequestWarehouse,
+  assertCanViewWarehouse,
   hasRole,
 } from "@/lib/permissions";
 import {
@@ -61,7 +61,7 @@ const assetWorkflowSelect = Prisma.validator<Prisma.AssetSelect>()({
   requestLockedById: true,
   serialNo: true,
   status: true,
-  domain: { select: { code: true, inventoryFamily: true } },
+  warehouse: { select: { code: true, inventoryFamily: true } },
 });
 
 const transactionDetailSelect = Prisma.validator<Prisma.TransactionSelect>()({
@@ -100,6 +100,14 @@ const transactionDetailSelect = Prisma.validator<Prisma.TransactionSelect>()({
   },
   requestedBy: { select: { email: true, id: true, name: true } },
   createdBy: { select: { email: true, id: true, name: true } },
+  derivedTransactions: {
+    select: {
+      id: true,
+      items: { select: { assetId: true } },
+      transactionNo: true,
+    },
+    where: { workflowStatus: TransactionWorkflowStatus.PENDING },
+  },
   items: {
     orderBy: { createdAt: "asc" },
     select: {
@@ -120,7 +128,7 @@ const transactionDetailSelect = Prisma.validator<Prisma.TransactionSelect>()({
           serialNo: true,
           status: true,
           stockCode: true,
-          domain: { select: { code: true, inventoryFamily: true } },
+          warehouse: { select: { code: true, inventoryFamily: true } },
           assetModel: {
             select: {
               brand: true,
@@ -372,12 +380,12 @@ async function findWorkflowUserById(tx: Prisma.TransactionClient, userId: string
           role: { select: { code: true } },
         },
       },
-      domainPermissions: {
-        where: { domain: { isActive: true } },
+      warehousePermissions: {
+        where: { warehouse: { isActive: true } },
         select: {
           canManage: true,
           canView: true,
-          domain: { select: { code: true } },
+          warehouse: { select: { code: true } },
         },
       },
     },
@@ -406,10 +414,10 @@ function toWorkflowCurrentUser(user: WorkflowUserRecord): CurrentUser {
     name: user.name,
     organizationLevel: user.organizationLevel,
     organizationTag: user.organizationTag,
-    permissions: user.domainPermissions.map((permission) => ({
+    permissions: user.warehousePermissions.map((permission) => ({
       canManage: permission.canManage,
       canView: permission.canView,
-      domainCode: permission.domain.code,
+      warehouseCode: permission.warehouse.code,
     })),
     position: user.position,
     projectTag: user.projectTag,
@@ -423,7 +431,7 @@ function toWorkflowCurrentUser(user: WorkflowUserRecord): CurrentUser {
 
 function isQuantityAsset(asset: WorkflowAsset) {
   return (
-    asset.domain.inventoryFamily === AssetTrackMethod.QUANTITY ||
+    asset.warehouse.inventoryFamily === AssetTrackMethod.QUANTITY ||
     asset.assetModel.assetType?.trackMethod === AssetTrackMethod.QUANTITY
   );
 }
@@ -552,7 +560,7 @@ function assertAssetsCanBeHeld(
   availableQuantities: Map<string, number>,
 ) {
   for (const { asset, quantity } of items) {
-    assertCanRequestDomain(user, asset.domain.code);
+    assertCanRequestWarehouse(user, asset.warehouse.code);
 
     if (isQuantityAsset(asset)) {
       const availableQuantity = availableQuantities.get(asset.id) ?? 0;
@@ -767,7 +775,7 @@ async function getSubmittableItems(
 
 function assertAssetsCanSubmit(user: CurrentUser, items: WorkflowRequestItem[]) {
   for (const { asset, quantity } of items) {
-    assertCanRequestDomain(user, asset.domain.code);
+    assertCanRequestWarehouse(user, asset.warehouse.code);
 
     if (isQuantityAsset(asset)) {
       if (asset.status !== AssetStatus.READY && asset.status !== AssetStatus.REQUEST) {
@@ -826,7 +834,7 @@ async function assertAssetsCanRelease(
   const reservations = await getUserReservations(tx, user.id, quantityAssetIds);
 
   for (const { asset, quantity } of items) {
-    assertCanRequestDomain(user, asset.domain.code);
+    assertCanRequestWarehouse(user, asset.warehouse.code);
 
     if (isQuantityAsset(asset)) {
       const reservation = reservations.get(asset.id);
@@ -916,7 +924,7 @@ type ApprovalUser = {
   organizationTag: OrganizationTag | null;
   projectTag: ProjectTag | null;
   stockControllerTag: StockControllerTag | null;
-  domainPermissions: Array<{ canManage: boolean; canView?: boolean; domain: { code: string } }>;
+  warehousePermissions: Array<{ canManage: boolean; canView?: boolean; warehouse: { code: string } }>;
 };
 
 function managerTagFor(tag: string | null) {
@@ -980,8 +988,8 @@ async function findOrganizationApprover(
   return tx.user.findFirst({
     orderBy: { name: "asc" },
     select: {
-      domainPermissions: {
-        select: { canManage: true, domain: { select: { code: true } } },
+      warehousePermissions: {
+        select: { canManage: true, warehouse: { select: { code: true } } },
       },
       id: true,
       name: true,
@@ -1003,8 +1011,8 @@ async function findProjectApprover(
   projectId: string | null | undefined,
 ) {
   const select = {
-    domainPermissions: {
-      select: { canManage: true, domain: { select: { code: true } } },
+    warehousePermissions: {
+      select: { canManage: true, warehouse: { select: { code: true } } },
     },
     id: true,
     name: true,
@@ -1045,24 +1053,24 @@ async function findProjectApprover(
 
 async function findStockControllerApprovers(
   tx: Prisma.TransactionClient,
-  domainCode: string,
+  warehouseCode: string,
   stockControllerTag: StockControllerTag,
 ) {
   if (stockControllerTag === StockControllerTag.HEAD_STOCK_CONTROLLER) {
-    const domain = await tx.assetDomain.findFirst({
+    const warehouse = await tx.assetWarehouse.findFirst({
       select: { headStockControllerId: true },
-      where: { code: domainCode, isActive: true },
+      where: { code: warehouseCode, isActive: true },
     });
 
-    if (!domain?.headStockControllerId) {
+    if (!warehouse?.headStockControllerId) {
       return [];
     }
 
     return tx.user.findMany({
       orderBy: { name: "asc" },
       select: {
-        domainPermissions: {
-          select: { canManage: true, canView: true, domain: { select: { code: true } } },
+        warehousePermissions: {
+          select: { canManage: true, canView: true, warehouse: { select: { code: true } } },
         },
         id: true,
         name: true,
@@ -1071,7 +1079,7 @@ async function findStockControllerApprovers(
         stockControllerTag: true,
       },
       where: {
-        id: domain.headStockControllerId,
+        id: warehouse.headStockControllerId,
         isActive: true,
         roles: { some: { role: { code: "STOCK_CONTROLLER" } } },
         stockControllerTag,
@@ -1079,14 +1087,14 @@ async function findStockControllerApprovers(
     });
   }
 
-  const domainPermissionWhere =
-    { canManage: true, domain: { code: domainCode } };
+  const warehousePermissionWhere =
+    { canManage: true, warehouse: { code: warehouseCode } };
 
   return tx.user.findMany({
     orderBy: { name: "asc" },
     select: {
-      domainPermissions: {
-        select: { canManage: true, canView: true, domain: { select: { code: true } } },
+      warehousePermissions: {
+        select: { canManage: true, canView: true, warehouse: { select: { code: true } } },
       },
       id: true,
       name: true,
@@ -1095,8 +1103,8 @@ async function findStockControllerApprovers(
       stockControllerTag: true,
     },
     where: {
-      domainPermissions: {
-        some: domainPermissionWhere,
+      warehousePermissions: {
+        some: warehousePermissionWhere,
       },
       isActive: true,
       roles: { some: { role: { code: "STOCK_CONTROLLER" } } },
@@ -1155,24 +1163,24 @@ async function buildApprovalCandidates(
     );
   }
 
-  const domainCodes = Array.from(new Set(items.map((item) => item.asset.domain.code))).sort();
+  const warehouseCodes = Array.from(new Set(items.map((item) => item.asset.warehouse.code))).sort();
   const stockStep = stepSequence++;
-  for (const domainCode of domainCodes) {
+  for (const warehouseCode of warehouseCodes) {
     approvals.push(
       ...candidatesForUsers(
-        await findStockControllerApprovers(tx, domainCode, StockControllerTag.STOCK_CONTROLLER),
-        domainStockControllerRequiredTag(domainCode),
+        await findStockControllerApprovers(tx, warehouseCode, StockControllerTag.STOCK_CONTROLLER),
+        warehouseStockControllerRequiredTag(warehouseCode),
         stockStep,
       ),
     );
   }
 
   const headStockStep = stepSequence++;
-  for (const domainCode of domainCodes) {
+  for (const warehouseCode of warehouseCodes) {
     approvals.push(
       ...candidatesForUsers(
-        await findStockControllerApprovers(tx, domainCode, StockControllerTag.HEAD_STOCK_CONTROLLER),
-        domainHeadStockControllerRequiredTag(domainCode),
+        await findStockControllerApprovers(tx, warehouseCode, StockControllerTag.HEAD_STOCK_CONTROLLER),
+        warehouseHeadStockControllerRequiredTag(warehouseCode),
         headStockStep,
       ),
     );
@@ -1448,7 +1456,7 @@ function assertCanResolveTransaction(
   transaction: Pick<TransactionDetail, "items">,
 ) {
   for (const item of transaction.items) {
-    assertCanViewDomain(user, item.asset.domain.code);
+    assertCanViewWarehouse(user, item.asset.warehouse.code);
   }
 }
 
@@ -1504,7 +1512,7 @@ function buildResolutionMap(items: ResolveTransactionItemInput[]) {
 
 function isQuantityTransactionItem(item: TransactionDetail["items"][number]) {
   return (
-    item.asset.domain.inventoryFamily === AssetTrackMethod.QUANTITY ||
+    item.asset.warehouse.inventoryFamily === AssetTrackMethod.QUANTITY ||
     item.asset.assetModel.assetType?.trackMethod === AssetTrackMethod.QUANTITY
   );
 }
@@ -1802,6 +1810,11 @@ async function applyApprovedTransaction(
   const transaction = await findTransactionDetail(tx, transactionId);
   const toStatus = getTransactionAssetStatus(transaction.type);
 
+  if (transaction.status === TransactionStatus.RETURNED && transaction.sourceTransactionId) {
+    await applyApprovedReturnTransaction(tx, transaction, userId, now);
+    return;
+  }
+
   if (transaction.type === TransactionType.SOLD && transaction.sourceTransactionId) {
     await applyApprovedReturnSaleTransaction(tx, transaction, userId, now);
     return;
@@ -1926,6 +1939,91 @@ async function applyApprovedReturnSaleTransaction(
     data: {
       completedAt: now,
       status: TransactionStatus.COMPLETED,
+      workflowStatus: TransactionWorkflowStatus.COMPLETED,
+    },
+  });
+}
+
+async function applyApprovedReturnTransaction(
+  tx: Prisma.TransactionClient,
+  transaction: TransactionDetail,
+  userId: string,
+  now: Date,
+) {
+  if (!transaction.sourceTransactionId) {
+    throw new WorkflowError("Source transaction is required for return approval.", 409);
+  }
+
+  const sourceTransaction = await findTransactionDetail(
+    tx,
+    transaction.sourceTransactionId,
+  );
+  const sourceItemsByAsset = new Map(
+    sourceTransaction.items
+      .filter((item) => !item.returnedAt)
+      .map((item) => [item.assetId, item]),
+  );
+
+  for (const returnItem of transaction.items) {
+    const sourceItem = sourceItemsByAsset.get(returnItem.assetId);
+
+    if (!sourceItem) {
+      throw new WorkflowError(
+        `Source item for ${transactionItemAssetName(returnItem)} is already resolved.`,
+        409,
+        "SOURCE_ITEM_ALREADY_RESOLVED",
+      );
+    }
+
+    if (returnItem.requestedQuantity !== sourceItem.requestedQuantity) {
+      throw new WorkflowError(
+        "Return quantity must match the open source item quantity.",
+        409,
+        "RETURN_QUANTITY_MISMATCH",
+      );
+    }
+
+    await resolveItem(
+      tx,
+      sourceItem,
+      { id: userId } as CurrentUser,
+      now,
+      AssetStatus.READY,
+      returnItem.note,
+    );
+  }
+
+  await tx.transactionItem.updateMany({
+    where: { transactionId: transaction.id },
+    data: {
+      resolvedStatus: AssetStatus.READY,
+      returnedAt: now,
+      returnedById: userId,
+    },
+  });
+
+  await tx.assetStatusHistory.createMany({
+    data: transaction.items.map((item) => ({
+      actionType: AssetActionType.RETURN,
+      assetId: item.assetId,
+      changedById: userId,
+      fromStatus: item.fromStatus,
+      previousQuantity: isQuantityTransactionItem(item) ? item.asset.assetQuantity : null,
+      newQuantity: isQuantityTransactionItem(item) ? item.asset.assetQuantity : null,
+      note: `Approved return; source ${sourceTransaction.transactionNo ?? sourceTransaction.documentRef ?? sourceTransaction.id}`,
+      toStatus: AssetStatus.READY,
+      transactionId: transaction.id,
+    })),
+  });
+
+  await refreshTransactionResolutionStatus(tx, sourceTransaction.id, now);
+
+  await tx.transaction.update({
+    where: { id: transaction.id },
+    data: {
+      completedAt: now,
+      returnedAt: now,
+      status: TransactionStatus.RETURNED,
       workflowStatus: TransactionWorkflowStatus.COMPLETED,
     },
   });
@@ -2150,6 +2248,29 @@ async function releaseRejectedTransactionItems(
   });
 }
 
+async function recordRejectedDerivedResolutionItems(
+  tx: Prisma.TransactionClient,
+  transaction: TransactionDetail,
+  userId: string,
+  reason: string,
+) {
+  await tx.assetStatusHistory.createMany({
+    data: transaction.items.map((item) => {
+      const currentStatus = item.fromStatus ?? item.asset.status;
+
+      return {
+        actionType: AssetActionType.STATUS_CHANGE,
+        assetId: item.assetId,
+        changedById: userId,
+        fromStatus: currentStatus,
+        note: `Rejected return/sale approval: ${reason}`,
+        toStatus: currentStatus,
+        transactionId: transaction.id,
+      };
+    }),
+  });
+}
+
 export async function rejectTransaction(
   user: CurrentUser,
   transactionId: string,
@@ -2234,12 +2355,16 @@ export async function rejectTransaction(
         where: { id: transactionId },
         data: {
           completedAt: now,
-          status: TransactionStatus.COMPLETED,
+          status: transaction.status,
           workflowStatus: TransactionWorkflowStatus.REJECTED,
         },
       });
 
-      await releaseRejectedTransactionItems(tx, transaction, user.id, reason);
+      if (transaction.sourceTransactionId) {
+        await recordRejectedDerivedResolutionItems(tx, transaction, user.id, reason);
+      } else {
+        await releaseRejectedTransactionItems(tx, transaction, user.id, reason);
+      }
 
       return findTransactionDetail(tx, transactionId);
     },
@@ -2398,7 +2523,7 @@ export async function updatePendingTransactionRequest(
       for (const nextItem of nextItems) {
         const previous = previousByAssetId.get(nextItem.asset.id);
 
-        assertCanRequestDomain(user, nextItem.asset.domain.code);
+        assertCanRequestWarehouse(user, nextItem.asset.warehouse.code);
 
         if (!isQuantityAsset(nextItem.asset) && nextItem.quantity !== 1) {
           throw new WorkflowError(
@@ -2722,6 +2847,133 @@ export async function releaseAssetsFromRequest(
   );
 }
 
+async function assertNoPendingResolutionApproval(
+  tx: Prisma.TransactionClient,
+  sourceTransactionId: string,
+  items: TransactionDetail["items"],
+) {
+  const pendingItem = await tx.transactionItem.findFirst({
+    select: {
+      asset: {
+        select: {
+          assetModel: { select: { name: true } },
+          serialNo: true,
+          stockCode: true,
+        },
+      },
+      transaction: { select: { transactionNo: true } },
+    },
+    where: {
+      assetId: { in: items.map((item) => item.assetId) },
+      transaction: {
+        sourceTransactionId,
+        workflowStatus: TransactionWorkflowStatus.PENDING,
+      },
+    },
+  });
+
+  if (!pendingItem) {
+    return;
+  }
+
+  throw new WorkflowError(
+    `Return approval for ${pendingItem.asset.serialNo ?? pendingItem.asset.stockCode ?? pendingItem.asset.assetModel.name} is already pending in ${pendingItem.transaction.transactionNo ?? "another transaction"}.`,
+    409,
+    "RETURN_APPROVAL_ALREADY_PENDING",
+  );
+}
+
+async function createReturnApprovalTransaction(
+  tx: Prisma.TransactionClient,
+  actor: CurrentUser,
+  sourceTransaction: TransactionDetail,
+  returnItems: TransactionDetail["items"],
+  note: string | null,
+  now: Date,
+) {
+  const requester = await requireWorkflowUserById(
+    tx,
+    sourceTransaction.requestedBy.id,
+  );
+  const workflowItems = returnItems.map((item) => ({
+    asset: item.asset as unknown as WorkflowAsset,
+    quantity: item.requestedQuantity,
+  }));
+  const approvalInput: SubmitTransactionInput = {
+    internalRequest: sourceTransaction.internalRequest,
+    items: workflowItems.map((item) => ({
+      assetId: item.asset.id,
+      quantity: item.quantity,
+    })),
+    note,
+    projectId: sourceTransaction.projectId,
+    projectRequest: sourceTransaction.projectRequest,
+    purpose: sourceTransaction.purpose,
+    requestDate: now,
+    serviceRequest: sourceTransaction.serviceRequest,
+    sourceTransactionId: sourceTransaction.id,
+    type: sourceTransaction.type,
+  };
+  const approvals = await buildApprovalCandidates(
+    tx,
+    requester,
+    approvalInput,
+    workflowItems,
+  );
+  const transaction = await tx.transaction.create({
+    data: {
+      completedAt: null,
+      createdById: actor.id,
+      documentRef: null,
+      dueDate: null,
+      internalRequest: sourceTransaction.internalRequest,
+      note,
+      projectId: sourceTransaction.projectId,
+      projectRequest: sourceTransaction.projectRequest,
+      purpose: sourceTransaction.purpose,
+      requestDate: now,
+      requestedById: sourceTransaction.requestedBy.id,
+      serviceRequest: sourceTransaction.serviceRequest,
+      soldPrice: null,
+      sourceTransactionId: sourceTransaction.id,
+      status: TransactionStatus.RETURNED,
+      transactionNo: await createRequisitionNo(tx, now),
+      type: sourceTransaction.type,
+      workflowStatus: TransactionWorkflowStatus.PENDING,
+    },
+  });
+
+  await tx.transactionItem.createMany({
+    data: returnItems.map((item) => ({
+      assetId: item.assetId,
+      fromStatus: item.toStatus,
+      note,
+      requestedQuantity: item.requestedQuantity,
+      soldPrice: null,
+      toStatus: AssetStatus.READY,
+      transactionId: transaction.id,
+    })),
+  });
+
+  await replaceTransactionApprovals(tx, transaction.id, approvals);
+
+  await tx.assetStatusHistory.createMany({
+    data: returnItems.map((item) => ({
+      actionType: AssetActionType.STATUS_CHANGE,
+      assetId: item.assetId,
+      changedById: actor.id,
+      fromStatus: item.toStatus,
+      note: [note, `Created return approval from ${sourceTransaction.transactionNo ?? sourceTransaction.documentRef ?? sourceTransaction.id}`]
+        .filter(Boolean)
+        .join("\n"),
+      toStatus: item.toStatus,
+      transactionId: transaction.id,
+    })),
+  });
+
+  return transaction;
+}
+
 async function createReturnSaleApprovalTransaction(
   tx: Prisma.TransactionClient,
   actor: CurrentUser,
@@ -2776,7 +3028,7 @@ async function createReturnSaleApprovalTransaction(
       soldPrice: null,
       sourceTransactionId: sourceTransaction.id,
       status: TransactionStatus.COMPLETED,
-      transactionNo: null,
+      transactionNo: await createRequisitionNo(tx, now),
       type: TransactionType.SOLD,
       workflowStatus: TransactionWorkflowStatus.PENDING,
     },
@@ -2863,6 +3115,7 @@ export async function resolveTransactionItems(
       }
 
       assertCanResolveTransaction(user, { items });
+      await assertNoPendingResolutionApproval(tx, transaction.id, items);
 
       const saleItems = items.filter((item) => {
         const resolution = resolutionMap.get(item.id);
@@ -2875,6 +3128,18 @@ export async function resolveTransactionItems(
         return resolution?.toStatus !== AssetStatus.SOLD;
       });
 
+      if (returnItems.length > 0) {
+        const firstReturnResolution = resolutionMap.get(returnItems[0].id);
+        await createReturnApprovalTransaction(
+          tx,
+          user,
+          transaction,
+          returnItems,
+          cleanText(firstReturnResolution?.note),
+          now,
+        );
+      }
+
       if (saleItems.length > 0) {
         const firstSaleResolution = resolutionMap.get(saleItems[0].id);
         await createReturnSaleApprovalTransaction(
@@ -2886,47 +3151,6 @@ export async function resolveTransactionItems(
           now,
         );
       }
-
-      for (const item of returnItems) {
-        const resolution = resolutionMap.get(item.id);
-
-        if (!resolution) {
-          throw new WorkflowError("Missing resolution details.", 400);
-        }
-
-        await resolveItem(
-          tx,
-          item,
-          user,
-          now,
-          resolution.toStatus,
-          cleanText(resolution.note),
-          cleanText(resolution.soldPrice),
-        );
-      }
-
-      if (returnItems.length > 0) {
-        await tx.assetStatusHistory.createMany({
-          data: returnItems.map((item) => {
-            const resolution = resolutionMap.get(item.id);
-            const toStatus = resolution?.toStatus ?? AssetStatus.READY;
-
-            return {
-              actionType: getManualStatusAction(item.toStatus, toStatus),
-              assetId: item.assetId,
-              changedById: user.id,
-              fromStatus: item.toStatus,
-              previousQuantity: isQuantityTransactionItem(item) ? item.asset.assetQuantity : null,
-              newQuantity: isQuantityTransactionItem(item) ? item.asset.assetQuantity : null,
-              note: ["Returned from transaction", cleanText(resolution?.note)].filter(Boolean).join("; "),
-              toStatus,
-              transactionId: transaction.id,
-            };
-          }),
-        });
-      }
-
-      await refreshTransactionResolutionStatus(tx, transaction.id, now);
 
       return findTransactionDetail(tx, transaction.id);
     },
@@ -2989,7 +3213,7 @@ export async function changeAssetStatus(
         throw new WorkflowError("Asset not found.", 404);
       }
 
-      assertCanChangeAssetStatus(user, asset.domain.code);
+      assertCanChangeAssetStatus(user, asset.warehouse.code);
 
       if (!canTransitionAssetStatus(asset.status, input.toStatus)) {
         throw new WorkflowError(
@@ -3031,12 +3255,6 @@ export async function changeAssetStatus(
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
-}
-
-export async function markBorrowTransactionsOverdue(now = new Date()) {
-  void now;
-
-  return { count: 0 };
 }
 
 

@@ -122,7 +122,7 @@ type RequestableInventoryTableProps = {
   canRequest: boolean;
   canDelete: boolean;
   canChangeStatus: boolean;
-  domainLabel: string;
+  warehouseLabel: string;
   inventoryFamily?: InventoryFamily;
   rows: RequestableInventoryRow[];
   sortLinks?: Partial<Record<SortKey, { asc: string; desc: string }>>;
@@ -295,7 +295,7 @@ const manualStatusTransitions = {
 
 function RequestConfirmDialog({
   asset,
-  domainLabel,
+  warehouseLabel,
   error,
   inventoryFamily,
   isSubmitting,
@@ -306,7 +306,7 @@ function RequestConfirmDialog({
   quantity,
 }: {
   asset: RequestableInventoryRow;
-  domainLabel: string;
+  warehouseLabel: string;
   error: string | null;
   inventoryFamily: InventoryFamily;
   isSubmitting: boolean;
@@ -343,7 +343,7 @@ function RequestConfirmDialog({
 
         <h2 className="mt-5 text-2xl font-bold text-navy">Request this asset?</h2>
         <p className="mt-2 text-sm font-semibold text-muted-foreground">
-          {domainLabel} / {asset.assetModel.name}
+          {warehouseLabel} / {asset.assetModel.name}
         </p>
 
         <div className="mt-6 grid gap-3 rounded-md border border-border bg-surface px-4 py-4 text-sm font-semibold text-ink sm:grid-cols-2">
@@ -730,7 +730,7 @@ function StatusMenuCell({
 export function RequestableInventoryTable({
   canDelete,
   canChangeStatus,
-  domainLabel,
+  warehouseLabel,
   inventoryFamily = "SERIAL",
   canRequest,
   rows,
@@ -804,10 +804,10 @@ export function RequestableInventoryTable({
   );
   const availableColumns: TableColumnKey[] = [...selectableColumns, "status", "action"];
 
-  // Column definitions are derived from the current domain schema; load saved preferences only when the domain changes.
+  // Column definitions are derived from the current warehouse schema; load saved preferences only when the warehouse changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    const storageKey = `stock:inventory-columns:${domainLabel}`;
+    const storageKey = `stock:inventory-columns:${warehouseLabel}`;
     try {
       const saved = JSON.parse(window.localStorage.getItem(storageKey) ?? "null") as { columns?: TableColumnKey[]; widths?: Record<string, number> } | null;
       setSelectedColumns(normalizeTableColumns((saved?.columns?.filter((key) => availableColumns.includes(key)) as TableColumnKey[] | undefined) ?? defaultColumns));
@@ -815,14 +815,14 @@ export function RequestableInventoryTable({
     } catch {
       setSelectedColumns(normalizeTableColumns(defaultColumns));
     }
-  // These arrays are render-local projections of the current schema and intentionally reload only per domain.
+  // These arrays are render-local projections of the current schema and intentionally reload only per warehouse.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [domainLabel]);
+  }, [warehouseLabel]);
 
   useEffect(() => {
     if (selectedColumns.length === 0) return;
-    window.localStorage.setItem(`stock:inventory-columns:${domainLabel}`, JSON.stringify({ columns: selectedColumns, widths: columnWidths }));
-  }, [columnWidths, domainLabel, selectedColumns]);
+    window.localStorage.setItem(`stock:inventory-columns:${warehouseLabel}`, JSON.stringify({ columns: selectedColumns, widths: columnWidths }));
+  }, [columnWidths, warehouseLabel, selectedColumns]);
 
   useEffect(() => {
     if (!resizing) return;
@@ -869,7 +869,7 @@ export function RequestableInventoryTable({
             quantity,
           },
         ],
-        note: `Requested from ${domainLabel} inventory.`,
+        note: `Requested from ${warehouseLabel} inventory.`,
       };
       const response = await fetch(
         transactionId
@@ -985,7 +985,7 @@ export function RequestableInventoryTable({
       <section className="overflow-hidden rounded-md border border-border bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
-            <h2 className="text-xl font-bold text-navy">{formatWarehouseHeading(domainLabel)}</h2>
+            <h2 className="text-xl font-bold text-navy">{formatWarehouseHeading(warehouseLabel)}</h2>
             <p className="mt-1 text-sm font-medium text-muted-foreground">
               Click any row to view details.
             </p>
@@ -1095,7 +1095,7 @@ export function RequestableInventoryTable({
       {activeAsset ? (
         <RequestConfirmDialog
           asset={activeAsset}
-          domainLabel={domainLabel}
+          warehouseLabel={warehouseLabel}
           error={error}
           inventoryFamily={inventoryFamily}
           isSubmitting={isSubmitting}

@@ -10,15 +10,15 @@ import { requireCurrentUser } from "@/lib/auth";
 import {
   canChangeAssetStatusForUser,
   canDeleteAssetsForUser,
-  canManageDomainForUser,
-  canRequestDomainForUser,
+  canManageWarehouseForUser,
+  canRequestWarehouseForUser,
 } from "@/lib/permissions";
 import {
-  getDomainInventoryForUser,
-  normalizeDomainInventoryFilters,
-  type DomainInventoryFilters,
+  getWarehouseInventoryForUser,
+  normalizeWarehouseInventoryFilters,
+  type WarehouseInventoryFilters,
   type InventorySortBy,
-} from "@/lib/domain-inventory";
+} from "@/lib/warehouse-inventory";
 import { assetStatusLabels } from "@/lib/status-style";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { InventoryDataUnavailable } from "@/components/inventory/inventory-data-unavailable";
@@ -27,8 +27,8 @@ import { RequestableInventoryTable } from "@/features/inventory/requestable-inve
 import { formatWarehouseHeading } from "@/lib/display-labels";
 import { TablePagination } from "@/components/table/table-pagination";
 
-type DomainInventoryPageProps = {
-  domainCode: string;
+type WarehouseInventoryPageProps = {
+  warehouseCode: string;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
@@ -56,11 +56,11 @@ function appendValues(params: URLSearchParams, key: string, values: string[]) {
   values.forEach((value) => params.append(key, value));
 }
 
-function baseHref(domainCode: string) {
-  return `/dashboard/inventory/${encodeURIComponent(domainCode)}`;
+function baseHref(warehouseCode: string) {
+  return `/dashboard/inventory/${encodeURIComponent(warehouseCode)}`;
 }
 
-function buildPageHref(domainCode: string, page: number, filters: DomainInventoryFilters) {
+function buildPageHref(warehouseCode: string, page: number, filters: WarehouseInventoryFilters) {
   const params = new URLSearchParams();
 
   if (filters.search) params.set("q", filters.search);
@@ -72,10 +72,10 @@ function buildPageHref(domainCode: string, page: number, filters: DomainInventor
   params.set("dir", filters.sortDirection);
   params.set("page", String(page));
 
-  return `${baseHref(domainCode)}?${params.toString()}`;
+  return `${baseHref(warehouseCode)}?${params.toString()}`;
 }
 
-function buildSortLinks(domainCode: string, filters: DomainInventoryFilters) {
+function buildSortLinks(warehouseCode: string, filters: WarehouseInventoryFilters) {
   const keys: InventorySortBy[] = [
     "serialNo",
     "model",
@@ -91,13 +91,13 @@ function buildSortLinks(domainCode: string, filters: DomainInventoryFilters) {
     keys.map((sortKey) => [
       sortKey,
       {
-        asc: buildPageHref(domainCode, 1, {
+        asc: buildPageHref(warehouseCode, 1, {
           ...filters,
           page: 1,
           sortBy: sortKey,
           sortDirection: "asc",
         }),
-        desc: buildPageHref(domainCode, 1, {
+        desc: buildPageHref(warehouseCode, 1, {
           ...filters,
           page: 1,
           sortBy: sortKey,
@@ -129,16 +129,16 @@ function MetricCard({ detail, icon: Icon, label, tone, value }: MetricCardProps)
   );
 }
 
-function DomainMetrics({
+function WarehouseMetrics({
   borrowed,
-  domainName,
+  warehouseName,
   ready,
   request,
   sold,
   total,
 }: {
   borrowed: number;
-  domainName: string;
+  warehouseName: string;
   ready: number;
   request: number;
   sold: number;
@@ -146,78 +146,78 @@ function DomainMetrics({
 }) {
   return (
     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-      <MetricCard detail={`${domainName} domain only`} icon={Package} label={`Total ${domainName} Equipment`} tone="total" value={total} />
-      <MetricCard detail="Ready for use" icon={CheckCircle2} label={`Ready ${domainName} Equipment`} tone="ready" value={ready} />
-      <MetricCard detail="Currently borrowed" icon={ArrowRightLeft} label={`Borrowed ${domainName} Equipment`} tone="borrow" value={borrowed} />
+      <MetricCard detail={`${warehouseName} warehouse only`} icon={Package} label={`Total ${warehouseName} Equipment`} tone="total" value={total} />
+      <MetricCard detail="Ready for use" icon={CheckCircle2} label={`Ready ${warehouseName} Equipment`} tone="ready" value={ready} />
+      <MetricCard detail="Currently borrowed" icon={ArrowRightLeft} label={`Borrowed ${warehouseName} Equipment`} tone="borrow" value={borrowed} />
       <MetricCard detail="Locked for request" icon={ClipboardList} label="Active Request" tone="request" value={request} />
-      <MetricCard detail="Moved to sold state" icon={DollarSign} label={`Sold ${domainName} Equipment`} tone="sold" value={sold} />
+      <MetricCard detail="Moved to sold state" icon={DollarSign} label={`Sold ${warehouseName} Equipment`} tone="sold" value={sold} />
     </section>
   );
 }
 
 function Pagination({
-  domainCode,
+  warehouseCode,
   filters,
   page,
   totalPages,
 }: {
-  domainCode: string;
-  filters: DomainInventoryFilters;
+  warehouseCode: string;
+  filters: WarehouseInventoryFilters;
   page: number;
   totalPages: number;
 }) {
   return (
     <TablePagination
       currentPage={page}
-      hrefForPage={(nextPage) => buildPageHref(domainCode, nextPage, filters)}
+      hrefForPage={(nextPage) => buildPageHref(warehouseCode, nextPage, filters)}
       totalPages={totalPages}
     />
   );
 }
 
-function NoDomainAccess({ domainCode }: { domainCode: string }) {
+function NoWarehouseAccess({ warehouseCode }: { warehouseCode: string }) {
   return (
     <section className="rounded-md border border-border bg-white p-8 text-center shadow-sm">
-      <h2 className="text-xl font-bold text-navy">No domain access</h2>
+      <h2 className="text-xl font-bold text-navy">No warehouse access</h2>
       <p className="mt-2 text-sm font-medium text-muted-foreground">
-        Your account does not have permission to view {domainCode} inventory.
+        Your account does not have permission to view {warehouseCode} inventory.
       </p>
     </section>
   );
 }
 
-export async function DomainInventoryPage({ domainCode, searchParams }: DomainInventoryPageProps) {
-  const filters = normalizeDomainInventoryFilters(await searchParams);
+export async function WarehouseInventoryPage({ warehouseCode, searchParams }: WarehouseInventoryPageProps) {
+  const filters = normalizeWarehouseInventoryFilters(await searchParams);
   let user: Awaited<ReturnType<typeof requireCurrentUser>>;
-  let result: Awaited<ReturnType<typeof getDomainInventoryForUser>>;
+  let result: Awaited<ReturnType<typeof getWarehouseInventoryForUser>>;
 
   try {
-    user = await requireCurrentUser(baseHref(domainCode));
-    result = await getDomainInventoryForUser(user, domainCode, filters);
+    user = await requireCurrentUser(baseHref(warehouseCode));
+    result = await getWarehouseInventoryForUser(user, warehouseCode, filters);
   } catch (error) {
     if (isDatabaseUnavailableError(error)) {
-      return <InventoryDataUnavailable domainLabel={formatWarehouseHeading(domainCode)} retryHref={baseHref(domainCode)} />;
+      return <InventoryDataUnavailable warehouseLabel={formatWarehouseHeading(warehouseCode)} retryHref={baseHref(warehouseCode)} />;
     }
 
     throw error;
   }
 
-  if (!result.canView || !result.domain) {
-    return <NoDomainAccess domainCode={domainCode} />;
+  if (!result.canView || !result.warehouse) {
+    return <NoWarehouseAccess warehouseCode={warehouseCode} />;
   }
 
-  const domainName = result.domain.name || result.domain.code;
-  const href = baseHref(result.domain.code);
-  const inventoryFamily = result.domain.inventoryFamily;
-  const addAssetHref = canManageDomainForUser(user, result.domain.code)
-    ? `/dashboard/assets/new?domain=${encodeURIComponent(result.domain.code)}`
+  const warehouseName = result.warehouse.name || result.warehouse.code;
+  const href = baseHref(result.warehouse.code);
+  const inventoryFamily = result.warehouse.inventoryFamily;
+  const addAssetHref = canManageWarehouseForUser(user, result.warehouse.code)
+    ? `/dashboard/assets/new?warehouse=${encodeURIComponent(result.warehouse.code)}`
     : null;
 
   return (
     <div className="flex flex-col gap-6">
-      <DomainMetrics
+      <WarehouseMetrics
         borrowed={result.metrics.borrowed}
-        domainName={domainName}
+        warehouseName={warehouseName}
         ready={result.metrics.ready}
         request={result.metrics.request}
         sold={result.metrics.sold}
@@ -227,12 +227,12 @@ export async function DomainInventoryPage({ domainCode, searchParams }: DomainIn
       <ServerInventoryControls
         addAssetHref={addAssetHref}
         baseHref={href}
-        canManageCategories={canManageDomainForUser(user, result.domain.code)}
+        canManageCategories={canManageWarehouseForUser(user, result.warehouse.code)}
         brands={result.filterOptions.brands}
         categories={result.filterOptions.categories}
         categoryGroups={result.filterOptions.categoryGroups}
-        domainCode={result.domain.code}
-        domainLabel={domainName}
+        warehouseCode={result.warehouse.code}
+        warehouseLabel={warehouseName}
         filters={{
           brands: filters.brands,
           categories: filters.categories,
@@ -249,16 +249,16 @@ export async function DomainInventoryPage({ domainCode, searchParams }: DomainIn
 
       <RequestableInventoryTable
         activeSort={{ by: filters.sortBy, direction: filters.sortDirection }}
-        canChangeStatus={canChangeAssetStatusForUser(user, result.domain.code)}
-        canDelete={canDeleteAssetsForUser(user, result.domain.code)}
-        canRequest={canRequestDomainForUser(user, result.domain.code)}
-        domainLabel={domainName}
+        canChangeStatus={canChangeAssetStatusForUser(user, result.warehouse.code)}
+        canDelete={canDeleteAssetsForUser(user, result.warehouse.code)}
+        canRequest={canRequestWarehouseForUser(user, result.warehouse.code)}
+        warehouseLabel={warehouseName}
         customFieldDefinitions={[...new Map(result.filterOptions.categoryGroups.flatMap((category) => category.customFields).map((field) => [field.key, { key: field.key, label: field.label, unit: field.unit }])).values()]}
         inventoryFamily={inventoryFamily}
         rows={result.rows}
-        sortLinks={buildSortLinks(result.domain.code, filters)}
+        sortLinks={buildSortLinks(result.warehouse.code, filters)}
       />
-      <Pagination domainCode={result.domain.code} filters={filters} page={filters.page} totalPages={result.totalPages} />
+      <Pagination warehouseCode={result.warehouse.code} filters={filters} page={filters.page} totalPages={result.totalPages} />
     </div>
   );
 }

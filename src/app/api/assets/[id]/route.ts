@@ -21,7 +21,7 @@ const updateAssetSchema = z.object({
   customFields: z.record(z.string(), nullableString(2000)).optional().default({}),
   categoryName: nullableString(255),
   description: nullableString(2000),
-  domainCode: z.string().trim().min(1).max(32),
+  warehouseCode: z.string().trim().min(1).max(32),
   imageRef: z.string().trim().max(2_000_000).optional().nullable(),
   isActive: z.boolean().optional(),
   legacyFg: z.number().int().nullable().optional(),

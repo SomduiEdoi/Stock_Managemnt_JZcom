@@ -6,7 +6,7 @@ export type PrintableAsset = {
     name?: string | null;
     typeName?: string | null;
   } | null;
-  domain?: {
+  warehouse?: {
     code?: string | null;
     inventoryFamily?: "QUANTITY" | "SERIAL" | string | null;
     name?: string | null;
@@ -158,7 +158,11 @@ function chunkItems(items: PrintableTransactionItem[], size: number) {
 }
 
 function transactionNo(transaction: PrintableTransaction) {
-  if (transaction.type === "SOLD" && transaction.sourceTransactionId) {
+  if (
+    transaction.type === "SOLD" &&
+    transaction.sourceTransactionId &&
+    !transaction.transactionNo
+  ) {
     return `From ${sourceReference(transaction)}`;
   }
 
@@ -182,7 +186,7 @@ function isQuantityItem(item: PrintableTransactionItem) {
   return (
     (item.requestedQuantity ?? 1) > 1 ||
     asset?.assetModel?.assetType?.trackMethod === "QUANTITY" ||
-    asset?.domain?.inventoryFamily === "QUANTITY" ||
+    asset?.warehouse?.inventoryFamily === "QUANTITY" ||
     !asset?.serialNo
   );
 }
@@ -594,6 +598,17 @@ function documentsFor(transaction: PrintableTransaction): ExportDocument[] {
   if (transaction.type === "SOLD") {
     documents.push({
       kind: "SALE",
+      items,
+      referenceNo,
+      showFromReference: Boolean(transaction.sourceTransaction),
+      transaction,
+    });
+    return documents;
+  }
+
+  if (transaction.status === "RETURNED" && transaction.sourceTransactionId) {
+    documents.push({
+      kind: "RETURN",
       items,
       referenceNo,
       showFromReference: Boolean(transaction.sourceTransaction),

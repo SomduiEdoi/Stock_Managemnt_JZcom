@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { hasRole } from "@/lib/permissions";
 import { WorkflowError } from "@/lib/workflow";
 
-export type SidebarDomain = {
+export type SidebarWarehouse = {
   assetCount: number;
   code: string;
   controllerId: string | null;
@@ -60,7 +60,7 @@ function requirePrefix(value: string | null | undefined) {
   return text;
 }
 
-const sidebarDomainSelect = {
+const sidebarWarehouseSelect = {
   _count: { select: { assets: { where: { isActive: true } } } },
   code: true,
   headStockControllerId: true,
@@ -79,7 +79,7 @@ const sidebarDomainSelect = {
   prefix: true,
 };
 
-type SidebarDomainRecord = {
+type SidebarWarehouseRecord = {
   _count: { assets: number };
   code: string;
   headStockControllerId: string | null;
@@ -94,17 +94,17 @@ type SidebarDomainRecord = {
   prefix: string;
 };
 
-type DomainTx = Parameters<Parameters<typeof db.$transaction>[0]>[0];
+type WarehouseTx = Parameters<Parameters<typeof db.$transaction>[0]>[0];
 
-async function ensureDomainViewPermissionsForActiveUsers(
-  tx: DomainTx,
-  domainId: string,
+async function ensureWarehouseViewPermissionsForActiveUsers(
+  tx: WarehouseTx,
+  warehouseId: string,
   managerIds: string[],
 ) {
   const managerIdSet = new Set(managerIds.filter(Boolean));
-  const existingPermissions = await tx.userDomainPermission.findMany({
+  const existingPermissions = await tx.userWarehousePermission.findMany({
     select: { userId: true },
-    where: { domainId },
+    where: { warehouseId },
   });
   const existingUserIds = new Set(
     existingPermissions.map((permission) => permission.userId),
@@ -126,11 +126,11 @@ async function ensureDomainViewPermissionsForActiveUsers(
     return;
   }
 
-  await tx.userDomainPermission.createMany({
+  await tx.userWarehousePermission.createMany({
     data: usersMissingPermission.map((entry) => ({
       canManage: managerIdSet.has(entry.id),
       canView: true,
-      domainId,
+      warehouseId,
       userId: entry.id,
     })),
     skipDuplicates: true,
@@ -138,7 +138,7 @@ async function ensureDomainViewPermissionsForActiveUsers(
 }
 
 async function findStockControllerOrThrow(
-  tx: DomainTx,
+  tx: WarehouseTx,
   userId: string,
   controllerTag: "HEAD_STOCK_CONTROLLER" | "STOCK_CONTROLLER",
   label: string,
@@ -161,39 +161,39 @@ async function findStockControllerOrThrow(
 }
 
 async function assertStockControllerManageSlot(
-  tx: DomainTx,
+  tx: WarehouseTx,
   userId: string,
-  domainId?: string,
+  warehouseId?: string,
 ) {
-  const existingManagedDomain = await tx.userDomainPermission.findFirst({
-    select: { domain: { select: { name: true } } },
+  const existingManagedWarehouse = await tx.userWarehousePermission.findFirst({
+    select: { warehouse: { select: { name: true } } },
     where: {
       canManage: true,
-      domain: { isActive: true, ...(domainId ? { id: { not: domainId } } : {}) },
+      warehouse: { isActive: true, ...(warehouseId ? { id: { not: warehouseId } } : {}) },
       userId,
     },
   });
 
-  if (existingManagedDomain) {
+  if (existingManagedWarehouse) {
     throw new WorkflowError(
-      `This stock controller already manages ${existingManagedDomain.domain.name}.`,
+      `This stock controller already manages ${existingManagedWarehouse.warehouse.name}.`,
       409,
-      "STOCK_CONTROLLER_ALREADY_MANAGES_DOMAIN",
+      "STOCK_CONTROLLER_ALREADY_MANAGES_WAREHOUSE",
     );
   }
 }
 
-async function upsertDomainPermission(
-  tx: DomainTx,
-  domainId: string,
+async function upsertWarehousePermission(
+  tx: WarehouseTx,
+  warehouseId: string,
   userId: string,
   canManage: boolean,
 ) {
-  await tx.userDomainPermission.upsert({
+  await tx.userWarehousePermission.upsert({
     create: {
       canManage,
       canView: true,
-      domainId,
+      warehouseId,
       userId,
     },
     update: {
@@ -201,47 +201,47 @@ async function upsertDomainPermission(
       canView: true,
     },
     where: {
-      userId_domainId: {
-        domainId,
+      userId_warehouseId: {
+        warehouseId,
         userId,
       },
     },
   });
 }
 
-function toSidebarDomain(domain: SidebarDomainRecord): SidebarDomain {
-  const headControllerIds = domain.headStockControllerId
-    ? [domain.headStockControllerId]
+function toSidebarWarehouse(warehouse: SidebarWarehouseRecord): SidebarWarehouse {
+  const headControllerIds = warehouse.headStockControllerId
+    ? [warehouse.headStockControllerId]
     : [];
 
-  const controllerId = domain.permissions.find(
+  const controllerId = warehouse.permissions.find(
     (permission) =>
       permission.canManage && permission.user.stockControllerTag === "STOCK_CONTROLLER",
   )?.userId ?? null;
 
   return {
-    assetCount: domain._count.assets,
-    code: domain.code,
+    assetCount: warehouse._count.assets,
+    code: warehouse.code,
     controllerId,
     headControllerId: headControllerIds[0] ?? null,
     headControllerIds,
-    inventoryFamily: domain.inventoryFamily,
-    name: domain.name,
-    prefix: domain.prefix,
+    inventoryFamily: warehouse.inventoryFamily,
+    name: warehouse.name,
+    prefix: warehouse.prefix,
   };
 }
 
-export async function getSidebarDomainsForUser() {
-  const domains = await db.assetDomain.findMany({
+export async function getSidebarWarehousesForUser() {
+  const warehouses = await db.assetWarehouse.findMany({
     orderBy: { name: "asc" },
-    select: sidebarDomainSelect,
+    select: sidebarWarehouseSelect,
     where: { isActive: true },
   });
 
-  return domains.map(toSidebarDomain);
+  return warehouses.map(toSidebarWarehouse);
 }
 
-export async function getStockControllersForDomainForm() {
+export async function getStockControllersForWarehouseForm() {
   return db.user.findMany({
     orderBy: { name: "asc" },
     select: { email: true, id: true, name: true, stockControllerTag: true },
@@ -252,18 +252,18 @@ export async function getStockControllersForDomainForm() {
   });
 }
 
-export type CreateDomainInput = {
+export type CreateWarehouseInput = {
   controllerId: string;
-  domainName: string;
+  warehouseName: string;
   headControllerId?: string | null;
   headControllerIds?: string[];
   prefix: string;
   trackMethod: AssetTrackMethod;
 };
 
-export type UpdateDomainInput = {
+export type UpdateWarehouseInput = {
   controllerId: string;
-  domainName: string;
+  warehouseName: string;
   headControllerId?: string | null;
   headControllerIds?: string[];
 };
@@ -272,12 +272,12 @@ function uniqueControllerIds(values: Array<string | null | undefined>) {
   return [...new Set(values.filter((value): value is string => Boolean(value)))];
 }
 
-export async function createDomainForUser(user: CurrentUser, input: CreateDomainInput) {
+export async function createWarehouseForUser(user: CurrentUser, input: CreateWarehouseInput) {
   if (!hasRole(user, "ADMIN")) {
-    throw new WorkflowError("Only admin can create domains.", 403, "FORBIDDEN");
+    throw new WorkflowError("Only admin can create warehouses.", 403, "FORBIDDEN");
   }
 
-  const name = requireName(input.domainName, "Domain name");
+  const name = requireName(input.warehouseName, "Warehouse name");
   const prefix = requirePrefix(input.prefix);
   const code = normalizeCode(name);
 
@@ -301,16 +301,16 @@ export async function createDomainForUser(user: CurrentUser, input: CreateDomain
     );
     const managerIds = uniqueControllerIds([controller.id]);
 
-    const duplicate = await tx.assetDomain.findFirst({
+    const duplicate = await tx.assetWarehouse.findFirst({
       select: { id: true },
       where: { OR: [{ code }, { prefix }, { name }] },
     });
 
     if (duplicate) {
-      throw new WorkflowError("Domain name, code, or prefix already exists.", 409, "DUPLICATE_DOMAIN");
+      throw new WorkflowError("Warehouse name, code, or prefix already exists.", 409, "DUPLICATE_WAREHOUSE");
     }
 
-    const domain = await tx.assetDomain.create({
+    const warehouse = await tx.assetWarehouse.create({
       data: {
         code,
         headStockControllerId: headControllers[0]?.id ?? null,
@@ -340,58 +340,58 @@ export async function createDomainForUser(user: CurrentUser, input: CreateDomain
       },
     });
 
-    await tx.userDomainPermission.createMany({
+    await tx.userWarehousePermission.createMany({
       data: nonAdminUsers.map((entry) => ({
         canManage: managerIds.includes(entry.id),
         canView: true,
-        domainId: domain.id,
+        warehouseId: warehouse.id,
         userId: entry.id,
       })),
     });
-    await ensureDomainViewPermissionsForActiveUsers(tx, domain.id, [
+    await ensureWarehouseViewPermissionsForActiveUsers(tx, warehouse.id, [
       ...managerIds,
     ]);
-    await upsertDomainPermission(tx, domain.id, controller.id, true);
+    await upsertWarehousePermission(tx, warehouse.id, controller.id, true);
     for (const headController of headControllers) {
-      await upsertDomainPermission(tx, domain.id, headController.id, false);
+      await upsertWarehousePermission(tx, warehouse.id, headController.id, false);
     }
 
     return {
       assetCount: 0,
-      code: domain.code,
+      code: warehouse.code,
       controllerId: controller.id,
       headControllerId: headControllers[0]?.id ?? null,
       headControllerIds: headControllers.map((entry) => entry.id),
-      inventoryFamily: domain.inventoryFamily,
-      name: domain.name,
-      prefix: domain.prefix,
+      inventoryFamily: warehouse.inventoryFamily,
+      name: warehouse.name,
+      prefix: warehouse.prefix,
     };
   });
 }
 
-export async function updateDomainForUser(
+export async function updateWarehouseForUser(
   user: CurrentUser,
-  domainCode: string,
-  input: UpdateDomainInput,
+  warehouseCode: string,
+  input: UpdateWarehouseInput,
 ) {
   if (!hasRole(user, "ADMIN")) {
-    throw new WorkflowError("Only admin can edit domains.", 403, "FORBIDDEN");
+    throw new WorkflowError("Only admin can edit warehouses.", 403, "FORBIDDEN");
   }
 
-  const name = requireName(input.domainName, "Domain name");
+  const name = requireName(input.warehouseName, "Warehouse name");
 
   if (!input.controllerId) {
     throw new WorkflowError("Stock controller is required.");
   }
 
   return db.$transaction(async (tx) => {
-    const domain = await tx.assetDomain.findFirst({
+    const warehouse = await tx.assetWarehouse.findFirst({
       select: { id: true },
-      where: { code: domainCode, isActive: true },
+      where: { code: warehouseCode, isActive: true },
     });
 
-    if (!domain) {
-      throw new WorkflowError("Domain not found.", 404);
+    if (!warehouse) {
+      throw new WorkflowError("Warehouse not found.", 404);
     }
 
     const controller = await findStockControllerOrThrow(
@@ -400,7 +400,7 @@ export async function updateDomainForUser(
       "STOCK_CONTROLLER",
       "Stock controller",
     );
-    await assertStockControllerManageSlot(tx, controller.id, domain.id);
+    await assertStockControllerManageSlot(tx, controller.id, warehouse.id);
     const headControllerIds = uniqueControllerIds([...(input.headControllerIds ?? []), input.headControllerId]);
     const headControllers = await Promise.all(
       headControllerIds.map((id) =>
@@ -409,77 +409,77 @@ export async function updateDomainForUser(
     );
     const managerIds = uniqueControllerIds([controller.id]);
 
-    const duplicate = await tx.assetDomain.findFirst({
+    const duplicate = await tx.assetWarehouse.findFirst({
       select: { id: true },
       where: {
-        id: { not: domain.id },
+        id: { not: warehouse.id },
         OR: [{ name }],
       },
     });
 
     if (duplicate) {
-      throw new WorkflowError("Domain name already exists.", 409, "DUPLICATE_DOMAIN");
+      throw new WorkflowError("Warehouse name already exists.", 409, "DUPLICATE_WAREHOUSE");
     }
 
-    await tx.assetDomain.update({
+    await tx.assetWarehouse.update({
       data: {
         headStockControllerId: headControllers[0]?.id ?? null,
         name,
       },
-      where: { id: domain.id },
+      where: { id: warehouse.id },
     });
 
-    await tx.userDomainPermission.updateMany({
+    await tx.userWarehousePermission.updateMany({
       data: { canManage: false, canView: true },
-      where: { domainId: domain.id },
+      where: { warehouseId: warehouse.id },
     });
-    await ensureDomainViewPermissionsForActiveUsers(tx, domain.id, [
+    await ensureWarehouseViewPermissionsForActiveUsers(tx, warehouse.id, [
       ...managerIds,
     ]);
-    await upsertDomainPermission(tx, domain.id, controller.id, true);
+    await upsertWarehousePermission(tx, warehouse.id, controller.id, true);
     for (const headController of headControllers) {
-      await upsertDomainPermission(tx, domain.id, headController.id, false);
+      await upsertWarehousePermission(tx, warehouse.id, headController.id, false);
     }
 
-    const updated = await tx.assetDomain.findUniqueOrThrow({
-      select: sidebarDomainSelect,
-      where: { id: domain.id },
+    const updated = await tx.assetWarehouse.findUniqueOrThrow({
+      select: sidebarWarehouseSelect,
+      where: { id: warehouse.id },
     });
 
-    return toSidebarDomain(updated);
+    return toSidebarWarehouse(updated);
   });
 }
 
-export async function deleteDomainForUser(user: CurrentUser, domainCode: string) {
+export async function deleteWarehouseForUser(user: CurrentUser, warehouseCode: string) {
   if (!hasRole(user, "ADMIN")) {
-    throw new WorkflowError("Only admin can delete domains.", 403, "FORBIDDEN");
+    throw new WorkflowError("Only admin can delete warehouses.", 403, "FORBIDDEN");
   }
 
   return db.$transaction(async (tx) => {
-    const domain = await tx.assetDomain.findFirst({
+    const warehouse = await tx.assetWarehouse.findFirst({
       select: { id: true },
-      where: { code: domainCode, isActive: true },
+      where: { code: warehouseCode, isActive: true },
     });
 
-    if (!domain) {
-      throw new WorkflowError("Domain not found.", 404);
+    if (!warehouse) {
+      throw new WorkflowError("Warehouse not found.", 404);
     }
 
     const assetCount = await tx.asset.count({
-      where: { domainId: domain.id, isActive: true },
+      where: { warehouseId: warehouse.id, isActive: true },
     });
 
     if (assetCount > 0) {
       throw new WorkflowError(
-        `This domain currently contains ${assetCount.toLocaleString("en-US")} assets. Please delete all assets in this domain before deleting the domain.`,
+        `This warehouse currently contains ${assetCount.toLocaleString("en-US")} assets. Please delete all assets in this warehouse before deleting the warehouse.`,
         409,
-        "DOMAIN_HAS_ASSETS",
+        "WAREHOUSE_HAS_ASSETS",
       );
     }
 
-    await tx.assetDomain.update({
+    await tx.assetWarehouse.update({
       data: { isActive: false },
-      where: { id: domain.id },
+      where: { id: warehouse.id },
     });
 
     return { assetCount };

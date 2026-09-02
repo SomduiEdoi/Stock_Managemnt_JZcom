@@ -1,122 +1,137 @@
-# Rules: Asset Flow Management System
+# Rules: Warehouse Management
 
-อัปเดตล่าสุด: 2026-07-22
+อัปเดตล่าสุด: 2026-09-02
 
 ## 1. Naming Rules
 
-- ชื่อสั้นของระบบคือ Asset Flow
-- ชื่อเต็มคือ Asset Flow Management System
-- ใช้คำว่า `domain` สำหรับคลัง/กลุ่ม asset ทั้งหมด
-- ใช้คำว่า domain ใน code/docs ใหม่ให้สม่ำเสมอ
+- ชื่อระบบคือ Warehouse Management
+- ใช้คำว่า `Warehouse` สำหรับคลังหรือกลุ่ม asset ทั้งใน code, schema, API, UI และเอกสาร
+- ใช้คำว่า `Inventory` ได้เมื่อหมายถึงหน้าตารางหรือรายการ asset
+- Server และ Network เป็น Warehouse เริ่มต้น ไม่ใช่ขอบเขตถาวรของระบบ
 
 ## 2. Source of Truth Rules
 
-- CSV/SharePoint ใช้เฉพาะ migration/bootstrap
-- Runtime ต้องอ่าน/เขียน PostgreSQL เท่านั้น
-- ห้ามแก้ flow ใหม่ให้กลับไปพึ่ง CSV หรือ SharePoint
-- ทุก action สำคัญต้องมี audit trail ใน transaction/status/history ที่เกี่ยวข้อง
+- CSV ใช้เป็น master data
+- เมื่อ migration สำเร็จ runtime ต้องอ่านและเขียน PostgreSQL เท่านั้น
+- Transaction, approval, reservation และ status change สำคัญต้องมี audit trail
 
-## 3. Asset Status Rules
+## 3. Asset Rules
 
-- Asset ห้ามถูกลบจากระบบใน flow ปกติ
+- Asset ต้องไม่ถูกลบจากระบบใน workflow การ request, borrow, using, sold, return, fail, lost หรือ need check
+- การลบ master record เป็น administrative operation ที่ต้องตรวจ permission และ dependency แยกจาก business workflow
+- `READY` เท่านั้นที่เริ่ม request ได้
+- `REQUEST` หมายถึง asset แบบ Serial ถูก lock หรือ Quantity ถูก reserve จนไม่มีจำนวนพร้อมใช้
+- `BORROW` และ `USING` เกิดหลัง approval ครบ
 - `SOLD` เป็น terminal status
-- `READY` เท่านั้นที่ request ได้เต็มรูปแบบ
-- `REQUEST` หมายถึงถูก lock/reserve แล้ว คนอื่นเห็นได้แต่ request ซ้ำไม่ได้ในส่วนที่ไม่ available
-- `BORROW` และ `USING` ต้องเกิดหลัง approval ครบ
-- `FAIL`, `LOST`, `NEED_CHECK` ใช้สำหรับ outcome/ตรวจสอบ และต้องมี reason/history
-- ทุก status change ต้องบันทึก `asset_status_history`
+- `FAIL`, `LOST`, `NEED_CHECK` ต้องมีเหตุผลและ status history
+- ทุกการเปลี่ยนสถานะต้องบันทึก `asset_status_histories`
 
 ## 4. SERIAL / QUANTITY Rules
 
-- `SERIAL` asset ต้องมี serial number และ track รายตัว
-- `QUANTITY` asset track เป็นจำนวน ไม่ควรบังคับ serial number
-- Request ของ `QUANTITY` ต้องระบุ `requestedQuantity`
-- ห้าม request quantity เกิน available
-- Availability ต้องคิดจาก total quantity, reservation และ open transaction
-- Return quantity ต้องคืนจำนวนกลับเข้า available อย่างถูกต้อง
+- `SERIAL` track รายตัว ต้องมี serial number และมี quantity เท่ากับ 1
+- `QUANTITY` track เป็นจำนวนและไม่บังคับ serial number
+- Request ของ Quantity ต้องระบุ `requestedQuantity` และห้ามเกิน available quantity
+- Availability คำนวณจาก total quantity หัก draft reservation และ open transaction items
+- การ reject หรือแก้ไขคำขอต้องคืน reservation ที่ไม่ใช้งาน
+- Partial return ต้องคืนเฉพาะจำนวนของ item ที่ได้รับอนุมัติแล้ว
 
-## 5. Transaction Status Rules
+## 5. Status Rules
 
-- `BORROW` ใช้ business status `BORROWED`, `RETURNED`
-- `USING` ใช้ business status `ACTIVE`, `RETURNED`
-- `SOLD` ใช้ business status `COMPLETED`
-- `workflowStatus` ใช้แยก approval lifecycle: `PENDING`, `IN_PROGRESS`, `REJECTED`, `COMPLETED`
-- Submit request ต้องสร้าง transaction ที่ `workflowStatus = PENDING`
-- Asset final status ห้ามเปลี่ยนเป็น `BORROW`/`USING`/`SOLD` จนกว่า approve ครบ
-- ระบบไม่มีสถานะเกินกำหนดคืนอัตโนมัติแล้ว
+| Transaction Type | Business Status |
+| --- | --- |
+| `BORROW` | `BORROWED`, `RETURNED` |
+| `USING` | `USING`, `RETURNED` |
+| `SOLD` | `COMPLETED` |
+
+Workflow status มีเพียง `PENDING`, `IN_PROGRESS`, `REJECTED`, `COMPLETED`
 
 ## 6. Requisition No. Rules
 
-- Request/transaction ใช้เลขรูปแบบ `REQ-YYYYMMDD-XX`
-- Sequence `XX` เป็นเลข 2 หลัก
-- Sequence reset รายเดือน โดยนับจาก prefix `REQ-YYYYMM`
-- ถ้าเลขรายเดือนเต็ม ต้อง error ชัดเจน
+- Transaction ใช้เลข `REQ-YYYYMMDD-XX`
+- `XX` เป็นเลขสองหลักและ reset รายเดือนโดยนับจาก prefix `REQ-YYYYMM`
+- การสร้างเลขต้องทำใน database transaction และแจ้ง error เมื่อเกิน 99 รายการต่อเดือน
 
 ## 7. Approval Rules
 
-- Approver approve/reject ได้เฉพาะ current step
-- Approval step ต้องตรวจทั้ง user id, organization tag, project tag และ domain controller tag ตาม context
-- `STAFF` ต้องส่งไป supervisor ของทีมตัวเอง
-- `SUPERVISOR` ต้องส่งไป manager ของฝ่าย
-- `MANAGER` และ `EXECUTIVE` ข้าม business tier ได้
-- Project-bound request จาก `TEAM_MEMBER` ต้องผ่าน `LEAD_PROJECT`
-- Multi-domain transaction ต้องผ่าน Stock Controller ทุก domain ที่เกี่ยวข้อง
-- Stock Controller หลาย domain ใน step เดียวกัน approve แบบ parallel ได้
-- หลัง `STOCK_CONTROLLER` ต้องมี `HEAD_STOCK_CONTROLLER`
-- ระบบปัจจุบันมี `BSD_STAFF` และ `BSD_MANAGER` ใน chain
-- Reject ต้องระบุ reason และต้อง release lock/reservation
-- Requester แก้ไข pending request ได้เฉพาะตอนยังไม่มี approval ใดถูก approve
+- Approver approve/reject ได้เฉพาะ current step และต้องมีลายเซ็นก่อน approve
+- Approval ตรวจทั้ง assigned user, Organization Assignment ที่ active, project membership และ Warehouse controller tag
+- Organization request: `STAFF -> SUPERVISOR` และ `SUPERVISOR -> MANAGER`; Manager/Executive ข้าม tier นี้
+- Project request จาก Team Member ต้องผ่าน Lead Project
+- ทุก Warehouse ใน transaction ต้องมี `STOCK_CONTROLLER:<WAREHOUSE_CODE>` และ `HEAD_STOCK_CONTROLLER:<WAREHOUSE_CODE>`
+- Approval หลาย Warehouse ใน sequence เดียวกันทำแบบ parallel และต้องครบทุก Warehouse ก่อนเลื่อนไป sequence ถัดไป
+- Borrow, Using, Sold และ Return ต้องผ่าน `BSD_STAFF` แล้วจึงผ่าน `BSD_MANAGER`
+- SOLD price ต้องถูกกรอกโดย `BSD_STAFF` ก่อนอนุมัติ step ของตน
+- Reject ต้องมีเหตุผล; request ปกติต้อง release lock/reservation
+- Requester แก้ไข request ได้เมื่อเป็น `PENDING` หรือ `REJECTED` และยังไม่มี approval ใดสำเร็จ
+- User หนึ่งคนมี Organization Assignment ได้หลายรายการ โดยแต่ละรายการมี Organization Tag และ Organization Level ของตน
+- User มี primary assignment ที่ active ได้ไม่เกินหนึ่งรายการ
+- ถ้า User มีหลาย assignment ระบบต้องใช้ request context ที่ผู้ใช้เลือก หรือใช้ primary assignment เมื่อไม่มีการเลือก
+- ถ้า User คนเดียวเป็น approver ของหลาย sequence ที่ติดกัน ให้ manual approve ครั้งเดียวและ auto-approve sequence ถัดไปของบุคคลเดียวกัน
+- Auto-approved step ต้องมี Approval History แยก, required tag ที่ถูกต้อง, timestamp และเหตุผลว่าอนุมัติอัตโนมัติจาก step ก่อนหน้า
 
-## 8. Sold Price Rules
+## 8. Return Rules
 
-- กรณี SOLD ต้องรองรับให้ BSD เป็นผู้กรอกราคา
-- Implementation ปัจจุบันบังคับ sold price เมื่อ current approver เป็น `BSD_STAFF`
-- Sold price ต้องถูกบันทึกใน transaction และ/หรือ transaction item
-- เอกสารและ report ต้องอ่านราคาจาก PostgreSQL
+- Return ทำได้เฉพาะ `BORROW` หรือ `USING` ที่มี workflow เป็น `IN_PROGRESS`
+- ผู้เริ่ม Return ต้องเป็น requester เดิมหรือ Admin
+- Return ทำได้ทั้งรายการหรือราย item
+- การเลือก `READY` ต้องสร้าง derived Return transaction ที่เป็น `PENDING`; ห้ามคืน asset เป็น `READY` ทันที
+- การเลือก `SOLD` ต้องสร้าง derived SOLD transaction และให้ BSD Staff กรอกราคา
+- Derived transaction ต้องผ่าน approval chain เดียวกับ action อื่น รวม `BSD_STAFF` และ `BSD_MANAGER`
+- Source transaction คงเป็น `IN_PROGRESS` จน item ถูก resolve ครบ แล้วจึงเป็น `COMPLETED`
+- ห้ามสร้าง Return/Sold derived transaction ซ้ำสำหรับ item ที่มีรายการ pending อยู่แล้ว
+- Return outcome `FAIL`, `LOST`, `NEED_CHECK` ยังเป็น target; ปัจจุบันใช้ manual status management แยกจาก return flow
 
-## 9. Return Rules
+## 9. Log / Visibility Rules
 
-- Return ทำได้เมื่อ transaction เป็น `IN_PROGRESS`
-- Return ของ `BORROW`/`USING` ต้องเป็นราย transaction หรือราย item ได้
-- Implementation ปัจจุบันรองรับ outcome `READY` และ `SOLD`
-- Return to `READY` คืน asset/quantity และ update returned date
-- Return to `SOLD` สร้าง SOLD approval transaction ใหม่
-- Target ต้องรองรับ outcome `FAIL`, `LOST`, `NEED_CHECK`
-- Target ต้องให้ return/ขาย/พัง/หายผ่าน BSD ตาม business rule
+- Transaction History เป็น internal public view เห็นคำขอ งานรออนุมัติ รายการกำลังดำเนินการ และรายการเสร็จของทุกคนทุก Project
+- ใช้ scope, status และ search/filter เพื่อแยกข้อมูล ไม่ซ่อนประวัติตามเจ้าของรายการ
+- Log ต้องแสดง Request No., requester, request date, return date, type, business status และ workflow status ที่เกี่ยวข้อง
+- Derived Return/Sold transaction ต้องเชื่อมกลับ Source Transaction ได้
 
-## 10. Log / Visibility Rules
+## 10. Warehouse and Permission Rules
 
-- Transaction History เป็น internal public view
-- User เห็น queue/request/approval/completed ของทุกคนและทุก project
-- การแยกข้อมูลให้ใช้ filter ไม่ใช่ซ่อนข้อมูลเป็นหลัก
-- Log ต้องแสดง request date, return date, requester/returner, status และ detail/action ที่เกี่ยวข้อง
-- Request queue ต้องแสดง item ที่ยังถูก request/reserve อยู่
+- Warehouse, Category, Type, permission และ approval routing ต้องอ่านจาก PostgreSQL
+- Logic กลางห้ามจำกัดเฉพาะ `SERVER` และ `NETWORK`; dedicated page สำหรับสอง Warehouse นี้มีได้เพื่อ UX
+- Admin จัดการ Warehouse และ master data ได้ทุก Warehouse
+- Stock Controller จัดการ asset/category/type เฉพาะ Warehouse ที่มี `canManage`
+- Warehouse prefix กำหนดตอนสร้างและไม่แก้ภายหลัง
+- Stock code ใช้รูปแบบ `XX-YYY0000` จาก Warehouse prefix และ Type code
+- ห้ามลบ Warehouse ขณะที่ยังมี active asset
 
 ## 11. Project Rules
 
-- `LEAD_PROJECT` และ `TEAM_MEMBER` เป็น project tag ที่ user ใดก็เป็นได้
-- Project request ต้องผูก transaction กับ project จริงใน target
-- สถานะปัจจุบันของ Project page ยังไม่ใช่ source of truth เพราะยังเป็น local UI/mock
-- ก่อนใช้งานจริงต้องทำ `Project`/`ProjectMember` model และ API ให้ตรงกับ migration/ER
+- Project และ Project Member ต้องเก็บใน PostgreSQL
+- User คนเดียวเป็น Lead Project หรือ Team Member ได้โดยไม่ขึ้นกับ organization level
+- Admin สร้าง Project ได้; Admin และ Lead Project ที่เกี่ยวข้องแก้ไขสมาชิกหรือสถานะ Project ได้
+- Project request ต้องอ้างอิง Project จริงและใช้ membership ปัจจุบันในการหา approver
+- Project Approval ต้องอ้างอิง Lead Project ปัจจุบัน ไม่ล็อก Lead ตั้งแต่วันที่สร้าง Transaction
+- เมื่อเปลี่ยน Lead ต้องโอน pending Project Approval ของ transaction ที่ยัง `PENDING` ไปยัง Lead ใหม่ทันที
+- Lead ที่ถูกถอดต้องหมดสิทธิ์อนุมัติ pending assignment เดิมทันที
+- Project ที่มี Lead หลายคนต้องได้รับอนุมัติจาก Lead ที่ active ครบทุกคน
+- Approval ที่สำเร็จแล้วต้องคงชื่อ, tag, signature และ timestamp เดิมไว้เป็น audit history
+- ถ้า Project sequence ยังไม่จบ การเพิ่ม Lead ใหม่ทำให้ Lead ใหม่นั้นต้องอนุมัติด้วย
+- ถ้า Project sequence จบแล้วและ workflow ไปขั้นถัดไป ห้าม reopen sequence เพราะเปลี่ยน Lead
+- ทุกการเพิ่ม ถอด หรือเปลี่ยน Lead ต้องมี audit history ระบุผู้ดำเนินการและเวลา
 
-## 12. PDF Rules
+## 12. Organization Assignment Rules
 
-- Transaction PDF มี endpoint แล้ว และควรรวม requisition no, item list, approval/signature และข้อมูล return/sold ที่จำเป็น
-- Asset detail ต้อง export PDF ได้ใน target
-- Official borrow/return document format ยังรอ template จากธุรกิจ
-- ห้าม hardcode format สุดท้ายจนกว่าจะได้ template จริง
+- Organization Level และ Organization Tag ต้องเก็บต่อ assignment ไม่เก็บเป็นค่าเดียวของ User ใน target model
+- Tag ที่รองรับต้องอ้างอิงโครงสร้าง Executive, Solution Consult, Customer Service, Delivery & Client และ BSD
+- Project Tag และ Stock Controller Tag ไม่ใช่ Organization Assignment และต้องแยก permission context
+- การปิด assignment ต้องไม่ลบ Approval History เดิม
+- Approval ต้องเก็บ snapshot ของ tag/ตำแหน่ง ณ เวลาที่อนุมัติ เพื่อไม่ให้ประวัติเปลี่ยนเมื่อย้ายทีม
+- ถ้าไม่มี Supervisor ในทีม workflow ต้องข้ามไป Manager ของสายงานตาม mapping ที่กำหนด ห้ามปล่อย transaction ค้างเพราะหา tag ไม่พบ
 
-## 13. Dynamic Domain Rules
+## 13. PDF Rules
 
-- ฟีเจอร์ใหม่ต้องออกแบบจาก domain ใน DB
-- ห้ามเพิ่ม hardcode `SERVER`/`NETWORK` ใน helper กลาง
-- Dedicated page สำหรับ Server/Network ทำได้เพื่อ UX แต่ logic กลางต้องรองรับ domain ใหม่
-- Stock code ต้องใช้ domain prefix
-- Permission และ approval ต้องใช้ domain code ของ asset item จริง
+- Transaction PDF ต้องอ่านข้อมูลจาก PostgreSQL และแสดง Request No., items, approval/signature snapshot และข้อมูล Return/Sold
+- Asset Detail ต้องสามารถ export PDF ได้ แต่การเชื่อมปุ่ม/endpoint ยังเป็นงานค้าง
+- Official format ของใบยืม/คืนให้ปรับเมื่อได้รับ template สุดท้าย
 
 ## 14. Code Maintenance Rules
 
-- Prisma schema, migration และ docs ต้องไม่ขัดกัน
-- ถ้าเพิ่ม enum/status ใหม่ ต้องอัปเดต badge, filter, log, PDF และ tests
-- ถ้าเปลี่ยน workflow ต้องเพิ่ม/แก้ test ของ permission และ approval route
-- ถ้าแก้ quantity logic ต้องเพิ่ม test สำหรับ over-request, partial return และ reservation release
+- Prisma schema, migration, runtime code และเอกสารต้องใช้คำและสถานะชุดเดียวกัน
+- เมื่อเปลี่ยน enum/status ต้องตรวจ schema, migration, badge, filter, PDF และ tests
+- เมื่อเปลี่ยน approval chain ต้องเพิ่ม test สำหรับ role/tag, multi-Warehouse และ derived Return
+- การย้ายจาก organization tag เดียวเป็นหลาย assignments ต้องมี data migration และ backward compatibility plan
+- Migration เปลี่ยนชื่อ Domain เป็น Warehouse ต้องตรวจ backup และข้อมูลจริงก่อน deploy

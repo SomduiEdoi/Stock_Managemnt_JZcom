@@ -77,7 +77,7 @@ describe("transaction workflow mapping", () => {
       TransactionStatus.BORROWED,
     );
     expect(getInitialTransactionStatus(TransactionType.USING)).toBe(
-      TransactionStatus.ACTIVE,
+      TransactionStatus.USING,
     );
     expect(getInitialTransactionStatus(TransactionType.SOLD)).toBe(
       TransactionStatus.COMPLETED,

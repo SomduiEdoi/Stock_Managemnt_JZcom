@@ -10,8 +10,8 @@ import { requireCurrentUser } from "@/lib/auth";
 import {
   canChangeAssetStatusForUser,
   canDeleteAssetsForUser,
-  canManageDomainForUser,
-  canRequestDomainForUser,
+  canManageWarehouseForUser,
+  canRequestWarehouseForUser,
 } from "@/lib/permissions";
 import {
   getServerInventoryForUser,
@@ -151,7 +151,7 @@ function ServerMetrics({
   return (
     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
       <MetricCard
-        detail="Server domain only"
+        detail="Server warehouse only"
         icon={Package}
         label="Total Server Equipment"
         tone="total"
@@ -232,7 +232,7 @@ export default async function ServerInventoryPage({
     if (isDatabaseUnavailableError(error)) {
       return (
         <InventoryDataUnavailable
-          domainLabel="Server inventory"
+          warehouseLabel="Server inventory"
           retryHref="/dashboard/server"
         />
       );
@@ -245,8 +245,8 @@ export default async function ServerInventoryPage({
     return <NoServerAccess />;
   }
 
-  const addAssetHref = canManageDomainForUser(user, "SERVER")
-    ? "/dashboard/assets/new?domain=SERVER"
+  const addAssetHref = canManageWarehouseForUser(user, "SERVER")
+    ? "/dashboard/assets/new?warehouse=SERVER"
     : null;
 
   return (
@@ -261,12 +261,12 @@ export default async function ServerInventoryPage({
 
       <ServerInventoryControls
         addAssetHref={addAssetHref}
-        canManageCategories={canManageDomainForUser(user, "SERVER")}
+        canManageCategories={canManageWarehouseForUser(user, "SERVER")}
         brands={result.filterOptions.brands}
         categories={result.filterOptions.categories}
         categoryGroups={result.filterOptions.categoryGroups}
-        domainCode="SERVER"
-        domainLabel="Server"
+        warehouseCode="SERVER"
+        warehouseLabel="Server"
         filters={{
           brands: filters.brands,
           categories: filters.categories,
@@ -288,8 +288,8 @@ export default async function ServerInventoryPage({
         activeSort={{ by: filters.sortBy, direction: filters.sortDirection }}
         canChangeStatus={canChangeAssetStatusForUser(user, "SERVER")}
         canDelete={canDeleteAssetsForUser(user, "SERVER")}
-        canRequest={canRequestDomainForUser(user, "SERVER")}
-        domainLabel="Server"
+        canRequest={canRequestWarehouseForUser(user, "SERVER")}
+        warehouseLabel="Server"
         customFieldDefinitions={[...new Map(result.filterOptions.categoryGroups.flatMap((category) => category.customFields).map((field) => [field.key, { key: field.key, label: field.label, unit: field.unit }])).values()]}
         inventoryFamily="SERIAL"
         rows={result.rows}

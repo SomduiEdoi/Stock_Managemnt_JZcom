@@ -5,7 +5,7 @@ import {
   listAssetsForUser,
   normalizeAssetListFilters,
   problemAssetStatusOptions,
-  type AssetDomainFilter,
+  type AssetWarehouseFilter,
   type AssetListFilters,
 } from "@/lib/assets";
 import { assetStatusLabels } from "@/lib/status-style";
@@ -17,7 +17,7 @@ type AssetsPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-const domainLabels: Record<string, string> = {
+const warehouseLabels: Record<string, string> = {
   ALL: "All",
   NETWORK: "Network",
   SERVER: "Server",
@@ -38,8 +38,8 @@ function buildFilterHref(
     params.set("q", nextFilters.search);
   }
 
-  if (nextFilters.domain !== "ALL") {
-    params.set("domain", nextFilters.domain);
+  if (nextFilters.warehouse !== "ALL") {
+    params.set("warehouse", nextFilters.warehouse);
   }
 
   if (nextFilters.brand !== "ALL") {
@@ -69,23 +69,23 @@ function formatNumber(value: number) {
   return value.toLocaleString("en-US");
 }
 
-function ProblemDomainChips({
+function ProblemWarehouseChips({
   filters,
-  domainOptions,
+  warehouseOptions,
 }: {
-  domainOptions: Awaited<ReturnType<typeof listAssetsForUser>>["domainOptions"];
+  warehouseOptions: Awaited<ReturnType<typeof listAssetsForUser>>["warehouseOptions"];
   filters: AssetListFilters;
 }) {
-  const options: AssetDomainFilter[] = [
+  const options: AssetWarehouseFilter[] = [
     "ALL",
-    ...domainOptions.map((domain) => domain.code),
+    ...warehouseOptions.map((warehouse) => warehouse.code),
   ];
-  const labelByCode = new Map(domainOptions.map((domain) => [domain.code, domain.name]));
+  const labelByCode = new Map(warehouseOptions.map((warehouse) => [warehouse.code, warehouse.name]));
 
   return (
     <div className="flex gap-2 overflow-x-auto pb-1">
-      {options.map((domain) => {
-        const isActive = filters.domain === domain;
+      {options.map((warehouse) => {
+        const isActive = filters.warehouse === warehouse;
 
         return (
           <Link
@@ -97,15 +97,15 @@ function ProblemDomainChips({
             href={buildFilterHref(filters, {
               brand: "ALL",
               category: "ALL",
-              domain,
+              warehouse,
               page: 1,
               type: "ALL",
             })}
-            key={domain}
+            key={warehouse}
           >
-            {domain === "ALL"
+            {warehouse === "ALL"
               ? "All Problem Items"
-              : labelByCode.get(domain) ?? domainLabels[domain] ?? domain}
+              : labelByCode.get(warehouse) ?? warehouseLabels[warehouse] ?? warehouse}
           </Link>
         );
       })}
@@ -237,8 +237,8 @@ export default async function AssetsPage({ searchParams }: AssetsPageProps) {
       </header>
 
       <div className="flex flex-col gap-4">
-        <ProblemDomainChips
-          domainOptions={result.domainOptions}
+        <ProblemWarehouseChips
+          warehouseOptions={result.warehouseOptions}
           filters={filters}
         />
         <ProblemFilters filters={filters} result={result} />

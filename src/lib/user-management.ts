@@ -17,7 +17,7 @@ import {
   UserManagementFilters,
   UserManagementRow,
   UserManagementMetrics,
-  DomainOption,
+  WarehouseOption,
   userRoleOptions,
   organizationLevelOptions,
   organizationUnitOptions,
@@ -32,7 +32,7 @@ export type {
   UserManagementFilters,
   UserManagementRow,
   UserManagementMetrics,
-  DomainOption,
+  WarehouseOption,
 };
 
 export {
@@ -77,12 +77,12 @@ const userRowSelect = Prisma.validator<Prisma.UserSelect>()({
       },
     },
   },
-  domainPermissions: {
-    where: { domain: { isActive: true } },
+  warehousePermissions: {
+    where: { warehouse: { isActive: true } },
     select: {
       canManage: true,
       canView: true,
-      domain: {
+      warehouse: {
         select: {
           code: true,
           id: true,
@@ -140,7 +140,7 @@ function inferSystemRole(user: UserRecord): UserSystemRole {
   }
 
   if (
-    roleCodes.includes("STOCK_CONTROLLER") ||    user.domainPermissions.some((permission) => permission.canManage)
+    roleCodes.includes("STOCK_CONTROLLER") ||    user.warehousePermissions.some((permission) => permission.canManage)
   ) {
     return "STOCK_CONTROLLER";
   }
@@ -150,7 +150,7 @@ function inferSystemRole(user: UserRecord): UserSystemRole {
 
 function toRow(user: UserRecord): UserManagementRow {
   return {
-    domainPermissions: user.domainPermissions,
+    warehousePermissions: user.warehousePermissions,
     email: user.email,
     id: user.id,
     isActive: user.isActive,
@@ -193,8 +193,8 @@ function matchesUserFilters(user: UserManagementRow, filters: UserManagementFilt
     user.organizationTag ?? "",
     user.projectTag ?? "",
     user.stockControllerTag ?? "",
-    ...user.domainPermissions.map((permission) => permission.domain.name),
-    ...user.domainPermissions.map((permission) => permission.domain.code),
+    ...user.warehousePermissions.map((permission) => permission.warehouse.name),
+    ...user.warehousePermissions.map((permission) => permission.warehouse.code),
   ];
 
   return haystacks.some((value) => containsText(value, search));
@@ -248,8 +248,8 @@ async function getRoleId(roleCode: RoleCode) {
   return role.id;
 }
 
-async function getDomainOptions() {
-  return db.assetDomain.findMany({
+async function getWarehouseOptions() {
+  return db.assetWarehouse.findMany({
     where: { isActive: true },
     orderBy: { name: "asc" },
     select: { code: true, id: true, name: true },
@@ -268,26 +268,26 @@ async function syncRole(userId: string, nextRoleCode: RoleCode) {
   });
 }
 
-async function syncDomainPermissionsForUser(
+async function syncWarehousePermissionsForUser(
   userId: string,
   systemRole: UserSystemRole,
 ) {
-  const domains = await getDomainOptions();
+  const warehouses = await getWarehouseOptions();
 
-  await db.userDomainPermission.deleteMany({ where: { userId } });
+  await db.userWarehousePermission.deleteMany({ where: { userId } });
 
   if (systemRole === "ADMIN") {
     return;
   }
 
-  const permissionRows = domains.map((domain) => ({
+  const permissionRows = warehouses.map((warehouse) => ({
     canManage: false,
     canView: true,
-    domainId: domain.id,
+    warehouseId: warehouse.id,
     userId,
   }));
 
-  await db.userDomainPermission.createMany({ data: permissionRows });
+  await db.userWarehousePermission.createMany({ data: permissionRows });
 }
 
 function validateManagedUserInput(input: UpsertManagedUserInput) {
@@ -377,7 +377,7 @@ export async function getUserManagementForAdmin(
     return { canManage: false as const };
   }
 
-  const [allUsers, domains] = await Promise.all([loadAllUsers(), getDomainOptions()]);
+  const [allUsers, warehouses] = await Promise.all([loadAllUsers(), getWarehouseOptions()]);
   const filteredUsers = sortUsers(allUsers).filter((entry) =>
     matchesUserFilters(entry, filters),
   );
@@ -388,7 +388,7 @@ export async function getUserManagementForAdmin(
 
   return {
     canManage: true as const,
-    domains,
+    warehouses,
     filters,
     metrics,
     total,
@@ -431,7 +431,7 @@ export async function createUserForAdmin(
   });
 
   await syncRole(createdUser.id, normalizeRoleCode(input.role));
-  await syncDomainPermissionsForUser(createdUser.id, input.role);
+  await syncWarehousePermissionsForUser(createdUser.id, input.role);
 
   return {
     defaultPassword,
@@ -483,7 +483,7 @@ export async function updateUserForAdmin(
   await syncRole(userId, normalizeRoleCode(input.role));
 
   if (previousRole !== input.role) {
-    await syncDomainPermissionsForUser(userId, input.role);
+    await syncWarehousePermissionsForUser(userId, input.role);
   }
 }
 
@@ -545,7 +545,7 @@ export async function getUserManagementOptions(user: CurrentUser) {
   ensureAdmin(user);
 
   return {
-    domains: await getDomainOptions(),
+    warehouses: await getWarehouseOptions(),
   };
 }
 

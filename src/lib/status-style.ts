@@ -34,19 +34,17 @@ export const assetStatusBadgeClasses = {
 } as const satisfies Record<AssetStatus, string>;
 
 export const transactionStatusLabels = {
-  [TransactionStatus.ACTIVE]: "Active",
   [TransactionStatus.BORROWED]: "Borrowed",
   [TransactionStatus.COMPLETED]: "Completed",
-  [TransactionStatus.OVERDUE]: "Overdue",
   [TransactionStatus.RETURNED]: "Returned",
+  [TransactionStatus.USING]: "Using",
 } as const satisfies Record<TransactionStatus, string>;
 
 export const transactionStatusHexColors = {
-  [TransactionStatus.ACTIVE]: "#FE7743",
   [TransactionStatus.BORROWED]: "#06B6D4",
   [TransactionStatus.COMPLETED]: "#273F4F",
-  [TransactionStatus.OVERDUE]: "#DC2626",
   [TransactionStatus.RETURNED]: "#16A34A",
+  [TransactionStatus.USING]: "#2563EB",
 } as const satisfies Record<TransactionStatus, string>;
 
 export const systemPaletteHexColors = {

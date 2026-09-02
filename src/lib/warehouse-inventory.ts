@@ -2,9 +2,9 @@ import { AssetStatus, Prisma } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
 import { getAvailabilityByAssetId } from "@/lib/asset-availability";
 import { db } from "@/lib/db";
-import { canViewDomainForUser } from "@/lib/permissions";
+import { canViewWarehouseForUser } from "@/lib/permissions";
 
-export const domainInventoryStatusOptions = [
+export const warehouseInventoryStatusOptions = [
   AssetStatus.READY,
   AssetStatus.REQUEST,
   AssetStatus.BORROW,
@@ -32,7 +32,7 @@ export type InventoryCategoryCustomField = {
   unit: string | null;
 };
 
-export type DomainCategoryGroup = {
+export type WarehouseCategoryGroup = {
   assetCount: number;
   id: string;
   name: string;
@@ -40,7 +40,7 @@ export type DomainCategoryGroup = {
   types: Array<{ assetCount: number; code: string | null; id: string; name: string }>;
 };
 
-export type DomainInventoryFilters = {
+export type WarehouseInventoryFilters = {
   brands: string[];
   categories: string[];
   page: number;
@@ -54,7 +54,7 @@ export type DomainInventoryFilters = {
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
-const defaultFilters: DomainInventoryFilters = {
+const defaultFilters: WarehouseInventoryFilters = {
   brands: [],
   categories: [],
   page: 1,
@@ -66,13 +66,13 @@ const defaultFilters: DomainInventoryFilters = {
   types: [],
 };
 
-const domainInventoryAssetSelect = Prisma.validator<Prisma.AssetSelect>()({
+const warehouseInventoryAssetSelect = Prisma.validator<Prisma.AssetSelect>()({
   assetNo: true,
   assetQuantity: true,
   createdAt: true,
   id: true,
   imageRef: true,
-  domain: { select: { inventoryFamily: true } },
+  warehouse: { select: { inventoryFamily: true } },
   locationText: true,
   note: true,
   requestLockedById: true,
@@ -98,8 +98,8 @@ const domainInventoryAssetSelect = Prisma.validator<Prisma.AssetSelect>()({
   location: { select: { name: true } },
 });
 
-export type DomainInventoryRow = Prisma.AssetGetPayload<{
-  select: typeof domainInventoryAssetSelect;
+export type WarehouseInventoryRow = Prisma.AssetGetPayload<{
+  select: typeof warehouseInventoryAssetSelect;
 }> & {
   availableQuantity: number;
   reservedQuantity: number;
@@ -119,7 +119,7 @@ function firstParam(value: string | string[] | undefined) {
 }
 
 function isAssetStatus(value: string): value is AssetStatus {
-  return domainInventoryStatusOptions.includes(value as AssetStatus);
+  return warehouseInventoryStatusOptions.includes(value as AssetStatus);
 }
 
 function parsePage(value: string | undefined) {
@@ -138,7 +138,7 @@ function parseSortDirection(value: string | undefined): InventorySortDirection {
   return value === "desc" ? "desc" : defaultFilters.sortDirection;
 }
 
-function buildInventoryOrderBy(filters: DomainInventoryFilters): Prisma.AssetOrderByWithRelationInput[] {
+function buildInventoryOrderBy(filters: WarehouseInventoryFilters): Prisma.AssetOrderByWithRelationInput[] {
   const direction = filters.sortDirection;
 
   switch (filters.sortBy) {
@@ -201,7 +201,7 @@ function buildSearchWhere(search: string): Prisma.AssetWhereInput | undefined {
   return { AND: tokens.slice(0, 8).map(buildKeywordClause) };
 }
 
-function buildFilterClauses(filters: DomainInventoryFilters) {
+function buildFilterClauses(filters: WarehouseInventoryFilters) {
   const clauses: Prisma.AssetWhereInput[] = [];
   const searchWhere = buildSearchWhere(filters.search);
 
@@ -228,9 +228,9 @@ function buildFilterClauses(filters: DomainInventoryFilters) {
   return clauses;
 }
 
-export function normalizeDomainInventoryFilters(
+export function normalizeWarehouseInventoryFilters(
   searchParams: SearchParams,
-): DomainInventoryFilters {
+): WarehouseInventoryFilters {
   const statuses = cleanValues(arrayParam(searchParams.status)).filter(isAssetStatus);
 
   return {
@@ -246,18 +246,18 @@ export function normalizeDomainInventoryFilters(
   };
 }
 
-export function buildDomainInventoryWhere(domainCode: string, filters: DomainInventoryFilters) {
+export function buildWarehouseInventoryWhere(warehouseCode: string, filters: WarehouseInventoryFilters) {
   const clauses = buildFilterClauses(filters);
 
   return {
     isActive: true,
-    domain: { code: domainCode },
+    warehouse: { code: warehouseCode },
     ...(filters.statuses.length > 0 ? { status: { in: filters.statuses } } : {}),
     ...(clauses.length > 0 ? { AND: clauses } : {}),
   } satisfies Prisma.AssetWhereInput;
 }
 
-async function getDomainFilterOptions(domainCode: string) {
+async function getWarehouseFilterOptions(warehouseCode: string) {
   const categories = await db.assetCategory.findMany({
     orderBy: { name: "asc" },
     select: {
@@ -274,16 +274,16 @@ async function getDomainFilterOptions(domainCode: string) {
         where: { isActive: true },
       },
     },
-    where: { domain: { code: domainCode }, isActive: true },
+    where: { warehouse: { code: warehouseCode }, isActive: true },
   });
   const assetCounts = await db.asset.groupBy({
     by: ["assetModelId"],
     _count: true,
-    where: { domain: { code: domainCode }, isActive: true },
+    where: { warehouse: { code: warehouseCode }, isActive: true },
   });
   const models = await db.assetModel.findMany({
     select: { assetTypeId: true, brand: true, categoryId: true, id: true },
-    where: { domain: { code: domainCode }, isActive: true },
+    where: { warehouse: { code: warehouseCode }, isActive: true },
   });
   const countByModel = new Map(assetCounts.map((count) => [count.assetModelId, count._count]));
   const categoryAssetCounts = new Map<string, number>();
@@ -301,7 +301,7 @@ async function getDomainFilterOptions(domainCode: string) {
     }
   });
 
-  const categoryGroups: DomainCategoryGroup[] = categories.map((category) => ({
+  const categoryGroups: WarehouseCategoryGroup[] = categories.map((category) => ({
     assetCount: categoryAssetCounts.get(category.id) ?? 0,
     id: category.id,
     name: category.name,
@@ -330,11 +330,11 @@ async function getDomainFilterOptions(domainCode: string) {
     brands: [...new Set(models.map((model) => model.brand).filter((brand): brand is string => Boolean(brand)))].sort((left, right) => left.localeCompare(right)),
     categories: categoryGroups.map((category) => category.name),
     categoryGroups,
-    statuses: [...domainInventoryStatusOptions],
+    statuses: [...warehouseInventoryStatusOptions],
     types: categoryGroups.flatMap((category) => category.types.map((type) => type.name)),
   };
 }
-async function getDomainMetrics(baseWhere: Prisma.AssetWhereInput) {
+async function getWarehouseMetrics(baseWhere: Prisma.AssetWhereInput) {
   const [total, ready, borrowed, sold, request, reservedAssets] = await Promise.all([
     db.asset.count({ where: baseWhere }),
     db.asset.count({ where: { ...baseWhere, status: AssetStatus.READY } }),
@@ -351,28 +351,28 @@ async function getDomainMetrics(baseWhere: Prisma.AssetWhereInput) {
   return { borrowed, ready, request: request + reservedAssets.length, sold, total };
 }
 
-export async function getDomainInventoryForUser(
+export async function getWarehouseInventoryForUser(
   user: CurrentUser,
-  domainCode: string,
-  filters: DomainInventoryFilters,
+  warehouseCode: string,
+  filters: WarehouseInventoryFilters,
 ) {
-  const domain = await db.assetDomain.findFirst({
+  const warehouse = await db.assetWarehouse.findFirst({
     select: { code: true, inventoryFamily: true, name: true, prefix: true },
-    where: { code: domainCode, isActive: true },
+    where: { code: warehouseCode, isActive: true },
   });
-  const canView = Boolean(domain) && canViewDomainForUser(user, domainCode);
+  const canView = Boolean(warehouse) && canViewWarehouseForUser(user, warehouseCode);
   const baseWhere = {
     isActive: true,
-    domain: { code: domainCode },
+    warehouse: { code: warehouseCode },
   } satisfies Prisma.AssetWhereInput;
 
   if (!canView) {
     return {
       canView,
-      domain,
-      filterOptions: domain
-        ? await getDomainFilterOptions(domainCode)
-        : { brands: [], categories: [], categoryGroups: [], statuses: [...domainInventoryStatusOptions], types: [] },
+      warehouse,
+      filterOptions: warehouse
+        ? await getWarehouseFilterOptions(warehouseCode)
+        : { brands: [], categories: [], categoryGroups: [], statuses: [...warehouseInventoryStatusOptions], types: [] },
       filters,
       metrics: { borrowed: 0, ready: 0, request: 0, sold: 0, total: 0 },
       rows: [],
@@ -381,14 +381,14 @@ export async function getDomainInventoryForUser(
     };
   }
 
-  const where = buildDomainInventoryWhere(domainCode, filters);
+  const where = buildWarehouseInventoryWhere(warehouseCode, filters);
   const skip = (filters.page - 1) * filters.pageSize;
   const [filterOptions, metrics, rawRows, total] = await Promise.all([
-    getDomainFilterOptions(domainCode),
-    getDomainMetrics(baseWhere),
+    getWarehouseFilterOptions(warehouseCode),
+    getWarehouseMetrics(baseWhere),
     db.asset.findMany({
       orderBy: buildInventoryOrderBy(filters),
-      select: domainInventoryAssetSelect,
+      select: warehouseInventoryAssetSelect,
       skip,
       take: filters.pageSize,
       where,
@@ -409,7 +409,7 @@ export async function getDomainInventoryForUser(
 
   return {
     canView,
-    domain,
+    warehouse,
     filterOptions,
     filters,
     metrics,

@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { CurrentUser } from "@/lib/auth";
 import {
   approvalMatchesUser,
-  domainHeadStockControllerRequiredTag,
-  domainStockControllerRequiredTag,
+  warehouseHeadStockControllerRequiredTag,
+  warehouseStockControllerRequiredTag,
 } from "./approval-flow";
 
 function user(overrides: Partial<CurrentUser>): CurrentUser {
@@ -27,17 +27,17 @@ function user(overrides: Partial<CurrentUser>): CurrentUser {
   };
 }
 
-describe("domain approval matching", () => {
-  it("matches stock controllers by stock tag and managed domain", () => {
+describe("warehouse approval matching", () => {
+  it("matches stock controllers by stock tag and managed warehouse", () => {
     const approver = user({
       roles: ["STOCK_CONTROLLER"],
       stockControllerTag: "STOCK_CONTROLLER",
-      permissions: [{ canManage: true, canView: true, domainCode: "SERVER" }],
+      permissions: [{ canManage: true, canView: true, warehouseCode: "SERVER" }],
     });
 
     expect(
       approvalMatchesUser(approver, {
-        requiredTag: domainStockControllerRequiredTag("SERVER"),
+        requiredTag: warehouseStockControllerRequiredTag("SERVER"),
         userId: null,
       }),
     ).toBe(true);
@@ -45,17 +45,17 @@ describe("domain approval matching", () => {
 
 
 
-  it("does not let domain approval user id bypass current domain permission", () => {
+  it("does not let warehouse approval user id bypass current warehouse permission", () => {
     const approver = user({
       id: "old-controller",
       roles: ["STOCK_CONTROLLER"],
       stockControllerTag: "STOCK_CONTROLLER",
-      permissions: [{ canManage: false, canView: true, domainCode: "SERVER" }],
+      permissions: [{ canManage: false, canView: true, warehouseCode: "SERVER" }],
     });
 
     expect(
       approvalMatchesUser(approver, {
-        requiredTag: domainStockControllerRequiredTag("SERVER"),
+        requiredTag: warehouseStockControllerRequiredTag("SERVER"),
         userId: "old-controller",
       }),
     ).toBe(false);
@@ -65,12 +65,12 @@ describe("domain approval matching", () => {
     const approver = user({
       roles: ["STOCK_CONTROLLER"],
       stockControllerTag: "STOCK_CONTROLLER",
-      permissions: [{ canManage: true, canView: true, domainCode: "SERVER" }],
+      permissions: [{ canManage: true, canView: true, warehouseCode: "SERVER" }],
     });
 
     expect(
       approvalMatchesUser(approver, {
-        requiredTag: domainHeadStockControllerRequiredTag("SERVER"),
+        requiredTag: warehouseHeadStockControllerRequiredTag("SERVER"),
         userId: null,
       }),
     ).toBe(false);
@@ -78,31 +78,31 @@ describe("domain approval matching", () => {
 
 
 
-  it("does not match stock controller approval with read-only domain permission", () => {
+  it("does not match stock controller approval with read-only warehouse permission", () => {
     const approver = user({
       roles: ["STOCK_CONTROLLER"],
       stockControllerTag: "STOCK_CONTROLLER",
-      permissions: [{ canManage: false, canView: true, domainCode: "SERVER" }],
+      permissions: [{ canManage: false, canView: true, warehouseCode: "SERVER" }],
     });
 
     expect(
       approvalMatchesUser(approver, {
-        requiredTag: domainStockControllerRequiredTag("SERVER"),
+        requiredTag: warehouseStockControllerRequiredTag("SERVER"),
         userId: null,
       }),
     ).toBe(false);
   });
 
-  it("does not match head stock controller approval without domain visibility", () => {
+  it("does not match head stock controller approval without warehouse visibility", () => {
     const approver = user({
       roles: ["STOCK_CONTROLLER"],
       stockControllerTag: "HEAD_STOCK_CONTROLLER",
-      permissions: [{ canManage: false, canView: false, domainCode: "NETWORK" }],
+      permissions: [{ canManage: false, canView: false, warehouseCode: "NETWORK" }],
     });
 
     expect(
       approvalMatchesUser(approver, {
-        requiredTag: domainHeadStockControllerRequiredTag("NETWORK"),
+        requiredTag: warehouseHeadStockControllerRequiredTag("NETWORK"),
         userId: null,
       }),
     ).toBe(false);
@@ -112,28 +112,28 @@ describe("domain approval matching", () => {
     const approver = user({
       roles: ["STOCK_CONTROLLER"],
       stockControllerTag: "HEAD_STOCK_CONTROLLER",
-      permissions: [{ canManage: false, canView: true, domainCode: "NETWORK" }],
+      permissions: [{ canManage: false, canView: true, warehouseCode: "NETWORK" }],
     });
 
     expect(
       approvalMatchesUser(approver, {
-        requiredTag: domainHeadStockControllerRequiredTag("NETWORK"),
+        requiredTag: warehouseHeadStockControllerRequiredTag("NETWORK"),
         userId: null,
       }),
     ).toBe(false);
   });
 
-  it("matches assigned head stock controllers by user id and visible domain", () => {
+  it("matches assigned head stock controllers by user id and visible warehouse", () => {
     const approver = user({
       id: "assigned-head",
       roles: ["STOCK_CONTROLLER"],
       stockControllerTag: "HEAD_STOCK_CONTROLLER",
-      permissions: [{ canManage: false, canView: true, domainCode: "NETWORK" }],
+      permissions: [{ canManage: false, canView: true, warehouseCode: "NETWORK" }],
     });
 
     expect(
       approvalMatchesUser(approver, {
-        requiredTag: domainHeadStockControllerRequiredTag("NETWORK"),
+        requiredTag: warehouseHeadStockControllerRequiredTag("NETWORK"),
         userId: "assigned-head",
       }),
     ).toBe(true);

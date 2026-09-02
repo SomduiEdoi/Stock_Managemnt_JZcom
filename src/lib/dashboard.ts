@@ -1,6 +1,6 @@
 import { AssetActionType, AssetStatus, Prisma } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
-import { getVisibleDomainCodesForUser } from "@/lib/assets";
+import { getVisibleWarehouseCodesForUser } from "@/lib/assets";
 import { db } from "@/lib/db";
 
 export const dashboardRecentTabs = [
@@ -30,7 +30,7 @@ const recentAssetSelect = Prisma.validator<Prisma.AssetStatusHistorySelect>()({
           name: true,
         },
       },
-      domain: { select: { code: true } },
+      warehouse: { select: { code: true } },
     },
   },
   changedBy: {
@@ -54,29 +54,29 @@ export function normalizeDashboardRecentTab(
     : "REGISTER";
 }
 
-function buildVisibleAssetWhere(domainCodes: string[]): Prisma.AssetWhereInput {
+function buildVisibleAssetWhere(warehouseCodes: string[]): Prisma.AssetWhereInput {
   return {
     isActive: true,
-    domain: { code: { in: domainCodes } },
+    warehouse: { code: { in: warehouseCodes } },
   };
 }
 
 function buildVisibleHistoryWhere(
-  domainCodes: string[],
+  warehouseCodes: string[],
   options: { includeInactive?: boolean } = {},
 ): Prisma.AssetStatusHistoryWhereInput {
   return {
     asset: options.includeInactive
-      ? { domain: { code: { in: domainCodes } } }
-      : buildVisibleAssetWhere(domainCodes),
+      ? { warehouse: { code: { in: warehouseCodes } } }
+      : buildVisibleAssetWhere(warehouseCodes),
   };
 }
 
 function buildRecentTableWhere(
-  domainCodes: string[],
+  warehouseCodes: string[],
   tab: DashboardRecentTab,
 ): Prisma.AssetStatusHistoryWhereInput {
-  const visibleWhere = buildVisibleHistoryWhere(domainCodes);
+  const visibleWhere = buildVisibleHistoryWhere(warehouseCodes);
 
   if (tab === "REGISTER") {
     return {
@@ -102,9 +102,9 @@ export async function getDashboardOverviewForUser(
   user: CurrentUser,
   recentTab: DashboardRecentTab,
 ) {
-  const visibleDomainCodes = await getVisibleDomainCodesForUser(user);
-  const assetWhere = buildVisibleAssetWhere(visibleDomainCodes);
-  const historyWhere = buildVisibleHistoryWhere(visibleDomainCodes, {
+  const visibleWarehouseCodes = await getVisibleWarehouseCodesForUser(user);
+  const assetWhere = buildVisibleAssetWhere(visibleWarehouseCodes);
+  const historyWhere = buildVisibleHistoryWhere(visibleWarehouseCodes, {
     includeInactive: true,
   });
   const [statusGroups, activity, recentRows] = await Promise.all([
@@ -123,7 +123,7 @@ export async function getDashboardOverviewForUser(
       orderBy: { changedAt: "desc" },
       select: recentAssetSelect,
       take: 50,
-      where: buildRecentTableWhere(visibleDomainCodes, recentTab),
+      where: buildRecentTableWhere(visibleWarehouseCodes, recentTab),
     }),
   ]);
   const totalAssets = statusGroups.reduce(

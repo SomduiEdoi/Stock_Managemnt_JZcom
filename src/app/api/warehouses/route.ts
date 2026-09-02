@@ -2,13 +2,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireCurrentUser } from "@/lib/auth";
-import { createDomainForUser } from "@/lib/domains";
+import { createWarehouseForUser } from "@/lib/warehouses";
 import { PermissionError } from "@/lib/permissions";
 import { WorkflowError } from "@/lib/workflow";
 
-const createDomainSchema = z.object({
+const createWarehouseSchema = z.object({
   controllerId: z.string().trim().min(1, "Stock controller is required.").uuid("Stock controller is required."),
-  domainName: z.string().trim().min(1, "Warehouse name is required."),
+  warehouseName: z.string().trim().min(1, "Warehouse name is required."),
   headControllerId: z.string().trim().uuid("Head stock controller is required.").nullable().optional(),
   headControllerIds: z.array(z.string().trim().uuid("Head stock controller is required.")).optional(),
   prefix: z.string().trim().min(1, "Prefix is required.").regex(/^[A-Za-z0-9]{2}$/, "Prefix must be exactly 2 English letters or numbers."),
@@ -18,13 +18,13 @@ const createDomainSchema = z.object({
 export async function POST(request: Request) {
   try {
     const user = await requireCurrentUser("/dashboard");
-    const body = createDomainSchema.parse(await request.json());
-    const domain = await createDomainForUser(user, body);
+    const body = createWarehouseSchema.parse(await request.json());
+    const warehouse = await createWarehouseForUser(user, body);
 
-    return NextResponse.json({ domain });
+    return NextResponse.json({ warehouse });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ message: error.issues[0]?.message ?? "Invalid domain payload." }, { status: 400 });
+      return NextResponse.json({ message: error.issues[0]?.message ?? "Invalid warehouse payload." }, { status: 400 });
     }
 
     if (error instanceof WorkflowError) {

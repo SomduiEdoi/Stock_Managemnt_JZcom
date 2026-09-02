@@ -13,12 +13,12 @@ export default async function AssetCreateRoute({
   searchParams,
 }: AssetCreateRouteProps) {
   const params = await searchParams;
-  const rawDomain = params.domain;
-  const domain = Array.isArray(rawDomain) ? rawDomain[0] : rawDomain;
-  const lockDomain = Boolean(domain);
+  const rawWarehouse = params.warehouse;
+  const warehouse = Array.isArray(rawWarehouse) ? rawWarehouse[0] : rawWarehouse;
+  const lockWarehouse = Boolean(warehouse);
 
   const user = await requireCurrentUser("/dashboard/assets/new");
-  const result = await getAssetCreateForUser(user, domain);
+  const result = await getAssetCreateForUser(user, warehouse);
 
   if (result.kind === "forbidden") {
     return <AssetCreateForbidden />;
@@ -26,9 +26,9 @@ export default async function AssetCreateRoute({
 
   return (
     <AssetCreatePage
-      canChangeDomain={result.canChangeDomain}
-      initialDomainCode={result.initialDomainCode}
-      lockDomain={lockDomain}
+      canChangeWarehouse={result.canChangeWarehouse}
+      initialWarehouseCode={result.initialWarehouseCode}
+      lockWarehouse={lockWarehouse}
       options={result.options}
     />
   );

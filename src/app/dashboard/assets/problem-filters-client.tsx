@@ -39,7 +39,7 @@ export function ProblemFiltersClient({
       method="get"
     >
       <input name="page" type="hidden" value="1" />
-      <input name="domain" type="hidden" value={filters.domain} />
+      <input name="warehouse" type="hidden" value={filters.warehouse} />
       <SearchCombobox
         categories={[
           { label: "All", value: "ALL" },

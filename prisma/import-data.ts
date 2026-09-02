@@ -12,19 +12,19 @@ import {
 
 const prisma = new PrismaClient();
 const dataDirectory = process.env.STOCK_DATA_DIR ?? path.resolve(process.cwd(), "..", "data");
-const selectedDomains = new Set(
-  (process.env.STOCK_IMPORT_DOMAINS ?? "")
+const selectedWarehouses = new Set(
+  (process.env.STOCK_IMPORT_WAREHOUSES ?? "")
     .split(",")
-    .map((domain) => normalizeKey(domain).toUpperCase())
+    .map((warehouse) => normalizeKey(warehouse).toUpperCase())
     .filter(Boolean),
 );
 const sourceSystem = "SharePoint";
 
 type CsvRecord = Record<string, string>;
-type DomainCode = string;
+type WarehouseCode = string;
 
 type SourceFile = {
-  domainCode: DomainCode;
+  warehouseCode: WarehouseCode;
   fileName: string;
 };
 
@@ -53,10 +53,10 @@ type MappedRow = {
 };
 
 const sourceFiles: SourceFile[] = [
-  { domainCode: "NETWORK", fileName: "Network_reclassified.csv" },
-  { domainCode: "SERVER", fileName: "Server_reclassified.csv" },
-  { domainCode: "BSD", fileName: "BSD_reclassified.csv" },
-  { domainCode: "DL", fileName: "DL_reclassified.csv" },
+  { warehouseCode: "NETWORK", fileName: "Network_reclassified.csv" },
+  { warehouseCode: "SERVER", fileName: "Server_reclassified.csv" },
+  { warehouseCode: "BSD", fileName: "BSD_reclassified.csv" },
+  { warehouseCode: "DL", fileName: "DL_reclassified.csv" },
 ];
 
 const statusMap = new Map<string, AssetStatus>([
@@ -70,7 +70,7 @@ const statusMap = new Map<string, AssetStatus>([
   ["wait", AssetStatus.NEED_CHECK],
 ]);
 
-const typeCodeByDomain: Record<DomainCode, Record<string, string>> = {
+const typeCodeByWarehouse: Record<WarehouseCode, Record<string, string>> = {
   NETWORK: {
     "access point": "APC",
     "aoc cable": "AOC",
@@ -174,20 +174,20 @@ function fallbackTypeCode(value: string | null) {
   return (normalized || "XX").padEnd(3, "X").slice(0, 3);
 }
 
-function typeCodeFor(domainCode: DomainCode, typeName: string | null) {
+function typeCodeFor(warehouseCode: WarehouseCode, typeName: string | null) {
   if (!typeName) {
     return null;
   }
 
-  return typeCodeByDomain[domainCode][normalizeKey(typeName)] ?? fallbackTypeCode(typeName);
+  return typeCodeByWarehouse[warehouseCode][normalizeKey(typeName)] ?? fallbackTypeCode(typeName);
 }
 
 function nextImportedStockCode(
-  domainPrefix: string,
+  warehousePrefix: string,
   typeCode: string | null,
   counters: Map<string, number>,
 ) {
-  const prefix = `${domainPrefix}-${typeCode ?? "UNK"}`;
+  const prefix = `${warehousePrefix}-${typeCode ?? "UNK"}`;
   const next = (counters.get(prefix) ?? 0) + 1;
   counters.set(prefix, next);
 
@@ -322,8 +322,8 @@ function combineNote(row: CsvRecord) {
   return parts.length > 0 ? parts.join("\n") : null;
 }
 
-function mapRow(domainCode: DomainCode, row: CsvRecord): MappedRow {
-  if (domainCode === "BSD" || domainCode === "DL") {
+function mapRow(warehouseCode: WarehouseCode, row: CsvRecord): MappedRow {
+  if (warehouseCode === "BSD" || warehouseCode === "DL") {
     const quantity = parseInteger(row.QTY) ?? 0;
     const typeName = clean(row.Types);
 
@@ -342,7 +342,7 @@ function mapRow(domainCode: DomainCode, row: CsvRecord): MappedRow {
       status: quantity > 0 ? AssetStatus.READY : AssetStatus.NEED_CHECK,
       stockCode: null,
       trackMethod: AssetTrackMethod.QUANTITY,
-      typeCode: typeCodeFor(domainCode, typeName),
+      typeCode: typeCodeFor(warehouseCode, typeName),
       typeName,
     };
   }
@@ -370,14 +370,14 @@ function mapRow(domainCode: DomainCode, row: CsvRecord): MappedRow {
     status: mapStatus(row.Status),
     stockCode: null,
     trackMethod: AssetTrackMethod.SERIAL,
-    typeCode: typeCodeFor(domainCode, typeName),
+    typeCode: typeCodeFor(warehouseCode, typeName),
     typeName,
   };
 }
 
 async function findOrCreateCategory(
   tx: Prisma.TransactionClient,
-  domainId: string,
+  warehouseId: string,
   name: string | null,
 ) {
   if (!name) {
@@ -385,9 +385,9 @@ async function findOrCreateCategory(
   }
 
   return tx.assetCategory.upsert({
-    where: { domainId_name: { domainId, name } },
+    where: { warehouseId_name: { warehouseId, name } },
     update: { isActive: true },
-    create: { domainId, name },
+    create: { warehouseId, name },
   });
 }
 
@@ -431,7 +431,7 @@ async function findOrCreateAssetType(
 
 async function findOrCreateModel(
   tx: Prisma.TransactionClient,
-  domainId: string,
+  warehouseId: string,
   categoryId: string | null,
   assetTypeId: string | null,
   mapped: MappedRow,
@@ -440,7 +440,7 @@ async function findOrCreateModel(
     where: {
       brand: mapped.brand,
       categoryId,
-      domainId,
+      warehouseId,
       assetTypeId,
       name: mapped.modelName,
       partNo: mapped.partNo,
@@ -461,7 +461,7 @@ async function findOrCreateModel(
       categoryId,
       assetTypeId,
       description: mapped.description,
-      domainId,
+      warehouseId,
       name: mapped.modelName,
       partNo: mapped.partNo,
       typeName: mapped.typeName,
@@ -483,7 +483,7 @@ function toAssetQuantity(mapped: MappedRow) {
 
 function toAssetData(
   mapped: MappedRow,
-  domainId: string,
+  warehouseId: string,
   assetModelId: string,
   locationId: string | null,
   userId: string,
@@ -493,7 +493,7 @@ function toAssetData(
   return {
     assetModelId,
     assetQuantity: toAssetQuantity(mapped),
-    domainId,
+    warehouseId,
     imageRef: mapped.imageRef,
     legacyFg: mapped.legacyFg,
     legacyQty: mapped.legacyQty,
@@ -534,12 +534,12 @@ async function createImportHistory(
 async function upsertAssetFromRow(
   tx: Prisma.TransactionClient,
   mapped: MappedRow,
-  domainId: string,
+  warehouseId: string,
   userId: string,
   batchId: string,
   sourceRecordId: string,
 ) {
-  const category = await findOrCreateCategory(tx, domainId, mapped.categoryName);
+  const category = await findOrCreateCategory(tx, warehouseId, mapped.categoryName);
   const assetType = await findOrCreateAssetType(
     tx,
     category?.id ?? null,
@@ -550,14 +550,14 @@ async function upsertAssetFromRow(
   const location = await findOrCreateLocation(tx, mapped.locationText);
   const model = await findOrCreateModel(
     tx,
-    domainId,
+    warehouseId,
     category?.id ?? null,
     assetType?.id ?? null,
     mapped,
   );
   const assetData = toAssetData(
     mapped,
-    domainId,
+    warehouseId,
     model.id,
     location?.id ?? null,
     userId,
@@ -570,7 +570,7 @@ async function upsertAssetFromRow(
       : mapped.stockCode
         ? await tx.asset.findFirst({
             where: {
-              domainId,
+              warehouseId,
               stockCode: mapped.stockCode,
             },
           })
@@ -617,15 +617,15 @@ async function createFailedRow(
 async function importParsedRow(
   batchId: string,
   row: ParsedRow,
-  domainId: string,
+  warehouseId: string,
   userId: string,
   seenSerials: Set<string>,
-  domainCode: DomainCode,
-  domainPrefix: string,
+  warehouseCode: WarehouseCode,
+  warehousePrefix: string,
   stockCodeCounters: Map<string, number>,
 ) {
-  const mapped = mapRow(domainCode, row.data);
-  mapped.stockCode = nextImportedStockCode(domainPrefix, mapped.typeCode, stockCodeCounters);
+  const mapped = mapRow(warehouseCode, row.data);
+  mapped.stockCode = nextImportedStockCode(warehousePrefix, mapped.typeCode, stockCodeCounters);
 
   if (mapped.serialNo) {
     const serialKey = mapped.serialNo.toLowerCase();
@@ -642,7 +642,7 @@ async function importParsedRow(
     const asset = await upsertAssetFromRow(
       tx,
       mapped,
-      domainId,
+      warehouseId,
       userId,
       batchId,
       sourceRecordId,
@@ -668,12 +668,12 @@ async function importFile(
   userId: string,
   seenSerials: Set<string>,
 ) {
-  const domain = await prisma.assetDomain.findUnique({
-    where: { code: sourceFile.domainCode },
+  const warehouse = await prisma.assetWarehouse.findUnique({
+    where: { code: sourceFile.warehouseCode },
   });
 
-  if (!domain) {
-    throw new Error(`Missing domain ${sourceFile.domainCode}. Run seed first.`);
+  if (!warehouse) {
+    throw new Error(`Missing warehouse ${sourceFile.warehouseCode}. Run seed first.`);
   }
 
   const batch = await prisma.migrationBatch.create({
@@ -688,8 +688,8 @@ async function importFile(
   return importRowsForBatch(
     sourceFile,
     batch.id,
-    domain.id,
-    domain.prefix,
+    warehouse.id,
+    warehouse.prefix,
     userId,
     seenSerials,
   );
@@ -698,8 +698,8 @@ async function importFile(
 async function importRowsForBatch(
   sourceFile: SourceFile,
   batchId: string,
-  domainId: string,
-  domainPrefix: string,
+  warehouseId: string,
+  warehousePrefix: string,
   userId: string,
   seenSerials: Set<string>,
 ) {
@@ -714,11 +714,11 @@ async function importRowsForBatch(
       await importParsedRow(
         batchId,
         row,
-        domainId,
+        warehouseId,
         userId,
         seenSerials,
-        sourceFile.domainCode,
-        domainPrefix,
+        sourceFile.warehouseCode,
+        warehousePrefix,
         stockCodeCounters,
       );
       successRows += 1;
@@ -760,7 +760,7 @@ async function main() {
   const summaries = [];
 
   for (const sourceFile of sourceFiles) {
-    if (selectedDomains.size > 0 && !selectedDomains.has(sourceFile.domainCode)) {
+    if (selectedWarehouses.size > 0 && !selectedWarehouses.has(sourceFile.warehouseCode)) {
       continue;
     }
 

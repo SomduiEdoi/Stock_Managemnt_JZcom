@@ -795,8 +795,8 @@ export function TransactionReturnClient({
             </h2>
             <p className="mt-2 text-sm font-medium text-muted-foreground">
               {confirmationMode === "SOLD"
-                ? "These assets will be sent to the sale approval workflow. Sale Stock Staff will enter the sale price before approval."
-                : "Confirm that these assets have been returned."}
+                ? "These assets will be sent to the sale approval workflow. BSD Staff will enter the sale price before approval."
+                : "These assets will be sent to the return approval workflow before the asset status changes."}
             </p>
 
             {error ? (

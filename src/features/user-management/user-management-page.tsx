@@ -132,9 +132,9 @@ function tagPills(user: UserManagementRow) {
       : [];
 
     return values.concat(
-      user.domainPermissions
+      user.warehousePermissions
         .filter((permission) => permission.canManage)
-        .map((permission) => permission.domain.name),
+        .map((permission) => permission.warehouse.name),
     );
   }
 
@@ -837,9 +837,9 @@ function UserDetailModal({
   const controllerValues = user.stockControllerTag
     ? [stockControllerTagLabels[user.stockControllerTag]]
     : [];
-  const domainValues = user.domainPermissions.map((permission) => {
+  const warehouseValues = user.warehousePermissions.map((permission) => {
     const access = permission.canManage ? "Manage" : permission.canView ? "View" : "No access";
-    return `${permission.domain.name} (${access})`;
+    return `${permission.warehouse.name} (${access})`;
   });
 
   return (
@@ -865,7 +865,7 @@ function UserDetailModal({
         <DetailSection label="Organization Unit / Team" values={organizationTagValues} />
         <DetailSection label="Project" values={projectValues} />
         <DetailSection label="Controller Tag" values={controllerValues} />
-        <DetailSection label="Warehouse Permission" values={domainValues} />
+        <DetailSection label="Warehouse Permission" values={warehouseValues} />
       </div>
     </ModalShell>
   );
@@ -985,7 +985,7 @@ export function UserManagementPage({
           value={metrics.total}
         />
         <MetricCard
-          detail="Assigned domain managers"
+          detail="Assigned warehouse managers"
           icon={ShieldCheck}
           label="Owner"
           value={metrics.owners}

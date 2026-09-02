@@ -1,196 +1,162 @@
-# Task Plan: Asset Flow Management System
+# Task Plan: Warehouse Management
 
-อัปเดตล่าสุด: 2026-07-22
+อัปเดตล่าสุด: 2026-09-02
 
 Legend:
 
 - `[x]` ทำแล้วหรือใช้งานได้เป็นหลัก
-- `[~]` ทำบางส่วน ต้องต่อให้ครบ
-- `[ ]` ยังไม่ทำหรือควรกลับมาทำ
+- `[~]` ทำบางส่วนหรือต้องตรวจ production
+- `[ ]` ยังไม่ทำ
 
-## 1. Product / Naming / Docs
+## 1. Naming and Documentation
 
-- [x] เปลี่ยนชื่อระบบในเอกสารหลักเป็น Asset Flow / Asset Flow Management System
-- [~] ไล่เปลี่ยนชื่อใน UI จากชื่อเดิมเป็น Asset Flow ให้ครบทุกจุด
-- [x] ใช้คำว่า `domain` เป็นคำหลักของคลังในเอกสาร
-- [~] ตรวจ root README และ docs ให้สะท้อนระบบจริงล่าสุดต่อเนื่อง
+- [x] ใช้ชื่อ Warehouse Management
+- [x] เปลี่ยน runtime code, schema และ API จาก Domain เป็น Warehouse
+- [x] อัปเดตเอกสารหลักให้ใช้ Warehouse; คง Inventory สำหรับหน้ารายการ asset
+- [~] ตรวจ branding ชื่อระบบใน UI และ metadata ทุกจุด
 
-## 2. Data Migration / Source of Truth
+## 2. Data and Migration
 
-- [x] กำหนดให้ CSV/SharePoint เป็น migration/bootstrap input เท่านั้น
+- [x] กำหนด CSV/SharePoint เป็น import input เท่านั้น
 - [x] Runtime ใช้ PostgreSQL เป็น source of truth
-- [~] ตรวจ import script ให้รองรับข้อมูล Server/Network ปัจจุบันครบ
-- [ ] เพิ่ม migration verification report หลัง import เช่น row count, duplicate, missing serial, missing type
+- [x] มี migration rename Domain table/column/index เป็น Warehouse
+- [x] มี import batch/row model สำหรับ audit การย้ายข้อมูล
+- [ ] สำรองข้อมูลและ deploy migration `20260902090000_warehouse_and_transaction_status_cleanup` กับฐานข้อมูลจริง
+- [ ] สร้าง import verification report: row count, duplicate, missing serial/type และ rows ที่ต้องตรวจ
+- [ ] วางแผนแก้ stock code เดิมที่ไม่ตรง `XX-YYY0000` โดยไม่เปลี่ยน identifier อย่างไม่ควบคุม
 
-## 3. Roles / Users / Profile
+## 3. Roles, Users and Profile
 
-- [x] Role หลักเหลือ `ADMIN`, `STOCK_CONTROLLER`, `USER`
-- [x] User Management เพิ่ม `StockControllerTag`
-- [x] เอา tag field เดิมที่ไม่จำเป็นออกจาก User Management
-- [x] Profile page ถูกปรับให้เรียบขึ้น
-- [x] Signature upload ยังมีเพื่อรองรับเอกสาร
-- [~] ตรวจ permission edge case ของ Stock Controller หลาย domain/ไม่มี domain
-- [ ] สรุป UX สำหรับ user ที่มีหลายบริบทในอนาคต เช่น manager ที่เป็น lead project ด้วย
+- [x] System role เหลือ `ADMIN`, `STOCK_CONTROLLER`, `USER`
+- [x] รองรับ Organization Level/Tag ค่าเดียว, Project Tag และ Stock Controller Tag ในระบบปัจจุบัน
+- [x] User Management รองรับ Warehouse view/manage permission
+- [x] Profile/Settings รองรับลายเซ็น
+- [x] Approval บังคับลายเซ็นและเก็บ signature snapshot
+- [ ] เพิ่ม tests สำหรับ User ที่ไม่มี Warehouse, หลาย Warehouse และหลาย organizational/project context
+- [ ] เพิ่ม `UserOrganizationAssignment` เพื่อรองรับหลายตำแหน่งต่อ User
+- [ ] ทำ migration จาก `users.organizationLevel/organizationTag` ไป assignments โดยคง primary assignment
+- [ ] ปรับ User Management ให้เพิ่ม/แก้ไข/ปิดหลาย assignments และเลือกตำแหน่งหลัก
+- [ ] ปรับ Session/CurrentUser ให้ส่ง active assignments ทั้งหมด
+- [ ] เพิ่ม Organization Tags ตามแผนผังใหม่: Executive, Solution Consult, Customer Service, Delivery & Client และ BSD
 
-## 4. Domain / Category / Type
+## 4. Warehouse and Master Data
 
-- [x] มี domain model และ dynamic domain page
-- [x] Admin สร้าง domain ได้
-- [x] Admin/Stock Controller จัดการ category/type ได้ตาม permission บางส่วน
-- [~] เปลี่ยน helper/filter ที่ยัง hardcode `SERVER`, `NETWORK` ให้ data-driven
-- [~] ตรวจ `AssetType.trackMethod` ตอนสร้าง/แก้ไข type ให้ตรง requirement SERIAL/QUANTITY
-- [ ] เพิ่ม tests สำหรับ category/type permission และ type ที่มี asset ใช้งานอยู่
+- [x] มี `AssetWarehouse` และ Dynamic Warehouse Inventory
+- [x] Admin สร้าง/แก้ไข/ลบ Warehouse ตามเงื่อนไขได้
+- [x] Warehouse prefix แก้ไม่ได้หลังสร้าง
+- [x] ป้องกันลบ Warehouse ที่มี active asset
+- [x] กำหนด Head Stock Controller ราย Warehouse
+- [x] Admin/Stock Controller จัดการ Category และ Type ตาม permission
+- [x] รองรับ custom fields ตาม Category
+- [ ] เพิ่ม permission tests สำหรับ Category/Type และ dependency guard เมื่อ Type ถูกใช้งาน
 
-## 5. Inventory / Asset
+## 5. Inventory and Asset
 
-- [x] เพิ่ม Brand filter ใน Inventory
-- [x] Inventory table รองรับ sort หลักๆ
-- [x] แสดง availability สำหรับ quantity asset
-- [x] Asset detail แสดงข้อมูลหลักและ status history
-- [~] Asset detail แสดง related transaction แล้ว แต่ควรตรวจ field ให้ครบตาม requirement "ข้อมูลทั้งหมด"
-- [ ] Asset detail export PDF
-- [ ] ตรวจว่า delete action ไม่ขัดกับ business rule ที่ไม่ควรลบ asset ใน flow ปกติ
+- [x] รองรับ Serial และ Quantity
+- [x] Inventory มี search, pagination, sort และ Brand/Category/Type/Status filter
+- [x] แสดง availability/reservation สำหรับ Quantity
+- [x] Asset create/edit/detail และ status history
+- [x] Asset Status มี Ready, Request, Borrow, Using, Sold, Fail, Lost, Need Check
+- [~] ตรวจ Asset Detail ว่าแสดงทุก field จากข้อมูลจริงและทุก Custom Field
+- [ ] เชื่อม Asset Detail Export PDF เข้าหน้าจอและ endpoint
+- [ ] ทบทวน administrative delete/soft-delete ให้สอดคล้องกับกฎไม่ลบ asset จาก business flow
 
-## 6. Request Cart / Quantity
+## 6. Request Cart and Quantity
 
-- [x] SERIAL asset request แล้ว lock เป็น `REQUEST`
-- [x] QUANTITY asset request แล้ว reserve ตามจำนวน
-- [x] Request modal มีช่องระบุ quantity
-- [x] Request cart แสดง requested quantity
-- [x] Submit transaction ส่ง item quantity เข้า backend
-- [~] ตรวจ availability calculation กับ transaction ที่ partial return / sold-return ให้ครบทุกกรณี
-- [ ] เพิ่ม tests สำหรับ over-request, release reservation, edit quantity ใน pending request
+- [x] Serial draft request lock เป็น `REQUEST`
+- [x] Quantity draft request reserve ตามจำนวน
+- [x] รองรับหลาย item และหลาย Warehouse
+- [x] Submit ย้าย Quantity reservation ไป Transaction Item
+- [x] ตรวจ availability ก่อน submit/edit
+- [ ] เพิ่ม tests สำหรับ over-request, edit quantity, reject release และ concurrent request
 
-## 7. Requisition No.
+## 7. Request No. and Stock Code
 
-- [x] ใช้รูปแบบ `REQ-YYYYMMDD-XX`
-- [x] เลขท้าย reset รายเดือน
-- [x] มี limit ต่อเดือนและ error ถ้าเกิน
-- [ ] เพิ่ม test สำหรับ sequence ข้ามเดือนและ concurrency
+- [x] Request No. ใช้ `REQ-YYYYMMDD-XX`
+- [x] Sequence reset รายเดือนและจำกัด 99 รายการ
+- [x] มี tests รูปแบบและ month boundary
+- [x] Stock Code ใหม่ใช้ `XX-YY-ZZZ0000`
+- [ ] เพิ่ม concurrency test สำหรับ Request No.
 
 ## 8. Approval Workflow
 
-- [x] มี `TransactionApproval` ใช้งานจริง
-- [x] Submit transaction สร้าง approval steps
-- [x] Transaction เริ่มที่ `workflowStatus = PENDING`
-- [x] Asset/quantity ยังถูก lock/reserve ระหว่างรอ approval
-- [x] Approval ตรวจ current step และ user/tag/domain
-- [x] Multi-domain request สร้าง Stock Controller approval ทุก domain
-- [x] เพิ่มขั้น `STOCK_CONTROLLER`, `HEAD_STOCK_CONTROLLER`, `BSD_STAFF`, `BSD_MANAGER`
-- [x] Reject request พร้อมเหตุผล
-- [x] Reject release lock/reservation
-- [x] Requester แก้ไข pending request ได้ถ้ายังไม่มีใคร approve
-- [~] ยืนยัน business rule ว่า `BORROW`/`USING` ต้องผ่าน `BSD_MANAGER` ด้วยหรือจบที่ `BSD_STAFF`
-- [ ] เพิ่ม cancel request endpoint/UX
-- [ ] เพิ่ม notification/indicator ให้ approver รู้ว่ามีงานค้าง
-- [ ] เพิ่ม tests approval chain ครบทุก role/tag
+- [x] Submit สร้าง Transaction Approval และเริ่ม `PENDING`
+- [x] รองรับ Organization และ Project approver
+- [x] สร้าง Stock Controller step ทุก Warehouse
+- [x] สร้าง Head Stock Controller step ทุก Warehouse
+- [x] เพิ่ม `BSD_STAFF` และ `BSD_MANAGER` ให้ Borrow, Using, Sold และ Return
+- [x] Approval หลาย Warehouse ใน sequence เดียวกันทำแบบ parallel
+- [x] Approver ตรวจ current sequence, assigned user/tag และ signature
+- [x] Reject พร้อมเหตุผลและ release normal request lock/reservation
+- [x] แก้ PENDING/REJECTED request ได้ก่อนมี approval สำเร็จ
+- [ ] เพิ่ม focused tests ครบทุก organization/project route และ multi-Warehouse chain
+- [ ] ปรับ approval routing ให้เลือก request context จากหลาย assignments
+- [ ] เพิ่ม auto-approve สำหรับ User คนเดียวที่ถือหลาย sequence พร้อม audit history แยก
+- [ ] เพิ่ม tests เช่น กรณี DL Manager/DL Supervisor เป็นคนเดียวกัน, ไม่มี Supervisor และ assignment ถูกปิด
+- [ ] เพิ่ม notification/indicator สำหรับงานอนุมัติค้าง
+- [ ] เพิ่ม Cancel Request endpoint และ UX
 
-## 9. Sold Price
+## 9. Transaction Status Cleanup
 
-- [x] SOLD approval ที่ `BSD_STAFF` บังคับกรอกราคา
-- [x] เก็บ sold price ลง transaction/item
-- [~] Return-to-sold สร้าง SOLD approval transaction แล้ว
-- [ ] ตรวจรูปแบบเอกสาร/รายงานที่ต้องแสดงราคาขาย
-- [ ] ยืนยันว่าราคาขายแก้ได้ตอนไหนและโดยใคร
+- [x] Borrow ใช้ `BORROWED/RETURNED`
+- [x] Using ใช้ `USING/RETURNED`
+- [x] Sold ใช้ `COMPLETED`
+- [x] Workflow ใช้ `PENDING/IN_PROGRESS/REJECTED/COMPLETED`
+- [x] ลบ Overdue, Active และ workflow Approved จาก runtime enum/logic/UI
+- [x] คง due/return date เป็นข้อมูลโดยไม่คำนวณ Overdue
+- [~] ตรวจ legacy rows หลัง deploy migration ว่าถูก map เป็นสถานะใหม่ครบ
 
-## 10. Return / Close
+## 10. Sold Price
 
-- [x] Transaction Log เพิ่ม Return Date
-- [x] Return ทำได้หลัง request approval ครบและ transaction เป็น `IN_PROGRESS`
-- [x] Return ราย item เป็น `READY` ได้
-- [x] Return outcome เป็น `SOLD` ได้ผ่าน SOLD approval transaction
-- [~] Full return approval สำหรับคืน/ขาย/พัง/หาย ยังไม่ครบตาม target
-- [~] Outcome `FAIL`, `LOST`, `NEED_CHECK` ยังไม่ครบใน return UI/API
-- [ ] เพิ่ม BSD approval สำหรับ return ทุกกรณีตาม business rule ล่าสุด
-- [ ] เพิ่ม remark auto-generate สำหรับ fail/lost เช่น `Fail from REQ-...`
-- [ ] เพิ่ม tests partial return, multi-item return, return-to-sold
+- [x] BSD Staff เป็นผู้กรอกราคา Sold
+- [x] เก็บราคาที่ Transaction/Item
+- [x] Return-to-sold ใช้ Derived Sold Approval Transaction
+- [~] ตรวจ PDF/Report กับข้อมูลหลาย item และ Quantity
+- [ ] สรุป policy การแก้ไขราคาหลัง approval
 
-## 11. Transaction Log / Report / PDF
+## 11. Return and Close
 
-- [x] Transaction History เป็น internal public view และใช้ filter แยกดู
-- [x] มี Approve tab
-- [x] มี Return Date
-- [x] Transaction PDF endpoint มีแล้ว
-- [~] Action column ยังควรปรับเป็น dropdown ถ้าต้องมีหลาย action
-- [~] PDF format ยังรอ template สุดท้ายจากธุรกิจ
-- [ ] Asset detail PDF
-- [ ] เพิ่ม filters เพิ่มเติมตาม requirement เช่น project/domain/requester/status/date ถ้ายังไม่ครบ
+- [x] Return ใช้ได้เมื่อ Source Transaction เป็น `IN_PROGRESS`
+- [x] Requester/Admin คืนราย item หรือทั้งรายการ
+- [x] Return-to-ready สร้าง Derived Return Transaction แทนการ apply ทันที
+- [x] Return-to-sold สร้าง Derived Sold Transaction
+- [x] Derived transaction ผ่าน Controller ทุก Warehouse, BSD Staff และ BSD Manager
+- [x] ป้องกัน pending derived transaction ซ้ำ
+- [x] Source Transaction complete เมื่อ resolve ครบ
+- [ ] เพิ่ม outcome `FAIL`, `LOST`, `NEED_CHECK` ใน Return UI/API/approval
+- [ ] เพิ่ม auto remark สำหรับ Fail/Lost ที่อ้าง Source Request No.
+- [ ] เพิ่ม tests partial return, multi-item, Quantity return, rejection และ duplicate prevention
 
-## 12. Project
+## 12. Transaction Log and PDF
 
-- [x] มีหน้า Project แล้ว
-- [~] Project page ตอนนี้ยังเป็น local UI/mock data
-- [~] Migration มี `projects`/`project_members` แต่ `schema.prisma` ยังไม่ตรง
-- [ ] เพิ่ม Prisma model สำหรับ Project/ProjectMember ให้ตรง migration หรือทำ migration ใหม่ให้สะอาด
-- [ ] เพิ่ม Project API และ persistence
-- [ ] ผูก project กับ transaction จริง
-- [ ] Lead Project จัดการ team member ใน project ของตัวเอง
+- [x] Log แสดงข้อมูลทุกคนทุก Project
+- [x] มี scope/status/search และ Approval Queue
+- [x] แสดง Request/Return Date และ Source Transaction reference
+- [x] Transaction PDF และ approval/signature snapshot
+- [~] เพิ่ม filter เฉพาะทาง เช่น Warehouse, Project, requester และ date range หาก UX ต้องการมากกว่าช่องค้นหา
+- [~] ปรับ official Borrow/Return/Sold document เมื่อได้ template
+- [ ] เชื่อม Asset Detail PDF
 
-## 13. Status Cleanup
+## 13. Project
 
-- [ ] ลบหรือซ่อนร่องรอยสถานะเกินกำหนดคืนเก่าจาก schema/code/UI
-- [ ] ตรวจ badge/filter/test ที่เคยอิงสถานะนี้
-- [ ] คง `dueDate`/`returnDate` เป็นข้อมูลประกอบ transaction/report โดยไม่สร้าง status อัตโนมัติ
+- [x] มี Prisma model และ PostgreSQL persistence
+- [x] มี Project page และ API
+- [x] รองรับ Project ID, status, Lead Project และ Team Members
+- [x] Admin สร้าง Project
+- [x] Admin/Lead ที่เกี่ยวข้องแก้ไขหรือลบ Project
+- [x] Transaction เชื่อม Project และ approval ใช้ Project membership
+- [ ] เพิ่ม tests permission, closed project และ membership change ระหว่างมี transaction
+- [ ] Sync pending Project Approval ทันทีเมื่อเพิ่ม/ถอด/เปลี่ยน Lead Project
+- [ ] ทำให้ Project approval sequence รอ Lead ที่ active ครบทุกคน
+- [ ] ตัดสิทธิ์ Lead เดิมและอัปเดต Approval Queue ของ Lead ใหม่แบบ atomic
+- [ ] เพิ่ม Project Lead Change History หรือ audit event
+- [ ] เพิ่ม tests สำหรับ A -> B reassignment, multiple leads, partially approved sequence และ completed sequence
 
-## 14. Quality / Tests
+## 14. Quality
 
-- [ ] Run lint/typecheck/test หลังแก้ workflow รอบใหญ่
-- [ ] เพิ่ม test สำหรับ approval routing
-- [ ] เพิ่ม test สำหรับ quantity reservation
-- [ ] เพิ่ม test สำหรับ project schema consistency
-- [ ] เพิ่ม regression test สำหรับ transaction no
-- [ ] เพิ่ม regression test สำหรับ role/tag permission
-## 2026-07-22 Implementation Update
-
-- [x] Domain Management supports Head Stock Controller on create/edit and stores `asset_domains.head_stock_controller_id`.
-- [x] Domain create/edit keeps existing Stock Controller permission behavior and also grants manage permission to the Head Stock Controller when assigned.
-- [x] Project Management now uses PostgreSQL/Prisma instead of local mock state.
-- [x] Project page dashboard summary shows Total Projects, Active Projects, and Closed Projects.
-- [x] Project table action uses kebab menu with Edit/Delete and delete confirmation showing Project Name and Project ID.
-- [x] Project add/edit supports Project Name, Project ID, Project Status, Lead Project, and multiple Team Members with active USER-only searchable selectors.
-- [x] Project filter control removed; search remains.
-- [x] Asset Detail and Request Detail breadcrumbs use blue links with orange hover while preserving existing navigation.
-- [x] Project ID is required at DB/schema level after backfill.
-- [x] Ran `npx.cmd prisma migrate deploy`, `npx.cmd prisma generate --no-engine`, `npm.cmd run typecheck`, and `npm.cmd run lint` successfully.
-
-## 2026-07-23 Quantity Inventory Update
-
-- [x] Quantity domain/category type creation now follows the domain `inventoryFamily` instead of defaulting new types to SERIAL.
-- [x] Quantity inventory table column order now follows requirement: Stock Code, Model, Category, Type, Brand, Availability, Status, Request/Action.
-- [x] Quantity request modal now detects QUANTITY by domain family as well as asset type, so dynamic quantity domains show the quantity input correctly.
-- [x] Availability now subtracts draft reservations plus open PENDING/IN_PROGRESS transaction items for BORROW, USING, and SOLD.
-- [x] Submit transaction now moves quantity draft reservation from `asset_reservations` into `transaction_items.requestedQuantity`, preventing submitted items from staying in request cart.
-- [x] Approve/reject/edit pending request refreshes quantity asset availability/status from transaction items instead of relying on stale draft reservations.
-- [x] Ran `npm.cmd run typecheck`, `npm.cmd run lint`, and `npm.cmd test` successfully after quantity changes.
-- [ ] Add focused quantity workflow tests for over-request, pending edit quantity, reject release, partial return, and sold quantity depletion.
-
-## 2026-08-06 Prefix Lock Update
-
-- [x] Domain prefix can be set only during domain creation.
-- [x] Edit Domain UI now shows prefix as read-only/disabled and no longer submits prefix in PATCH payload.
-- [x] Domain update API schema no longer accepts prefix; direct PATCH attempts with prefix are rejected by strict validation.
-- [x] Domain update service no longer validates duplicates or updates `asset_domains.prefix` during edit.
-- [x] Type/category prefixes were already locked after creation and remain unchanged.
-- [x] Ran `npm.cmd run typecheck` and `npm.cmd run lint` successfully.
-
-## 2026-08-06 Stock Code / Dynamic Domain Check
-
-- [x] Confirmed the required stock code format is `XX-YYY0000`.
-- [x] New asset stock code generation now uses a 2-character domain prefix plus a 3-character type prefix.
-- [x] Type prefix creation now requires exactly 3 English letters/numbers.
-- [x] Removed `stockCode` from create/edit asset API payload schemas; stock code remains system-generated only.
-- [x] Sidebar domain menu now reads active domains directly from DB so newly created domains appear in the menu for existing users.
-- [ ] Existing DB check found 12 stock codes that do not match `XX-YYY0000`; rewrite needs a controlled data migration before changing real identifiers.
-
-## 2026-08-06 Head Stock Controller Assignment
-
-- [x] Head Stock Controller is no longer treated as a global approver.
-- [x] Approval generation now uses the domain's assigned `headStockControllerId`.
-- [x] Approval matching requires the assigned approval `userId` for `HEAD_STOCK_CONTROLLER:<domainCode>`.
-- [x] Added approval-flow tests for assigned vs unassigned Head Stock Controller behavior.
-
-## 2026-08-13 Domain Delete Guard
-
-- [x] Domain delete now counts active assets and blocks deletion when any active asset remains.
-- [x] Delete Domain dialog now tells admin how many assets are still in the domain and disables Delete until the count is 0.
-- [x] Delete Domain API returns a 409 `DOMAIN_HAS_ASSETS` error if deletion is attempted while assets remain.
+- [x] Prisma format/generate/validate ผ่านหลังแก้ Warehouse/status
+- [x] Typecheck และ lint ผ่าน
+- [x] Unit tests ปัจจุบันผ่าน 40 tests
+- [ ] เพิ่ม integration tests สำหรับ approval และ derived return
+- [ ] ทดสอบ migration กับสำเนาฐานข้อมูลก่อน production
+- [ ] ตรวจ UI end-to-end หลัง deploy schema ใหม่

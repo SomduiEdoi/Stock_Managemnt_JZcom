@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { apiErrorResponse, readJsonBody, requireApiUser } from "@/lib/api";
 import { db } from "@/lib/db";
-import { assertCanManageDomain } from "@/lib/permissions";
+import { assertCanManageWarehouse } from "@/lib/permissions";
 import { WorkflowError } from "@/lib/workflow";
 
 const customFieldInputSchema = z.object({
@@ -67,17 +67,17 @@ export async function PUT(request: NextRequest, context: RouteContext) {
   try {
     const user = await requireApiUser(request);
     const { code } = await context.params;
-    const domainCode = decodeURIComponent(code).toUpperCase();
-    assertCanManageDomain(user, domainCode);
+    const warehouseCode = decodeURIComponent(code).toUpperCase();
+    assertCanManageWarehouse(user, warehouseCode);
 
     const body = saveCategoriesSchema.parse(await readJsonBody(request));
-    const domain = await db.assetDomain.findFirst({
+    const warehouse = await db.assetWarehouse.findFirst({
       select: { id: true, inventoryFamily: true },
-      where: { code: domainCode, isActive: true },
+      where: { code: warehouseCode, isActive: true },
     });
 
-    if (!domain) {
-      throw new WorkflowError("Warehouse not found.", 404, "DOMAIN_NOT_FOUND");
+    if (!warehouse) {
+      throw new WorkflowError("Warehouse not found.", 404, "WAREHOUSE_NOT_FOUND");
     }
 
     const submittedTypes = body.categories
@@ -105,7 +105,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       const existingTypes = await db.assetType.findMany({
         select: { code: true, id: true },
         where: {
-          category: { domainId: domain.id },
+          category: { warehouseId: warehouse.id },
           id: { in: submittedExistingTypeIds },
           isActive: true,
         },
@@ -131,7 +131,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       const existingCode = await db.assetType.findFirst({
         select: { code: true },
         where: {
-          category: { domainId: domain.id },
+          category: { warehouseId: warehouse.id },
           code: { in: submittedCodes },
           isActive: true,
           ...(submittedIds.length > 0 ? { NOT: { id: { in: submittedIds } } } : {}),
@@ -177,9 +177,9 @@ export async function PUT(request: NextRequest, context: RouteContext) {
               where: { id: categoryInput.id },
             })
           : await tx.assetCategory.upsert({
-              create: { domainId: domain.id, name: categoryInput.name },
+              create: { warehouseId: warehouse.id, name: categoryInput.name },
               update: { isActive: true },
-              where: { domainId_name: { domainId: domain.id, name: categoryInput.name } },
+              where: { warehouseId_name: { warehouseId: warehouse.id, name: categoryInput.name } },
             });
 
         const activeFields = categoryInput.customFields.filter((field) => !field.delete);
@@ -264,7 +264,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
             code: cleanCode(typeInput.code),
             isActive: true,
             name: typeInput.name,
-            trackMethod: domain.inventoryFamily,
+            trackMethod: warehouse.inventoryFamily,
           };
 
           if (typeInput.id) {

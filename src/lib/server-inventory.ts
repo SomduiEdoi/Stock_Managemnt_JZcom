@@ -2,7 +2,7 @@ import { AssetStatus, Prisma } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
 import { getAvailabilityByAssetId } from "@/lib/asset-availability";
 import { db } from "@/lib/db";
-import { canViewDomainForUser } from "@/lib/permissions";
+import { canViewWarehouseForUser } from "@/lib/permissions";
 
 export const serverInventoryStatusOptions = [
   AssetStatus.READY,
@@ -250,7 +250,7 @@ export function buildServerInventoryWhere(filters: ServerInventoryFilters) {
 
   return {
     isActive: true,
-    domain: { code: "SERVER" },
+    warehouse: { code: "SERVER" },
     ...(filters.statuses.length > 0 ? { status: { in: filters.statuses } } : {}),
     ...(clauses.length > 0 ? { AND: clauses } : {}),
   } satisfies Prisma.AssetWhereInput;
@@ -273,16 +273,16 @@ async function getServerFilterOptions() {
         where: { isActive: true },
       },
     },
-    where: { domain: { code: "SERVER" }, isActive: true },
+    where: { warehouse: { code: "SERVER" }, isActive: true },
   });
   const assetCounts = await db.asset.groupBy({
     by: ["assetModelId"],
     _count: true,
-    where: { domain: { code: "SERVER" }, isActive: true },
+    where: { warehouse: { code: "SERVER" }, isActive: true },
   });
   const models = await db.assetModel.findMany({
     select: { assetTypeId: true, brand: true, categoryId: true, id: true },
-    where: { domain: { code: "SERVER" }, isActive: true },
+    where: { warehouse: { code: "SERVER" }, isActive: true },
   });
   const countByModel = new Map(assetCounts.map((count) => [count.assetModelId, count._count]));
   const categoryAssetCounts = new Map<string, number>();
@@ -349,10 +349,10 @@ export async function getServerInventoryForUser(
   user: CurrentUser,
   filters: ServerInventoryFilters,
 ) {
-  const canView = canViewDomainForUser(user, "SERVER");
+  const canView = canViewWarehouseForUser(user, "SERVER");
   const baseWhere = {
     isActive: true,
-    domain: { code: "SERVER" },
+    warehouse: { code: "SERVER" },
   } satisfies Prisma.AssetWhereInput;
 
   if (!canView) {

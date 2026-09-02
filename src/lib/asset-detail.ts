@@ -3,8 +3,8 @@ import { getAvailabilityByAssetId } from "@/lib/asset-availability";
 import type { CurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
-  canManageDomainForUser,
-  canViewDomainForUser,
+  canManageWarehouseForUser,
+  canViewWarehouseForUser,
 } from "@/lib/permissions";
 
 const assetDetailSelect = Prisma.validator<Prisma.AssetSelect>()({
@@ -12,7 +12,7 @@ const assetDetailSelect = Prisma.validator<Prisma.AssetSelect>()({
   assetQuantity: true,
   createdAt: true,
   createdBy: { select: { email: true, name: true } },
-  domain: { select: { code: true, inventoryFamily: true, name: true } },
+  warehouse: { select: { code: true, inventoryFamily: true, name: true } },
   id: true,
   imageRef: true,
   isActive: true,
@@ -147,7 +147,7 @@ export async function getAssetDetailForUser(
     return { kind: "notFound" };
   }
 
-  if (!canViewDomainForUser(user, asset.domain.code)) {
+  if (!canViewWarehouseForUser(user, asset.warehouse.code)) {
     return { kind: "forbidden" };
   }
 
@@ -161,7 +161,7 @@ export async function getAssetDetailForUser(
       reservedQuantity: availability?.reservedQuantity ?? 0,
       totalQuantity: availability?.totalQuantity ?? asset.assetQuantity,
     },
-    canManage: canManageDomainForUser(user, asset.domain.code),
+    canManage: canManageWarehouseForUser(user, asset.warehouse.code),
     kind: "ok",
   };
 }

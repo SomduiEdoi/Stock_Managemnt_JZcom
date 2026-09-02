@@ -21,7 +21,7 @@ import { clsx } from "clsx";
 import { AssetTrackMethod } from "@prisma/client";
 import type { RoleCode } from "@/lib/permissions";
 import { SearchableDropdown } from "@/components/form/searchable-dropdown";
-import type { SidebarDomain } from "@/lib/domains";
+import type { SidebarWarehouse } from "@/lib/warehouses";
 import { formatWarehouseName } from "@/lib/display-labels";
 
 type StockControllerOption = {
@@ -32,36 +32,36 @@ type StockControllerOption = {
 };
 
 type AppSidebarProps = {
-  domains: SidebarDomain[];
+  warehouses: SidebarWarehouse[];
   requestCount: number;
   roles: RoleCode[];
   stockControllers: StockControllerOption[];
 };
 
-type DomainFormState = {
+type WarehouseFormState = {
   controllerId: string;
   headControllerIds: string[];
-  domainName: string;
+  warehouseName: string;
   prefix: string;
   trackMethod: AssetTrackMethod;
 };
 
-type DomainDialogState =
+type WarehouseDialogState =
   | { type: "ADD" }
-  | { domain: SidebarDomain; type: "DELETE" }
-  | { domain: SidebarDomain; type: "EDIT" }
+  | { warehouse: SidebarWarehouse; type: "DELETE" }
+  | { warehouse: SidebarWarehouse; type: "EDIT" }
   | null;
 
-function getDomainHref(domainCode: string) {
-  if (domainCode === "SERVER") {
+function getWarehouseHref(warehouseCode: string) {
+  if (warehouseCode === "SERVER") {
     return "/dashboard/server";
   }
 
-  if (domainCode === "NETWORK") {
+  if (warehouseCode === "NETWORK") {
     return "/dashboard/network";
   }
 
-  return `/dashboard/inventory/${encodeURIComponent(domainCode)}`;
+  return `/dashboard/inventory/${encodeURIComponent(warehouseCode)}`;
 }
 
 function isInventoryPath(pathname: string) {
@@ -73,16 +73,16 @@ function isInventoryPath(pathname: string) {
   );
 }
 
-function isDomainActive(pathname: string, domainCode: string) {
-  if (domainCode === "SERVER") {
+function isWarehouseActive(pathname: string, warehouseCode: string) {
+  if (warehouseCode === "SERVER") {
     return pathname === "/dashboard/server";
   }
 
-  if (domainCode === "NETWORK") {
+  if (warehouseCode === "NETWORK") {
     return pathname === "/dashboard/network";
   }
 
-  return pathname === `/dashboard/inventory/${domainCode}`;
+  return pathname === `/dashboard/inventory/${warehouseCode}`;
 }
 
 function canShowRequest(roles: RoleCode[]) {
@@ -97,11 +97,11 @@ function canShowProjects(roles: RoleCode[]) {
   return roles.includes("ADMIN") || roles.includes("STOCK_CONTROLLER") || roles.includes("USER");
 }
 
-function canCreateDomain(roles: RoleCode[]) {
+function canCreateWarehouse(roles: RoleCode[]) {
   return roles.includes("ADMIN");
 }
 
-function canManageDomains(roles: RoleCode[]) {
+function canManageWarehouses(roles: RoleCode[]) {
   return roles.includes("ADMIN");
 }
 
@@ -132,11 +132,11 @@ function Field({
   );
 }
 
-function emptyDomainForm(): DomainFormState {
+function emptyWarehouseForm(): WarehouseFormState {
   return {
     controllerId: "",
     headControllerIds: [],
-    domainName: "",
+    warehouseName: "",
     prefix: "",
     trackMethod: AssetTrackMethod.SERIAL,
   };
@@ -165,21 +165,21 @@ const inventoryFamilyOptions = [
   { label: "Quantity", value: AssetTrackMethod.QUANTITY },
 ];
 
-function AddDomainModal({
+function AddWarehouseModal({
   onCreated,
   onClose,
   stockControllers,
 }: {
-  onCreated: (domain: SidebarDomain) => void;
+  onCreated: (warehouse: SidebarWarehouse) => void;
   onClose: () => void;
   stockControllers: StockControllerOption[];
 }) {
   const router = useRouter();
-  const [form, setForm] = useState<DomainFormState>(emptyDomainForm());
+  const [form, setForm] = useState<WarehouseFormState>(emptyWarehouseForm());
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function setField<Key extends keyof DomainFormState>(key: Key, value: DomainFormState[Key]) {
+  function setField<Key extends keyof WarehouseFormState>(key: Key, value: WarehouseFormState[Key]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
@@ -188,14 +188,14 @@ function AddDomainModal({
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("/api/domains", {
+      const response = await fetch("/api/warehouses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           controllerId: form.controllerId,
           headControllerId: form.headControllerIds[0] ?? null,
           headControllerIds: form.headControllerIds,
-          domainName: form.domainName.trim(),
+          warehouseName: form.warehouseName.trim(),
           prefix: form.prefix.trim().toUpperCase(),
           trackMethod: form.trackMethod,
         }),
@@ -203,21 +203,21 @@ function AddDomainModal({
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setError(data.message ?? "Unable to create domain.");
+        setError(data.message ?? "Unable to create warehouse.");
         setIsSubmitting(false);
         return;
       }
 
-      const createdDomain = data.domain as SidebarDomain | undefined;
-      if (createdDomain) {
-        onCreated(createdDomain);
+      const createdWarehouse = data.warehouse as SidebarWarehouse | undefined;
+      if (createdWarehouse) {
+        onCreated(createdWarehouse);
       }
 
-      router.push(createdDomain ? getDomainHref(createdDomain.code) : "/dashboard");
+      router.push(createdWarehouse ? getWarehouseHref(createdWarehouse.code) : "/dashboard");
       router.refresh();
       onClose();
     } catch {
-      setError("Unable to create domain right now.");
+      setError("Unable to create warehouse right now.");
       setIsSubmitting(false);
     }
   }
@@ -240,9 +240,9 @@ function AddDomainModal({
           <Field label="Warehouse Name" required>
             <input
               className={inputClass()}
-              onChange={(event) => setField("domainName", event.target.value)}
+              onChange={(event) => setField("warehouseName", event.target.value)}
               type="text"
-              value={form.domainName}
+              value={form.warehouseName}
             />
           </Field>
 
@@ -316,29 +316,29 @@ function AddDomainModal({
   );
 }
 
-function EditDomainModal({
-  domain,
+function EditWarehouseModal({
+  warehouse,
   onClose,
   onUpdated,
   stockControllers,
 }: {
-  domain: SidebarDomain;
+  warehouse: SidebarWarehouse;
   onClose: () => void;
-  onUpdated: (domain: SidebarDomain) => void;
+  onUpdated: (warehouse: SidebarWarehouse) => void;
   stockControllers: StockControllerOption[];
 }) {
   const router = useRouter();
-  const [form, setForm] = useState<DomainFormState>({
-    controllerId: domain.controllerId ?? "",
-    headControllerIds: domain.headControllerIds ?? (domain.headControllerId ? [domain.headControllerId] : []),
-    domainName: domain.name,
-    prefix: domain.prefix,
-    trackMethod: domain.inventoryFamily,
+  const [form, setForm] = useState<WarehouseFormState>({
+    controllerId: warehouse.controllerId ?? "",
+    headControllerIds: warehouse.headControllerIds ?? (warehouse.headControllerId ? [warehouse.headControllerId] : []),
+    warehouseName: warehouse.name,
+    prefix: warehouse.prefix,
+    trackMethod: warehouse.inventoryFamily,
   });
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function setField<Key extends keyof DomainFormState>(key: Key, value: DomainFormState[Key]) {
+  function setField<Key extends keyof WarehouseFormState>(key: Key, value: WarehouseFormState[Key]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
@@ -347,29 +347,29 @@ function EditDomainModal({
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`/api/domains/${encodeURIComponent(domain.code)}`, {
+      const response = await fetch(`/api/warehouses/${encodeURIComponent(warehouse.code)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           controllerId: form.controllerId,
           headControllerId: form.headControllerIds[0] ?? null,
           headControllerIds: form.headControllerIds,
-          domainName: form.domainName.trim(),
+          warehouseName: form.warehouseName.trim(),
         }),
       });
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setError(data.message ?? "Unable to update domain.");
+        setError(data.message ?? "Unable to update warehouse.");
         setIsSubmitting(false);
         return;
       }
 
-      onUpdated(data.domain as SidebarDomain);
+      onUpdated(data.warehouse as SidebarWarehouse);
       router.refresh();
       onClose();
     } catch {
-      setError("Unable to update domain right now.");
+      setError("Unable to update warehouse right now.");
       setIsSubmitting(false);
     }
   }
@@ -392,9 +392,9 @@ function EditDomainModal({
           <Field label="Warehouse Name" required>
             <input
               className={inputClass()}
-              onChange={(event) => setField("domainName", event.target.value)}
+              onChange={(event) => setField("warehouseName", event.target.value)}
               type="text"
-              value={form.domainName}
+              value={form.warehouseName}
             />
           </Field>
 
@@ -402,7 +402,7 @@ function EditDomainModal({
             <input
               className={inputClass(true)}
               disabled
-              title="Prefix is locked after domain creation."
+              title="Prefix is locked after warehouse creation."
               type="text"
               value={form.prefix}
             />
@@ -467,24 +467,24 @@ function EditDomainModal({
   );
 }
 
-function DeleteDomainModal({
-  domain,
+function DeleteWarehouseModal({
+  warehouse,
   onClose,
   onDeleted,
 }: {
-  domain: SidebarDomain;
+  warehouse: SidebarWarehouse;
   onClose: () => void;
-  onDeleted: (domain: SidebarDomain) => void;
+  onDeleted: (warehouse: SidebarWarehouse) => void;
 }) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const hasAssets = domain.assetCount > 0;
+  const hasAssets = warehouse.assetCount > 0;
 
   async function handleDelete() {
     if (hasAssets) {
       setError(
-        `This domain currently contains ${domain.assetCount.toLocaleString("en-US")} assets. Please delete all assets in this domain before deleting the domain.`,
+        `This warehouse currently contains ${warehouse.assetCount.toLocaleString("en-US")} assets. Please delete all assets in this warehouse before deleting the warehouse.`,
       );
       return;
     }
@@ -493,23 +493,23 @@ function DeleteDomainModal({
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`/api/domains/${encodeURIComponent(domain.code)}`, {
+      const response = await fetch(`/api/warehouses/${encodeURIComponent(warehouse.code)}`, {
         method: "DELETE",
       });
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        setError(data.message ?? "Unable to delete domain.");
+        setError(data.message ?? "Unable to delete warehouse.");
         setIsSubmitting(false);
         return;
       }
 
-      onDeleted(domain);
+      onDeleted(warehouse);
       router.push("/dashboard");
       router.refresh();
       onClose();
     } catch {
-      setError("Unable to delete domain right now.");
+      setError("Unable to delete warehouse right now.");
       setIsSubmitting(false);
     }
   }
@@ -530,20 +530,20 @@ function DeleteDomainModal({
 
         <div className="space-y-4 p-5">
           <p className="text-sm font-semibold text-ink">
-            Warehouse: <span className="font-bold text-navy">{formatWarehouseName(domain.name)}</span>
+            Warehouse: <span className="font-bold text-navy">{formatWarehouseName(warehouse.name)}</span>
           </p>
           <div className="flex gap-3 rounded-md border border-status-fail/20 bg-status-fail/10 p-4 text-sm font-semibold text-status-fail">
             <AlertTriangle className="h-5 w-5 shrink-0" />
             <p>
-              This domain currently contains {domain.assetCount.toLocaleString("en-US")} assets.
+              This warehouse currently contains {warehouse.assetCount.toLocaleString("en-US")} assets.
               {hasAssets
-                ? " Please delete all assets in this domain before deleting the domain."
+                ? " Please delete all assets in this warehouse before deleting the warehouse."
                 : null}
             </p>
           </div>
           {hasAssets ? null : (
             <p className="text-sm font-medium text-ink">
-              Are you sure you want to delete this domain?
+              Are you sure you want to delete this warehouse?
             </p>
           )}
 
@@ -601,25 +601,25 @@ function SidebarLink({
 }
 
 export function AppSidebar({
-  domains,
+  warehouses,
   requestCount,
   roles,
   stockControllers,
 }: AppSidebarProps) {
   const pathname = usePathname();
   const [isInventoryOpen, setIsInventoryOpen] = useState(true);
-  const [domainDialog, setDomainDialog] = useState<DomainDialogState>(null);
-  const [openDomainMenu, setOpenDomainMenu] = useState<string | null>(null);
-  const [domainItems, setDomainItems] = useState(domains);
+  const [warehouseDialog, setWarehouseDialog] = useState<WarehouseDialogState>(null);
+  const [openWarehouseMenu, setOpenWarehouseMenu] = useState<string | null>(null);
+  const [warehouseItems, setWarehouseItems] = useState(warehouses);
 
   useEffect(() => {
-    setDomainItems(domains);
-  }, [domains]);
+    setWarehouseItems(warehouses);
+  }, [warehouses]);
 
-  const visibleDomains = useMemo(() => {
-    return [...domainItems].sort((left, right) => left.name.localeCompare(right.name, "en"));
-  }, [domainItems]);
-  const showDomainActions = canManageDomains(roles);
+  const visibleWarehouses = useMemo(() => {
+    return [...warehouseItems].sort((left, right) => left.name.localeCompare(right.name, "en"));
+  }, [warehouseItems]);
+  const showWarehouseActions = canManageWarehouses(roles);
 
   return (
     <>
@@ -666,9 +666,9 @@ export function AppSidebar({
               {isInventoryOpen ? (
                 <div className="space-y-1 px-3 pb-3 pt-1">
                   <div className="ml-[7px] border-l border-border pl-4">
-                    {visibleDomains.map((domain) => {
-                      const href = getDomainHref(domain.code);
-                      const active = isDomainActive(pathname, domain.code);
+                    {visibleWarehouses.map((warehouse) => {
+                      const href = getWarehouseHref(warehouse.code);
+                      const active = isWarehouseActive(pathname, warehouse.code);
 
                       return (
                         <div
@@ -678,24 +678,24 @@ export function AppSidebar({
                               ? "bg-navy text-white"
                               : "text-muted-foreground hover:bg-surface hover:text-navy",
                           )}
-                          key={domain.code}
+                          key={warehouse.code}
                         >
                           <Link className="min-w-0 flex-1 px-3 py-2" href={href}>
-                            <span className="block truncate">{formatWarehouseName(domain.name)}</span>
+                            <span className="block truncate">{formatWarehouseName(warehouse.name)}</span>
                           </Link>
 
-                          {showDomainActions ? (
+                          {showWarehouseActions ? (
                             <button
-                              aria-label={`Open actions for ${domain.name}`}
+                              aria-label={`Open actions for ${warehouse.name}`}
                               className={clsx(
                                 "mr-1 flex h-7 w-7 items-center justify-center rounded-md opacity-0 transition hover:bg-white/20 group-hover:opacity-100",
-                                openDomainMenu === domain.code && "opacity-100",
+                                openWarehouseMenu === warehouse.code && "opacity-100",
                               )}
                               onClick={(event) => {
                                 event.preventDefault();
                                 event.stopPropagation();
-                                setOpenDomainMenu((current) =>
-                                  current === domain.code ? null : domain.code,
+                                setOpenWarehouseMenu((current) =>
+                                  current === warehouse.code ? null : warehouse.code,
                                 );
                               }}
                               type="button"
@@ -704,15 +704,15 @@ export function AppSidebar({
                             </button>
                           ) : null}
 
-                          {openDomainMenu === domain.code ? (
+                          {openWarehouseMenu === warehouse.code ? (
                             <div className="absolute right-0 top-9 z-20 w-40 rounded-md border border-border bg-white p-1 text-ink shadow-lg">
                               <button
                                 className="block w-full rounded px-3 py-2 text-left text-sm font-semibold hover:bg-surface"
                                 onClick={(event) => {
                                   event.preventDefault();
                                   event.stopPropagation();
-                                  setOpenDomainMenu(null);
-                                  setDomainDialog({ domain, type: "EDIT" });
+                                  setOpenWarehouseMenu(null);
+                                  setWarehouseDialog({ warehouse, type: "EDIT" });
                                 }}
                                 type="button"
                               >
@@ -723,8 +723,8 @@ export function AppSidebar({
                                 onClick={(event) => {
                                   event.preventDefault();
                                   event.stopPropagation();
-                                  setOpenDomainMenu(null);
-                                  setDomainDialog({ domain, type: "DELETE" });
+                                  setOpenWarehouseMenu(null);
+                                  setWarehouseDialog({ warehouse, type: "DELETE" });
                                 }}
                                 type="button"
                               >
@@ -736,10 +736,10 @@ export function AppSidebar({
                       );
                     })}
 
-                    {canCreateDomain(roles) ? (
+                    {canCreateWarehouse(roles) ? (
                       <button
                         className="mt-2 flex min-h-9 w-full items-center gap-3 rounded-md px-3 text-sm font-semibold text-brand-accent transition hover:bg-brand-accent/10"
-                        onClick={() => setDomainDialog({ type: "ADD" })}
+                        onClick={() => setWarehouseDialog({ type: "ADD" })}
                         type="button"
                       >
                         <PlusCircle className="h-4 w-4 shrink-0" />
@@ -785,41 +785,41 @@ export function AppSidebar({
         </div>
       </aside>
 
-      {domainDialog?.type === "ADD" ? (
-        <AddDomainModal
-          onCreated={(domain) => {
-            setDomainItems((current) => {
-              if (current.some((item) => item.code === domain.code)) {
+      {warehouseDialog?.type === "ADD" ? (
+        <AddWarehouseModal
+          onCreated={(warehouse) => {
+            setWarehouseItems((current) => {
+              if (current.some((item) => item.code === warehouse.code)) {
                 return current;
               }
 
-              return [...current, domain];
+              return [...current, warehouse];
             });
           }}
-          onClose={() => setDomainDialog(null)}
+          onClose={() => setWarehouseDialog(null)}
           stockControllers={stockControllers}
         />
       ) : null}
 
-      {domainDialog?.type === "EDIT" ? (
-        <EditDomainModal
-          domain={domainDialog.domain}
-          onClose={() => setDomainDialog(null)}
-          onUpdated={(domain) => {
-            setDomainItems((current) =>
-              current.map((item) => (item.code === domain.code ? domain : item)),
+      {warehouseDialog?.type === "EDIT" ? (
+        <EditWarehouseModal
+          warehouse={warehouseDialog.warehouse}
+          onClose={() => setWarehouseDialog(null)}
+          onUpdated={(warehouse) => {
+            setWarehouseItems((current) =>
+              current.map((item) => (item.code === warehouse.code ? warehouse : item)),
             );
           }}
           stockControllers={stockControllers}
         />
       ) : null}
 
-      {domainDialog?.type === "DELETE" ? (
-        <DeleteDomainModal
-          domain={domainDialog.domain}
-          onClose={() => setDomainDialog(null)}
-          onDeleted={(domain) => {
-            setDomainItems((current) => current.filter((item) => item.code !== domain.code));
+      {warehouseDialog?.type === "DELETE" ? (
+        <DeleteWarehouseModal
+          warehouse={warehouseDialog.warehouse}
+          onClose={() => setWarehouseDialog(null)}
+          onDeleted={(warehouse) => {
+            setWarehouseItems((current) => current.filter((item) => item.code !== warehouse.code));
           }}
         />
       ) : null}

@@ -12,7 +12,7 @@ export type AvailabilityAsset = {
   assetModel: {
     assetType: { trackMethod: AssetTrackMethod } | null;
   };
-  domain?: { inventoryFamily?: AssetTrackMethod | null } | null;
+  warehouse?: { inventoryFamily?: AssetTrackMethod | null } | null;
   assetQuantity: number;
   id: string;
   requestLockedById?: string | null;
@@ -29,7 +29,7 @@ export type AssetAvailability = {
 
 function isQuantityAsset(asset: AvailabilityAsset) {
   return (
-    asset.domain?.inventoryFamily === AssetTrackMethod.QUANTITY ||
+    asset.warehouse?.inventoryFamily === AssetTrackMethod.QUANTITY ||
     asset.assetModel.assetType?.trackMethod === AssetTrackMethod.QUANTITY
   );
 }

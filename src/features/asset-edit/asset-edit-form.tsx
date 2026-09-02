@@ -19,9 +19,9 @@ import { AssetStatusBadge } from "@/components/status/asset-status-badge";
 import { formatWarehouseName } from "@/lib/display-labels";
 
 type AssetEditFormProps = {
-  canChangeDomain: boolean;
-  initialDomainCode?: string;
-  lockDomain?: boolean;
+  canChangeWarehouse: boolean;
+  initialWarehouseCode?: string;
+  lockWarehouse?: boolean;
   mode: "create" | "edit";
   options: AssetEditOptions;
 } & (
@@ -40,7 +40,7 @@ type AssetEditFormState = {
   categoryName: string;
   customFields: Record<string, string>;
   description: string;
-  domainCode: string;
+  warehouseCode: string;
   imageRef: string;
   location: string;
   modelName: string;
@@ -55,7 +55,7 @@ type AssetEditFormState = {
 type AssetEditFieldKey =
   | "brand"
   | "categoryName"
-  | "domainCode"
+  | "warehouseCode"
   | "location"
   | "modelName"
   | "partNo"
@@ -66,7 +66,7 @@ type AssetEditFieldKey =
 
 type AssetEditFieldErrors = Partial<Record<AssetEditFieldKey | `custom:${string}`, string>>;
 
-function domainHref(code: string) {
+function warehouseHref(code: string) {
   if (code === "SERVER") return "/dashboard/server";
   if (code === "NETWORK") return "/dashboard/network";
   return `/dashboard/inventory/${encodeURIComponent(code)}`;
@@ -174,8 +174,8 @@ function validateAssetForm(
     fieldErrors.typeName = "Type is required.";
   }
 
-  if (!hasText(form.domainCode)) {
-    fieldErrors.domainCode = "Warehouse is required.";
+  if (!hasText(form.warehouseCode)) {
+    fieldErrors.warehouseCode = "Warehouse is required.";
   }
 
   if (!hasText(form.status)) {
@@ -196,7 +196,7 @@ function toFormState(asset: AssetEditRecord): AssetEditFormState {
     categoryName: asset.assetModel.category?.name ?? "",
     customFields: Object.fromEntries(asset.customFieldValues.map((value) => [value.field.key, value.valueText ?? ""])),
     description: asset.assetModel.description ?? "",
-    domainCode: asset.domain.code,
+    warehouseCode: asset.warehouse.code,
     imageRef: asset.imageRef ?? "",
     location: asset.location?.name ?? asset.locationText ?? "",
     modelName: asset.assetModel.name,
@@ -209,13 +209,13 @@ function toFormState(asset: AssetEditRecord): AssetEditFormState {
   };
 }
 
-function createFormState(initialDomainCode: string): AssetEditFormState {
+function createFormState(initialWarehouseCode: string): AssetEditFormState {
   return {
     brand: "",
     categoryName: "",
     customFields: {},
     description: "",
-    domainCode: initialDomainCode,
+    warehouseCode: initialWarehouseCode,
     imageRef: "",
     location: "",
     modelName: "",
@@ -288,7 +288,7 @@ function Textarea(
 }
 
 export function AssetEditForm(props: AssetEditFormProps) {
-  const { canChangeDomain, initialDomainCode, lockDomain = false, mode, options } = props;
+  const { canChangeWarehouse, initialWarehouseCode, lockWarehouse = false, mode, options } = props;
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -297,7 +297,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
   const [form, setForm] = useState<AssetEditFormState>(() =>
     mode === "edit"
       ? toFormState(props.asset)
-      : createFormState(initialDomainCode ?? "SERVER"),
+      : createFormState(initialWarehouseCode ?? "SERVER"),
   );
   const [isSaving, setIsSaving] = useState(false);
 
@@ -363,7 +363,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
           customFields: form.customFields,
           categoryName: form.categoryName,
           description: form.description,
-          domainCode: form.domainCode,
+          warehouseCode: form.warehouseCode,
           imageRef: form.imageRef || null,
           locationCode: null,
           locationName: form.location,
@@ -404,7 +404,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
   }
 
   const visibleCategories = options.categories.filter(
-    (category) => category.domainCode === form.domainCode,
+    (category) => category.warehouseCode === form.warehouseCode,
   );
   const selectedCategory = visibleCategories.find((category) => category.name === form.categoryName) ?? null;
   const categoryCustomFields = selectedCategory?.customFields ?? [];
@@ -415,20 +415,20 @@ export function AssetEditForm(props: AssetEditFormProps) {
       customFields: { ...current.customFields, [key]: value },
     }));
   }
-  const selectedDomain =
-    options.domains.find((domain) => domain.code === form.domainCode) ??
-    options.domains[0] ??
+  const selectedWarehouse =
+    options.warehouses.find((warehouse) => warehouse.code === form.warehouseCode) ??
+    options.warehouses[0] ??
     null;
   const visibleTypes = options.types.filter((type) => {
-    if (type.domainCode !== form.domainCode) return false;
+    if (type.warehouseCode !== form.warehouseCode) return false;
     if (!form.categoryName) return true;
     return type.categoryName === form.categoryName;
   });
-  const trackMethod = selectedDomain?.inventoryFamily ?? "SERIAL";
+  const trackMethod = selectedWarehouse?.inventoryFamily ?? "SERIAL";
   const isQuantityAsset = trackMethod === "QUANTITY";
   const saveUrl = mode === "edit" && asset ? `/api/assets/${asset.id}` : "/api/assets";
   const cancelHref =
-    mode === "edit" && asset ? `/dashboard/assets/${asset.id}` : domainHref(form.domainCode);
+    mode === "edit" && asset ? `/dashboard/assets/${asset.id}` : warehouseHref(form.warehouseCode);
   const heading = mode === "edit" && asset ? `Edit ${asset.assetModel.name}` : "Add Asset";
   const submitLabel = mode === "edit" ? "Save Changes" : "Add Asset";
 
@@ -440,8 +440,8 @@ export function AssetEditForm(props: AssetEditFormProps) {
             aria-label="Breadcrumb"
             className="flex flex-wrap items-center gap-2 text-sm font-bold text-muted-foreground"
           >
-            <Link className="text-navy hover:underline" href={domainHref(form.domainCode)}>
-              {formatWarehouseName(selectedDomain?.name ?? form.domainCode)}
+            <Link className="text-navy hover:underline" href={warehouseHref(form.warehouseCode)}>
+              {formatWarehouseName(selectedWarehouse?.name ?? form.warehouseCode)}
             </Link>
             {mode === "edit" && asset ? (
               <>
@@ -582,22 +582,22 @@ export function AssetEditForm(props: AssetEditFormProps) {
                 value={isQuantityAsset ? form.quantity : form.serialNo}
               />
             </Field>
-            <Field error={fieldErrors.domainCode} label="Warehouse" required>
-              {lockDomain || !canChangeDomain ? (
+            <Field error={fieldErrors.warehouseCode} label="Warehouse" required>
+              {lockWarehouse || !canChangeWarehouse ? (
                 <p className="flex h-11 items-center text-sm font-semibold text-ink">
-                  {formatWarehouseName(selectedDomain?.name ?? form.domainCode)}
+                  {formatWarehouseName(selectedWarehouse?.name ?? form.warehouseCode)}
                 </p>
               ) : (
                 <SearchableDropdown
-                  onChange={(value) => setField("domainCode", value)}
-                  options={options.domains.map((domain) => ({
-                    label: domain.name,
-                    searchText: `${domain.name} ${domain.code}`,
-                    value: domain.code,
+                  onChange={(value) => setField("warehouseCode", value)}
+                  options={options.warehouses.map((warehouse) => ({
+                    label: warehouse.name,
+                    searchText: `${warehouse.name} ${warehouse.code}`,
+                    value: warehouse.code,
                   }))}
-                  placeholder="Select domain"
-                  searchPlaceholder="Search domain"
-                  value={form.domainCode}
+                  placeholder="Select warehouse"
+                  searchPlaceholder="Search warehouse"
+                  value={form.warehouseCode}
                 />
               )}
             </Field>
@@ -610,7 +610,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
                     customFields: {},
                     typeName: options.types.some(
                       (type) =>
-                        type.domainCode === current.domainCode &&
+                        type.warehouseCode === current.warehouseCode &&
                         type.categoryName === categoryName &&
                         type.name === current.typeName,
                     )
@@ -620,7 +620,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
                 }}
                 options={visibleCategories.map((category) => ({
                   label: category.name,
-                  searchText: `${category.domainCode} ${category.name}`,
+                  searchText: `${category.warehouseCode} ${category.name}`,
                   value: category.name,
                 }))}
                 placeholder="Select category"
@@ -655,7 +655,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
                 options={visibleTypes.map((type) => ({
                   description: type.categoryName,
                   label: type.name,
-                  searchText: `${type.domainCode} ${type.categoryName} ${type.name}`,
+                  searchText: `${type.warehouseCode} ${type.categoryName} ${type.name}`,
                   value: type.name,
                 }))}
                 placeholder="Select type"

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Stock Management System",
-  description: "Serialized asset stock management for Server and Network items.",
+  title: "Warehouse Management",
+  description: "Warehouse asset requests, approvals, usage, returns, and history.",
 };
 
 export default function RootLayout({
@@ -17,4 +17,3 @@ export default function RootLayout({
     </html>
   );
 }
-

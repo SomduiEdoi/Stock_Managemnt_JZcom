@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  getDomainAccess,
-  getSelectedDomainCodes,
-  getVisibleDomainCodes,
+  getWarehouseAccess,
+  getSelectedWarehouseCodes,
+  getVisibleWarehouseCodes,
   normalizeAssetListFilters,
 } from "./assets";
 import type { PermissionUser } from "./permissions";
@@ -10,45 +10,45 @@ import type { PermissionUser } from "./permissions";
 const arm: PermissionUser = {
   roles: ["STOCK_CONTROLLER"],
   permissions: [
-    { domainCode: "SERVER", canView: true, canManage: true },
-    { domainCode: "NETWORK", canView: true, canManage: false },
+    { warehouseCode: "SERVER", canView: true, canManage: true },
+    { warehouseCode: "NETWORK", canView: true, canManage: false },
   ],
 };
 
 describe("asset list permissions", () => {
-  it("returns all domains for admin", () => {
-    expect(getVisibleDomainCodes({ roles: ["ADMIN"], permissions: [] })).toEqual(
+  it("returns all warehouses for admin", () => {
+    expect(getVisibleWarehouseCodes({ roles: ["ADMIN"], permissions: [] })).toEqual(
       ["SERVER", "NETWORK"],
     );
   });
 
-  it("marks domain access as manage or read-only", () => {
-    expect(getDomainAccess(arm, "SERVER")).toBe("MANAGE");
-    expect(getDomainAccess(arm, "NETWORK")).toBe("READ_ONLY");
+  it("marks warehouse access as manage or read-only", () => {
+    expect(getWarehouseAccess(arm, "SERVER")).toBe("MANAGE");
+    expect(getWarehouseAccess(arm, "NETWORK")).toBe("READ_ONLY");
   });
 
-  it("does not select a hidden filtered domain", () => {
+  it("does not select a hidden filtered warehouse", () => {
     const serverOnly: PermissionUser = {
       roles: ["STOCK_CONTROLLER"],
-      permissions: [{ domainCode: "SERVER", canView: true, canManage: true }],
+      permissions: [{ warehouseCode: "SERVER", canView: true, canManage: true }],
     };
 
-    expect(getSelectedDomainCodes(serverOnly, "NETWORK")).toEqual([]);
+    expect(getSelectedWarehouseCodes(serverOnly, "NETWORK")).toEqual([]);
   });
 });
 
 describe("asset list filters", () => {
-  it("preserves dynamic domain params and normalizes invalid non-domain params", () => {
+  it("preserves dynamic warehouse params and normalizes invalid non-warehouse params", () => {
     expect(
       normalizeAssetListFilters({
-        domain: "BARBIE",
+        warehouse: "BARBIE",
         page: "-1",
         q: "  fan  ",
         status: "MISSING",
       }),
     ).toMatchObject({
       brand: "ALL",
-      domain: "BARBIE",
+      warehouse: "BARBIE",
       page: 1,
       search: "fan",
       status: "ALL",

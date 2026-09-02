@@ -1,20 +1,20 @@
 import type { RoleCode as PrismaRoleCode } from "@prisma/client";
 
-export type DomainCode = string;
+export type WarehouseCode = string;
 export type RoleCode = PrismaRoleCode;
 
-export const domainCodes = ["SERVER", "NETWORK"] as const;
+export const warehouseCodes = ["SERVER", "NETWORK"] as const;
 export const requestRoleCodes = ["USER"] as const satisfies readonly RoleCode[];
 
-export type DomainPermission = {
-  domainCode: DomainCode;
+export type WarehousePermission = {
+  warehouseCode: WarehouseCode;
   canView: boolean;
   canManage: boolean;
 };
 
 export type PermissionUser = {
   roles: RoleCode[];
-  permissions: DomainPermission[];
+  permissions: WarehousePermission[];
   stockControllerTag?: string | null;
 };
 
@@ -42,109 +42,109 @@ export function hasAnyRole(
   return user.roles.some((roleCode) => roleCodes.includes(roleCode));
 }
 
-export function canManageDomain(
-  permissions: DomainPermission[],
-  domainCode: DomainCode,
+export function canManageWarehouse(
+  permissions: WarehousePermission[],
+  warehouseCode: WarehouseCode,
 ) {
   return permissions.some(
     (permission) =>
-      permission.domainCode === domainCode && permission.canManage,
+      permission.warehouseCode === warehouseCode && permission.canManage,
   );
 }
 
-export function canManageDomainForUser(
+export function canManageWarehouseForUser(
   user: PermissionUser,
-  domainCode: DomainCode,
+  warehouseCode: WarehouseCode,
 ) {
-  return hasRole(user, "ADMIN") || canManageDomain(user.permissions, domainCode);
+  return hasRole(user, "ADMIN") || canManageWarehouse(user.permissions, warehouseCode);
 }
 
-export function canViewDomainForUser(
+export function canViewWarehouseForUser(
   user: PermissionUser,
-  domainCode: DomainCode,
+  warehouseCode: WarehouseCode,
 ) {
-  return hasRole(user, "ADMIN") || canViewDomain(user.permissions, domainCode);
+  return hasRole(user, "ADMIN") || canViewWarehouse(user.permissions, warehouseCode);
 }
 
-export function canRequestDomainForUser(
+export function canRequestWarehouseForUser(
   user: PermissionUser,
-  domainCode: DomainCode,
+  warehouseCode: WarehouseCode,
 ) {
   return (
     hasAnyRole(user, requestRoleCodes) &&
-    canViewDomainForUser(user, domainCode)
+    canViewWarehouseForUser(user, warehouseCode)
   );
 }
 
 export function canRequestAssetsForUser(user: PermissionUser) {
   return user.permissions.some((permission) =>
-    canRequestDomainForUser(user, permission.domainCode),
+    canRequestWarehouseForUser(user, permission.warehouseCode),
   );
 }
 
 export function canDeleteAssetsForUser(
   user: PermissionUser,
-  domainCode: DomainCode,
+  warehouseCode: WarehouseCode,
 ) {
-  return canManageDomainForUser(user, domainCode);
+  return canManageWarehouseForUser(user, warehouseCode);
 }
 
 export function canChangeAssetStatusForUser(
   user: PermissionUser,
-  domainCode: DomainCode,
+  warehouseCode: WarehouseCode,
 ) {
-  return canManageDomainForUser(user, domainCode);
+  return canManageWarehouseForUser(user, warehouseCode);
 }
 
-export function assertCanManageDomain(
+export function assertCanManageWarehouse(
   user: PermissionUser,
-  domainCode: DomainCode,
+  warehouseCode: WarehouseCode,
 ) {
-  if (!canManageDomainForUser(user, domainCode)) {
-    throw new PermissionError(`Cannot manage ${domainCode} assets.`);
+  if (!canManageWarehouseForUser(user, warehouseCode)) {
+    throw new PermissionError(`Cannot manage ${warehouseCode} assets.`);
   }
 }
 
-export function assertCanViewDomain(user: PermissionUser, domainCode: DomainCode) {
-  if (!canViewDomainForUser(user, domainCode)) {
-    throw new PermissionError(`Cannot view ${domainCode} assets.`);
+export function assertCanViewWarehouse(user: PermissionUser, warehouseCode: WarehouseCode) {
+  if (!canViewWarehouseForUser(user, warehouseCode)) {
+    throw new PermissionError(`Cannot view ${warehouseCode} assets.`);
   }
 }
 
-export function assertCanRequestDomain(
+export function assertCanRequestWarehouse(
   user: PermissionUser,
-  domainCode: DomainCode,
+  warehouseCode: WarehouseCode,
 ) {
-  if (!canRequestDomainForUser(user, domainCode)) {
-    throw new PermissionError(`Cannot request ${domainCode} assets.`);
+  if (!canRequestWarehouseForUser(user, warehouseCode)) {
+    throw new PermissionError(`Cannot request ${warehouseCode} assets.`);
   }
 }
 
 export function assertCanDeleteAssets(
   user: PermissionUser,
-  domainCode: DomainCode,
+  warehouseCode: WarehouseCode,
 ) {
-  if (!canDeleteAssetsForUser(user, domainCode)) {
-    throw new PermissionError(`Cannot delete ${domainCode} assets.`);
+  if (!canDeleteAssetsForUser(user, warehouseCode)) {
+    throw new PermissionError(`Cannot delete ${warehouseCode} assets.`);
   }
 }
 
 export function assertCanChangeAssetStatus(
   user: PermissionUser,
-  domainCode: DomainCode,
+  warehouseCode: WarehouseCode,
 ) {
-  if (!canChangeAssetStatusForUser(user, domainCode)) {
-    throw new PermissionError(`Cannot change ${domainCode} asset status.`);
+  if (!canChangeAssetStatusForUser(user, warehouseCode)) {
+    throw new PermissionError(`Cannot change ${warehouseCode} asset status.`);
   }
 }
 
-export function canViewDomain(
-  permissions: DomainPermission[],
-  domainCode: DomainCode,
+export function canViewWarehouse(
+  permissions: WarehousePermission[],
+  warehouseCode: WarehouseCode,
 ) {
   return permissions.some(
     (permission) =>
-      permission.domainCode === domainCode &&
+      permission.warehouseCode === warehouseCode &&
       (permission.canView || permission.canManage),
   );
 }

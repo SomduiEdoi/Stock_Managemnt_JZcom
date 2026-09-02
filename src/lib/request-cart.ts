@@ -1,7 +1,7 @@
 ﻿import { AssetStatus, Prisma } from "@prisma/client";
 import { getAvailabilityByAssetId } from "@/lib/asset-availability";
 import type { CurrentUser } from "@/lib/auth";
-import { getVisibleDomainCodesForUser } from "@/lib/assets";
+import { getVisibleWarehouseCodesForUser } from "@/lib/assets";
 import { db } from "@/lib/db";
 import { canRequestAssetsForUser } from "@/lib/permissions";
 
@@ -15,7 +15,7 @@ const requestCartAssetSelect = Prisma.validator<Prisma.AssetSelect>()({
   serialNo: true,
   status: true,
   stockCode: true,
-  domain: { select: { code: true, inventoryFamily: true, name: true } },
+  warehouse: { select: { code: true, inventoryFamily: true, name: true } },
   location: { select: { name: true } },
   assetModel: {
     select: {
@@ -64,12 +64,12 @@ export async function getRequestCartForUser(user: CurrentUser) {
     return { canRequest: false as const };
   }
 
-  const visibleDomainCodes = await getVisibleDomainCodesForUser(user);
+  const visibleWarehouseCodes = await getVisibleWarehouseCodesForUser(user);
   const serialAssets = await db.asset.findMany({
     orderBy: [{ requestLockedAt: "desc" }, { serialNo: "asc" }],
     select: requestCartAssetSelect,
     where: {
-      domain: { code: { in: visibleDomainCodes } },
+      warehouse: { code: { in: visibleWarehouseCodes } },
       isActive: true,
       requestLockedById: user.id,
       status: AssetStatus.REQUEST,
@@ -82,7 +82,7 @@ export async function getRequestCartForUser(user: CurrentUser) {
     },
     where: {
       asset: {
-        domain: { code: { in: visibleDomainCodes } },
+        warehouse: { code: { in: visibleWarehouseCodes } },
         isActive: true,
       },
       userId: user.id,

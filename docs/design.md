@@ -1,278 +1,234 @@
-# Design: Asset Flow Management System
+# Design: Warehouse Management
 
-อัปเดตล่าสุด: 2026-07-22
+อัปเดตล่าสุด: 2026-09-02
 
-## 1. Architecture Baseline
+## 1. Architecture
 
-- Frontend/Backend: Next.js full-stack monolith
-- Language: TypeScript
+- Full-stack: Next.js และ TypeScript
 - Database: PostgreSQL
 - ORM: Prisma
-- Styling: Tailwind CSS
-- Auth: login/session แบบเดิมไปก่อน
-- Source of truth หลัง migration: PostgreSQL
-- CSV/SharePoint: ใช้เฉพาะ import/bootstrap data
+- UI: React และ Tailwind CSS
+- Authentication: login/session แบบปัจจุบัน
+- CSV: ใช้เป็น master data; runtime ใช้ PostgreSQL
 
-## 2. Current Implementation Snapshot
+## 2. Core Data Model
 
-ระบบจริงตอนนี้ขยับจาก MVP เดิมไปแล้วหลายส่วน:
-
-- Branding ฝั่งเอกสารใช้ Asset Flow Management System แล้ว แต่ UI บางจุดยังต้องไล่เปลี่ยนจากชื่อเดิม
-- Role หลักเหลือ `ADMIN`, `STOCK_CONTROLLER`, `USER`
-- User schema/UI มี `organizationLevel`, `organizationTag`, `projectTag`, `stockControllerTag`
-- Profile page ถูกทำให้เรียบขึ้นและยังรองรับ signature upload
-- User Management รองรับ Stock Controller tag และ domain permission
-- Inventory รองรับ Brand filter, sort, availability และ quantity request
-- Request cart รองรับ SERIAL lock และ QUANTITY reservation
-- Transaction submit สร้าง `workflowStatus = PENDING`, transaction items และ approval steps แล้ว
-- Approval/reject/edit pending request เริ่มใช้งานจริง
-- Transaction PDF endpoint มีแล้ว
-- Transaction Log เพิ่ม Return Date และมี Approve tab
-- Return flow รองรับ return เป็น `READY` และ return-to-sold ผ่าน SOLD approval transaction
-- Project page มี UI แล้ว แต่ยังเป็น local mock state ไม่ใช่ database-backed feature
-
-## 3. Data Model Mapping
-
-| Concept | Current Prisma model/table | สถานะ |
+| Concept | Prisma Model | Database Table |
 | --- | --- | --- |
-| User | `User` -> `users` | implemented |
-| Role | `Role`, `UserRole` | implemented แม้ business role หลักเหลือ 3 แบบ |
-| Domain | `AssetDomain` -> `asset_domains` | implemented |
-| Category | `AssetCategory` -> `asset_categories` | implemented |
-| Type | `AssetType` -> `asset_types` | implemented มี `trackMethod` |
-| Asset | `Asset` -> `assets` | implemented |
-| Quantity Reservation | `AssetReservation` -> `asset_reservations` | implemented |
-| Transaction | `Transaction` -> `transactions` | implemented |
-| Transaction Item | `TransactionItem` -> `transaction_items` | implemented |
-| Approval | `TransactionApproval` -> `transaction_approvals` | implemented and used |
-| Asset Status History | `AssetStatusHistory` -> `asset_status_histories` | implemented |
-| Project | migration มี `projects` แต่ `schema.prisma` ปัจจุบันยังไม่มี model | schema mismatch / pending |
-| Project Member | migration มี `project_members` แต่ `schema.prisma` ปัจจุบันยังไม่มี model | schema mismatch / pending |
+| User/Role | `User`, `Role`, `UserRole` | `users`, `roles`, `user_roles` |
+| Organization Assignment | target: `UserOrganizationAssignment` | target: `user_organization_assignments` |
+| Warehouse | `AssetWarehouse` | `asset_warehouses` |
+| Warehouse Permission | `UserWarehousePermission` | `user_warehouse_permissions` |
+| Category/Type/Model | `AssetCategory`, `AssetType`, `AssetModel` | asset master tables |
+| Custom Field | `AssetCategoryCustomField`, `AssetCustomFieldValue` | custom field tables |
+| Asset | `Asset` | `assets` |
+| Reservation | `AssetReservation` | `asset_reservations` |
+| Project | `Project`, `ProjectMember` | `projects`, `project_members` |
+| Transaction | `Transaction`, `TransactionItem` | `transactions`, `transaction_items` |
+| Approval | `TransactionApproval` | `transaction_approvals` |
+| Status History | `AssetStatusHistory` | `asset_status_histories` |
+| CSV Migration | `MigrationBatch`, `MigrationRow` | migration audit tables |
 
-### Schema Risk
+Transaction มี self-relation ผ่าน `sourceTransactionId` เพื่อเชื่อม Source Transaction กับ Derived Return/Sold Transaction
 
-มี migration `20260706090000_backend_foundation` ที่สร้าง `projects`, `project_members` และ `project_id` แต่ `schema.prisma` ปัจจุบันยังไม่มี `Project`, `ProjectMember` หรือ `Transaction.projectId` ดังนั้น Project page ตอนนี้จึงไม่ควรถูกนับเป็น source of truth จนกว่าจะ reconcile schema/migration ให้ตรงกัน
+ปัจจุบัน `User` ยังเก็บ `organizationLevel` และ `organizationTag` เป็นค่าเดียว ส่วน target model ต้องย้ายไปใช้ `UserOrganizationAssignment[]` เพื่อรองรับหลายตำแหน่งต่อ User
 
-## 4. Domain Design
+Target model:
 
-คำว่า domain คือคำหลักสำหรับคลัง/กลุ่ม asset ทั้งหมด
+```prisma
+model UserOrganizationAssignment {
+  id              String            @id @default(uuid()) @db.Uuid
+  userId          String            @map("user_id") @db.Uuid
+  organizationTag OrganizationTag   @map("organization_tag")
+  level           OrganizationLevel @map("organization_level")
+  isPrimary       Boolean           @default(false) @map("is_primary")
+  isActive        Boolean           @default(true) @map("is_active")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-Implemented:
+  @@unique([userId, organizationTag])
+  @@index([organizationTag, isActive])
+  @@map("user_organization_assignments")
+}
+```
 
-- `AssetDomain` มี `code`, `name`, `prefix`, `inventoryFamily`
-- Domain ใช้แยก Server/Network และรองรับ domain อื่นในอนาคต
-- Stock Controller permission ผูกกับ domain ผ่าน `user_domain_permissions`
-- Dynamic domain page มีอยู่แล้ว
-- Admin/Stock Controller สามารถจัดการ category/type ตามสิทธิ์ domain ได้บางส่วน
+Database ต้องบังคับให้ User มี primary assignment ที่ active ได้ไม่เกินหนึ่งรายการ และ migration ต้องย้ายค่าเดิมจาก `users.organization_level`/`users.organization_tag` ไปเป็น assignment แรก
 
-Technical debt:
+## 3. Warehouse Design
 
-- `src/lib/permissions.ts` ยังมี `domainCodes = ["SERVER", "NETWORK"]`
-- Sidebar ยังมีทางลัดเฉพาะ Server/Network ซึ่งทำได้ แต่ helper หลักควร data-driven
-- Import script ยังผูกกับ CSV Server/Network ซึ่งยอมรับได้สำหรับ initial migration
+- Warehouse มี `code`, `name`, `prefix`, `inventoryFamily`, Head Stock Controller และ active state
+- Server/Network มี dedicated page ได้ แต่ dynamic route คือ `/dashboard/inventory/[warehouseCode]`
+- Sidebar, permission, category/type และ inventory query อ่าน Warehouse จาก PostgreSQL
+- Stock Controller permission แยก `canView` และ `canManage`
+- Warehouse ที่ยังมี active asset ห้ามลบ
+- Migration `20260902090000_warehouse_and_transaction_status_cleanup` เปลี่ยน table/column/index เดิมจาก Domain เป็น Warehouse
 
-## 5. Asset Design
+## 4. Asset and Inventory Design
 
 ### SERIAL
 
-- ใช้ `serialNo`
-- `assetQuantity` ควรเป็น 1
-- Request แล้ว set status เป็น `REQUEST` และ lock ด้วย `requestLockedById`
-- Submit แล้ว asset ยังถูก lock ระหว่าง approval
-- Approve ครบแล้วจึงเปลี่ยนเป็น `BORROW`, `USING`, หรือ `SOLD`
+- ใช้ serial number, quantity เท่ากับ 1
+- Draft request เปลี่ยน status เป็น `REQUEST` และบันทึก lock owner/time
+- Approval ครบจึงเปลี่ยนเป็น `BORROW`, `USING` หรือ `SOLD`
 
 ### QUANTITY
 
-- ใช้ `assetQuantity`
-- ไม่ต้องใช้ serial number
-- Request ใช้ `AssetReservation.quantity`
-- Submit ใช้ `TransactionItem.requestedQuantity`
-- Availability คำนวณจาก total quantity ลบ reservation และ open transaction
-- Asset table แสดง availability เพื่อให้รู้ว่ายัง request ได้เท่าไร
+- ใช้ `assetQuantity` และไม่บังคับ serial number
+- Draft cart ใช้ `AssetReservation.quantity`
+- Submit ย้ายจำนวนไป `TransactionItem.requestedQuantity`
+- Availability หัก draft reservation และ open `PENDING`/`IN_PROGRESS` transaction items
 
-## 6. Transaction and Approval Design
+Inventory รองรับ search, pagination, sort และ filter Brand, Category, Type, Status รวมถึง custom field ที่กำหนดให้ searchable/filterable
 
-### Submit Flow ปัจจุบัน
+## 5. Transaction State Design
 
-1. User มี item อยู่ใน request cart
-2. `submitTransaction` ตรวจ hold/reservation และ normalize quantity
-3. ระบบสร้าง transaction no ด้วย `createMonthlyRequisitionNo`
-4. ระบบสร้าง `transactions`, `transaction_items`, `transaction_approvals`
-5. Transaction อยู่ที่ `workflowStatus = PENDING`
-6. Asset/quantity ยังอยู่ในสถานะ lock/reserve
+| Type | Business Status หลังอนุมัติ | สถานะเมื่อคืน |
+| --- | --- | --- |
+| `BORROW` | `BORROWED` | `RETURNED` |
+| `USING` | `USING` | `RETURNED` |
+| `SOLD` | `COMPLETED` | ไม่คืน |
 
-### Approval Step Generation
+Workflow:
 
-ลำดับ step ใน code ปัจจุบัน:
+- `PENDING`: รอ approval
+- `IN_PROGRESS`: approval ครบและ Borrow/Using ยังไม่คืนครบ
+- `REJECTED`: ถูกปฏิเสธ
+- `COMPLETED`: Sold สำเร็จหรือ Borrow/Using คืนครบ
 
-1. Business approver
-   - `STAFF` -> supervisor ของทีมตัวเอง
-   - `SUPERVISOR` -> manager ของฝ่าย
-   - manager/executive skip
-2. Project approver
-   - ถ้าเป็น project request และ requester เป็น `TEAM_MEMBER` -> `LEAD_PROJECT`
-3. Stock Controller per domain
-   - required tag: `STOCK_CONTROLLER:<domainCode>`
-4. Head Stock Controller per domain
-   - required tag: `HEAD_STOCK_CONTROLLER:<domainCode>`
-5. BSD Staff
-   - required tag: `BSD_STAFF`
-6. BSD Manager
-   - required tag: `BSD_MANAGER`
+## 6. Submit and Approval Design
 
-Approval หลาย domain ใน step เดียวกันเป็น parallel approval
+1. ตรวจ Project, hold/reservation, quantity และ item availability
+2. สร้าง `REQ-YYYYMMDD-XX`, Transaction และ Transaction Items
+3. สร้าง approval candidates ตามบริบท
+4. เก็บ transaction เป็น `PENDING` และคง lock/reservation
 
-### Approve
+Approval sequence:
 
-- Approver ทำได้เฉพาะ current step
-- ระบบตรวจด้วย `approvalMatchesUser`
-- ถ้าเป็น SOLD และ current approver เป็น `BSD_STAFF` ต้องกรอก sold price
-- เมื่อ approval ทั้งหมดผ่าน:
-  - `BORROW` / `USING` -> `workflowStatus = IN_PROGRESS`
-  - `SOLD` -> `workflowStatus = COMPLETED`
-  - Asset status และ quantity จะถูก apply ตอนนี้
+1. Organization approver: Staff ไป Supervisor หรือ Supervisor ไป Manager
+2. Project approver: Team Member ไป Lead Project เมื่อเป็น Project request
+3. `STOCK_CONTROLLER:<WAREHOUSE_CODE>` ของทุก Warehouse
+4. `HEAD_STOCK_CONTROLLER:<WAREHOUSE_CODE>` ของทุก Warehouse
+5. `BSD_STAFF`
+6. `BSD_MANAGER`
 
-### Reject
+Approval ใน sequence เดียวกันทำแบบ parallel และต้องผ่านครบก่อนเลื่อนไป sequence ถัดไป ผู้อนุมัติต้องมี signature; ระบบเก็บชื่อ, tag และ signature snapshot
 
-- Reject ต้องมี reason
-- Transaction เป็น `REJECTED` และถือว่าจบ workflow
-- Serial asset ถูก release กลับ `READY`
-- Quantity reservation ถูก release
+Target organization routing ต้องค้นจาก Organization Assignments ที่ active ทั้งหมด ไม่อ่าน tag เดียวจาก User หาก requester มีหลาย assignment ต้องใช้ primary assignment เป็นค่าเริ่มต้นและให้เลือก request context เมื่อมีมากกว่าหนึ่งสายงานที่ใช้งานได้
 
-### Edit Pending Request
+หาก assigned approver ของ sequence ปัจจุบันและ sequence ถัดไปเป็น User คนเดียวกัน ระบบให้กดครั้งเดียว แล้ว auto-approve step ถัดไปที่เป็นบุคคลเดียวกัน โดยสร้าง `TransactionApproval` แยกทุก required tag และบันทึกแหล่งที่มาว่า manual หรือ auto-approved เพื่อรักษา audit trail
 
-- Requester แก้ไขได้เฉพาะ transaction ที่ยัง `PENDING`
-- ถ้ามี approval ใดถูก approve แล้ว จะ edit ไม่ได้
-- Edit สามารถเปลี่ยน purpose/detail/items/quantity และ rebuild approval steps
+Project approval ใช้ dynamic assignee:
 
-## 7. Return and Close Design
+- เมื่อแก้ Lead Project ให้ transaction ของ Project ที่ยัง `PENDING` sync pending Project Approval ภายใน database transaction เดียวกับการแก้ Project
+- ยกเลิก pending assignment ของ Lead ที่ถูกถอดและสร้าง assignment ให้ Lead ปัจจุบันทันที
+- Approval Queue และ authorization ต้อง query assignment ล่าสุด เพื่อให้ Lead เดิมหมดสิทธิ์ทันที
+- Lead Project ทุกคนอยู่ใน approval sequence เดียวกันและใช้เงื่อนไข all-required
+- Approval ที่สำเร็จแล้วเก็บ snapshot เดิมและไม่ถูกลบ
+- ถ้า sequence ยังไม่ครบ การเพิ่ม Lead ใหม่จะเพิ่ม pending approval ที่ต้องผ่าน
+- ถ้า Project sequence เสร็จและ workflow เลื่อนไปแล้ว ห้าม reopen จากการเปลี่ยน Lead
+- ควรมี Project Lead Change History หรือ audit event เก็บ old/new lead, actor และ timestamp
 
-Implemented:
+เมื่ออนุมัติครบ:
 
-- Return ทำได้เฉพาะ transaction `BORROW`/`USING` ที่ `workflowStatus = IN_PROGRESS`
-- Return เป็นราย item ได้
-- Outcome ปัจจุบันรองรับ `READY` และ `SOLD`
-- Return to `READY` update asset/quantity ทันที
-- Return to `SOLD` สร้าง SOLD approval transaction ใหม่
-- ถ้า sold flow ถึง `BSD_STAFF` ต้องกรอกราคาขาย
-- Transaction หลักจะ completed เมื่อทุก item resolved แล้ว
+- Borrow -> business `BORROWED`, workflow `IN_PROGRESS`, asset `BORROW`
+- Using -> business `USING`, workflow `IN_PROGRESS`, asset `USING`
+- Sold -> business/workflow `COMPLETED`, asset `SOLD`
 
-Pending/Target:
+SOLD บังคับราคาเมื่อ current step เป็น `BSD_STAFF`
 
-- Return outcome ยังควรรองรับ `FAIL`, `LOST`, `NEED_CHECK`
-- Return/close ทุกกรณีควรมี approval chain ที่สรุปด้วย BSD ตาม business rule
-- ต้องยืนยันว่าการ return to ready ต้องผ่าน BSD หรือ apply ทันทีแบบปัจจุบัน
+## 7. Reject and Edit Design
 
-## 8. API Surface
+- Reject ต้องมี comment
+- Normal request ที่ reject จะ release Serial lock หรือ Quantity reservation
+- Derived Return/Sold ที่ reject บันทึกผลการปฏิเสธโดยไม่ release Source Transaction
+- Requester แก้ `PENDING` หรือ `REJECTED` ได้เมื่อยังไม่มี approval สำเร็จ
+- การแก้ item/quantity จะตรวจ availability ใหม่และ rebuild approval steps
 
-Implemented endpoints ที่เกี่ยวข้อง:
+## 8. Return Design
+
+- Return ใช้ได้กับ Borrow/Using ที่เป็น `IN_PROGRESS`
+- Requester หรือ Admin เลือก item ที่ยังไม่ถูก resolve
+- `READY` สร้าง Derived Return Transaction: business `RETURNED`, workflow `PENDING`
+- `SOLD` สร้าง Derived Sold Transaction: business `COMPLETED`, workflow `PENDING`
+- Derived transaction ใช้ approval chain เต็ม รวม controller ทุก Warehouse, BSD Staff และ BSD Manager
+- เมื่อ Return ได้รับอนุมัติ ระบบคืน asset/quantity เป็น `READY`, บันทึก returned fields/history และ refresh Source Transaction
+- เมื่อ Sold ได้รับอนุมัติ ระบบเปลี่ยน asset/quantity เป็น `SOLD`
+- Source Transaction เป็น `COMPLETED` เมื่อทุก item resolve ครบ
+- UI/API ปัจจุบันยังไม่รวม outcome `FAIL`, `LOST`, `NEED_CHECK`
+
+## 9. API Surface
 
 ```text
 POST   /api/auth/login
 POST   /api/auth/logout
 GET    /api/auth/me
 
-POST   /api/domains
-GET    /api/domains/:code
-PATCH  /api/domains/:code
-GET    /api/domains/:code/categories
-PATCH  /api/domains/:code/categories
+GET/POST             /api/warehouses
+GET/PATCH/DELETE     /api/warehouses/:code
+GET/PATCH            /api/warehouses/:code/categories
 
-POST   /api/assets
-PATCH  /api/assets/:id
-DELETE /api/assets/:id
-PATCH  /api/assets/:id/status
+POST                 /api/assets
+GET/PATCH/DELETE     /api/assets/:id
+PATCH                /api/assets/:id/status
 
-POST   /api/requests/hold
-POST   /api/requests/release
+POST                 /api/requests/hold
+POST                 /api/requests/release
 
-POST   /api/transactions
-GET    /api/transactions/:id
-PATCH  /api/transactions/:id
-POST   /api/transactions/:id/approve
-POST   /api/transactions/:id/reject
-POST   /api/transactions/:id/return
-POST   /api/transactions/:id/items/:itemId/return
-GET    /api/transactions/:id/pdf
+POST                 /api/transactions
+GET/PATCH             /api/transactions/:id
+POST                 /api/transactions/:id/approve
+POST                 /api/transactions/:id/reject
+POST                 /api/transactions/:id/return
+POST                 /api/transactions/:id/items/:itemId/return
+GET                  /api/transactions/:id/pdf
 
-POST   /api/users
-PATCH  /api/users/:id
-DELETE /api/users/:id
-PATCH  /api/users/:id/status
-PATCH  /api/users/:id/assignment
+GET/POST             /api/projects
+PATCH/DELETE         /api/projects/:id
+
+GET/POST             /api/users
+PATCH/DELETE         /api/users/:id
+PATCH                /api/users/:id/status
+PATCH                /api/users/:id/assignment
 ```
 
-Pending endpoints:
+Pending:
 
-```text
-GET/POST/PATCH /api/projects
-GET/POST/PATCH /api/projects/:id/members
-POST /api/transactions/:id/cancel
-GET /api/assets/:id/pdf
-```
+- `POST /api/transactions/:id/cancel`
+- Asset Detail PDF endpoint/integration
 
-## 9. UI Design Status
+## 10. UI Status
 
-Implemented / Mostly implemented:
+Implemented or mostly implemented:
 
-- Dashboard
-- Server Inventory
-- Network Inventory
-- Dynamic Domain Inventory
-- Brand filter
-- Sortable inventory table
-- Quantity request modal/input
-- Request Cart
-- Transaction Log with Return Date
-- Approval Queue tab
-- Transaction detail approve/reject/edit/return
-- User Management with Stock Controller tag
-- Profile cleanup/signature
-- Asset detail with status history
-- Project page UI
+- Dashboard, Profile/Signature และ User Management
+- Server, Network และ Dynamic Warehouse Inventory
+- Asset create/edit/detail, custom fields และ status history
+- Request Cart, Transaction Log, Approval Queue และ Return page
+- Project Management ที่ใช้ PostgreSQL
+- Transaction PDF
 
-Partial / Pending:
+Partial:
 
-- Project persistence/API/schema
-- Asset detail PDF export button + API
-- Full return approval workflow
-- Return outcomes `FAIL`/`LOST`/`NEED_CHECK`
-- Cleanup legacy status ที่ไม่อยู่ใน requirement แล้ว
-- Complete dynamic domain replacement for hardcoded Server/Network helpers
-- Complete UI branding ให้เป็น Asset Flow ทุกจุด
+- Organization Assignment แบบหลายตำแหน่งยังไม่ได้เพิ่มใน Prisma/API/UI
+- Asset Detail PDF ยังไม่เชื่อมเข้าหน้าจอ
+- Return outcome Fail/Lost/Need Check ยังไม่อยู่ใน Return workflow
+- PDF เอกสารทางการยังรอ template
 
-## 10. Status Cleanup
+## 11. Verification Strategy
 
-Requirement ล่าสุดตัดสถานะเกินกำหนดคืนออกจากระบบแล้ว
+- Prisma format/generate/validate และ migration review
+- Typecheck, lint และ unit tests
+- Approval routing tests สำหรับ assigned controller, multi-Warehouse, BSD sequence
+- Organization assignment tests สำหรับหลายตำแหน่ง, primary assignment และ approver คนเดียวกันหลาย sequence
+- Project lead reassignment tests สำหรับ pending transfer, all-leads-required, partial approval และ completed sequence
+- Quantity tests สำหรับ over-request, edit/reject release และ partial return
+- Derived Return/Sold tests รวม duplicate prevention และ Source Transaction completion
+- Regression search ต้องไม่พบ Overdue หรือ runtime Domain naming
 
-Cleanup ที่ควรทำ:
+## 12. UI Palette
 
-- ตรวจ enum/schema/code ที่ยังมีสถานะ legacy นี้อยู่
-- เอา filter/badge/test ที่เกี่ยวข้องกับสถานะนี้ออกหรือไม่ให้แสดงใน UI
-- เก็บ `dueDate`/`returnDate` เป็นข้อมูล transaction/report ได้ แต่ไม่สร้าง business status ใหม่จากวันที่
-
-## 11. Test Strategy
-
-ควรเพิ่ม/คง test สำหรับ:
-
-- Monthly requisition no reset
-- SERIAL request lock/release
-- QUANTITY reservation/availability
-- Multi-domain approval step generation
-- Stock Controller และ Head Stock Controller permission
-- BSD sold price approval
-- Reject request release lock/reservation
-- Edit pending request only before approval
-- Return to ready และ return to sold
-- Transaction log visibility/filter/return date
-- Dynamic domain ไม่ hardcode Server/Network ในจุดสำคัญ
-- Prisma schema/migration consistency สำหรับ Project
-
-## 12. UI Color Palette Requirement
-
-The system UI must use the approved core palette only for product-level surfaces, navigation, breadcrumbs, buttons, active states, borders, and non-status emphasis:
-
-- Brand accent / active / hover: `#FE7743`
-- Surface / page background: `#EFEEEA`
-- Primary navy / headings / navigation: `#273F4F`
-- Ink / high contrast text: `#000000`
+- Brand accent: `#FE7743`
+- Surface: `#EFEEEA`
+- Primary navy: `#273F4F`
+- High-contrast text: `#000000`

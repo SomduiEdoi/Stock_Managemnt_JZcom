@@ -56,8 +56,8 @@ export function NetworkInventoryControls(props: NetworkInventoryControlsProps) {
     <ServerInventoryControls
       {...props}
       baseHref="/dashboard/network"
-      domainCode="NETWORK"
-      domainLabel="Network"
+      warehouseCode="NETWORK"
+      warehouseLabel="Network"
     />
   );
 }

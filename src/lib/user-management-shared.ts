@@ -18,10 +18,10 @@ export type UserManagementFilters = {
 };
 
 export type UserManagementRow = {
-  domainPermissions: Array<{
+  warehousePermissions: Array<{
     canManage: boolean;
     canView: boolean;
-    domain: {
+    warehouse: {
       code: string;
       id: string;
       name: string;
@@ -48,7 +48,7 @@ export type UserManagementMetrics = {
   total: number;
 };
 
-export type DomainOption = {
+export type WarehouseOption = {
   code: string;
   id: string;
   name: string;

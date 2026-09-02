@@ -63,7 +63,7 @@ function resolveTitle(pathname: string) {
     return "Project Management";
   }
 
-  return "Stock Management";
+  return "Warehouse Management";
 }
 
 export function AppShellTitle({ title }: AppShellTitleProps) {

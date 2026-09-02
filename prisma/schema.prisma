@@ -97,14 +97,12 @@ enum TransactionType {
 enum TransactionStatus {
   BORROWED
   RETURNED
-  OVERDUE
-  ACTIVE
+  USING
   COMPLETED
 }
 
 enum TransactionWorkflowStatus {
   PENDING
-  APPROVED
   REJECTED
   IN_PROGRESS
   COMPLETED
@@ -140,40 +138,40 @@ enum MigrationRowStatus {
 }
 
 model User {
-  id                       String                 @id @default(uuid()) @db.Uuid
+  id                       String                    @id @default(uuid()) @db.Uuid
   name                     String
-  email                    String                 @unique
-  passwordHash             String?                @map("password_hash")
-  azureAdObjectId          String?                @unique @map("azure_ad_object_id")
+  email                    String                    @unique
+  passwordHash             String?                   @map("password_hash")
+  azureAdObjectId          String?                   @unique @map("azure_ad_object_id")
   position                 String?
-  organizationLevel        OrganizationLevel?     @map("organization_level")
-  organizationTag          OrganizationTag?       @map("organization_tag")
-  projectTag               ProjectTag?            @map("project_tag")
-  stockControllerTag       StockControllerTag?    @map("stock_controller_tag")
-  signatureDataUrl         String?                @map("signature_data_url")
-  signatureUploadedAt      DateTime?              @map("signature_uploaded_at")
-  signatureUploadedById    String?                @map("signature_uploaded_by") @db.Uuid
-  lastLoginAt              DateTime?              @map("last_login_at")
-  isActive                 Boolean                @default(true) @map("is_active")
-  createdAt                DateTime               @default(now()) @map("created_at")
-  updatedAt                DateTime               @updatedAt @map("updated_at")
+  organizationLevel        OrganizationLevel?        @map("organization_level")
+  organizationTag          OrganizationTag?          @map("organization_tag")
+  projectTag               ProjectTag?               @map("project_tag")
+  stockControllerTag       StockControllerTag?       @map("stock_controller_tag")
+  signatureDataUrl         String?                   @map("signature_data_url")
+  signatureUploadedAt      DateTime?                 @map("signature_uploaded_at")
+  signatureUploadedById    String?                   @map("signature_uploaded_by") @db.Uuid
+  lastLoginAt              DateTime?                 @map("last_login_at")
+  isActive                 Boolean                   @default(true) @map("is_active")
+  createdAt                DateTime                  @default(now()) @map("created_at")
+  updatedAt                DateTime                  @updatedAt @map("updated_at")
   roles                    UserRole[]
-  signatureUploadedBy      User?                  @relation("UserSignatureUploadedBy", fields: [signatureUploadedById], references: [id], onDelete: SetNull)
-  uploadedSignatures       User[]                 @relation("UserSignatureUploadedBy")
-  domainPermissions        UserDomainPermission[]
-  requestLockedAssets      Asset[]                @relation("AssetRequestLockedBy")
-  createdAssets            Asset[]                @relation("AssetCreatedBy")
-  updatedAssets            Asset[]                @relation("AssetUpdatedBy")
+  signatureUploadedBy      User?                     @relation("UserSignatureUploadedBy", fields: [signatureUploadedById], references: [id], onDelete: SetNull)
+  uploadedSignatures       User[]                    @relation("UserSignatureUploadedBy")
+  warehousePermissions     UserWarehousePermission[]
+  requestLockedAssets      Asset[]                   @relation("AssetRequestLockedBy")
+  createdAssets            Asset[]                   @relation("AssetCreatedBy")
+  updatedAssets            Asset[]                   @relation("AssetUpdatedBy")
   statusHistories          AssetStatusHistory[]
-  requestedTransactions    Transaction[]          @relation("TransactionRequestedBy")
-  createdTransactions      Transaction[]          @relation("TransactionCreatedBy")
-  returnedTransactionItems TransactionItem[]      @relation("TransactionItemReturnedBy")
+  requestedTransactions    Transaction[]             @relation("TransactionRequestedBy")
+  createdTransactions      Transaction[]             @relation("TransactionCreatedBy")
+  returnedTransactionItems TransactionItem[]         @relation("TransactionItemReturnedBy")
   assetReservations        AssetReservation[]
   migrationBatches         MigrationBatch[]
   approvals                TransactionApproval[]
-  ledProjects              Project[]              @relation("ProjectLeadUser")
+  ledProjects              Project[]                 @relation("ProjectLeadUser")
   projectMemberships       ProjectMember[]
-  headControlledDomains    AssetDomain[]          @relation("AssetDomainHeadStockController")
+  headControlledWarehouses AssetWarehouse[]          @relation("AssetWarehouseHeadStockController")
 
   @@map("users")
 }
@@ -201,58 +199,58 @@ model UserRole {
   @@map("user_roles")
 }
 
-model AssetDomain {
-  id                    String                 @id @default(uuid()) @db.Uuid
-  code                  String                 @unique
-  prefix                String                 @unique @map("domain_prefix")
+model AssetWarehouse {
+  id                    String                    @id @default(uuid()) @db.Uuid
+  code                  String                    @unique
+  prefix                String                    @unique @map("warehouse_prefix")
   name                  String
-  inventoryFamily       AssetTrackMethod       @default(SERIAL) @map("inventory_family")
+  inventoryFamily       AssetTrackMethod          @default(SERIAL) @map("inventory_family")
   description           String?
-  isActive              Boolean                @default(true) @map("is_active")
-  createdAt             DateTime               @default(now()) @map("created_at")
-  updatedAt             DateTime               @updatedAt @map("updated_at")
-  headStockControllerId String?                @map("head_stock_controller_id") @db.Uuid
-  headStockController   User?                  @relation("AssetDomainHeadStockController", fields: [headStockControllerId], references: [id], onDelete: SetNull)
-  permissions           UserDomainPermission[]
+  isActive              Boolean                   @default(true) @map("is_active")
+  createdAt             DateTime                  @default(now()) @map("created_at")
+  updatedAt             DateTime                  @updatedAt @map("updated_at")
+  headStockControllerId String?                   @map("head_stock_controller_id") @db.Uuid
+  headStockController   User?                     @relation("AssetWarehouseHeadStockController", fields: [headStockControllerId], references: [id], onDelete: SetNull)
+  permissions           UserWarehousePermission[]
   categories            AssetCategory[]
   models                AssetModel[]
   assets                Asset[]
 
   @@index([headStockControllerId])
-  @@map("asset_domains")
+  @@map("asset_warehouses")
 }
 
-model UserDomainPermission {
-  id        String      @id @default(uuid()) @db.Uuid
-  userId    String      @map("user_id") @db.Uuid
-  domainId  String      @map("domain_id") @db.Uuid
-  canView   Boolean     @default(true) @map("can_view")
-  canManage Boolean     @default(false) @map("can_manage")
-  createdAt DateTime    @default(now()) @map("created_at")
-  updatedAt DateTime    @updatedAt @map("updated_at")
-  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  domain    AssetDomain @relation(fields: [domainId], references: [id], onDelete: Cascade)
+model UserWarehousePermission {
+  id          String         @id @default(uuid()) @db.Uuid
+  userId      String         @map("user_id") @db.Uuid
+  warehouseId String         @map("warehouse_id") @db.Uuid
+  canView     Boolean        @default(true) @map("can_view")
+  canManage   Boolean        @default(false) @map("can_manage")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  warehouse   AssetWarehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, domainId])
-  @@index([domainId])
-  @@map("user_domain_permissions")
+  @@unique([userId, warehouseId])
+  @@index([warehouseId])
+  @@map("user_warehouse_permissions")
 }
 
 model AssetCategory {
   id           String                     @id @default(uuid()) @db.Uuid
-  domainId     String                     @map("domain_id") @db.Uuid
+  warehouseId  String                     @map("warehouse_id") @db.Uuid
   name         String
   description  String?
   isActive     Boolean                    @default(true) @map("is_active")
   createdAt    DateTime                   @default(now()) @map("created_at")
   updatedAt    DateTime                   @updatedAt @map("updated_at")
-  domain       AssetDomain                @relation(fields: [domainId], references: [id])
+  warehouse    AssetWarehouse             @relation(fields: [warehouseId], references: [id])
   models       AssetModel[]
   types        AssetType[]
   customFields AssetCategoryCustomField[]
 
-  @@unique([domainId, name])
-  @@index([domainId])
+  @@unique([warehouseId, name])
+  @@index([warehouseId])
   @@map("asset_categories")
 }
 
@@ -316,7 +314,7 @@ model AssetCustomFieldValue {
 
 model AssetModel {
   id          String         @id @default(uuid()) @db.Uuid
-  domainId    String         @map("domain_id") @db.Uuid
+  warehouseId String         @map("warehouse_id") @db.Uuid
   categoryId  String?        @map("category_id") @db.Uuid
   assetTypeId String?        @map("asset_type_id") @db.Uuid
   name        String
@@ -328,12 +326,12 @@ model AssetModel {
   isActive    Boolean        @default(true) @map("is_active")
   createdAt   DateTime       @default(now()) @map("created_at")
   updatedAt   DateTime       @updatedAt @map("updated_at")
-  domain      AssetDomain    @relation(fields: [domainId], references: [id])
+  warehouse   AssetWarehouse @relation(fields: [warehouseId], references: [id])
   category    AssetCategory? @relation(fields: [categoryId], references: [id])
   assetType   AssetType?     @relation(fields: [assetTypeId], references: [id])
   assets      Asset[]
 
-  @@index([domainId])
+  @@index([warehouseId])
   @@index([categoryId])
   @@index([assetTypeId])
   @@index([name])
@@ -390,7 +388,7 @@ model Location {
 model Asset {
   id                String                  @id @default(uuid()) @db.Uuid
   assetModelId      String                  @map("asset_model_id") @db.Uuid
-  domainId          String                  @map("domain_id") @db.Uuid
+  warehouseId       String                  @map("warehouse_id") @db.Uuid
   locationId        String?                 @map("location_id") @db.Uuid
   serialNo          String?                 @unique @map("serial_no")
   assetNo           String?                 @map("asset_no")
@@ -413,7 +411,7 @@ model Asset {
   createdAt         DateTime                @default(now()) @map("created_at")
   updatedAt         DateTime                @updatedAt @map("updated_at")
   assetModel        AssetModel              @relation(fields: [assetModelId], references: [id])
-  domain            AssetDomain             @relation(fields: [domainId], references: [id])
+  warehouse         AssetWarehouse          @relation(fields: [warehouseId], references: [id])
   location          Location?               @relation(fields: [locationId], references: [id])
   migrationBatch    MigrationBatch?         @relation(fields: [migrationBatchId], references: [id])
   requestLockedBy   User?                   @relation("AssetRequestLockedBy", fields: [requestLockedById], references: [id], onDelete: SetNull)
@@ -425,7 +423,7 @@ model Asset {
   reservations      AssetReservation[]
   customFieldValues AssetCustomFieldValue[]
 
-  @@index([domainId])
+  @@index([warehouseId])
   @@index([status])
   @@index([locationId])
   @@index([assetModelId])

@@ -4,20 +4,20 @@ import { AssetEditForm } from "./asset-edit-form";
 
 type AssetEditPageProps = {
   asset: AssetEditRecord;
-  canChangeDomain: boolean;
+  canChangeWarehouse: boolean;
   options: AssetEditOptions;
 };
 
 export function AssetEditPage({
   asset,
-  canChangeDomain,
+  canChangeWarehouse,
   options,
 }: AssetEditPageProps) {
   return (
     <AssetEditForm
       asset={asset}
-      canChangeDomain={canChangeDomain}
-      lockDomain
+      canChangeWarehouse={canChangeWarehouse}
+      lockWarehouse
       mode="edit"
       options={options}
     />
@@ -25,23 +25,23 @@ export function AssetEditPage({
 }
 
 type AssetCreatePageProps = {
-  canChangeDomain: boolean;
-  initialDomainCode: string;
-  lockDomain?: boolean;
+  canChangeWarehouse: boolean;
+  initialWarehouseCode: string;
+  lockWarehouse?: boolean;
   options: AssetEditOptions;
 };
 
 export function AssetCreatePage({
-  canChangeDomain,
-  initialDomainCode,
-  lockDomain,
+  canChangeWarehouse,
+  initialWarehouseCode,
+  lockWarehouse,
   options,
 }: AssetCreatePageProps) {
   return (
     <AssetEditForm
-      canChangeDomain={canChangeDomain}
-      initialDomainCode={initialDomainCode}
-      lockDomain={lockDomain}
+      canChangeWarehouse={canChangeWarehouse}
+      initialWarehouseCode={initialWarehouseCode}
+      lockWarehouse={lockWarehouse}
       mode="create"
       options={options}
     />
@@ -66,7 +66,7 @@ export function AssetCreateForbidden() {
       <Lock className="mx-auto h-10 w-10 text-muted-foreground" />
       <h2 className="mt-4 text-xl font-bold text-navy">No add access</h2>
       <p className="mt-2 text-sm font-medium text-muted-foreground">
-        Your account does not have permission to add assets in this domain.
+        Your account does not have permission to add assets in this warehouse.
       </p>
     </section>
   );

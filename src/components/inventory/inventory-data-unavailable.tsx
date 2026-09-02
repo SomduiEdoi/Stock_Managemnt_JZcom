@@ -2,12 +2,12 @@ import Link from "next/link";
 import { DatabaseZap, RefreshCw } from "lucide-react";
 
 type InventoryDataUnavailableProps = {
-  domainLabel: string;
+  warehouseLabel: string;
   retryHref: string;
 };
 
 export function InventoryDataUnavailable({
-  domainLabel,
+  warehouseLabel,
   retryHref,
 }: InventoryDataUnavailableProps) {
   return (
@@ -22,7 +22,7 @@ export function InventoryDataUnavailable({
               Warehouses temporarily unavailable
             </p>
             <h2 className="mt-2 text-2xl font-bold text-navy">
-              {domainLabel} data cannot be loaded
+              {warehouseLabel} data cannot be loaded
             </h2>
             <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-muted-foreground">
               PostgreSQL is not reachable at localhost:5432. Start the database,

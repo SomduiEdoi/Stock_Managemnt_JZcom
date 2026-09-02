@@ -19,7 +19,7 @@ export default async function LoginPage() {
             <Archive aria-hidden="true" size={22} strokeWidth={2.4} />
           </div>
           <h1 className="text-[25px] font-bold leading-8 text-navy">
-            Stock Management
+            Warehouse Management
           </h1>
           <p className="mt-1 text-[10px] font-bold leading-3 text-navy/80">
             Enterprise Source of Truth
@@ -32,7 +32,7 @@ export default async function LoginPage() {
               Login
             </h2>
             <p className="mt-1 max-w-[260px] text-xs leading-4 text-navy/80">
-              Enter your credentials to manage Stock Management enterprise
+              Enter your credentials to manage Warehouse Management enterprise
               assets.
             </p>
           </header>
