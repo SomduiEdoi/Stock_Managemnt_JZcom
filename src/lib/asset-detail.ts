@@ -35,7 +35,29 @@ const assetDetailSelect = Prisma.validator<Prisma.AssetSelect>()({
     select: {
       assetType: { select: { trackMethod: true } },
       brand: true,
-      category: { select: { name: true } },
+      category: {
+        select: {
+          customFields: {
+            orderBy: { sortOrder: "asc" },
+            select: {
+              dataType: true,
+              id: true,
+              isActive: true,
+              isFilterable: true,
+              isRequired: true,
+              isSearchable: true,
+              key: true,
+              label: true,
+              options: true,
+              placeholder: true,
+              sortOrder: true,
+              unit: true,
+            },
+            where: { isActive: true },
+          },
+          name: true,
+        },
+      },
       description: true,
       modelNo: true,
       name: true,
@@ -67,6 +89,13 @@ const assetDetailSelect = Prisma.validator<Prisma.AssetSelect>()({
       },
     },
     take: 50,
+  },
+  customFieldValues: {
+    select: {
+      field: { select: { key: true, label: true } },
+      fieldId: true,
+      valueText: true,
+    },
   },
   transactionItems: {
     orderBy: { createdAt: "desc" },

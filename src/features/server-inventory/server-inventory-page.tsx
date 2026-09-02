@@ -290,6 +290,7 @@ export default async function ServerInventoryPage({
         canDelete={canDeleteAssetsForUser(user, "SERVER")}
         canRequest={canRequestDomainForUser(user, "SERVER")}
         domainLabel="Server"
+        customFieldDefinitions={[...new Map(result.filterOptions.categoryGroups.flatMap((category) => category.customFields).map((field) => [field.key, { key: field.key, label: field.label, unit: field.unit }])).values()]}
         inventoryFamily="SERIAL"
         rows={result.rows}
         sortLinks={buildServerSortLinks(filters)}

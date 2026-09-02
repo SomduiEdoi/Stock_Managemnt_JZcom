@@ -18,6 +18,7 @@ const nullableString = (max: number) =>
 const updateAssetSchema = z.object({
   assetNo: nullableString(255),
   brand: nullableString(255),
+  customFields: z.record(z.string(), nullableString(2000)).optional().default({}),
   categoryName: nullableString(255),
   description: nullableString(2000),
   domainCode: z.string().trim().min(1).max(32),

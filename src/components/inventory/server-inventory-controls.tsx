@@ -8,7 +8,6 @@ import {
   MoreVertical,
   CirclePlus,
   SlidersHorizontal,
-  Trash2,
   X,
 } from "lucide-react";
 import { SearchCombobox } from "@/components/form/search-combobox";
@@ -18,8 +17,25 @@ type StatusOption = {
   value: string;
 };
 
+type CustomFieldDataType = "TEXT" | "NUMBER" | "DROPDOWN" | "BOOLEAN";
+
+type CustomFieldDefinition = {
+  dataType: CustomFieldDataType;
+  id: string;
+  isFilterable: boolean;
+  isRequired: boolean;
+  isSearchable: boolean;
+  key: string;
+  label: string;
+  options: string[];
+  placeholder: string | null;
+  sortOrder: number;
+  unit: string | null;
+};
+
 type CategoryGroup = {
   assetCount: number;
+  customFields: CustomFieldDefinition[];
   id: string;
   name: string;
   types: Array<{ assetCount: number; code: string | null; id: string; name: string }>;
@@ -58,8 +74,24 @@ type DraftType = {
   name: string;
 };
 
+type DraftCustomField = {
+  dataType: CustomFieldDataType;
+  delete?: boolean;
+  id?: string;
+  isFilterable: boolean;
+  isRequired: boolean;
+  isSearchable: boolean;
+  key: string;
+  label: string;
+  optionsText: string;
+  placeholder: string;
+  sortOrder: number;
+  unit: string;
+};
+
 type DraftCategory = {
   assetCount: number;
+  customFields: DraftCustomField[];
   delete?: boolean;
   id?: string;
   name: string;
@@ -119,11 +151,33 @@ function HiddenFilters({ filters }: { filters: InventoryControlFilters }) {
   );
 }
 
+
+function fieldKeyFromLabel(label: string) {
+  return label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 50);
+}
+
+function newCustomField(sortOrder: number): DraftCustomField {
+  return { dataType: "TEXT", isFilterable: false, isRequired: false, isSearchable: false, key: "", label: "", optionsText: "", placeholder: "", sortOrder, unit: "" };
+}
+
 function toDraftCategories(groups: CategoryGroup[]): DraftCategory[] {
   return groups.map((group) => ({
     assetCount: group.assetCount,
     id: group.id,
     name: group.name,
+    customFields: group.customFields.map((field) => ({
+      dataType: field.dataType,
+      id: field.id,
+      isFilterable: field.isFilterable,
+      isRequired: field.isRequired,
+      isSearchable: field.isSearchable,
+      key: field.key,
+      label: field.label,
+      optionsText: field.options.join("\n"),
+      placeholder: field.placeholder ?? "",
+      sortOrder: field.sortOrder,
+      unit: field.unit ?? "",
+    })),
     types: group.types.map((type) => ({
       assetCount: type.assetCount,
       code: type.code ?? "",
@@ -203,19 +257,27 @@ function ManageCategoriesDialog({
     }));
   }
 
-  function removeCategory(categoryIndex: number) {
-    const category = categories[categoryIndex];
 
-    if (
-      category.assetCount > 0 &&
-      !window.confirm(
-        `Delete category ${category.name}? This category currently contains ${category.assetCount.toLocaleString("en-US")} assets.`,
-      )
-    ) {
-      return;
-    }
+  function updateCustomField(categoryIndex: number, fieldIndex: number, patch: Partial<DraftCustomField>) {
+    setCategories((current) => current.map((category, i) => {
+      if (i !== categoryIndex) return category;
+      return {
+        ...category,
+        customFields: category.customFields.map((field, j) => {
+          if (j !== fieldIndex) return field;
+          const next = { ...field, ...patch };
+          if (patch.label !== undefined && !field.id) next.key = fieldKeyFromLabel(patch.label) || field.key;
+          return next;
+        }),
+      };
+    }));
+  }
 
-    updateCategory(categoryIndex, { delete: true });
+  function removeCustomField(categoryIndex: number, fieldIndex: number) {
+    setCategories((current) => current.map((category, i) => i !== categoryIndex ? category : {
+      ...category,
+      customFields: category.customFields.map((field, j) => (j === fieldIndex ? { ...field, delete: true } : field)),
+    }));
   }
 
   function removeType(categoryIndex: number, typeIndex: number) {
@@ -240,6 +302,9 @@ function ManageCategoriesDialog({
     const activeTypes = activeCategories.flatMap((category) => category.types.filter((type) => !type.delete));
     const invalidType = activeTypes.find((type) => !type.name.trim());
     const duplicatePrefix = activeTypes.find(hasDuplicatePrefix);
+    const activeFields = activeCategories.flatMap((category) => category.customFields.filter((field) => !field.delete));
+    const invalidField = activeFields.find((field) => !field.label.trim() || !fieldKeyFromLabel(field.label));
+    const tooManyFields = activeCategories.find((category) => category.customFields.filter((field) => !field.delete).length > 5);
 
     if (invalidCategory || invalidType) {
       setError("Category name and type name are required.");
@@ -248,6 +313,16 @@ function ManageCategoriesDialog({
 
     if (duplicatePrefix) {
       setError(`Prefix ${duplicatePrefix.code.trim().toUpperCase()} is duplicated in this domain.`);
+      return;
+    }
+
+    if (invalidField) {
+      setError("Custom field label is required and must contain English letters or numbers.");
+      return;
+    }
+
+    if (tooManyFields) {
+      setError(`Category ${tooManyFields.name || "Untitled"} can have up to 5 custom fields.`);
       return;
     }
 
@@ -350,11 +425,12 @@ function ManageCategoriesDialog({
                                 Save
                               </button>
                               <button
-                                className="flex h-9 items-center justify-center rounded-md text-xl font-bold text-red-500 hover:bg-red-50"
+                                aria-label="Delete type"
+                                className="flex h-9 w-9 items-center justify-center rounded-md text-navy transition hover:bg-red-50 hover:text-status-fail"
                                 onClick={() => removeType(categoryIndex, typeIndex)}
                                 type="button"
                               >
-                                X
+                                <X className="h-5 w-5" strokeWidth={2.5} />
                               </button>
                               <p className="col-span-4 -mt-1 text-[11px] font-semibold text-muted-foreground">
                                 {type.assetCount.toLocaleString("en-US")} assets
@@ -370,15 +446,71 @@ function ManageCategoriesDialog({
                         >
                           + Add Types
                         </button>
-                      </div>
 
-                      <button
-                        className="flex h-12 items-center justify-center self-center rounded-md text-red-500 hover:bg-red-50"
-                        onClick={() => removeCategory(categoryIndex)}
-                        type="button"
-                      >
-                        <Trash2 className="h-6 w-6" />
-                      </button>
+                        <div className="mt-4 rounded-md border border-border bg-white p-3">
+                          <div className="mb-3 flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-bold text-navy">Custom Fields Schema</p>
+                              <p className="text-xs font-medium text-muted-foreground">Standard fields are inherited. Add up to 5 category-specific fields.</p>
+                            </div>
+                            <button
+                              className="rounded-md bg-brand-accent px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                              disabled={category.customFields.filter((field) => !field.delete).length >= 5}
+                              onClick={() => updateCategory(categoryIndex, { customFields: [...category.customFields, newCustomField(category.customFields.length)] })}
+                              type="button"
+                            >
+                              + Add Field
+                            </button>
+                          </div>
+                          <div className="flex flex-col gap-3">
+                            {category.customFields.filter((field) => !field.delete).map((field) => {
+                              const fieldIndex = category.customFields.indexOf(field);
+
+                              return (
+                                <div className="rounded-md border border-border p-4" key={field.id ?? fieldIndex}>
+                                  <div className="grid items-center gap-3 md:grid-cols-[minmax(170px,275px)_max-content_max-content_32px]">
+                                    <select
+                                      className="h-11 w-full rounded-md border border-border bg-white px-3 text-sm font-medium text-navy outline-none focus:border-brand-accent"
+                                      onChange={(event) => updateCustomField(categoryIndex, fieldIndex, { dataType: event.target.value as CustomFieldDataType, optionsText: "", placeholder: "", unit: event.target.value === "NUMBER" ? field.unit : "" })}
+                                      value={field.dataType === "NUMBER" ? "NUMBER" : "TEXT"}
+                                    >
+                                      <option value="TEXT">Text</option>
+                                      <option value="NUMBER">Number with Unit</option>
+                                    </select>
+                                    <label className="flex h-11 items-center gap-2 whitespace-nowrap text-sm font-bold leading-none text-navy">
+                                      <input checked={field.isRequired} className="h-4 w-4 shrink-0 accent-brand-accent" onChange={(event) => updateCustomField(categoryIndex, fieldIndex, { isRequired: event.target.checked })} type="checkbox" />
+                                      Required
+                                    </label>
+                                    <label className="flex h-11 items-center gap-2 whitespace-nowrap text-sm font-bold leading-none text-navy">
+                                      <input checked={field.isFilterable} className="h-4 w-4 shrink-0 accent-brand-accent" onChange={(event) => updateCustomField(categoryIndex, fieldIndex, { isFilterable: event.target.checked, isSearchable: event.target.checked })} type="checkbox" />
+                                      Filterable
+                                    </label>
+                                    <button className="flex h-9 w-8 items-center justify-center justify-self-end rounded-md text-navy/60 transition hover:bg-red-50 hover:text-status-fail" onClick={() => removeCustomField(categoryIndex, fieldIndex)} type="button">
+                                      <X className="h-6 w-6" strokeWidth={2.4} />
+                                    </button>
+                                  </div>
+                                  <div className={field.dataType === "NUMBER" ? "mt-4 grid gap-4 md:grid-cols-2" : "mt-4"}>
+                                    <input
+                                      className="h-11 w-full rounded-md border border-border px-3 text-sm font-medium text-navy placeholder:text-muted-foreground/70 outline-none focus:border-brand-accent"
+                                      onChange={(event) => updateCustomField(categoryIndex, fieldIndex, { label: event.target.value })}
+                                      placeholder="Field label"
+                                      value={field.label}
+                                    />
+                                    {field.dataType === "NUMBER" ? (
+                                      <input
+                                        className="h-11 w-full rounded-md border border-border px-3 text-sm font-medium text-navy placeholder:text-muted-foreground/70 outline-none focus:border-brand-accent"
+                                        onChange={(event) => updateCustomField(categoryIndex, fieldIndex, { unit: event.target.value })}
+                                        placeholder="Unit"
+                                        value={field.unit}
+                                      />
+                                    ) : null}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );
@@ -388,7 +520,7 @@ function ManageCategoriesDialog({
                 <div className="p-4">
                   <button
                     className="h-9 w-full rounded-md border border-ink bg-surface text-sm font-semibold text-navy hover:bg-white"
-                    onClick={() => setCategories((current) => [...current, { assetCount: 0, name: "", types: [] }])}
+                    onClick={() => setCategories((current) => [...current, { assetCount: 0, customFields: [], name: "", types: [] }])}
                     type="button"
                   >
                     + Add Categories
@@ -812,7 +944,7 @@ export function ServerInventoryControls({
           <HiddenFilters filters={filters} />
         </form>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3 leading-none">
           <FilterLauncher
             onOpen={() => setIsDrawerOpen(true)}
             selectedCount={selectedCount}
@@ -848,3 +980,7 @@ export function ServerInventoryControls({
     </div>
   );
 }
+
+
+
+

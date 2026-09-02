@@ -18,10 +18,25 @@ export const networkInventoryStatusOptions = [
 export type InventorySortBy = "availability" | "brand" | "category" | "model" | "serialNo" | "status" | "stockCode" | "type";
 export type InventorySortDirection = "asc" | "desc";
 
+export type InventoryCategoryCustomField = {
+  dataType: "TEXT" | "NUMBER" | "DROPDOWN" | "BOOLEAN";
+  id: string;
+  isFilterable: boolean;
+  isRequired: boolean;
+  isSearchable: boolean;
+  key: string;
+  label: string;
+  options: string[];
+  placeholder: string | null;
+  sortOrder: number;
+  unit: string | null;
+};
+
 export type NetworkCategoryGroup = {
   assetCount: number;
   id: string;
   name: string;
+  customFields: InventoryCategoryCustomField[];
   types: Array<{ assetCount: number; code: string | null; id: string; name: string }>;
 };
 
@@ -160,6 +175,7 @@ function buildKeywordClause(token: string): Prisma.AssetWhereInput {
       { assetModel: { is: { typeName: contains } } },
       { assetModel: { is: { category: { is: { name: contains } } } } },
       { location: { is: { name: contains } } },
+      { customFieldValues: { some: { field: { isSearchable: true }, valueText: contains } } },
     ],
   };
 }
@@ -236,6 +252,23 @@ async function getNetworkFilterOptions() {
     select: {
       id: true,
       name: true,
+      customFields: {
+        orderBy: { sortOrder: "asc" },
+        select: {
+          dataType: true,
+          id: true,
+          isFilterable: true,
+          isRequired: true,
+          isSearchable: true,
+          key: true,
+          label: true,
+          options: true,
+          placeholder: true,
+          sortOrder: true,
+          unit: true,
+        },
+        where: { isActive: true },
+      },
       types: {
         orderBy: { name: "asc" },
         select: {
@@ -276,6 +309,19 @@ async function getNetworkFilterOptions() {
     assetCount: categoryAssetCounts.get(category.id) ?? 0,
     id: category.id,
     name: category.name,
+    customFields: category.customFields.map((field) => ({
+      dataType: field.dataType,
+      id: field.id,
+      isFilterable: field.isFilterable,
+      isRequired: field.isRequired,
+      isSearchable: field.isSearchable,
+      key: field.key,
+      label: field.label,
+      options: Array.isArray(field.options) ? field.options.filter((option): option is string => typeof option === "string") : [],
+      placeholder: field.placeholder,
+      sortOrder: field.sortOrder,
+      unit: field.unit,
+    })),
     types: category.types.map((type) => ({
       assetCount: typeAssetCounts.get(type.id) ?? 0,
       code: type.code,

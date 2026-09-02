@@ -15,7 +15,7 @@ const paramsSchema = z.object({
 
 const updateDomainSchema = z.object({
   controllerId: z.string().trim().min(1, "Stock controller is required.").uuid("Stock controller is required."),
-  domainName: z.string().trim().min(1, "Domain name is required."),
+  domainName: z.string().trim().min(1, "Warehouse name is required."),
   headControllerId: z.string().trim().uuid("Head stock controller is required.").nullable().optional(),
   headControllerIds: z.array(z.string().trim().uuid("Head stock controller is required.")).optional(),
 }).strict();

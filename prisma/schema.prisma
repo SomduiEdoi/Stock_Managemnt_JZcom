@@ -116,6 +116,13 @@ enum ApprovalStatus {
   REJECTED
 }
 
+enum CustomFieldDataType {
+  TEXT
+  NUMBER
+  DROPDOWN
+  BOOLEAN
+}
+
 enum MigrationStatus {
   PENDING
   PROCESSING
@@ -232,16 +239,17 @@ model UserDomainPermission {
 }
 
 model AssetCategory {
-  id          String       @id @default(uuid()) @db.Uuid
-  domainId    String       @map("domain_id") @db.Uuid
-  name        String
-  description String?
-  isActive    Boolean      @default(true) @map("is_active")
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
-  domain      AssetDomain  @relation(fields: [domainId], references: [id])
-  models      AssetModel[]
-  types       AssetType[]
+  id           String                     @id @default(uuid()) @db.Uuid
+  domainId     String                     @map("domain_id") @db.Uuid
+  name         String
+  description  String?
+  isActive     Boolean                    @default(true) @map("is_active")
+  createdAt    DateTime                   @default(now()) @map("created_at")
+  updatedAt    DateTime                   @updatedAt @map("updated_at")
+  domain       AssetDomain                @relation(fields: [domainId], references: [id])
+  models       AssetModel[]
+  types        AssetType[]
+  customFields AssetCategoryCustomField[]
 
   @@unique([domainId, name])
   @@index([domainId])
@@ -265,6 +273,45 @@ model AssetType {
   @@unique([categoryId, code])
   @@index([categoryId])
   @@map("asset_types")
+}
+
+model AssetCategoryCustomField {
+  id           String                  @id @default(uuid()) @db.Uuid
+  categoryId   String                  @map("category_id") @db.Uuid
+  key          String
+  label        String
+  dataType     CustomFieldDataType     @default(TEXT) @map("data_type")
+  unit         String?
+  placeholder  String?
+  options      Json?
+  isRequired   Boolean                 @default(false) @map("is_required")
+  isSearchable Boolean                 @default(false) @map("is_searchable")
+  isFilterable Boolean                 @default(false) @map("is_filterable")
+  sortOrder    Int                     @default(0) @map("sort_order")
+  isActive     Boolean                 @default(true) @map("is_active")
+  createdAt    DateTime                @default(now()) @map("created_at")
+  updatedAt    DateTime                @updatedAt @map("updated_at")
+  category     AssetCategory           @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  values       AssetCustomFieldValue[]
+
+  @@unique([categoryId, key])
+  @@index([categoryId])
+  @@map("asset_category_custom_fields")
+}
+
+model AssetCustomFieldValue {
+  id        String                   @id @default(uuid()) @db.Uuid
+  assetId   String                   @map("asset_id") @db.Uuid
+  fieldId   String                   @map("field_id") @db.Uuid
+  valueText String?                  @map("value_text")
+  createdAt DateTime                 @default(now()) @map("created_at")
+  updatedAt DateTime                 @updatedAt @map("updated_at")
+  asset     Asset                    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  field     AssetCategoryCustomField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, fieldId])
+  @@index([fieldId])
+  @@map("asset_custom_field_values")
 }
 
 model AssetModel {
@@ -341,41 +388,42 @@ model Location {
 }
 
 model Asset {
-  id                String               @id @default(uuid()) @db.Uuid
-  assetModelId      String               @map("asset_model_id") @db.Uuid
-  domainId          String               @map("domain_id") @db.Uuid
-  locationId        String?              @map("location_id") @db.Uuid
-  serialNo          String?              @unique @map("serial_no")
-  assetNo           String?              @map("asset_no")
-  stockCode         String?              @map("stock_code")
+  id                String                  @id @default(uuid()) @db.Uuid
+  assetModelId      String                  @map("asset_model_id") @db.Uuid
+  domainId          String                  @map("domain_id") @db.Uuid
+  locationId        String?                 @map("location_id") @db.Uuid
+  serialNo          String?                 @unique @map("serial_no")
+  assetNo           String?                 @map("asset_no")
+  stockCode         String?                 @map("stock_code")
   status            AssetStatus
   note              String?
-  imageRef          String?              @map("image_ref")
-  assetQuantity     Int                  @default(1) @map("asset_quantity")
-  legacyQty         Int?                 @map("legacy_qty")
-  legacyFg          Int?                 @map("legacy_fg")
-  locationText      String?              @map("location_text")
-  sourceSystem      String?              @map("source_system")
-  sourceRecordId    String?              @map("source_record_id")
-  migrationBatchId  String?              @map("migration_batch_id") @db.Uuid
-  requestLockedById String?              @map("request_locked_by") @db.Uuid
-  requestLockedAt   DateTime?            @map("request_locked_at")
-  isActive          Boolean              @default(true) @map("is_active")
-  createdById       String?              @map("created_by") @db.Uuid
-  updatedById       String?              @map("updated_by") @db.Uuid
-  createdAt         DateTime             @default(now()) @map("created_at")
-  updatedAt         DateTime             @updatedAt @map("updated_at")
-  assetModel        AssetModel           @relation(fields: [assetModelId], references: [id])
-  domain            AssetDomain          @relation(fields: [domainId], references: [id])
-  location          Location?            @relation(fields: [locationId], references: [id])
-  migrationBatch    MigrationBatch?      @relation(fields: [migrationBatchId], references: [id])
-  requestLockedBy   User?                @relation("AssetRequestLockedBy", fields: [requestLockedById], references: [id], onDelete: SetNull)
-  createdBy         User?                @relation("AssetCreatedBy", fields: [createdById], references: [id])
-  updatedBy         User?                @relation("AssetUpdatedBy", fields: [updatedById], references: [id])
+  imageRef          String?                 @map("image_ref")
+  assetQuantity     Int                     @default(1) @map("asset_quantity")
+  legacyQty         Int?                    @map("legacy_qty")
+  legacyFg          Int?                    @map("legacy_fg")
+  locationText      String?                 @map("location_text")
+  sourceSystem      String?                 @map("source_system")
+  sourceRecordId    String?                 @map("source_record_id")
+  migrationBatchId  String?                 @map("migration_batch_id") @db.Uuid
+  requestLockedById String?                 @map("request_locked_by") @db.Uuid
+  requestLockedAt   DateTime?               @map("request_locked_at")
+  isActive          Boolean                 @default(true) @map("is_active")
+  createdById       String?                 @map("created_by") @db.Uuid
+  updatedById       String?                 @map("updated_by") @db.Uuid
+  createdAt         DateTime                @default(now()) @map("created_at")
+  updatedAt         DateTime                @updatedAt @map("updated_at")
+  assetModel        AssetModel              @relation(fields: [assetModelId], references: [id])
+  domain            AssetDomain             @relation(fields: [domainId], references: [id])
+  location          Location?               @relation(fields: [locationId], references: [id])
+  migrationBatch    MigrationBatch?         @relation(fields: [migrationBatchId], references: [id])
+  requestLockedBy   User?                   @relation("AssetRequestLockedBy", fields: [requestLockedById], references: [id], onDelete: SetNull)
+  createdBy         User?                   @relation("AssetCreatedBy", fields: [createdById], references: [id])
+  updatedBy         User?                   @relation("AssetUpdatedBy", fields: [updatedById], references: [id])
   statusHistories   AssetStatusHistory[]
   transactionItems  TransactionItem[]
   migrationRows     MigrationRow[]
   reservations      AssetReservation[]
+  customFieldValues AssetCustomFieldValue[]
 
   @@index([domainId])
   @@index([status])

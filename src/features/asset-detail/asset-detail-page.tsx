@@ -196,6 +196,12 @@ function buildPrimaryDetails(asset: AssetDetailRecord): DetailItem[] {
 }
 
 function AssetDetails({ asset }: { asset: AssetDetailRecord }) {
+  const valueByFieldKey = new Map(asset.customFieldValues.map((value) => [value.field.key, value.valueText ?? ""]));
+  const customDetails = (asset.assetModel.category?.customFields ?? []).map((field) => ({
+    label: field.label,
+    value: fallback(valueByFieldKey.get(field.key)),
+  }));
+
   return (
     <section className="grid gap-4 xl:grid-cols-[360px_1fr]">
       <AssetImagePanel asset={asset} />
@@ -205,6 +211,15 @@ function AssetDetails({ asset }: { asset: AssetDetailRecord }) {
           <h2 className="text-xl font-bold text-navy">Details</h2>
         </div>
         <DetailGrid items={buildPrimaryDetails(asset)} />
+
+        {customDetails.length > 0 ? (
+          <div className="mt-6 border-t border-border pt-5">
+            <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted-foreground">
+              Custom Fields
+            </h3>
+            <DetailGrid items={customDetails} />
+          </div>
+        ) : null}
 
         <div className="mt-6 border-t border-border pt-5">
           <h3 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">

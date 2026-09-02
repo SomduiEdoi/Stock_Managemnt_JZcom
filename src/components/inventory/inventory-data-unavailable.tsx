@@ -19,7 +19,7 @@ export function InventoryDataUnavailable({
           </span>
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-              Inventory temporarily unavailable
+              Warehouses temporarily unavailable
             </p>
             <h2 className="mt-2 text-2xl font-bold text-navy">
               {domainLabel} data cannot be loaded

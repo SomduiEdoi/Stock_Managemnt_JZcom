@@ -18,10 +18,25 @@ export const domainInventoryStatusOptions = [
 export type InventorySortBy = "availability" | "brand" | "category" | "model" | "serialNo" | "status" | "stockCode" | "type";
 export type InventorySortDirection = "asc" | "desc";
 
+export type InventoryCategoryCustomField = {
+  dataType: "TEXT" | "NUMBER" | "DROPDOWN" | "BOOLEAN";
+  id: string;
+  isFilterable: boolean;
+  isRequired: boolean;
+  isSearchable: boolean;
+  key: string;
+  label: string;
+  options: string[];
+  placeholder: string | null;
+  sortOrder: number;
+  unit: string | null;
+};
+
 export type DomainCategoryGroup = {
   assetCount: number;
   id: string;
   name: string;
+  customFields: InventoryCategoryCustomField[];
   types: Array<{ assetCount: number; code: string | null; id: string; name: string }>;
 };
 
@@ -52,11 +67,17 @@ const defaultFilters: DomainInventoryFilters = {
 };
 
 const domainInventoryAssetSelect = Prisma.validator<Prisma.AssetSelect>()({
+  assetNo: true,
   assetQuantity: true,
+  createdAt: true,
   id: true,
+  imageRef: true,
   domain: { select: { inventoryFamily: true } },
   locationText: true,
+  note: true,
   requestLockedById: true,
+  sourceRecordId: true,
+  sourceSystem: true,
   serialNo: true,
   status: true,
   stockCode: true,
@@ -66,10 +87,14 @@ const domainInventoryAssetSelect = Prisma.validator<Prisma.AssetSelect>()({
       assetType: { select: { trackMethod: true } },
       brand: true,
       category: { select: { name: true } },
+      description: true,
+      modelNo: true,
       name: true,
+      partNo: true,
       typeName: true,
     },
   },
+  customFieldValues: { select: { valueText: true, field: { select: { key: true, label: true, unit: true } } } },
   location: { select: { name: true } },
 });
 
@@ -161,6 +186,7 @@ function buildKeywordClause(token: string): Prisma.AssetWhereInput {
       { assetModel: { is: { typeName: contains } } },
       { assetModel: { is: { category: { is: { name: contains } } } } },
       { location: { is: { name: contains } } },
+      { customFieldValues: { some: { field: { isSearchable: true }, valueText: contains } } },
     ],
   };
 }
@@ -242,6 +268,11 @@ async function getDomainFilterOptions(domainCode: string) {
         select: { code: true, id: true, name: true },
         where: { isActive: true },
       },
+      customFields: {
+        orderBy: { sortOrder: "asc" },
+        select: { dataType: true, id: true, isFilterable: true, isRequired: true, isSearchable: true, key: true, label: true, options: true, placeholder: true, sortOrder: true, unit: true },
+        where: { isActive: true },
+      },
     },
     where: { domain: { code: domainCode }, isActive: true },
   });
@@ -274,6 +305,19 @@ async function getDomainFilterOptions(domainCode: string) {
     assetCount: categoryAssetCounts.get(category.id) ?? 0,
     id: category.id,
     name: category.name,
+    customFields: category.customFields.map((field) => ({
+      dataType: field.dataType,
+      id: field.id,
+      isFilterable: field.isFilterable,
+      isRequired: field.isRequired,
+      isSearchable: field.isSearchable,
+      key: field.key,
+      label: field.label,
+      options: Array.isArray(field.options) ? field.options.filter((option): option is string => typeof option === "string") : [],
+      placeholder: field.placeholder,
+      sortOrder: field.sortOrder,
+      unit: field.unit,
+    })),
     types: category.types.map((type) => ({
       assetCount: typeAssetCounts.get(type.id) ?? 0,
       code: type.code,

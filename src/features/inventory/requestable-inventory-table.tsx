@@ -1,19 +1,24 @@
 "use client";
 
 import { AssetStatus } from "@prisma/client";
-import { ArrowDownAZ, ArrowUpAZ, CheckCircle2, ChevronDown, Loader2, Package, Trash2, X } from "lucide-react";
+import { CheckCircle2, ChevronDown, Columns3, Loader2, Package, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { AssetStatusBadge } from "@/components/status/asset-status-badge";
 import { assetStatusHexColors, assetStatusLabels } from "@/lib/status-style";
+import { formatWarehouseHeading } from "@/lib/display-labels";
 
 export type RequestableInventoryRow = {
+  assetNo?: string | null;
   assetModel: {
     assetType?: { trackMethod: "SERIAL" | "QUANTITY" } | null;
     brand: string | null;
     category: { name: string } | null;
+    description?: string | null;
+    modelNo?: string | null;
     name: string;
+    partNo?: string | null;
     typeName: string | null;
   };
   availableQuantity: number;
@@ -24,6 +29,14 @@ export type RequestableInventoryRow = {
   status: AssetStatus;
   stockCode: string | null;
   totalQuantity: number;
+  customFieldValues?: Array<{ field: { key: string; label: string; unit: string | null }; valueText: string | null }>;
+  createdAt?: Date | string;
+  location?: { name: string } | null;
+  note?: string | null;
+  requestLockedById?: string | null;
+  imageRef?: string | null;
+  sourceRecordId?: string | null;
+  sourceSystem?: string | null;
 };
 
 type SortDirection = "asc" | "desc";
@@ -41,40 +54,54 @@ type SortKey =
 type InventoryFamily = "SERIAL" | "QUANTITY";
 
 type InventoryColumnKey =
+  | "assetNo"
   | "availability"
   | "brand"
   | "category"
+  | "createdAt"
+  | "description"
+  | "image"
+  | "location"
   | "model"
+  | "modelNo"
+  | "partNo"
+  | "remark"
+  | "requestLock"
+  | "sourceRecord"
+  | "sourceSystem"
   | "serialNo"
   | "status"
   | "stockCode"
   | "type";
 
-const serialInventoryColumns: InventoryColumnKey[] = [
-  "serialNo",
-  "model",
-  "category",
-  "type",
-  "brand",
-  "stockCode",
-  "status",
-];
+type CustomInventoryColumnKey = `custom:${string}`;
+type TableColumnKey = InventoryColumnKey | CustomInventoryColumnKey | "action";
 
-const quantityInventoryColumns: InventoryColumnKey[] = [
-  "stockCode",
-  "model",
-  "category",
-  "type",
-  "brand",
-  "availability",
-  "status",
-];
+function normalizeTableColumns(columns: TableColumnKey[]): TableColumnKey[] {
+  const unique = [...new Set(columns)];
+  return [
+    "status",
+    ...unique.filter((column) => column !== "status" && column !== "action"),
+    "action",
+  ];
+}
 
 const inventoryColumnLabels = {
+  assetNo: "Asset No.",
   availability: "Available",
   brand: "Brand",
   category: "Category",
+  createdAt: "Created",
+  description: "Description",
+  image: "Image Ref",
+  location: "Location",
   model: "Model",
+  modelNo: "Model No.",
+  partNo: "Part No.",
+  remark: "Remark",
+  requestLock: "Request Lock",
+  sourceRecord: "Source Record ID",
+  sourceSystem: "Source System",
   serialNo: "Serial No.",
   status: "Status",
   stockCode: "Stock Code",
@@ -99,6 +126,7 @@ type RequestableInventoryTableProps = {
   inventoryFamily?: InventoryFamily;
   rows: RequestableInventoryRow[];
   sortLinks?: Partial<Record<SortKey, { asc: string; desc: string }>>;
+  customFieldDefinitions?: Array<{ key: string; label: string; unit: string | null }>;
 };
 
 type StatusChangeTarget = {
@@ -108,68 +136,6 @@ type StatusChangeTarget = {
 
 function displayValue(value: string | null | undefined) {
   return value || "-";
-}
-
-function SortableHeader({
-  activeSort,
-  children,
-  isOpen,
-  onToggle,
-  sortKey,
-  sortLinks,
-}: {
-  activeSort?: { by: SortKey; direction: SortDirection };
-  children: ReactNode;
-  isOpen: boolean;
-  onToggle: () => void;
-  sortKey: SortKey;
-  sortLinks?: Partial<Record<SortKey, { asc: string; desc: string }>>;
-}) {
-  const links = sortLinks?.[sortKey];
-  const isActive = activeSort?.by === sortKey;
-  const Icon = activeSort?.direction === "desc" ? ArrowDownAZ : ArrowUpAZ;
-
-  if (!links) {
-    return <th className="px-5 py-4 font-bold">{children}</th>;
-  }
-
-  return (
-    <th className="relative px-5 py-4 font-bold">
-      <button
-        className={`inline-flex min-w-0 max-w-full items-center gap-1 rounded-sm transition hover:text-navy ${
-          isActive ? "text-brand-accent" : "text-muted-foreground"
-        }`}
-        onClick={(event) => {
-          event.stopPropagation();
-          onToggle();
-        }}
-        type="button"
-      >
-        <span className="overflow-hidden text-ellipsis whitespace-nowrap">{children}</span>
-        {isActive ? <Icon className="h-3.5 w-3.5 shrink-0" /> : null}
-        <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-      </button>
-
-      {isOpen ? (
-        <div className="absolute left-4 top-[calc(100%-0.35rem)] z-40 w-44 rounded-md border border-border bg-white py-2 text-sm normal-case text-ink shadow-xl">
-          <Link
-            className="flex items-center gap-2 px-3 py-2 font-semibold transition hover:bg-surface"
-            href={links.asc}
-          >
-            <ArrowUpAZ className="h-4 w-4" />
-            A to Z
-          </Link>
-          <Link
-            className="flex items-center gap-2 px-3 py-2 font-semibold transition hover:bg-surface"
-            href={links.desc}
-          >
-            <ArrowDownAZ className="h-4 w-4" />
-            Z to A
-          </Link>
-        </div>
-      ) : null}
-    </th>
-  );
 }
 
 function TruncatedCell({
@@ -221,12 +187,34 @@ function getInventoryColumnValue(
   columnKey: InventoryColumnKey,
 ) {
   switch (columnKey) {
+    case "assetNo":
+      return asset.assetNo;
     case "brand":
       return asset.assetModel.brand;
     case "category":
       return asset.assetModel.category?.name;
+    case "createdAt":
+      return asset.createdAt ? new Date(asset.createdAt).toLocaleDateString("en-GB") : null;
+    case "description":
+      return asset.assetModel.description;
+    case "image":
+      return asset.imageRef;
+    case "location":
+      return asset.location?.name ?? asset.locationText;
     case "model":
       return asset.assetModel.name;
+    case "modelNo":
+      return asset.assetModel.modelNo;
+    case "partNo":
+      return asset.assetModel.partNo;
+    case "remark":
+      return asset.note;
+    case "requestLock":
+      return asset.requestLockedById ? "Locked" : "No active lock";
+    case "sourceRecord":
+      return asset.sourceRecordId;
+    case "sourceSystem":
+      return asset.sourceSystem;
     case "serialNo":
       return asset.serialNo;
     case "stockCode":
@@ -238,22 +226,31 @@ function getInventoryColumnValue(
   }
 }
 
+function getTableColumnValue(asset: RequestableInventoryRow, columnKey: TableColumnKey) {
+  if (columnKey.startsWith("custom:")) {
+    return asset.customFieldValues?.find((value) => value.field.key === columnKey.slice(7))?.valueText ?? null;
+  }
+  return columnKey === "action" || columnKey === "status" || columnKey === "availability"
+    ? null
+    : getInventoryColumnValue(asset, columnKey as InventoryColumnKey);
+}
+
 function InventoryDataCell({
   asset,
   columnKey,
 }: {
   asset: RequestableInventoryRow;
-  columnKey: InventoryColumnKey;
+  columnKey: TableColumnKey;
 }) {
   if (columnKey === "availability") {
     return <AvailabilityCell asset={asset} />;
   }
 
-  if (columnKey === "status") {
+  if (columnKey === "status" || columnKey === "action") {
     return null;
   }
 
-  const value = getInventoryColumnValue(asset, columnKey);
+  const value = getTableColumnValue(asset, columnKey);
 
   return (
     <TruncatedCell
@@ -731,7 +728,6 @@ function StatusMenuCell({
 }
 
 export function RequestableInventoryTable({
-  activeSort,
   canDelete,
   canChangeStatus,
   domainLabel,
@@ -739,6 +735,7 @@ export function RequestableInventoryTable({
   canRequest,
   rows,
   sortLinks,
+  customFieldDefinitions = [],
 }: RequestableInventoryTableProps) {
   const router = useRouter();
   const [activeAsset, setActiveAsset] = useState<RequestableInventoryRow | null>(null);
@@ -755,6 +752,10 @@ export function RequestableInventoryTable({
   const [statusNote, setStatusNote] = useState("");
   const [isChangingStatus, setIsChangingStatus] = useState(false);
   const [pendingRequests, setPendingRequests] = useState<PendingRequestOption[]>([]);
+  const [columnMenuOpen, setColumnMenuOpen] = useState(false);
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [selectedColumns, setSelectedColumns] = useState<TableColumnKey[]>([]);
+  const [resizing, setResizing] = useState<{ key: TableColumnKey; startX: number; startWidth: number } | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -791,7 +792,54 @@ export function RequestableInventoryTable({
     };
   }, [activeAsset, canRequest]);
 
-  const columns = inventoryFamily === "QUANTITY" ? quantityInventoryColumns : serialInventoryColumns;
+  const defaultColumns: TableColumnKey[] = ["status", "category", "type", "brand", "model", "action"];
+  const customColumns = customFieldDefinitions.map((field) => `custom:${field.key}` as CustomInventoryColumnKey);
+  const productColumns: InventoryColumnKey[] = ["category", "type", "brand", "model", "serialNo", "stockCode", "location", "partNo", "description", "remark", "availability"];
+  const selectableColumns: TableColumnKey[] = Array.from(
+    new Set<TableColumnKey>([
+      ...defaultColumns.filter((key) => key !== "status" && key !== "action"),
+      ...productColumns,
+      ...customColumns,
+    ]),
+  );
+  const availableColumns: TableColumnKey[] = [...selectableColumns, "status", "action"];
+
+  // Column definitions are derived from the current domain schema; load saved preferences only when the domain changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const storageKey = `stock:inventory-columns:${domainLabel}`;
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(storageKey) ?? "null") as { columns?: TableColumnKey[]; widths?: Record<string, number> } | null;
+      setSelectedColumns(normalizeTableColumns((saved?.columns?.filter((key) => availableColumns.includes(key)) as TableColumnKey[] | undefined) ?? defaultColumns));
+      setColumnWidths(saved?.widths ?? {});
+    } catch {
+      setSelectedColumns(normalizeTableColumns(defaultColumns));
+    }
+  // These arrays are render-local projections of the current schema and intentionally reload only per domain.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [domainLabel]);
+
+  useEffect(() => {
+    if (selectedColumns.length === 0) return;
+    window.localStorage.setItem(`stock:inventory-columns:${domainLabel}`, JSON.stringify({ columns: selectedColumns, widths: columnWidths }));
+  }, [columnWidths, domainLabel, selectedColumns]);
+
+  useEffect(() => {
+    if (!resizing) return;
+    const move = (event: MouseEvent) => setColumnWidths((current) => ({ ...current, [resizing.key]: Math.max(90, resizing.startWidth + event.clientX - resizing.startX) }));
+    const stop = () => setResizing(null);
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", stop);
+    return () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", stop); };
+  }, [resizing]);
+
+  const columns = normalizeTableColumns(selectedColumns.length > 0 ? selectedColumns : defaultColumns);
+
+  function autoFitColumn(columnKey: TableColumnKey) {
+    const label = columnKey.startsWith("custom:") ? customFieldDefinitions.find((field) => `custom:${field.key}` === columnKey)?.label ?? columnKey.slice(7) : columnKey === "action" ? "Action" : inventoryColumnLabels[columnKey as InventoryColumnKey];
+    const longest = Math.max(label.length, ...rows.map((asset) => String(getTableColumnValue(asset, columnKey) ?? "-").length));
+    setColumnWidths((current) => ({ ...current, [columnKey]: Math.min(480, Math.max(120, longest * 8 + 48)) }));
+  }
 
   const requestableCount = useMemo(
     () =>
@@ -937,39 +985,50 @@ export function RequestableInventoryTable({
       <section className="overflow-hidden rounded-md border border-border bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
-            <h2 className="text-xl font-bold text-navy">{domainLabel} Inventory</h2>
+            <h2 className="text-xl font-bold text-navy">{formatWarehouseHeading(domainLabel)}</h2>
             <p className="mt-1 text-sm font-medium text-muted-foreground">
               Click any row to view details.
             </p>
           </div>
-          {canRequest ? (
-            <p className="text-sm font-semibold text-muted-foreground">
-              {requestableCount.toLocaleString("en-US")} requestable
-            </p>
-          ) : null}
+          <div className="relative flex items-center gap-3">
+            {canRequest ? <p className="text-sm font-semibold text-muted-foreground">{requestableCount.toLocaleString("en-US")} requestable</p> : null}
+            <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-bold text-navy hover:bg-surface" onClick={() => setColumnMenuOpen((open) => !open)} type="button">
+              <Columns3 className="h-4 w-4" /> Columns
+            </button>
+            {columnMenuOpen ? (
+              <div className="absolute right-0 top-12 z-40 w-64 rounded-md border border-border bg-white p-3 shadow-xl" onClick={(event) => event.stopPropagation()}>
+                <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Visible columns ({columns.length}/10)</p>
+                <div className="max-h-72 space-y-1 overflow-y-auto">
+                  {selectableColumns.map((key) => {
+                    const required = false;
+                    const checked = columns.includes(key);
+                    const disabled = !required && !checked && columns.length >= 10;
+                    const label = key.startsWith("custom:") ? customFieldDefinitions.find((field) => `custom:${field.key}` === key)?.label ?? key.slice(7) : key === "action" ? "Action" : inventoryColumnLabels[key as InventoryColumnKey];
+                    return <label className={`flex items-center gap-2 rounded px-2 py-2 text-sm ${disabled ? "cursor-not-allowed text-muted-foreground/50" : "text-navy hover:bg-surface"}`} key={key} title={disabled ? "Maximum 10 columns can be displayed." : undefined}>
+                      <input checked={checked} disabled={required || disabled} onChange={() => setSelectedColumns((current) => normalizeTableColumns(checked ? current.filter((item) => item !== key) : [...current, key]))} type="checkbox" />
+                      <span className="truncate">{label}</span>
+                    </label>;
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full table-fixed border-collapse text-left text-sm">
+          <table className="min-w-full border-collapse text-left text-sm">
+            <colgroup>{columns.map((key) => <col key={key} style={{ width: columnWidths[key] ? `${columnWidths[key]}px` : undefined }} />)}</colgroup>
             <thead className="bg-surface text-xs uppercase text-muted-foreground">
               <tr>
                 {columns.map((columnKey) => (
-                  <SortableHeader
-                    activeSort={activeSort}
-                    isOpen={openSortKey === columnKey}
-                    key={columnKey}
-                    onToggle={() =>
-                      setOpenSortKey((current) =>
-                        current === columnKey ? null : (columnKey as SortKey),
-                      )
-                    }
-                    sortKey={columnKey as SortKey}
-                    sortLinks={sortLinks}
-                  >
-                    {inventoryColumnLabels[columnKey]}
-                  </SortableHeader>
+                  <th className={`relative whitespace-nowrap px-5 py-4 font-bold ${columnKey === "status" ? "sticky left-0 z-20 bg-surface" : columnKey === "action" ? "sticky right-0 z-20 bg-surface" : ""}`} key={columnKey}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate">{columnKey.startsWith("custom:") ? customFieldDefinitions.find((field) => `custom:${field.key}` === columnKey)?.label ?? columnKey.slice(7) : columnKey === "action" ? "Action" : inventoryColumnLabels[columnKey as InventoryColumnKey]}</span>
+                      {columnKey !== "action" && columnKey !== "status" && sortLinks?.[columnKey as SortKey] ? <button className="shrink-0" onClick={(event) => { event.stopPropagation(); setOpenSortKey((current) => current === columnKey ? null : columnKey as SortKey); }} type="button"><ChevronDown className="h-3.5 w-3.5" /></button> : null}
+                      {openSortKey === columnKey && sortLinks?.[columnKey as SortKey] ? <div className="absolute left-4 top-[calc(100%-0.35rem)] z-40 w-44 rounded-md border border-border bg-white py-2 text-sm normal-case text-ink shadow-xl"><Link className="block px-3 py-2 hover:bg-surface" href={sortLinks[columnKey as SortKey]!.asc}>A to Z</Link><Link className="block px-3 py-2 hover:bg-surface" href={sortLinks[columnKey as SortKey]!.desc}>Z to A</Link></div> : null}
+                      <span className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-brand-accent" onDoubleClick={() => autoFitColumn(columnKey)} onMouseDown={(event) => { event.preventDefault(); setResizing({ key: columnKey, startX: event.clientX, startWidth: columnWidths[columnKey] ?? 180 }); }} />
+                    </div>
+                  </th>
                 ))}
-                {canRequest ? <th className="px-5 py-4 font-bold">Request</th> : null}
-                {canDelete ? <th className="px-5 py-4 font-bold">Action</th> : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -992,7 +1051,7 @@ export function RequestableInventoryTable({
                 >
                   {columns.map((columnKey) =>
                     columnKey === "status" ? (
-                      <td className="px-5 py-4" key={columnKey}>
+                      <td className="sticky left-0 z-10 bg-white px-5 py-4" key={columnKey}>
                         <StatusMenuCell
                           asset={asset}
                           canChangeStatus={canChangeStatus}
@@ -1005,6 +1064,13 @@ export function RequestableInventoryTable({
                           }
                         />
                       </td>
+                    ) : columnKey === "action" ? (
+                      <td className="sticky right-0 z-10 bg-white px-5 py-4" key={columnKey}>
+                        <div className="flex items-center gap-2">
+                          {canRequest ? <button className="inline-flex h-9 items-center justify-center rounded-md bg-brand-accent px-3 text-xs font-bold text-white disabled:cursor-not-allowed disabled:bg-muted-foreground" disabled={asset.status !== AssetStatus.READY || asset.availableQuantity <= 0} onClick={(event) => { event.stopPropagation(); setActiveAsset(asset); setRequestQuantity(1); }} type="button">Request</button> : null}
+                          {canDelete ? <button className="inline-flex h-9 items-center justify-center rounded-md border border-status-fail/30 bg-white px-3 text-xs font-bold text-status-fail hover:bg-status-fail hover:text-white" onClick={(event) => { event.stopPropagation(); setDeleteAsset(asset); setDeleteError(null); }} type="button"><Trash2 className="mr-2 h-4 w-4" />Delete</button> : null}
+                        </div>
+                      </td>
                     ) : (
                       <InventoryDataCell
                         asset={asset}
@@ -1013,46 +1079,6 @@ export function RequestableInventoryTable({
                       />
                     ),
                   )}
-                  {canRequest ? (
-                    <td className="px-5 py-4">
-                      <button
-                        className="inline-flex h-9 items-center justify-center rounded-md bg-brand-accent px-3 text-xs font-bold text-white transition hover:bg-brand-accent/90 disabled:cursor-not-allowed disabled:bg-muted-foreground disabled:text-white/70"
-                        disabled={
-                          asset.status !== AssetStatus.READY ||
-                          asset.availableQuantity <= 0
-                        }
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          if (
-                            asset.status === AssetStatus.READY &&
-                            asset.availableQuantity > 0
-                          ) {
-                            setActiveAsset(asset);
-                            setRequestQuantity(1);
-                          }
-                        }}
-                        type="button"
-                      >
-                        Request
-                      </button>
-                    </td>
-                  ) : null}
-                  {canDelete ? (
-                    <td className="px-5 py-4">
-                      <button
-                        className="inline-flex h-9 items-center justify-center rounded-md border border-status-fail/30 bg-white px-3 text-xs font-bold text-status-fail transition hover:bg-status-fail hover:text-white"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setDeleteAsset(asset);
-                          setDeleteError(null);
-                        }}
-                        type="button"
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Delete
-                      </button>
-                    </td>
-                  ) : null}
                 </tr>
               ))}
             </tbody>

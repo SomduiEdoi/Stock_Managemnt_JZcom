@@ -16,15 +16,15 @@ function resolveTitle(pathname: string) {
   }
 
   if (pathname === "/dashboard/server") {
-    return "Server Inventory";
+    return "Server Warehouses";
   }
 
   if (pathname === "/dashboard/network") {
-    return "Network Inventory";
+    return "Network Warehouses";
   }
 
   if (pathname.startsWith("/dashboard/inventory/")) {
-    return "Inventory";
+    return "Warehouses";
   }
 
   if (pathname === "/dashboard/assets") {

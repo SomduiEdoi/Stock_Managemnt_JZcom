@@ -7,10 +7,25 @@ type StatusOption = {
   value: string;
 };
 
+type InventoryCategoryCustomField = {
+  dataType: "TEXT" | "NUMBER" | "DROPDOWN" | "BOOLEAN";
+  id: string;
+  isFilterable: boolean;
+  isRequired: boolean;
+  isSearchable: boolean;
+  key: string;
+  label: string;
+  options: string[];
+  placeholder: string | null;
+  sortOrder: number;
+  unit: string | null;
+};
+
 type CategoryGroup = {
   assetCount: number;
   id: string;
   name: string;
+  customFields: InventoryCategoryCustomField[];
   types: Array<{ assetCount: number; code: string | null; id: string; name: string }>;
 };
 

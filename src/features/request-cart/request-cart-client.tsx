@@ -18,6 +18,7 @@ import {
 } from "@/features/transactions/transaction-document";
 import { SearchableDropdown } from "@/components/form/searchable-dropdown";
 import { downloadTransactionPdf } from "@/features/transactions/transaction-pdf-download";
+import { formatWarehouseName } from "@/lib/display-labels";
 
 type TransactionTypeCode = "BORROW" | "USING" | "SOLD";
 
@@ -56,7 +57,7 @@ type RequestCartClientProps = {
 
 
 function formatDomain(domainCode: string) {
-  return domainCode.charAt(0) + domainCode.slice(1).toLowerCase();
+  return formatWarehouseName(domainCode.charAt(0) + domainCode.slice(1).toLowerCase());
 }
 
 function getServiceReferencePlaceholder() {

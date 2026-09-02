@@ -21,7 +21,29 @@ const assetEditSelect = Prisma.validator<Prisma.AssetSelect>()({
   assetModel: {
     select: {
       brand: true,
-      category: { select: { id: true, name: true } },
+      category: {
+        select: {
+          customFields: {
+            orderBy: { sortOrder: "asc" },
+            select: {
+              dataType: true,
+              id: true,
+              isFilterable: true,
+              isRequired: true,
+              isSearchable: true,
+              key: true,
+              label: true,
+              options: true,
+              placeholder: true,
+              sortOrder: true,
+              unit: true,
+            },
+            where: { isActive: true },
+          },
+          id: true,
+          name: true,
+        },
+      },
       description: true,
       domain: { select: { code: true, id: true, inventoryFamily: true, name: true } },
       id: true,
@@ -48,6 +70,13 @@ const assetEditSelect = Prisma.validator<Prisma.AssetSelect>()({
   status: true,
   stockCode: true,
   updatedAt: true,
+  customFieldValues: {
+    select: {
+      field: { select: { key: true, label: true } },
+      fieldId: true,
+      valueText: true,
+    },
+  },
 });
 
 export type AssetEditRecord = Prisma.AssetGetPayload<{
@@ -55,7 +84,23 @@ export type AssetEditRecord = Prisma.AssetGetPayload<{
 }>;
 
 export type AssetEditOptions = {
-  categories: Array<{ domainCode: string; name: string }>;
+  categories: Array<{
+    customFields: Array<{
+      dataType: "TEXT" | "NUMBER" | "DROPDOWN" | "BOOLEAN";
+      id: string;
+      isFilterable: boolean;
+      isRequired: boolean;
+      isSearchable: boolean;
+      key: string;
+      label: string;
+      options: string[];
+      placeholder: string | null;
+      sortOrder: number;
+      unit: string | null;
+    }>;
+    domainCode: string;
+    name: string;
+  }>;
   domains: Array<{ code: string; inventoryFamily: AssetTrackMethod; name: string }>;
   locations: Array<{ code: string | null; name: string }>;
   statuses: AssetStatus[];
@@ -85,6 +130,7 @@ export type UpdateAssetInput = {
   assetNo?: string | null;
   brand?: string | null;
   categoryName?: string | null;
+  customFields?: Record<string, string | null | undefined>;
   description?: string | null;
   domainCode: string;
   imageRef?: string | null;
@@ -267,6 +313,23 @@ async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus
     db.assetCategory.findMany({
       orderBy: [{ name: "asc" }],
       select: {
+        customFields: {
+          orderBy: { sortOrder: "asc" },
+          select: {
+            dataType: true,
+            id: true,
+            isFilterable: true,
+            isRequired: true,
+            isSearchable: true,
+            key: true,
+            label: true,
+            options: true,
+            placeholder: true,
+            sortOrder: true,
+            unit: true,
+          },
+          where: { isActive: true },
+        },
         domain: { select: { code: true } },
         name: true,
       },
@@ -318,6 +381,19 @@ async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus
 
   return {
     categories: categories.map((category) => ({
+      customFields: category.customFields.map((field) => ({
+        dataType: field.dataType,
+        id: field.id,
+        isFilterable: field.isFilterable,
+        isRequired: field.isRequired,
+        isSearchable: field.isSearchable,
+        key: field.key,
+        label: field.label,
+        options: Array.isArray(field.options) ? field.options.filter((option): option is string => typeof option === "string") : [],
+        placeholder: field.placeholder,
+        sortOrder: field.sortOrder,
+        unit: field.unit,
+      })),
       domainCode: category.domain.code,
       name: category.name,
     })),
@@ -524,6 +600,43 @@ async function resolveAssetModel(
   });
 }
 
+async function saveCustomFieldValues(
+  tx: Prisma.TransactionClient,
+  assetId: string,
+  categoryId: string | null,
+  values: Record<string, string | null | undefined> | undefined,
+) {
+  if (!categoryId) {
+    return;
+  }
+
+  const fields = await tx.assetCategoryCustomField.findMany({
+    orderBy: { sortOrder: "asc" },
+    select: { id: true, isRequired: true, key: true, label: true },
+    where: { categoryId, isActive: true },
+  });
+
+  for (const field of fields) {
+    const value = cleanText(values?.[field.key]);
+
+    if (field.isRequired && !value) {
+      throw new WorkflowError(field.label + " is required.");
+    }
+
+    if (value) {
+      await tx.assetCustomFieldValue.upsert({
+        create: { assetId, fieldId: field.id, valueText: value },
+        update: { valueText: value },
+        where: { assetId_fieldId: { assetId, fieldId: field.id } },
+      });
+    } else {
+      await tx.assetCustomFieldValue.deleteMany({
+        where: { assetId, fieldId: field.id },
+      });
+    }
+  }
+}
+
 export async function updateAssetForUser(
   user: CurrentUser,
   assetId: string,
@@ -698,6 +811,8 @@ export async function updateAssetForUser(
         select: assetEditSelect,
         where: { id: asset.id },
       });
+
+      await saveCustomFieldValues(tx, updatedAsset.id, category?.id ?? null, input.customFields);
 
       if (input.status !== asset.status) {
         await tx.assetStatusHistory.create({
@@ -911,6 +1026,8 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
         },
         select: assetEditSelect,
       });
+
+      await saveCustomFieldValues(tx, createdAsset.id, category?.id ?? null, input.customFields);
 
       await tx.assetStatusHistory.create({
         data: {

@@ -865,7 +865,7 @@ function UserDetailModal({
         <DetailSection label="Organization Unit / Team" values={organizationTagValues} />
         <DetailSection label="Project" values={projectValues} />
         <DetailSection label="Controller Tag" values={controllerValues} />
-        <DetailSection label="Domain Permission" values={domainValues} />
+        <DetailSection label="Warehouse Permission" values={domainValues} />
       </div>
     </ModalShell>
   );

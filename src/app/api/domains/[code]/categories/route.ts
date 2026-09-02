@@ -1,9 +1,25 @@
+import { CustomFieldDataType } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { apiErrorResponse, readJsonBody, requireApiUser } from "@/lib/api";
 import { db } from "@/lib/db";
 import { assertCanManageDomain } from "@/lib/permissions";
 import { WorkflowError } from "@/lib/workflow";
+
+const customFieldInputSchema = z.object({
+  dataType: z.enum([CustomFieldDataType.TEXT, CustomFieldDataType.NUMBER]).default(CustomFieldDataType.TEXT),
+  delete: z.boolean().optional(),
+  id: z.string().uuid().optional(),
+  isFilterable: z.boolean().default(false),
+  isRequired: z.boolean().default(false),
+  isSearchable: z.boolean().default(false),
+  key: z.string().trim().max(80).optional(),
+  label: z.string().trim().min(1).max(80),
+  optionsText: z.string().trim().max(2000).optional().default(""),
+  placeholder: z.string().trim().max(255).optional().default(""),
+  sortOrder: z.number().int().min(0).max(99).default(0),
+  unit: z.string().trim().max(30).optional().default(""),
+});
 
 const typeInputSchema = z.object({
   code: z
@@ -24,6 +40,7 @@ const categoryInputSchema = z.object({
   delete: z.boolean().optional(),
   id: z.string().uuid().optional(),
   name: z.string().trim().min(1).max(80),
+  customFields: z.array(customFieldInputSchema).default([]),
   types: z.array(typeInputSchema).default([]),
 });
 
@@ -34,6 +51,11 @@ const saveCategoriesSchema = z.object({
 type RouteContext = {
   params: Promise<{ code: string }>;
 };
+
+function fieldKeyFromLabel(label: string) {
+  return label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 50);
+}
+
 
 function cleanCode(value: string | null | undefined) {
   const cleaned = value?.trim().toUpperCase();
@@ -55,7 +77,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     });
 
     if (!domain) {
-      throw new WorkflowError("Domain not found.", 404, "DOMAIN_NOT_FOUND");
+      throw new WorkflowError("Warehouse not found.", 404, "DOMAIN_NOT_FOUND");
     }
 
     const submittedTypes = body.categories
@@ -159,6 +181,61 @@ export async function PUT(request: NextRequest, context: RouteContext) {
               update: { isActive: true },
               where: { domainId_name: { domainId: domain.id, name: categoryInput.name } },
             });
+
+        const activeFields = categoryInput.customFields.filter((field) => !field.delete);
+
+        if (activeFields.length > 5) {
+          throw new WorkflowError(
+            "A category can have at most 5 custom fields.",
+            400,
+            "CUSTOM_FIELD_LIMIT",
+          );
+        }
+
+        for (const [fieldIndex, fieldInput] of categoryInput.customFields.entries()) {
+          if (fieldInput.delete) {
+            if (fieldInput.id) {
+              await tx.assetCategoryCustomField.update({
+                data: { isActive: false },
+                where: { id: fieldInput.id },
+              });
+            }
+            continue;
+          }
+
+          const key = fieldInput.key?.trim() || fieldKeyFromLabel(fieldInput.label);
+
+          if (!key) {
+            throw new WorkflowError("Custom field label must contain English letters or numbers.", 400, "CUSTOM_FIELD_KEY_INVALID");
+          }
+
+          const data = {
+            dataType: fieldInput.dataType,
+            isActive: true,
+            isFilterable: fieldInput.isFilterable,
+            isRequired: fieldInput.isRequired,
+            isSearchable: fieldInput.isFilterable,
+            key,
+            label: fieldInput.label,
+            options: [],
+            placeholder: null,
+            sortOrder: fieldInput.sortOrder || fieldIndex,
+            unit: fieldInput.unit || null,
+          };
+
+          if (fieldInput.id) {
+            await tx.assetCategoryCustomField.update({
+              data,
+              where: { id: fieldInput.id },
+            });
+          } else {
+            await tx.assetCategoryCustomField.upsert({
+              create: { ...data, categoryId: category.id },
+              update: data,
+              where: { categoryId_key: { categoryId: category.id, key } },
+            });
+          }
+        }
 
         for (const typeInput of categoryInput.types) {
           if (typeInput.delete) {

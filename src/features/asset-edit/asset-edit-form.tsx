@@ -16,6 +16,7 @@ import {
 import type { AssetEditOptions, AssetEditRecord } from "@/lib/asset-edit";
 import { SearchableDropdown } from "@/components/form/searchable-dropdown";
 import { AssetStatusBadge } from "@/components/status/asset-status-badge";
+import { formatWarehouseName } from "@/lib/display-labels";
 
 type AssetEditFormProps = {
   canChangeDomain: boolean;
@@ -37,6 +38,7 @@ type AssetEditFormProps = {
 type AssetEditFormState = {
   brand: string;
   categoryName: string;
+  customFields: Record<string, string>;
   description: string;
   domainCode: string;
   imageRef: string;
@@ -62,7 +64,7 @@ type AssetEditFieldKey =
   | "status"
   | "typeName";
 
-type AssetEditFieldErrors = Partial<Record<AssetEditFieldKey, string>>;
+type AssetEditFieldErrors = Partial<Record<AssetEditFieldKey | `custom:${string}`, string>>;
 
 function domainHref(code: string) {
   if (code === "SERVER") return "/dashboard/server";
@@ -107,6 +109,7 @@ function validatePattern(
 function validateAssetForm(
   form: AssetEditFormState,
   trackMethod: "SERIAL" | "QUANTITY",
+  customFields: AssetEditOptions["categories"][number]["customFields"],
 ) {
   const fieldErrors: AssetEditFieldErrors = {};
   const modelError = validatePattern(form.modelName, "Asset model", {
@@ -172,12 +175,18 @@ function validateAssetForm(
   }
 
   if (!hasText(form.domainCode)) {
-    fieldErrors.domainCode = "Domain is required.";
+    fieldErrors.domainCode = "Warehouse is required.";
   }
 
   if (!hasText(form.status)) {
     fieldErrors.status = "Status is required.";
   }
+
+  customFields.forEach((field) => {
+    if (field.isRequired && !hasText(form.customFields[field.key] ?? "")) {
+      fieldErrors[`custom:${field.key}`] = `${field.label} is required.`;
+    }
+  });
 
   return fieldErrors;
 }
@@ -185,6 +194,7 @@ function toFormState(asset: AssetEditRecord): AssetEditFormState {
   return {
     brand: asset.assetModel.brand ?? "",
     categoryName: asset.assetModel.category?.name ?? "",
+    customFields: Object.fromEntries(asset.customFieldValues.map((value) => [value.field.key, value.valueText ?? ""])),
     description: asset.assetModel.description ?? "",
     domainCode: asset.domain.code,
     imageRef: asset.imageRef ?? "",
@@ -203,6 +213,7 @@ function createFormState(initialDomainCode: string): AssetEditFormState {
   return {
     brand: "",
     categoryName: "",
+    customFields: {},
     description: "",
     domainCode: initialDomainCode,
     imageRef: "",
@@ -331,7 +342,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
   async function handleSave() {
     setError(null);
 
-    const nextFieldErrors = validateAssetForm(form, trackMethod);
+    const nextFieldErrors = validateAssetForm(form, trackMethod, selectedCategory?.customFields ?? []);
     const invalidFields = Object.values(nextFieldErrors);
 
     if (invalidFields.length > 0) {
@@ -349,6 +360,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
       const response = await fetch(saveUrl, {
         body: JSON.stringify({
           brand: form.brand,
+          customFields: form.customFields,
           categoryName: form.categoryName,
           description: form.description,
           domainCode: form.domainCode,
@@ -394,6 +406,15 @@ export function AssetEditForm(props: AssetEditFormProps) {
   const visibleCategories = options.categories.filter(
     (category) => category.domainCode === form.domainCode,
   );
+  const selectedCategory = visibleCategories.find((category) => category.name === form.categoryName) ?? null;
+  const categoryCustomFields = selectedCategory?.customFields ?? [];
+
+  function setCustomField(key: string, value: string) {
+    setForm((current) => ({
+      ...current,
+      customFields: { ...current.customFields, [key]: value },
+    }));
+  }
   const selectedDomain =
     options.domains.find((domain) => domain.code === form.domainCode) ??
     options.domains[0] ??
@@ -420,7 +441,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
             className="flex flex-wrap items-center gap-2 text-sm font-bold text-muted-foreground"
           >
             <Link className="text-navy hover:underline" href={domainHref(form.domainCode)}>
-              {selectedDomain?.name ?? form.domainCode}
+              {formatWarehouseName(selectedDomain?.name ?? form.domainCode)}
             </Link>
             {mode === "edit" && asset ? (
               <>
@@ -561,10 +582,10 @@ export function AssetEditForm(props: AssetEditFormProps) {
                 value={isQuantityAsset ? form.quantity : form.serialNo}
               />
             </Field>
-            <Field error={fieldErrors.domainCode} label="Domain" required>
+            <Field error={fieldErrors.domainCode} label="Warehouse" required>
               {lockDomain || !canChangeDomain ? (
                 <p className="flex h-11 items-center text-sm font-semibold text-ink">
-                  {selectedDomain?.name ?? form.domainCode}
+                  {formatWarehouseName(selectedDomain?.name ?? form.domainCode)}
                 </p>
               ) : (
                 <SearchableDropdown
@@ -586,6 +607,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
                   setForm((current) => ({
                     ...current,
                     categoryName,
+                    customFields: {},
                     typeName: options.types.some(
                       (type) =>
                         type.domainCode === current.domainCode &&
@@ -655,6 +677,49 @@ export function AssetEditForm(props: AssetEditFormProps) {
               />
             </Field>
           </div>
+
+          {categoryCustomFields.length > 0 ? (
+            <div className="mt-6 border-t border-border pt-5">
+              <h3 className="text-sm font-bold uppercase tracking-wide text-navy">Custom Fields</h3>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                {categoryCustomFields.map((field) => {
+                  const errorKey = `custom:${field.key}` as const;
+                  const value = form.customFields[field.key] ?? "";
+
+                  return (
+                    <Field error={fieldErrors[errorKey]} key={field.id} label={field.label} required={field.isRequired}>
+                      {field.dataType === "DROPDOWN" ? (
+                        <SearchableDropdown
+                          onChange={(nextValue) => setCustomField(field.key, nextValue)}
+                          options={field.options.map((option) => ({ label: option, value: option }))}
+                          placeholder={field.placeholder ?? "Select " + field.label}
+                          searchPlaceholder={"Search " + field.label}
+                          value={value}
+                        />
+                      ) : field.dataType === "BOOLEAN" ? (
+                        <label className="inline-flex h-11 items-center gap-3 rounded-md border border-border bg-white px-3 text-sm font-semibold text-ink">
+                          <input
+                            checked={value === "true"}
+                            onChange={(event) => setCustomField(field.key, event.target.checked ? "true" : "false")}
+                            type="checkbox"
+                          />
+                          Enabled
+                        </label>
+                      ) : (
+                        <Input
+                          aria-invalid={Boolean(fieldErrors[errorKey])}
+                          onChange={(event) => setCustomField(field.key, event.target.value)}
+                          placeholder={field.placeholder ?? (field.unit ? "Enter " + field.label + " (" + field.unit + ")" : "Enter " + field.label)}
+                          type={field.dataType === "NUMBER" ? "number" : "text"}
+                          value={value}
+                        />
+                      )}
+                    </Field>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </section>
       </section>
 

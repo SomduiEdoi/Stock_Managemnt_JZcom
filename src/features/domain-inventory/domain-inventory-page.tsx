@@ -24,6 +24,7 @@ import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { InventoryDataUnavailable } from "@/components/inventory/inventory-data-unavailable";
 import { ServerInventoryControls } from "@/components/inventory/server-inventory-controls";
 import { RequestableInventoryTable } from "@/features/inventory/requestable-inventory-table";
+import { formatWarehouseHeading } from "@/lib/display-labels";
 import { TablePagination } from "@/components/table/table-pagination";
 
 type DomainInventoryPageProps = {
@@ -195,7 +196,7 @@ export async function DomainInventoryPage({ domainCode, searchParams }: DomainIn
     result = await getDomainInventoryForUser(user, domainCode, filters);
   } catch (error) {
     if (isDatabaseUnavailableError(error)) {
-      return <InventoryDataUnavailable domainLabel={`${domainCode} inventory`} retryHref={baseHref(domainCode)} />;
+      return <InventoryDataUnavailable domainLabel={formatWarehouseHeading(domainCode)} retryHref={baseHref(domainCode)} />;
     }
 
     throw error;
@@ -252,6 +253,7 @@ export async function DomainInventoryPage({ domainCode, searchParams }: DomainIn
         canDelete={canDeleteAssetsForUser(user, result.domain.code)}
         canRequest={canRequestDomainForUser(user, result.domain.code)}
         domainLabel={domainName}
+        customFieldDefinitions={[...new Map(result.filterOptions.categoryGroups.flatMap((category) => category.customFields).map((field) => [field.key, { key: field.key, label: field.label, unit: field.unit }])).values()]}
         inventoryFamily={inventoryFamily}
         rows={result.rows}
         sortLinks={buildSortLinks(result.domain.code, filters)}

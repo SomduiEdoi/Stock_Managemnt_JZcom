@@ -288,6 +288,7 @@ export default async function NetworkInventoryPage({
         canDelete={canDeleteAssetsForUser(user, "NETWORK")}
         canRequest={canRequestDomainForUser(user, "NETWORK")}
         domainLabel="Network"
+        customFieldDefinitions={[...new Map(result.filterOptions.categoryGroups.flatMap((category) => category.customFields).map((field) => [field.key, { key: field.key, label: field.label, unit: field.unit }])).values()]}
         inventoryFamily="SERIAL"
         rows={result.rows}
         sortLinks={buildNetworkSortLinks(filters)}

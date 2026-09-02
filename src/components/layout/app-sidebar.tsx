@@ -22,6 +22,7 @@ import { AssetTrackMethod } from "@prisma/client";
 import type { RoleCode } from "@/lib/permissions";
 import { SearchableDropdown } from "@/components/form/searchable-dropdown";
 import type { SidebarDomain } from "@/lib/domains";
+import { formatWarehouseName } from "@/lib/display-labels";
 
 type StockControllerOption = {
   email: string;
@@ -225,7 +226,7 @@ function AddDomainModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
       <div className="w-full max-w-2xl rounded-md border border-border bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <h2 className="text-xl font-bold text-navy">Add Domain</h2>
+          <h2 className="text-xl font-bold text-navy">Add Warehouse</h2>
           <button
             className="rounded-md p-2 text-muted-foreground hover:bg-surface hover:text-navy"
             onClick={onClose}
@@ -236,7 +237,7 @@ function AddDomainModal({
         </div>
 
         <div className="grid gap-4 p-5 md:grid-cols-2">
-          <Field label="Domain Name" required>
+          <Field label="Warehouse Name" required>
             <input
               className={inputClass()}
               onChange={(event) => setField("domainName", event.target.value)}
@@ -276,7 +277,7 @@ function AddDomainModal({
             />
           </Field>
 
-          <Field label="Inventory Family" required>
+          <Field label="Warehouse Family" required>
             <SearchableDropdown
               onChange={(value) => setField("trackMethod", value as AssetTrackMethod)}
               options={inventoryFamilyOptions}
@@ -307,7 +308,7 @@ function AddDomainModal({
             onClick={handleSubmit}
             type="button"
           >
-            {isSubmitting ? "Creating..." : "Create Domain"}
+            {isSubmitting ? "Creating..." : "Create Warehouse"}
           </button>
         </div>
       </div>
@@ -377,7 +378,7 @@ function EditDomainModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
       <div className="w-full max-w-xl rounded-md border border-border bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <h2 className="text-xl font-bold text-navy">Edit Domain</h2>
+          <h2 className="text-xl font-bold text-navy">Edit Warehouse</h2>
           <button
             className="rounded-md p-2 text-muted-foreground hover:bg-surface hover:text-navy"
             onClick={onClose}
@@ -388,7 +389,7 @@ function EditDomainModal({
         </div>
 
         <div className="grid gap-4 p-5 md:grid-cols-2">
-          <Field label="Domain Name" required>
+          <Field label="Warehouse Name" required>
             <input
               className={inputClass()}
               onChange={(event) => setField("domainName", event.target.value)}
@@ -428,7 +429,7 @@ function EditDomainModal({
             />
           </Field>
 
-          <Field label="Inventory Family">
+          <Field label="Warehouse Family">
             <input
               className={inputClass(true)}
               disabled
@@ -517,7 +518,7 @@ function DeleteDomainModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
       <div className="w-full max-w-lg rounded-md border border-border bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <h2 className="text-xl font-bold text-navy">Delete Domain</h2>
+          <h2 className="text-xl font-bold text-navy">Delete Warehouse</h2>
           <button
             className="rounded-md p-2 text-muted-foreground hover:bg-surface hover:text-navy"
             onClick={onClose}
@@ -529,7 +530,7 @@ function DeleteDomainModal({
 
         <div className="space-y-4 p-5">
           <p className="text-sm font-semibold text-ink">
-            Domain: <span className="font-bold text-navy">{domain.name}</span>
+            Warehouse: <span className="font-bold text-navy">{formatWarehouseName(domain.name)}</span>
           </p>
           <div className="flex gap-3 rounded-md border border-status-fail/20 bg-status-fail/10 p-4 text-sm font-semibold text-status-fail">
             <AlertTriangle className="h-5 w-5 shrink-0" />
@@ -656,7 +657,7 @@ export function AppSidebar({
                 type="button"
               >
                 <Archive className="h-4 w-4 shrink-0" />
-                <span>Inventories</span>
+                <span>Warehouses</span>
                 <ChevronDown
                   className={clsx("ml-auto h-4 w-4 transition", isInventoryOpen && "rotate-180")}
                 />
@@ -680,7 +681,7 @@ export function AppSidebar({
                           key={domain.code}
                         >
                           <Link className="min-w-0 flex-1 px-3 py-2" href={href}>
-                            <span className="block truncate">{domain.name}</span>
+                            <span className="block truncate">{formatWarehouseName(domain.name)}</span>
                           </Link>
 
                           {showDomainActions ? (
@@ -715,7 +716,7 @@ export function AppSidebar({
                                 }}
                                 type="button"
                               >
-                                Edit Domain
+                                Edit Warehouse
                               </button>
                               <button
                                 className="block w-full rounded px-3 py-2 text-left text-sm font-semibold text-status-fail hover:bg-status-fail/10"
@@ -727,7 +728,7 @@ export function AppSidebar({
                                 }}
                                 type="button"
                               >
-                                Delete Domain
+                                Delete Warehouse
                               </button>
                             </div>
                           ) : null}
@@ -742,7 +743,7 @@ export function AppSidebar({
                         type="button"
                       >
                         <PlusCircle className="h-4 w-4 shrink-0" />
-                        <span>Domains</span>
+                        <span>Warehouses</span>
                       </button>
                     ) : null}
                   </div>
