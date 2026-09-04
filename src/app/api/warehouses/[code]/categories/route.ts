@@ -7,7 +7,15 @@ import { assertCanManageWarehouse } from "@/lib/permissions";
 import { WorkflowError } from "@/lib/workflow";
 
 const customFieldInputSchema = z.object({
-  dataType: z.enum([CustomFieldDataType.TEXT, CustomFieldDataType.NUMBER]).default(CustomFieldDataType.TEXT),
+  assetTypeId: z.string().uuid().optional().nullable(),
+  dataType: z
+    .enum([
+      CustomFieldDataType.TEXT,
+      CustomFieldDataType.NUMBER,
+      CustomFieldDataType.DROPDOWN,
+      CustomFieldDataType.BOOLEAN,
+    ])
+    .default(CustomFieldDataType.TEXT),
   delete: z.boolean().optional(),
   id: z.string().uuid().optional(),
   isFilterable: z.boolean().default(false),
@@ -21,22 +29,29 @@ const customFieldInputSchema = z.object({
   unit: z.string().trim().max(30).optional().default(""),
 });
 
-const typeInputSchema = z.object({
-  code: z
+const optionalPrefixSchema = (length: 2 | 3, label: string) =>
+  z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? null : value),
+    z
     .string()
     .trim()
     .regex(
-      /^[A-Za-z0-9]{3}$/,
-      "Type prefix must be exactly 3 English letters or numbers.",
+      new RegExp(`^[A-Za-z0-9]{${length}}$`),
+      `${label} prefix must be exactly ${length} English letters or numbers.`,
     )
     .nullable()
     .optional(),
+  );
+
+const typeInputSchema = z.object({
+  code: optionalPrefixSchema(3, "Type"),
   delete: z.boolean().optional(),
   id: z.string().uuid().optional(),
   name: z.string().trim().min(1).max(80),
 });
 
 const categoryInputSchema = z.object({
+  code: optionalPrefixSchema(2, "Category"),
   delete: z.boolean().optional(),
   id: z.string().uuid().optional(),
   name: z.string().trim().min(1).max(80),
@@ -78,6 +93,69 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
     if (!warehouse) {
       throw new WorkflowError("Warehouse not found.", 404, "WAREHOUSE_NOT_FOUND");
+    }
+
+    const submittedCategories = body.categories.filter((category) => !category.delete);
+    const submittedCategoryCodes = submittedCategories
+      .map((category) => cleanCode(category.code))
+      .filter((categoryCode): categoryCode is string => Boolean(categoryCode));
+    const duplicateSubmittedCategoryCode = submittedCategoryCodes.find(
+      (categoryCode, index) => submittedCategoryCodes.indexOf(categoryCode) !== index,
+    );
+
+    if (duplicateSubmittedCategoryCode) {
+      throw new WorkflowError(
+        `Category prefix ${duplicateSubmittedCategoryCode} is already used.`,
+        409,
+        "CATEGORY_CODE_DUPLICATED",
+      );
+    }
+
+    const submittedExistingCategoryIds = submittedCategories
+      .map((category) => category.id)
+      .filter((id): id is string => Boolean(id));
+
+    if (submittedExistingCategoryIds.length > 0) {
+      const existingCategories = await db.assetCategory.findMany({
+        select: { code: true, id: true },
+        where: {
+          id: { in: submittedExistingCategoryIds },
+          isActive: true,
+          warehouseId: warehouse.id,
+        },
+      });
+      const existingCodeById = new Map(existingCategories.map((category) => [category.id, cleanCode(category.code)]));
+      const changedPrefix = submittedCategories.find(
+        (category) => category.id && cleanCode(category.code) !== existingCodeById.get(category.id),
+      );
+
+      if (changedPrefix) {
+        throw new WorkflowError(
+          "Category prefix cannot be edited after creation.",
+          400,
+          "CATEGORY_CODE_LOCKED",
+        );
+      }
+    }
+
+    if (submittedCategoryCodes.length > 0) {
+      const existingCategoryCode = await db.assetCategory.findFirst({
+        select: { code: true },
+        where: {
+          code: { in: submittedCategoryCodes },
+          isActive: true,
+          warehouseId: warehouse.id,
+          ...(submittedExistingCategoryIds.length > 0 ? { NOT: { id: { in: submittedExistingCategoryIds } } } : {}),
+        },
+      });
+
+      if (existingCategoryCode?.code) {
+        throw new WorkflowError(
+          `Category prefix ${existingCategoryCode.code} is already used.`,
+          409,
+          "CATEGORY_CODE_DUPLICATED",
+        );
+      }
     }
 
     const submittedTypes = body.categories
@@ -177,16 +255,16 @@ export async function PUT(request: NextRequest, context: RouteContext) {
               where: { id: categoryInput.id },
             })
           : await tx.assetCategory.upsert({
-              create: { warehouseId: warehouse.id, name: categoryInput.name },
+              create: { code: cleanCode(categoryInput.code), warehouseId: warehouse.id, name: categoryInput.name },
               update: { isActive: true },
               where: { warehouseId_name: { warehouseId: warehouse.id, name: categoryInput.name } },
             });
 
         const activeFields = categoryInput.customFields.filter((field) => !field.delete);
 
-        if (activeFields.length > 5) {
+        if (activeFields.length > 20) {
           throw new WorkflowError(
-            "A category can have at most 5 custom fields.",
+            "A category can have at most 20 custom fields.",
             400,
             "CUSTOM_FIELD_LIMIT",
           );
@@ -209,12 +287,32 @@ export async function PUT(request: NextRequest, context: RouteContext) {
             throw new WorkflowError("Custom field label must contain English letters or numbers.", 400, "CUSTOM_FIELD_KEY_INVALID");
           }
 
+          if (fieldInput.assetTypeId) {
+            const fieldType = await tx.assetType.findFirst({
+              select: { id: true },
+              where: {
+                categoryId: category.id,
+                id: fieldInput.assetTypeId,
+                isActive: true,
+              },
+            });
+
+            if (!fieldType) {
+              throw new WorkflowError(
+                "Custom field type scope is invalid.",
+                400,
+                "CUSTOM_FIELD_TYPE_INVALID",
+              );
+            }
+          }
+
           const data = {
             dataType: fieldInput.dataType,
+            assetTypeId: fieldInput.assetTypeId ?? null,
             isActive: true,
             isFilterable: fieldInput.isFilterable,
             isRequired: fieldInput.isRequired,
-            isSearchable: fieldInput.isFilterable,
+            isSearchable: fieldInput.isSearchable,
             key,
             label: fieldInput.label,
             options: [],

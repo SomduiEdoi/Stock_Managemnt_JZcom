@@ -34,6 +34,7 @@ export type InventoryCategoryCustomField = {
 
 export type NetworkCategoryGroup = {
   assetCount: number;
+  code: string | null;
   id: string;
   name: string;
   customFields: InventoryCategoryCustomField[];
@@ -252,6 +253,7 @@ async function getNetworkFilterOptions() {
     select: {
       id: true,
       name: true,
+      code: true,
       customFields: {
         orderBy: { sortOrder: "asc" },
         select: {
@@ -307,6 +309,7 @@ async function getNetworkFilterOptions() {
   });
   const categoryGroups: NetworkCategoryGroup[] = categories.map((category) => ({
     assetCount: categoryAssetCounts.get(category.id) ?? 0,
+    code: category.code,
     id: category.id,
     name: category.name,
     customFields: category.customFields.map((field) => ({

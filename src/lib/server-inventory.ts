@@ -34,6 +34,7 @@ export type InventoryCategoryCustomField = {
 
 export type ServerCategoryGroup = {
   assetCount: number;
+  code: string | null;
   id: string;
   name: string;
   customFields: InventoryCategoryCustomField[];
@@ -262,6 +263,7 @@ async function getServerFilterOptions() {
     select: {
       id: true,
       name: true,
+      code: true,
       types: {
         orderBy: { name: "asc" },
         select: { code: true, id: true, name: true },
@@ -302,6 +304,7 @@ async function getServerFilterOptions() {
 
   const categoryGroups: ServerCategoryGroup[] = categories.map((category) => ({
     assetCount: categoryAssetCounts.get(category.id) ?? 0,
+    code: category.code,
     id: category.id,
     name: category.name,
     customFields: category.customFields.map((field) => ({

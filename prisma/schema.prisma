@@ -240,6 +240,7 @@ model AssetCategory {
   id           String                     @id @default(uuid()) @db.Uuid
   warehouseId  String                     @map("warehouse_id") @db.Uuid
   name         String
+  code         String?                    @map("category_code")
   description  String?
   isActive     Boolean                    @default(true) @map("is_active")
   createdAt    DateTime                   @default(now()) @map("created_at")
@@ -250,22 +251,24 @@ model AssetCategory {
   customFields AssetCategoryCustomField[]
 
   @@unique([warehouseId, name])
+  @@unique([warehouseId, code])
   @@index([warehouseId])
   @@map("asset_categories")
 }
 
 model AssetType {
-  id          String           @id @default(uuid()) @db.Uuid
-  categoryId  String           @map("category_id") @db.Uuid
-  name        String
-  code        String?          @map("type_code")
-  trackMethod AssetTrackMethod @default(SERIAL) @map("track_method")
-  description String?
-  isActive    Boolean          @default(true) @map("is_active")
-  createdAt   DateTime         @default(now()) @map("created_at")
-  updatedAt   DateTime         @updatedAt @map("updated_at")
-  category    AssetCategory    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  models      AssetModel[]
+  id           String                     @id @default(uuid()) @db.Uuid
+  categoryId   String                     @map("category_id") @db.Uuid
+  name         String
+  code         String?                    @map("type_code")
+  trackMethod  AssetTrackMethod           @default(SERIAL) @map("track_method")
+  description  String?
+  isActive     Boolean                    @default(true) @map("is_active")
+  createdAt    DateTime                   @default(now()) @map("created_at")
+  updatedAt    DateTime                   @updatedAt @map("updated_at")
+  category     AssetCategory              @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  models       AssetModel[]
+  customFields AssetCategoryCustomField[]
 
   @@unique([categoryId, name])
   @@unique([categoryId, code])
@@ -276,6 +279,7 @@ model AssetType {
 model AssetCategoryCustomField {
   id           String                  @id @default(uuid()) @db.Uuid
   categoryId   String                  @map("category_id") @db.Uuid
+  assetTypeId  String?                 @map("asset_type_id") @db.Uuid
   key          String
   label        String
   dataType     CustomFieldDataType     @default(TEXT) @map("data_type")
@@ -290,22 +294,27 @@ model AssetCategoryCustomField {
   createdAt    DateTime                @default(now()) @map("created_at")
   updatedAt    DateTime                @updatedAt @map("updated_at")
   category     AssetCategory           @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  assetType    AssetType?              @relation(fields: [assetTypeId], references: [id], onDelete: SetNull)
   values       AssetCustomFieldValue[]
 
   @@unique([categoryId, key])
   @@index([categoryId])
+  @@index([assetTypeId])
   @@map("asset_category_custom_fields")
 }
 
 model AssetCustomFieldValue {
-  id        String                   @id @default(uuid()) @db.Uuid
-  assetId   String                   @map("asset_id") @db.Uuid
-  fieldId   String                   @map("field_id") @db.Uuid
-  valueText String?                  @map("value_text")
-  createdAt DateTime                 @default(now()) @map("created_at")
-  updatedAt DateTime                 @updatedAt @map("updated_at")
-  asset     Asset                    @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  field     AssetCategoryCustomField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  id           String                   @id @default(uuid()) @db.Uuid
+  assetId      String                   @map("asset_id") @db.Uuid
+  fieldId      String                   @map("field_id") @db.Uuid
+  valueText    String?                  @map("value_text")
+  valueNumber  Decimal?                 @map("value_number") @db.Decimal(18, 6)
+  valueBoolean Boolean?                 @map("value_boolean")
+  valueJson    Json?                    @map("value_json")
+  createdAt    DateTime                 @default(now()) @map("created_at")
+  updatedAt    DateTime                 @updatedAt @map("updated_at")
+  asset        Asset                    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  field        AssetCategoryCustomField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
 
   @@unique([assetId, fieldId])
   @@index([fieldId])
@@ -395,6 +404,7 @@ model Asset {
   stockCode         String?                 @map("stock_code")
   status            AssetStatus
   note              String?
+  specifications    Json                    @default("{}")
   imageRef          String?                 @map("image_ref")
   assetQuantity     Int                     @default(1) @map("asset_quantity")
   legacyQty         Int?                    @map("legacy_qty")

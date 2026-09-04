@@ -35,6 +35,7 @@ type CustomFieldDefinition = {
 
 type CategoryGroup = {
   assetCount: number;
+  code: string | null;
   customFields: CustomFieldDefinition[];
   id: string;
   name: string;
@@ -91,6 +92,7 @@ type DraftCustomField = {
 
 type DraftCategory = {
   assetCount: number;
+  code: string;
   customFields: DraftCustomField[];
   delete?: boolean;
   id?: string;
@@ -163,6 +165,7 @@ function newCustomField(sortOrder: number): DraftCustomField {
 function toDraftCategories(groups: CategoryGroup[]): DraftCategory[] {
   return groups.map((group) => ({
     assetCount: group.assetCount,
+    code: group.code ?? "",
     id: group.id,
     name: group.name,
     customFields: group.customFields.map((field) => ({
@@ -232,6 +235,19 @@ function ManageCategoriesDialog({
     return owners;
   }, [categories]);
 
+  const categoryPrefixOwners = useMemo(() => {
+    const owners = new Map<string, string[]>();
+
+    categories.forEach((category) => {
+      if (category.delete) return;
+      const code = category.code.trim().toUpperCase();
+      if (!code) return;
+      owners.set(code, [...(owners.get(code) ?? []), category.id ?? category.name]);
+    });
+
+    return owners;
+  }, [categories]);
+
   function hasDuplicatePrefix(type: DraftType) {
     const code = type.code.trim().toUpperCase();
 
@@ -255,6 +271,14 @@ function ManageCategoriesDialog({
         types: category.types.map((type, j) => (j === typeIndex ? { ...type, ...patch } : type)),
       };
     }));
+  }
+
+  function hasDuplicateCategoryPrefix(category: DraftCategory) {
+    const code = category.code.trim().toUpperCase();
+
+    if (!code) return false;
+
+    return (categoryPrefixOwners.get(code)?.length ?? 0) > 1;
   }
 
 
@@ -301,13 +325,25 @@ function ManageCategoriesDialog({
     const invalidCategory = activeCategories.find((category) => !category.name.trim());
     const activeTypes = activeCategories.flatMap((category) => category.types.filter((type) => !type.delete));
     const invalidType = activeTypes.find((type) => !type.name.trim());
+    const invalidCategoryPrefix = activeCategories.find((category) => category.code.trim() && !/^[A-Za-z0-9]{2}$/.test(category.code.trim()));
+    const duplicateCategoryPrefix = activeCategories.find(hasDuplicateCategoryPrefix);
     const duplicatePrefix = activeTypes.find(hasDuplicatePrefix);
     const activeFields = activeCategories.flatMap((category) => category.customFields.filter((field) => !field.delete));
     const invalidField = activeFields.find((field) => !field.label.trim() || !fieldKeyFromLabel(field.label));
-    const tooManyFields = activeCategories.find((category) => category.customFields.filter((field) => !field.delete).length > 5);
+    const tooManyFields = activeCategories.find((category) => category.customFields.filter((field) => !field.delete).length > 20);
 
     if (invalidCategory || invalidType) {
       setError("Category name and type name are required.");
+      return;
+    }
+
+    if (invalidCategoryPrefix) {
+      setError("Category prefix must be exactly 2 English letters or numbers.");
+      return;
+    }
+
+    if (duplicateCategoryPrefix) {
+      setError(`Category prefix ${duplicateCategoryPrefix.code.trim().toUpperCase()} is duplicated in this warehouse.`);
       return;
     }
 
@@ -322,7 +358,7 @@ function ManageCategoriesDialog({
     }
 
     if (tooManyFields) {
-      setError(`Category ${tooManyFields.name || "Untitled"} can have up to 5 custom fields.`);
+      setError(`Category ${tooManyFields.name || "Untitled"} can have up to 20 custom fields.`);
       return;
     }
 
@@ -355,8 +391,9 @@ function ManageCategoriesDialog({
 
         <div className="max-h-[70vh] overflow-y-auto p-5">
           <div className="overflow-hidden rounded-md border border-ink">
-            <div className="grid grid-cols-[180px_1fr_120px_170px_56px] border-b border-ink bg-surface px-3 py-2 text-sm font-semibold text-navy">
+            <div className="grid grid-cols-[180px_90px_1fr_120px_170px_56px] border-b border-ink bg-surface px-3 py-2 text-sm font-semibold text-navy">
               <span>Categories</span>
+              <span>Prefix</span>
               <span>Types</span>
               <span>Prefix</span>
               <span className="text-center">Action</span>
@@ -373,7 +410,7 @@ function ManageCategoriesDialog({
 
                 return (
                   <div className="border-b border-border px-2 py-3 last:border-b-0" key={category.id ?? `new-${categoryIndex}`}>
-                    <div className="grid grid-cols-[180px_1fr_120px_170px_56px] gap-3">
+                    <div className="grid grid-cols-[180px_90px_1fr_120px_170px_56px] gap-3">
                       <div>
                         <input
                           className="h-9 w-full rounded-md border border-ink bg-white px-2 text-sm text-navy outline-none focus:ring-2 focus:ring-brand-accent/30"
@@ -384,6 +421,24 @@ function ManageCategoriesDialog({
                         <p className="mt-1 text-[11px] font-semibold text-muted-foreground">
                           {category.assetCount.toLocaleString("en-US")} assets
                         </p>
+                      </div>
+
+                      <div>
+                        <input
+                          aria-readonly={Boolean(category.id)}
+                          className={`h-9 w-full rounded-md border px-2 text-sm font-semibold uppercase text-navy outline-none focus:ring-2 focus:ring-brand-accent/30 ${
+                            category.id ? "bg-surface" : "bg-white"
+                          } ${hasDuplicateCategoryPrefix(category) ? "border-red-500" : "border-ink"}`}
+                          onChange={(event) => {
+                            if (!category.id) {
+                              updateCategory(categoryIndex, { code: event.target.value });
+                            }
+                          }}
+                          placeholder="Prefix"
+                          readOnly={Boolean(category.id)}
+                          title={category.id ? "Category prefix is locked after creation. New stock codes will continue using this prefix." : "Enter category prefix"}
+                          value={category.code}
+                        />
                       </div>
 
                       <div className="col-span-3 flex flex-col gap-2">
@@ -451,11 +506,11 @@ function ManageCategoriesDialog({
                           <div className="mb-3 flex items-center justify-between gap-3">
                             <div>
                               <p className="text-sm font-bold text-navy">Custom Fields Schema</p>
-                              <p className="text-xs font-medium text-muted-foreground">Standard fields are inherited. Add up to 5 category-specific fields.</p>
+                              <p className="text-xs font-medium text-muted-foreground">Standard fields are inherited. Add up to 20 category-specific fields.</p>
                             </div>
                             <button
                               className="rounded-md bg-brand-accent px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
-                              disabled={category.customFields.filter((field) => !field.delete).length >= 5}
+                              disabled={category.customFields.filter((field) => !field.delete).length >= 20}
                               onClick={() => updateCategory(categoryIndex, { customFields: [...category.customFields, newCustomField(category.customFields.length)] })}
                               type="button"
                             >
@@ -520,7 +575,7 @@ function ManageCategoriesDialog({
                 <div className="p-4">
                   <button
                     className="h-9 w-full rounded-md border border-ink bg-surface text-sm font-semibold text-navy hover:bg-white"
-                    onClick={() => setCategories((current) => [...current, { assetCount: 0, customFields: [], name: "", types: [] }])}
+                    onClick={() => setCategories((current) => [...current, { assetCount: 0, code: "", customFields: [], name: "", types: [] }])}
                     type="button"
                   >
                     + Add Categories

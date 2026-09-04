@@ -160,3 +160,33 @@ Legend:
 - [ ] เพิ่ม integration tests สำหรับ approval และ derived return
 - [ ] ทดสอบ migration กับสำเนาฐานข้อมูลก่อน production
 - [ ] ตรวจ UI end-to-end หลัง deploy schema ใหม่
+
+## 2026-09-03 Custom Specification Data Model
+
+- [x] เพิ่ม `assets.specifications` เป็น JSONB สำหรับเก็บ raw/custom specification data ของทุก warehouse
+- [x] ขยาย `asset_custom_field_values` ให้รองรับ typed values: text, number, boolean และ json
+- [x] ขยาย `asset_category_custom_fields` ให้ผูก custom field กับ type ได้ผ่าน `asset_type_id`
+- [x] เพิ่ม GIN index สำหรับ `assets.specifications` เพื่อรองรับการค้นหา/ขยาย query ในอนาคต
+- [x] Create/Edit Asset บันทึก custom fields เป็น specification snapshot พร้อม custom field values
+- [x] Category API รองรับ custom field data type: TEXT, NUMBER, DROPDOWN, BOOLEAN
+- [x] เพิ่ม limit custom fields ต่อ category เป็น 20 fields
+- [x] Ran `npx.cmd prisma format`, `npx.cmd prisma generate --no-engine`, `npm.cmd run typecheck`, and `npm.cmd run lint` successfully.
+
+## 2026-09-03 Sale Stock Preparation
+
+- [x] เพิ่ม `asset_categories.category_code` สำหรับ category prefix 2 ตัว เพื่อรองรับ stock code แบบ `XX-YY-ZZZ0000`
+- [x] เพิ่ม unique constraint ของ category prefix ต่อ warehouse และล็อกไม่ให้แก้ prefix หลังสร้าง
+- [x] ปรับ stock code generator ของ Asset Create ให้ใช้ warehouse/category/type prefix เช่น `SS-CB-HDM0001`
+- [x] ปรับ import utility ให้พร้อมสร้าง stock code format ใหม่และรองรับ category/type prefix ของ `SALE_STOCK`
+- [x] เพิ่ม seed warehouse `SALE_STOCK` prefix `SS` เป็น quantity warehouse
+- [x] เพิ่ม seed taxonomy ของ Sale Stock ตาม master prefix ที่ผู้ใช้ส่ง: Power, Storage, Memory, Computer, Cables, Adapter & Converter, Accessories
+- [x] เพิ่ม Joy เป็น Stock Controller ของ Sale Stock ใน seed และ assign `bsd@example.com` ให้ manage `SALE_STOCK` ในฐาน dev ปัจจุบัน
+- [x] Import Sale Stock จาก Excel `Stock Hardware BSD (update 3_09_26).xlsx` เฉพาะ sheet category แยกแล้ว
+- [x] ยืนยัน import ใช้เฉพาะ sheet `Power`, `Cables`, `Adapter & Converter`, `Memory`, `Storage`, `Computer`, `Accessories` โดยไม่ใช้ sheet รวม `Stock for sale (02.09.26)` หรือ `Sheet1`
+- [x] ปรับ import metadata ให้ `rowNumber` อ้างอิงเลขแถวจริงในแต่ละ sheet แยก
+- [x] Hard delete warehouse/data `BSD` เดิมออกจากระบบแล้ว
+- [x] Imported 71 Sale Stock assets: 63 READY, 8 NEED_CHECK
+- [x] บันทึก custom specification ทั้ง `assets.specifications` และ `asset_custom_field_values`
+- [x] ปรับ Sale Stock import ให้ชีต `Accessories` ใช้ custom specification เฉพาะ column `Specification` และไม่เก็บค่า `-` เป็น specification
+- [x] ปรับ UI asset add/edit และ asset detail ให้ custom specification ต่อจากข้อมูลหลักโดยไม่แยก section `Custom Fields`
+- [x] ปรับ `Part No.` และ `Serial No.` ให้ไม่บังคับกรอก โดยยัง validate format เมื่อมีการกรอกข้อมูล

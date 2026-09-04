@@ -201,6 +201,7 @@ function AssetDetails({ asset }: { asset: AssetDetailRecord }) {
     label: field.label,
     value: fallback(valueByFieldKey.get(field.key)),
   }));
+  const detailItems = [...buildPrimaryDetails(asset), ...customDetails];
 
   return (
     <section className="grid gap-4 xl:grid-cols-[360px_1fr]">
@@ -210,16 +211,7 @@ function AssetDetails({ asset }: { asset: AssetDetailRecord }) {
           <Info className="h-5 w-5 text-navy" />
           <h2 className="text-xl font-bold text-navy">Details</h2>
         </div>
-        <DetailGrid items={buildPrimaryDetails(asset)} />
-
-        {customDetails.length > 0 ? (
-          <div className="mt-6 border-t border-border pt-5">
-            <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted-foreground">
-              Custom Fields
-            </h3>
-            <DetailGrid items={customDetails} />
-          </div>
-        ) : null}
+        <DetailGrid items={detailItems} />
 
         <div className="mt-6 border-t border-border pt-5">
           <h3 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">

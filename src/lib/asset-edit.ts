@@ -68,12 +68,16 @@ const assetEditSelect = Prisma.validator<Prisma.AssetSelect>()({
   sourceRecordId: true,
   sourceSystem: true,
   status: true,
+  specifications: true,
   stockCode: true,
   updatedAt: true,
   customFieldValues: {
     select: {
       field: { select: { key: true, label: true } },
       fieldId: true,
+      valueBoolean: true,
+      valueJson: true,
+      valueNumber: true,
       valueText: true,
     },
   },
@@ -196,6 +200,34 @@ function requirePatternText(
   return text;
 }
 
+function optionalPatternText(
+  value: string | null | undefined,
+  label: string,
+  options: { max: number; min: number; pattern: RegExp },
+) {
+  const text = cleanText(value);
+
+  if (!text) {
+    return null;
+  }
+
+  if (text === "-") {
+    return null;
+  }
+
+  assertAscii(text, label);
+
+  if (text.length < options.min || text.length > options.max) {
+    throw new WorkflowError(`${label} must be ${options.min}-${options.max} characters.`);
+  }
+
+  if (!options.pattern.test(text)) {
+    throw new WorkflowError(`${label} contains invalid characters.`);
+  }
+
+  return text;
+}
+
 
 function requirePositiveAssetQuantity(value: number | null | undefined) {
   if (!Number.isInteger(value) || (value ?? 0) <= 0) {
@@ -204,6 +236,73 @@ function requirePositiveAssetQuantity(value: number | null | undefined) {
 
   return value as number;
 }
+
+function buildSpecificationSnapshot(
+  values: Record<string, string | null | undefined> | undefined,
+) {
+  const specifications: Record<string, string> = {};
+
+  Object.entries(values ?? {}).forEach(([key, rawValue]) => {
+    const value = cleanText(rawValue);
+
+    if (key.trim() && value) {
+      specifications[key.trim()] = value;
+    }
+  });
+
+  return specifications as Prisma.InputJsonObject;
+}
+
+function parseBooleanCustomFieldValue(value: string) {
+  const normalized = value.trim().toLowerCase();
+
+  if (["1", "true", "yes", "y"].includes(normalized)) {
+    return true;
+  }
+
+  if (["0", "false", "no", "n"].includes(normalized)) {
+    return false;
+  }
+
+  throw new WorkflowError("Boolean custom field must be true/false or yes/no.");
+}
+
+function buildCustomFieldValueData(
+  field: { dataType: "BOOLEAN" | "DROPDOWN" | "NUMBER" | "TEXT"; label: string },
+  value: string,
+) {
+  if (field.dataType === "NUMBER") {
+    const numericValue = Number(value.replace(/,/g, ""));
+
+    if (!Number.isFinite(numericValue)) {
+      throw new WorkflowError(`${field.label} must be a valid number.`);
+    }
+
+    return {
+      valueBoolean: null,
+      valueJson: Prisma.JsonNull,
+      valueNumber: numericValue,
+      valueText: value,
+    };
+  }
+
+  if (field.dataType === "BOOLEAN") {
+    return {
+      valueBoolean: parseBooleanCustomFieldValue(value),
+      valueJson: Prisma.JsonNull,
+      valueNumber: null,
+      valueText: value,
+    };
+  }
+
+  return {
+    valueBoolean: null,
+    valueJson: Prisma.JsonNull,
+    valueNumber: null,
+    valueText: value,
+  };
+}
+
 function validateSerialNo(
   value: string | null | undefined,
   trackMethod: AssetTrackMethod,
@@ -218,7 +317,7 @@ function validateSerialNo(
     return null;
   }
 
-  return requirePatternText(serialNo, "Serial no.", {
+  return optionalPatternText(serialNo, "Serial no.", {
     max: 255,
     min: 1,
     pattern: /^[A-Za-z0-9-]+$/,
@@ -237,17 +336,24 @@ function stockTypeCode(assetType: { code: string | null; name: string }) {
   return (normalized || "XXX").padEnd(3, "X").slice(0, 3);
 }
 
+function stockCategoryCode(category: { code?: string | null; name: string | null } | null | undefined) {
+  const source = cleanText(category?.code) ?? category?.name ?? "XX";
+  const normalized = source.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+
+  return (normalized || "XX").padEnd(2, "X").slice(0, 2);
+}
+
 async function generateStockCode(
   tx: Prisma.TransactionClient,
   warehouseCode: string,
-  assetType: { code: string | null; name: string },
+  assetType: { category?: { code: string | null; name: string } | null; code: string | null; name: string },
 ) {
   const warehouse = await tx.assetWarehouse.findUnique({
     select: { prefix: true },
     where: { code: warehouseCode },
   });
   const warehousePrefix = cleanText(warehouse?.prefix) ?? fallbackWarehouseStockPrefixes[warehouseCode] ?? warehouseCode.replace(/[^A-Za-z0-9]/g, "").toUpperCase().padEnd(2, "X").slice(0, 2);
-  const prefix = `${warehousePrefix}-${stockTypeCode(assetType)}`;
+  const prefix = `${warehousePrefix}-${stockCategoryCode(assetType.category)}-${stockTypeCode(assetType)}`;
   const latest = await tx.asset.findFirst({
     orderBy: { stockCode: "desc" },
     select: { stockCode: true },
@@ -543,6 +649,7 @@ async function resolveAssetType(
       trackMethod: AssetTrackMethod.SERIAL,
     },
     select: {
+      category: { select: { code: true, name: true } },
       code: true,
       id: true,
       name: true,
@@ -612,7 +719,7 @@ async function saveCustomFieldValues(
 
   const fields = await tx.assetCategoryCustomField.findMany({
     orderBy: { sortOrder: "asc" },
-    select: { id: true, isRequired: true, key: true, label: true },
+    select: { dataType: true, id: true, isRequired: true, key: true, label: true },
     where: { categoryId, isActive: true },
   });
 
@@ -624,9 +731,11 @@ async function saveCustomFieldValues(
     }
 
     if (value) {
+      const data = buildCustomFieldValueData(field, value);
+
       await tx.assetCustomFieldValue.upsert({
-        create: { assetId, fieldId: field.id, valueText: value },
-        update: { valueText: value },
+        create: { ...data, assetId, fieldId: field.id },
+        update: data,
         where: { assetId_fieldId: { assetId, fieldId: field.id } },
       });
     } else {
@@ -661,7 +770,7 @@ export async function updateAssetForUser(
   });
   const modelNo = cleanText(input.modelNo);
   const note = cleanText(input.note);
-  const partNo = requirePatternText(input.partNo, "Part no.", {
+  const partNo = optionalPatternText(input.partNo, "Part no.", {
     max: 20,
     min: 2,
     pattern: /^[A-Za-z0-9\-\/.]+$/,
@@ -671,6 +780,7 @@ export async function updateAssetForUser(
   const imageRef = cleanText(input.imageRef);
   const typeName = requireText(input.typeName, "Type");
   const assetNo = cleanText(input.assetNo);
+  const specifications = buildSpecificationSnapshot(input.customFields);
 
   return db.$transaction(
     async (tx) => {
@@ -805,6 +915,7 @@ export async function updateAssetForUser(
           serialNo,
           sourceRecordId,
           sourceSystem,
+          specifications,
           status: input.status,
           updatedById: user.id,
         },
@@ -923,7 +1034,7 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
   });
   const modelNo = cleanText(input.modelNo);
   const note = cleanText(input.note);
-  const partNo = requirePatternText(input.partNo, "Part no.", {
+  const partNo = optionalPatternText(input.partNo, "Part no.", {
     max: 20,
     min: 2,
     pattern: /^[A-Za-z0-9\-\/.]+$/,
@@ -933,6 +1044,7 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
   const imageRef = cleanText(input.imageRef);
   const typeName = requireText(input.typeName, "Type");
   const assetNo = cleanText(input.assetNo);
+  const specifications = buildSpecificationSnapshot(input.customFields);
 
   if (input.status === AssetStatus.REQUEST) {
     throw new WorkflowError(
@@ -1020,6 +1132,7 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
           serialNo,
           sourceRecordId,
           sourceSystem,
+          specifications,
           status: input.status,
           stockCode,
           updatedById: user.id,

@@ -83,12 +83,20 @@ function isAscii(value: string) {
 function validatePattern(
   value: string,
   label: string,
-  options: { allowed: string; max: number; min: number; pattern: RegExp },
+  options: { allowed: string; max: number; min: number; optional?: boolean; pattern: RegExp },
 ) {
   const trimmed = value.trim();
 
   if (!trimmed) {
+    if (options.optional) {
+      return null;
+    }
+
     return `${label} is required.`;
+  }
+
+  if (options.optional && trimmed === "-") {
+    return null;
   }
 
   if (!isAscii(trimmed)) {
@@ -134,6 +142,7 @@ function validateAssetForm(
     allowed: "- / .",
     max: 20,
     min: 2,
+    optional: true,
     pattern: /^[A-Za-z0-9\-\/.]+$/,
   });
 
@@ -145,11 +154,9 @@ function validateAssetForm(
   if (trackMethod === "SERIAL") {
     const serialNo = form.serialNo.trim();
 
-    if (!serialNo) {
-      fieldErrors.serialNo = "Serial no. is required.";
-    } else if (!isAscii(serialNo)) {
+    if (serialNo && !isAscii(serialNo)) {
       fieldErrors.serialNo = "Serial no. must not contain Thai characters. English only.";
-    } else if (!/^[A-Za-z0-9-]+$/.test(serialNo)) {
+    } else if (serialNo && !/^[A-Za-z0-9-]+$/.test(serialNo)) {
       fieldErrors.serialNo = "Serial no. allows letters, numbers, and - only. No spaces or other symbols.";
     }
   } else {
@@ -566,7 +573,6 @@ export function AssetEditForm(props: AssetEditFormProps) {
             <Field
               error={isQuantityAsset ? fieldErrors.quantity : fieldErrors.serialNo}
               label={isQuantityAsset ? "Quantity" : "Serial Number"}
-              required
             >
               <Input
                 aria-invalid={Boolean(isQuantityAsset ? fieldErrors.quantity : fieldErrors.serialNo)}
@@ -577,7 +583,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
                     : setField("serialNo", event.target.value)
                 }
                 placeholder={isQuantityAsset ? "Enter quantity" : "SN-XXXX-XXXX"}
-                required
+                required={isQuantityAsset}
                 type={isQuantityAsset ? "number" : "text"}
                 value={isQuantityAsset ? form.quantity : form.serialNo}
               />
@@ -666,60 +672,51 @@ export function AssetEditForm(props: AssetEditFormProps) {
             <Field
               error={fieldErrors.partNo}
               label="Part No."
-              required
             >
               <Input
-                required
                 aria-invalid={Boolean(fieldErrors.partNo)}
                 onChange={(event) => setField("partNo", event.target.value)}
                 placeholder="Enter part no. (Symbols allowed: - / .)"
                 value={form.partNo}
               />
             </Field>
+
+            {categoryCustomFields.map((field) => {
+              const errorKey = `custom:${field.key}` as const;
+              const value = form.customFields[field.key] ?? "";
+
+              return (
+                <Field error={fieldErrors[errorKey]} key={field.id} label={field.label} required={field.isRequired}>
+                  {field.dataType === "DROPDOWN" ? (
+                    <SearchableDropdown
+                      onChange={(nextValue) => setCustomField(field.key, nextValue)}
+                      options={field.options.map((option) => ({ label: option, value: option }))}
+                      placeholder={field.placeholder ?? "Select " + field.label}
+                      searchPlaceholder={"Search " + field.label}
+                      value={value}
+                    />
+                  ) : field.dataType === "BOOLEAN" ? (
+                    <label className="inline-flex h-11 items-center gap-3 rounded-md border border-border bg-white px-3 text-sm font-semibold text-ink">
+                      <input
+                        checked={value === "true"}
+                        onChange={(event) => setCustomField(field.key, event.target.checked ? "true" : "false")}
+                        type="checkbox"
+                      />
+                      Enabled
+                    </label>
+                  ) : (
+                    <Input
+                      aria-invalid={Boolean(fieldErrors[errorKey])}
+                      onChange={(event) => setCustomField(field.key, event.target.value)}
+                      placeholder={field.placeholder ?? (field.unit ? "Enter " + field.label + " (" + field.unit + ")" : "Enter " + field.label)}
+                      type={field.dataType === "NUMBER" ? "number" : "text"}
+                      value={value}
+                    />
+                  )}
+                </Field>
+              );
+            })}
           </div>
-
-          {categoryCustomFields.length > 0 ? (
-            <div className="mt-6 border-t border-border pt-5">
-              <h3 className="text-sm font-bold uppercase tracking-wide text-navy">Custom Fields</h3>
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                {categoryCustomFields.map((field) => {
-                  const errorKey = `custom:${field.key}` as const;
-                  const value = form.customFields[field.key] ?? "";
-
-                  return (
-                    <Field error={fieldErrors[errorKey]} key={field.id} label={field.label} required={field.isRequired}>
-                      {field.dataType === "DROPDOWN" ? (
-                        <SearchableDropdown
-                          onChange={(nextValue) => setCustomField(field.key, nextValue)}
-                          options={field.options.map((option) => ({ label: option, value: option }))}
-                          placeholder={field.placeholder ?? "Select " + field.label}
-                          searchPlaceholder={"Search " + field.label}
-                          value={value}
-                        />
-                      ) : field.dataType === "BOOLEAN" ? (
-                        <label className="inline-flex h-11 items-center gap-3 rounded-md border border-border bg-white px-3 text-sm font-semibold text-ink">
-                          <input
-                            checked={value === "true"}
-                            onChange={(event) => setCustomField(field.key, event.target.checked ? "true" : "false")}
-                            type="checkbox"
-                          />
-                          Enabled
-                        </label>
-                      ) : (
-                        <Input
-                          aria-invalid={Boolean(fieldErrors[errorKey])}
-                          onChange={(event) => setCustomField(field.key, event.target.value)}
-                          placeholder={field.placeholder ?? (field.unit ? "Enter " + field.label + " (" + field.unit + ")" : "Enter " + field.label)}
-                          type={field.dataType === "NUMBER" ? "number" : "text"}
-                          value={value}
-                        />
-                      )}
-                    </Field>
-                  );
-                })}
-              </div>
-            </div>
-          ) : null}
         </section>
       </section>
 

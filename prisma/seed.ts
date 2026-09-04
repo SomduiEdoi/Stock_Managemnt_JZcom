@@ -40,6 +40,23 @@ const seedUsers: SeedUser[] = [
       { warehouseCode: "NETWORK", canView: true, canManage: true },
       { warehouseCode: "BSD", canView: true, canManage: true },
       { warehouseCode: "DL", canView: true, canManage: true },
+      { warehouseCode: "SALE_STOCK", canView: true, canManage: true },
+    ],
+  },
+  {
+    name: "Joy",
+    email: "joy@example.com",
+    position: "Sale Stock Controller",
+    roleCode: "STOCK_CONTROLLER",
+    stockControllerTag: "STOCK_CONTROLLER",
+    organizationLevel: "STAFF",
+    organizationTag: "BSD_STAFF",
+    permissions: [
+      { warehouseCode: "SERVER", canView: true, canManage: false },
+      { warehouseCode: "NETWORK", canView: true, canManage: false },
+      { warehouseCode: "BSD", canView: true, canManage: false },
+      { warehouseCode: "DL", canView: true, canManage: false },
+      { warehouseCode: "SALE_STOCK", canView: true, canManage: true },
     ],
   },
   {
@@ -114,6 +131,7 @@ const seedUsers: SeedUser[] = [
       { warehouseCode: "NETWORK", canView: true, canManage: false },
       { warehouseCode: "BSD", canView: true, canManage: false },
       { warehouseCode: "DL", canView: true, canManage: false },
+      { warehouseCode: "SALE_STOCK", canView: true, canManage: false },
     ],
   },
   {
@@ -128,6 +146,7 @@ const seedUsers: SeedUser[] = [
       { warehouseCode: "NETWORK", canView: true, canManage: false },
       { warehouseCode: "BSD", canView: true, canManage: false },
       { warehouseCode: "DL", canView: true, canManage: false },
+      { warehouseCode: "SALE_STOCK", canView: true, canManage: false },
     ],
   },
 ];
@@ -233,7 +252,81 @@ async function upsertWarehouses() {
         inventoryFamily: AssetTrackMethod.QUANTITY,
       },
     }),
+    prisma.assetWarehouse.upsert({
+      where: { code: "SALE_STOCK" },
+      update: {
+        name: "Sale Stock",
+        prefix: "SS",
+        description: "Sale stock warehouse for BSD hardware.",
+        inventoryFamily: AssetTrackMethod.QUANTITY,
+      },
+      create: {
+        code: "SALE_STOCK",
+        name: "Sale Stock",
+        prefix: "SS",
+        description: "Sale stock warehouse for BSD hardware.",
+        inventoryFamily: AssetTrackMethod.QUANTITY,
+      },
+    }),
   ]);
+}
+
+const saleStockTaxonomy: Array<{ category: string; categoryCode: string; type: string; typeCode: string }> = [
+  { category: "Power", categoryCode: "PW", type: "UPS", typeCode: "UPS" },
+  { category: "Power", categoryCode: "PW", type: "Battery", typeCode: "BAT" },
+  { category: "Storage", categoryCode: "ST", type: "HDD", typeCode: "HDD" },
+  { category: "Storage", categoryCode: "ST", type: "SSD", typeCode: "SSD" },
+  { category: "Storage", categoryCode: "ST", type: "USB Flash Drive", typeCode: "UFD" },
+  { category: "Storage", categoryCode: "ST", type: "Memory Card", typeCode: "MCD" },
+  { category: "Memory", categoryCode: "MM", type: "RAM", typeCode: "RAM" },
+  { category: "Computer", categoryCode: "CP", type: "Notebook", typeCode: "NBK" },
+  { category: "Computer", categoryCode: "CP", type: "Mini PC", typeCode: "MPC" },
+  { category: "Computer", categoryCode: "CP", type: "PC/Desktop", typeCode: "PCD" },
+  { category: "Computer", categoryCode: "CP", type: "Monitor", typeCode: "MON" },
+  { category: "Computer", categoryCode: "CP", type: "Component", typeCode: "CPN" },
+  { category: "Cables", categoryCode: "CB", type: "HDMI", typeCode: "HDM" },
+  { category: "Cables", categoryCode: "CB", type: "USB Cable", typeCode: "USB" },
+  { category: "Cables", categoryCode: "CB", type: "VGA Cable", typeCode: "VGA" },
+  { category: "Cables", categoryCode: "CB", type: "Printer Cable", typeCode: "PRT" },
+  { category: "Adapter & Converter", categoryCode: "AD", type: "Converter", typeCode: "ADP" },
+  { category: "Accessories", categoryCode: "AC", type: "Mouse pad", typeCode: "MPD" },
+  { category: "Accessories", categoryCode: "AC", type: "Bag", typeCode: "BAG" },
+  { category: "Accessories", categoryCode: "AC", type: "Mouse", typeCode: "MOU" },
+  { category: "Accessories", categoryCode: "AC", type: "Headphones", typeCode: "HPN" },
+  { category: "Accessories", categoryCode: "AC", type: "Keypad", typeCode: "KPD" },
+  { category: "Accessories", categoryCode: "AC", type: "Enclosure", typeCode: "ENC" },
+  { category: "Accessories", categoryCode: "AC", type: "Office Accessory", typeCode: "OFA" },
+  { category: "Accessories", categoryCode: "AC", type: "Switch", typeCode: "SWT" },
+];
+
+async function upsertSaleStockTaxonomy(warehouseId: string) {
+  const categories = new Map<string, string>();
+
+  for (const item of saleStockTaxonomy) {
+    let categoryId = categories.get(item.category);
+
+    if (!categoryId) {
+      const category = await prisma.assetCategory.upsert({
+        where: { warehouseId_name: { warehouseId, name: item.category } },
+        update: { code: item.categoryCode, isActive: true },
+        create: { code: item.categoryCode, warehouseId, isActive: true, name: item.category },
+      });
+      categoryId = category.id;
+      categories.set(item.category, categoryId);
+    }
+
+    await prisma.assetType.upsert({
+      where: { categoryId_name: { categoryId, name: item.type } },
+      update: { code: item.typeCode, isActive: true, trackMethod: AssetTrackMethod.QUANTITY },
+      create: {
+        categoryId,
+        code: item.typeCode,
+        isActive: true,
+        name: item.type,
+        trackMethod: AssetTrackMethod.QUANTITY,
+      },
+    });
+  }
 }
 
 const bsdTaxonomy: Array<{ category: string; type: string; code: string }> = [
@@ -448,6 +541,7 @@ async function main() {
   );
   const bsdWarehouseId = warehouseByCode.get("BSD");
   const dlWarehouseId = warehouseByCode.get("DL");
+  const saleStockWarehouseId = warehouseByCode.get("SALE_STOCK");
 
   if (!bsdWarehouseId) {
     throw new Error("Missing warehouse BSD");
@@ -455,9 +549,13 @@ async function main() {
   if (!dlWarehouseId) {
     throw new Error("Missing warehouse DL");
   }
+  if (!saleStockWarehouseId) {
+    throw new Error("Missing warehouse SALE_STOCK");
+  }
 
   await upsertBsdTaxonomy(bsdWarehouseId);
   await upsertDlTaxonomy(dlWarehouseId);
+  await upsertSaleStockTaxonomy(saleStockWarehouseId);
 
   for (const user of seedUsers) {
     await upsertSeedUser(user, passwordHash, roleByCode, warehouseByCode);

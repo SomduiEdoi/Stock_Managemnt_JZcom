@@ -28,7 +28,7 @@ const createAssetSchema = z.object({
   modelName: z.string().trim().min(1).max(255),
   modelNo: nullableString(255),
   note: z.string().trim().max(2000).optional().nullable(),
-  partNo: z.string().trim().min(1).max(255),
+  partNo: nullableString(255),
   serialNo: nullableString(255),
   sourceRecordId: nullableString(255),
   sourceSystem: nullableString(255),

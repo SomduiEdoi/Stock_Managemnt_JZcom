@@ -23,6 +23,7 @@ type InventoryCategoryCustomField = {
 
 type CategoryGroup = {
   assetCount: number;
+  code: string | null;
   id: string;
   name: string;
   customFields: InventoryCategoryCustomField[];

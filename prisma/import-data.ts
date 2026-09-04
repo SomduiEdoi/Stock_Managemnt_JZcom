@@ -35,6 +35,7 @@ type ParsedRow = {
 
 type MappedRow = {
   brand: string | null;
+  categoryCode: string | null;
   categoryName: string | null;
   description: string | null;
   imageRef: string | null;
@@ -162,6 +163,45 @@ const typeCodeByWarehouse: Record<WarehouseCode, Record<string, string>> = {
     "rack accessories": "RAC",
     "telephone accessories": "TEL",
   },
+  SALE_STOCK: {
+    ups: "UPS",
+    battery: "BAT",
+    hdd: "HDD",
+    ssd: "SSD",
+    "usb flash drive": "UFD",
+    "memory card": "MCD",
+    ram: "RAM",
+    notebook: "NBK",
+    "mini pc": "MPC",
+    "pc/desktop": "PCD",
+    monitor: "MON",
+    component: "CPN",
+    hdmi: "HDM",
+    "usb cable": "USB",
+    "vga cable": "VGA",
+    "printer cable": "PRT",
+    converter: "ADP",
+    "mouse pad": "MPD",
+    bag: "BAG",
+    mouse: "MOU",
+    headphones: "HPN",
+    keypad: "KPD",
+    enclosure: "ENC",
+    "office accessory": "OFA",
+    switch: "SWT",
+  },
+};
+
+const categoryCodeByWarehouse: Record<WarehouseCode, Record<string, string>> = {
+  SALE_STOCK: {
+    "adapter & converter": "AD",
+    accessories: "AC",
+    cables: "CB",
+    computer: "CP",
+    memory: "MM",
+    power: "PW",
+    storage: "ST",
+  },
 };
 
 function normalizeKey(value: string) {
@@ -182,12 +222,27 @@ function typeCodeFor(warehouseCode: WarehouseCode, typeName: string | null) {
   return typeCodeByWarehouse[warehouseCode][normalizeKey(typeName)] ?? fallbackTypeCode(typeName);
 }
 
+function fallbackCategoryCode(value: string | null) {
+  const normalized = (value ?? "XX").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+
+  return (normalized || "XX").padEnd(2, "X").slice(0, 2);
+}
+
+function categoryCodeFor(warehouseCode: WarehouseCode, categoryName: string | null) {
+  if (!categoryName) {
+    return null;
+  }
+
+  return categoryCodeByWarehouse[warehouseCode]?.[normalizeKey(categoryName)] ?? fallbackCategoryCode(categoryName);
+}
+
 function nextImportedStockCode(
   warehousePrefix: string,
+  categoryCode: string | null,
   typeCode: string | null,
   counters: Map<string, number>,
 ) {
-  const prefix = `${warehousePrefix}-${typeCode ?? "UNK"}`;
+  const prefix = `${warehousePrefix}-${categoryCode ?? "XX"}-${typeCode ?? "UNK"}`;
   const next = (counters.get(prefix) ?? 0) + 1;
   counters.set(prefix, next);
 
@@ -325,11 +380,13 @@ function combineNote(row: CsvRecord) {
 function mapRow(warehouseCode: WarehouseCode, row: CsvRecord): MappedRow {
   if (warehouseCode === "BSD" || warehouseCode === "DL") {
     const quantity = parseInteger(row.QTY) ?? 0;
+    const categoryName = clean(row.Category);
     const typeName = clean(row.Types);
 
     return {
       brand: clean(row.Brand),
-      categoryName: clean(row.Category),
+      categoryCode: categoryCodeFor(warehouseCode, categoryName),
+      categoryName,
       description: clean(row.Description) ?? clean(row.Comment),
       imageRef: clean(row.Image),
       legacyFg: parseInteger(row.FG),
@@ -354,10 +411,12 @@ function mapRow(warehouseCode: WarehouseCode, row: CsvRecord): MappedRow {
   }
 
   const typeName = clean(row.Types);
+  const categoryName = clean(row.Category);
 
   return {
     brand: clean(row.Brand),
-    categoryName: clean(row.Category),
+    categoryCode: categoryCodeFor(warehouseCode, categoryName),
+    categoryName,
     description: clean(row.Description) ?? clean(row.Comment),
     imageRef: clean(row.Image),
     legacyFg: parseInteger(row.FG),
@@ -379,6 +438,7 @@ async function findOrCreateCategory(
   tx: Prisma.TransactionClient,
   warehouseId: string,
   name: string | null,
+  code: string | null,
 ) {
   if (!name) {
     return null;
@@ -386,8 +446,8 @@ async function findOrCreateCategory(
 
   return tx.assetCategory.upsert({
     where: { warehouseId_name: { warehouseId, name } },
-    update: { isActive: true },
-    create: { warehouseId, name },
+    update: { code, isActive: true },
+    create: { code, warehouseId, name },
   });
 }
 
@@ -539,7 +599,7 @@ async function upsertAssetFromRow(
   batchId: string,
   sourceRecordId: string,
 ) {
-  const category = await findOrCreateCategory(tx, warehouseId, mapped.categoryName);
+  const category = await findOrCreateCategory(tx, warehouseId, mapped.categoryName, mapped.categoryCode);
   const assetType = await findOrCreateAssetType(
     tx,
     category?.id ?? null,
@@ -625,7 +685,7 @@ async function importParsedRow(
   stockCodeCounters: Map<string, number>,
 ) {
   const mapped = mapRow(warehouseCode, row.data);
-  mapped.stockCode = nextImportedStockCode(warehousePrefix, mapped.typeCode, stockCodeCounters);
+  mapped.stockCode = nextImportedStockCode(warehousePrefix, mapped.categoryCode, mapped.typeCode, stockCodeCounters);
 
   if (mapped.serialNo) {
     const serialKey = mapped.serialNo.toLowerCase();
