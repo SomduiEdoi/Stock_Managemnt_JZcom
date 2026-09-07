@@ -8,6 +8,15 @@ const createUserSchema = z.object({
   email: z.string().trim().email(),
   name: z.string().trim().min(1),
   organizationLevel: z.nativeEnum(OrganizationLevel).nullable().optional(),
+  organizationAssignments: z
+    .array(
+      z.object({
+        organizationLevel: z.nativeEnum(OrganizationLevel),
+        organizationTag: z.nativeEnum(OrganizationTag),
+      }),
+    )
+    .optional(),
+  primaryOrganizationTag: z.nativeEnum(OrganizationTag).nullable().optional(),
   organizationTag: z.nativeEnum(OrganizationTag).nullable().optional(),
   role: z.enum(["ADMIN", "STOCK_CONTROLLER", "USER"]),
   stockControllerTag: z.nativeEnum(StockControllerTag).nullable().optional(),

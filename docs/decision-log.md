@@ -1,6 +1,6 @@
 # Decision Log: Warehouse Management
 
-อัปเดตล่าสุด: 2026-09-02
+อัปเดตล่าสุด: 2026-09-04
 
 ## 2026-09-02: ใช้ชื่อ Warehouse Management
 
@@ -25,7 +25,7 @@
 
 ## 2026-07-22: รูปแบบ Request No.
 
-- ใช้ `REQ-YYYYMMDD-XX` และ reset `XX` รายเดือน
+- ใช้ `REQ-YYYYMMDD-XX` โดย `XX` เริ่มที่ `01` และ reset รายเดือน
 - มี generator และ tests สำหรับรูปแบบ, month boundary และ limit 99 รายการ
 
 ## 2026-07-22: Project ต้องเป็น Persistent Data
@@ -42,7 +42,7 @@
 ## 2026-08-06: Prefix ถูกล็อกหลังสร้าง
 
 - Warehouse prefix กำหนดเฉพาะตอนสร้าง
-- Stock code ใช้ `XX-YYY0000`: Warehouse prefix 2 ตัว, Type code 3 ตัว และ sequence 4 หลัก
+- Stock code ใช้ `XX-YY-ZZZ0000`: Warehouse prefix 2 ตัว, Category prefix 2 ตัว, Type code 3 ตัว และ sequence 4 หลัก
 
 ## 2026-08-06: Head Stock Controller ผูกกับ Warehouse
 
@@ -74,12 +74,7 @@
 - ระบบสร้าง derived transaction ที่อ้าง `sourceTransactionId` และเริ่มเป็น `PENDING`
 - Source transaction คง `IN_PROGRESS` จน item ถูก resolve ครบ
 - ป้องกัน derived transaction ซ้ำสำหรับ item เดิม
-- `FAIL`, `LOST`, `NEED_CHECK` ยังไม่อยู่ใน return approval UI/API
-
-## 2026-09-02: Asset Detail PDF ยังไม่เสร็จ
-
-- Asset Detail และ status history ใช้งานได้
-- มี print-oriented component แต่ยังไม่เชื่อมเข้าหน้า Asset Detail หรือ endpoint จริง จึงยังเป็นงานค้าง
+- Return UI/API รองรับ `READY`, `SOLD`, `FAIL`, `LOST`, `NEED_CHECK` และส่งผ่าน derived approval transaction
 
 ## 2026-09-02: User มีหลาย Organization Assignments
 
@@ -94,8 +89,16 @@ Reason:
 
 Implementation status:
 
-- เป็น requirement ใหม่; schema ปัจจุบันยังเก็บ organization level/tag ค่าเดียวใน `users`
-- ต้องเพิ่ม `UserOrganizationAssignment`, migration, API, User Management และปรับ approval lookup
+- มี `UserOrganizationAssignment`, migration, API, User Management และ approval lookup แล้ว
+- Primary assignment ต้องถูกเลือกอย่างชัดเจน ไม่ใช้รายการแรกเป็นค่าอัตโนมัติ
+
+## 2026-09-07: Legacy Stock Code Policy
+
+- Stock code ใหม่ต้องใช้รูปแบบ `XX-YY-ZZZ0000` และ unique
+- Legacy stock code ที่ถูกต้องให้คงเดิม
+- Legacy stock code ที่ผิด format ต้องผ่าน verification และ mapping ก่อนแก้
+- ห้ามแก้ stock code อัตโนมัติหากมี Transaction, Approval, Reservation หรือ Status History อ้างอิง
+- การแก้ต้องเป็น administrative operation ที่มี audit และตรวจ duplicate ก่อนบันทึก
 
 ## 2026-09-02: Approver คนเดียวถือหลายขั้น
 

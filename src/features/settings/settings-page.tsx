@@ -1,5 +1,6 @@
 import Image from "next/image";
 import type { CurrentUser } from "@/lib/auth";
+import { organizationTagLabel } from "@/lib/user-management-shared";
 import { SignatureUploadButton } from "./signature-upload-button";
 
 type SettingsPageProps = {
@@ -34,6 +35,16 @@ function formatTag(value: string | null) {
 }
 
 function userTag(user: CurrentUser) {
+  if (user.organizationAssignments.length > 0) {
+    return user.organizationAssignments
+      .map((assignment) =>
+        `${formatTag(assignment.organizationLevel)} / ${organizationTagLabel(
+          assignment.organizationTag,
+        )}${assignment.isPrimary ? " (Primary)" : ""}`,
+      )
+      .join(", ");
+  }
+
   const tags = [
     user.stockControllerTag ? formatTag(user.stockControllerTag) : null,
     user.organizationLevel ? formatTag(user.organizationLevel) : null,

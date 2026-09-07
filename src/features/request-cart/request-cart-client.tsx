@@ -19,6 +19,7 @@ import {
 import { SearchableDropdown } from "@/components/form/searchable-dropdown";
 import { downloadTransactionPdf } from "@/features/transactions/transaction-pdf-download";
 import { formatWarehouseName } from "@/lib/display-labels";
+import { organizationTagLabel } from "@/lib/user-management-shared";
 
 type TransactionTypeCode = "BORROW" | "USING" | "SOLD";
 
@@ -52,6 +53,12 @@ export type RequestCartProjectClient = {
 
 type RequestCartClientProps = {
   initialAssets: RequestCartAssetClient[];
+  organizationAssignments: Array<{
+    id: string;
+    isPrimary: boolean;
+    organizationLevel: string;
+    organizationTag: string;
+  }>;
   projects: RequestCartProjectClient[];
 };
 
@@ -206,6 +213,7 @@ function TransactionForm({
   onNoteChange,
   onProjectChange,
   onProjectRequestChange,
+  onRequestContextChange,
   onReferenceChange,
   onServiceRequestChange,
   onSubmit,
@@ -214,6 +222,8 @@ function TransactionForm({
   projectRequest,
   projects,
   referenceName,
+  requestContextAssignmentId,
+  requestContextOptions,
   serviceRequest,
   type,
 }: {
@@ -224,6 +234,7 @@ function TransactionForm({
   onNoteChange: (value: string) => void;
   onProjectChange: (value: string) => void;
   onProjectRequestChange: (checked: boolean) => void;
+  onRequestContextChange: (value: string) => void;
   onReferenceChange: (value: string) => void;
   onServiceRequestChange: (checked: boolean) => void;
   onSubmit: () => void;
@@ -232,6 +243,13 @@ function TransactionForm({
   projectRequest: boolean;
   projects: RequestCartProjectClient[];
   referenceName: string;
+  requestContextAssignmentId: string;
+  requestContextOptions: Array<{
+    description?: string;
+    label: string;
+    searchText: string;
+    value: string;
+  }>;
   serviceRequest: boolean;
   type: TransactionTypeCode;
 }) {
@@ -254,6 +272,21 @@ function TransactionForm({
             </span>
             <TransactionTypeSelect onChange={onTypeChange} value={type} />
           </label>
+
+          {requestContextOptions.length > 1 ? (
+            <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              <span>
+                Request Context <RequiredMark />
+              </span>
+              <SearchableDropdown
+                onChange={onRequestContextChange}
+                options={requestContextOptions}
+                placeholder="Select request context"
+                searchPlaceholder="Search request context"
+                value={requestContextAssignmentId}
+              />
+            </label>
+          ) : null}
 
           <div className="flex flex-col gap-2">
             <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
@@ -464,7 +497,11 @@ async function readApiMessage(response: Response) {
   return data;
 }
 
-export function RequestCartClient({ initialAssets, projects }: RequestCartClientProps) {
+export function RequestCartClient({
+  initialAssets,
+  organizationAssignments,
+  projects,
+}: RequestCartClientProps) {
   const [assets, setAssets] = useState(initialAssets);
   const [error, setError] = useState<string | null>(null);
   const [type, setType] = useState<TransactionTypeCode>("BORROW");
@@ -476,8 +513,20 @@ export function RequestCartClient({ initialAssets, projects }: RequestCartClient
   const [projectRequest, setProjectRequest] = useState(false);
   const [referenceName, setReferenceName] = useState("");
   const [removingAssetId, setRemovingAssetId] = useState<string | null>(null);
+  const primaryAssignment =
+    organizationAssignments.find((assignment) => assignment.isPrimary) ??
+    organizationAssignments[0];
+  const [requestContextAssignmentId, setRequestContextAssignmentId] = useState(
+    primaryAssignment?.id ?? "",
+  );
   const [serviceRequest, setServiceRequest] = useState(false);
   const [submitted, setSubmitted] = useState<PrintableTransaction | null>(null);
+  const requestContextOptions = organizationAssignments.map((assignment) => ({
+    description: assignment.isPrimary ? "Primary" : undefined,
+    label: `${assignment.organizationLevel} / ${organizationTagLabel(assignment.organizationTag)}`,
+    searchText: `${assignment.organizationLevel} ${assignment.organizationTag} ${organizationTagLabel(assignment.organizationTag)}`,
+    value: assignment.id,
+  }));
 
   function handleTypeChange(nextType: TransactionTypeCode) {
     setType(nextType);
@@ -572,6 +621,10 @@ export function RequestCartClient({ initialAssets, projects }: RequestCartClient
       missingFields.push("Use Detail");
     }
 
+    if (requestContextOptions.length > 1 && !requestContextAssignmentId) {
+      missingFields.push("Request Context");
+    }
+
     if (type !== "USING" && !serviceRequest && !projectRequest) {
       missingFields.push("Service / Project");
     }
@@ -618,6 +671,7 @@ export function RequestCartClient({ initialAssets, projects }: RequestCartClient
           projectId: type === "USING" || !projectRequest ? null : projectId,
           projectRequest: type === "USING" ? false : projectRequest,
           purpose: type === "USING" ? "Internal use" : projectRequest ? projects.find((project) => project.id === projectId)?.name ?? "Project" : referenceName,
+          requestContextAssignmentId: requestContextAssignmentId || null,
           serviceRequest: type === "USING" ? false : serviceRequest,
           soldPrice: null,
           type,
@@ -654,6 +708,7 @@ export function RequestCartClient({ initialAssets, projects }: RequestCartClient
           onNoteChange={setNote}
           onProjectChange={setProjectId}
           onProjectRequestChange={handleProjectRequestChange}
+          onRequestContextChange={setRequestContextAssignmentId}
           onReferenceChange={setReferenceName}
           onServiceRequestChange={handleServiceRequestChange}
           onSubmit={handleSubmit}
@@ -662,6 +717,8 @@ export function RequestCartClient({ initialAssets, projects }: RequestCartClient
           projectRequest={projectRequest}
           projects={projects}
           referenceName={referenceName}
+          requestContextAssignmentId={requestContextAssignmentId}
+          requestContextOptions={requestContextOptions}
           serviceRequest={serviceRequest}
           type={type}
         />

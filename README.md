@@ -1,6 +1,6 @@
 # Docs: Warehouse Management
 
-อัปเดตล่าสุด: 2026-09-02
+อัปเดตล่าสุด: 2026-09-04
 
 เอกสารชุดนี้อธิบาย requirement, การออกแบบ, กฎธุรกิจ และสถานะ implementation ของ Warehouse Management โดยยึดโค้ดและ Prisma schema ปัจจุบันเป็น baseline
 
@@ -31,7 +31,6 @@
 ## Remaining Work
 
 - เพิ่ม return outcome `FAIL`, `LOST`, `NEED_CHECK` เข้า return approval flow
-- เชื่อม Asset Detail PDF เข้ากับหน้าจอและ endpoint ที่ใช้งานจริง
 - ปรับเอกสาร PDF ตาม official template เมื่อได้รับจากธุรกิจ
 - เพิ่ม focused tests สำหรับ approval chain, quantity edge cases และ return derived transaction
 - เพิ่ม schema/migration/UI/approval routing สำหรับหลาย Organization Assignments ต่อ User

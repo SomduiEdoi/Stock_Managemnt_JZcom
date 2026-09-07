@@ -67,6 +67,8 @@ type ResolutionState = Record<
   string,
   {
     toStatus: AssetStatus;
+    quantity: number;
+    allocations: { quantity: number; toStatus: AssetStatus }[];
   }
 >;
 
@@ -76,11 +78,17 @@ const missingSignatureMessage =
 const resolutionOptions = [
   "READY",
   "SOLD",
+  "FAIL",
+  "LOST",
+  "NEED_CHECK",
 ] as const satisfies readonly AssetStatus[];
 
 const resolutionOptionLabels = {
   READY: "Return",
   SOLD: "Sold",
+  FAIL: "Fail",
+  LOST: "Lost",
+  NEED_CHECK: "Need Check",
 } as const satisfies Record<(typeof resolutionOptions)[number], string>;
 
 function buildInitialState(items: TransactionReturnItem[]): ResolutionState {
@@ -91,6 +99,8 @@ function buildInitialState(items: TransactionReturnItem[]): ResolutionState {
         item.itemId,
         {
           toStatus: "READY" as AssetStatus,
+          quantity: item.requestedQuantity,
+          allocations: [{ quantity: item.requestedQuantity, toStatus: "READY" as AssetStatus }],
         },
       ]),
   );
@@ -230,14 +240,24 @@ export function TransactionReturnClient({
     );
   }
 
-  function updateResolution(itemId: string, value: string) {
-    setResolutions((current) => ({
-      ...current,
-      [itemId]: {
-        ...current[itemId],
-        toStatus: value as AssetStatus,
-      },
-    }));
+  function addResolutionSplit(itemId: string, maximum: number) {
+    setResolutions((current) => {
+      const state = current[itemId];
+      if (!state || state.allocations.length >= 10) return current;
+      const used = state.allocations.reduce((sum, allocation) => sum + allocation.quantity, 0);
+      const remaining = maximum - used;
+      if (remaining <= 0) return current;
+      return { ...current, [itemId]: { ...state, allocations: [...state.allocations, { quantity: remaining, toStatus: "READY" }] } };
+    });
+  }
+
+  function updateResolutionAllocation(itemId: string, index: number, patch: Partial<{ quantity: number; toStatus: AssetStatus }>) {
+    setResolutions((current) => {
+      const state = current[itemId];
+      if (!state) return current;
+      const allocations = state.allocations.map((allocation, allocationIndex) => allocationIndex === index ? { ...allocation, ...patch } : allocation);
+      return { ...current, [itemId]: { ...state, allocations, quantity: allocations[0]?.quantity ?? 1, toStatus: allocations[0]?.toStatus ?? "READY" } };
+    });
   }
 
   function openApproval(mode: "APPROVE" | "REJECT") {
@@ -315,7 +335,7 @@ export function TransactionReturnClient({
     setPrice("");
     setRemark("");
     setConfirmationMode(
-      openItems.some((item) => resolutions[item.itemId]?.toStatus === "SOLD")
+      openItems.some((item) => resolutions[item.itemId]?.allocations.some((allocation) => allocation.toStatus === "SOLD"))
         ? "SOLD"
         : "RETURN",
     );
@@ -329,6 +349,7 @@ export function TransactionReturnClient({
       return {
         itemId: item.itemId,
         note: cleanRemark || null,
+        allocations: resolutions[item.itemId]?.allocations ?? [{ quantity: item.requestedQuantity, toStatus }],
         soldPrice: null,
         toStatus,
       };
@@ -664,17 +685,35 @@ export function TransactionReturnClient({
                       {isResolved && item.resolvedStatus ? (
                         <AssetStatusBadge status={item.resolvedStatus} />
                       ) : transaction.canReturn ? (
-                        <SearchableDropdown
-                          onChange={(value) => updateResolution(item.itemId, value)}
-                          options={resolutionOptions.map((status) => ({
-                            label: resolutionOptionLabels[status],
-                            searchText: `${resolutionOptionLabels[status]} ${status}`,
-                            value: status,
-                          }))}
-                          placeholder="Select outcome"
-                          searchPlaceholder="Search outcome"
-                          value={state?.toStatus ?? "READY"}
-                        />
+                        <div className="space-y-2">
+                          {(state?.allocations ?? [{ quantity: item.requestedQuantity, toStatus: "READY" as AssetStatus }]).map((allocation, index) => (
+                            <div className="flex items-center gap-2" key={`${item.itemId}-${index}`}>
+                              <SearchableDropdown
+                                onChange={(value) => updateResolutionAllocation(item.itemId, index, { toStatus: value as AssetStatus })}
+                                options={resolutionOptions.map((status) => ({ label: resolutionOptionLabels[status], searchText: `${resolutionOptionLabels[status]} ${status}`, value: status }))}
+                                placeholder="Outcome"
+                                searchPlaceholder="Search outcome"
+                                value={allocation.toStatus}
+                              />
+                              {item.isQuantityAsset ? (
+                                <input
+                                  aria-label={`Quantity for ${item.model}`}
+                                  className="h-9 w-20 rounded-md border border-border px-2 text-sm font-bold text-navy"
+                                  max={item.requestedQuantity}
+                                  min={1}
+                                  onChange={(event) => updateResolutionAllocation(item.itemId, index, { quantity: Math.max(1, Number(event.target.value) || 1) })}
+                                  type="number"
+                                  value={allocation.quantity}
+                                />
+                              ) : null}
+                            </div>
+                          ))}
+                          {item.isQuantityAsset && (state?.allocations.length ?? 1) < 10 ? (
+                            <button className="text-xs font-bold text-brand-accent hover:underline" onClick={() => addResolutionSplit(item.itemId, item.requestedQuantity)} type="button">
+                              + Split outcome
+                            </button>
+                          ) : null}
+                        </div>
                       ) : (
                         <span className="text-sm font-bold text-muted-foreground">
                           Awaiting approval

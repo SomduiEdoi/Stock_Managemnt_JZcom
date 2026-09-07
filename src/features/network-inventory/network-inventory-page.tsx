@@ -248,6 +248,9 @@ export default async function NetworkInventoryPage({
   const addAssetHref = canManageWarehouseForUser(user, "NETWORK")
     ? "/dashboard/assets/new?warehouse=NETWORK"
     : null;
+  const selectedCategory = filters.categories.length === 1
+    ? result.filterOptions.categoryGroups.find((category) => category.name === filters.categories[0])
+    : undefined;
 
   return (
     <div className="flex flex-col gap-6">
@@ -288,7 +291,8 @@ export default async function NetworkInventoryPage({
         canDelete={canDeleteAssetsForUser(user, "NETWORK")}
         canRequest={canRequestWarehouseForUser(user, "NETWORK")}
         warehouseLabel="Network"
-        customFieldDefinitions={[...new Map(result.filterOptions.categoryGroups.flatMap((category) => category.customFields).map((field) => [field.key, { key: field.key, label: field.label, unit: field.unit }])).values()]}
+        categoryName={selectedCategory?.name}
+        customFieldDefinitions={selectedCategory?.customFields.map((field) => ({ key: field.key, label: field.label, unit: field.unit })) ?? []}
         inventoryFamily="SERIAL"
         rows={result.rows}
         sortLinks={buildNetworkSortLinks(filters)}

@@ -1,6 +1,6 @@
 # Rules: Warehouse Management
 
-อัปเดตล่าสุด: 2026-09-02
+อัปเดตล่าสุด: 2026-09-04
 
 ## 1. Naming Rules
 
@@ -48,7 +48,7 @@ Workflow status มีเพียง `PENDING`, `IN_PROGRESS`, `REJECTED`, `COM
 ## 6. Requisition No. Rules
 
 - Transaction ใช้เลข `REQ-YYYYMMDD-XX`
-- `XX` เป็นเลขสองหลักและ reset รายเดือนโดยนับจาก prefix `REQ-YYYYMM`
+- `XX` เป็นเลขสองหลัก เริ่มที่ `01` และ reset รายเดือนโดยนับจาก prefix `REQ-YYYYMM`
 - การสร้างเลขต้องทำใน database transaction และแจ้ง error เมื่อเกิน 99 รายการต่อเดือน
 
 ## 7. Approval Rules
@@ -72,14 +72,15 @@ Workflow status มีเพียง `PENDING`, `IN_PROGRESS`, `REJECTED`, `COM
 ## 8. Return Rules
 
 - Return ทำได้เฉพาะ `BORROW` หรือ `USING` ที่มี workflow เป็น `IN_PROGRESS`
-- ผู้เริ่ม Return ต้องเป็น requester เดิมหรือ Admin
+- ผู้เริ่ม Return ต้องเป็น requester เดิมเท่านั้น
 - Return ทำได้ทั้งรายการหรือราย item
 - การเลือก `READY` ต้องสร้าง derived Return transaction ที่เป็น `PENDING`; ห้ามคืน asset เป็น `READY` ทันที
 - การเลือก `SOLD` ต้องสร้าง derived SOLD transaction และให้ BSD Staff กรอกราคา
 - Derived transaction ต้องผ่าน approval chain เดียวกับ action อื่น รวม `BSD_STAFF` และ `BSD_MANAGER`
 - Source transaction คงเป็น `IN_PROGRESS` จน item ถูก resolve ครบ แล้วจึงเป็น `COMPLETED`
 - ห้ามสร้าง Return/Sold derived transaction ซ้ำสำหรับ item ที่มีรายการ pending อยู่แล้ว
-- Return outcome `FAIL`, `LOST`, `NEED_CHECK` ยังเป็น target; ปัจจุบันใช้ manual status management แยกจาก return flow
+- Return outcome รองรับ `READY`, `SOLD`, `FAIL`, `LOST`, `NEED_CHECK` ผ่าน derived approval transaction
+- `FAIL`, `LOST`, `NEED_CHECK` ต้องมี remark และบันทึก `asset_status_histories`
 
 ## 9. Log / Visibility Rules
 
@@ -95,8 +96,11 @@ Workflow status มีเพียง `PENDING`, `IN_PROGRESS`, `REJECTED`, `COM
 - Admin จัดการ Warehouse และ master data ได้ทุก Warehouse
 - Stock Controller จัดการ asset/category/type เฉพาะ Warehouse ที่มี `canManage`
 - Warehouse prefix กำหนดตอนสร้างและไม่แก้ภายหลัง
-- Stock code ใช้รูปแบบ `XX-YYY0000` จาก Warehouse prefix และ Type code
+- Stock code ใช้รูปแบบ `XX-YY-ZZZ0000` จาก Warehouse prefix, Category prefix, Type code และ sequence
 - ห้ามลบ Warehouse ขณะที่ยังมี active asset
+- Legacy stock code ที่ผิด format ต้องผ่าน verification และ mapping ก่อนแก้
+- ห้ามแก้ legacy stock code อัตโนมัติเมื่อมี Transaction, Approval, Reservation หรือ Status History อ้างอิง
+- การแก้ stock code ต้องเป็น administrative operation, unique และมี audit history
 
 ## 11. Project Rules
 
@@ -125,7 +129,6 @@ Workflow status มีเพียง `PENDING`, `IN_PROGRESS`, `REJECTED`, `COM
 ## 13. PDF Rules
 
 - Transaction PDF ต้องอ่านข้อมูลจาก PostgreSQL และแสดง Request No., items, approval/signature snapshot และข้อมูล Return/Sold
-- Asset Detail ต้องสามารถ export PDF ได้ แต่การเชื่อมปุ่ม/endpoint ยังเป็นงานค้าง
 - Official format ของใบยืม/คืนให้ปรับเมื่อได้รับ template สุดท้าย
 
 ## 14. Code Maintenance Rules

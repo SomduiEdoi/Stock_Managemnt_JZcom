@@ -12,6 +12,12 @@ export type CurrentUser = {
   name: string;
   organizationLevel: string | null;
   organizationTag: string | null;
+  organizationAssignments: Array<{
+    id: string;
+    isPrimary: boolean;
+    organizationLevel: string;
+    organizationTag: string;
+  }>;
   projectTag: string | null;
   position: string | null;
   signatureDataUrl: string | null;
@@ -36,6 +42,16 @@ async function findActiveUser(userId: string) {
       name: true,
       organizationLevel: true,
       organizationTag: true,
+      organizationAssignments: {
+        orderBy: [{ isPrimary: "desc" }, { organizationTag: "asc" }],
+        select: {
+          id: true,
+          isPrimary: true,
+          organizationLevel: true,
+          organizationTag: true,
+        },
+        where: { isActive: true },
+      },
       projectTag: true,
       position: true,
       signatureDataUrl: true,
@@ -75,14 +91,19 @@ async function findActiveUser(userId: string) {
 function toCurrentUser(
   user: NonNullable<Awaited<ReturnType<typeof findActiveUser>>>,
 ): CurrentUser {
+  const primaryAssignment = user.organizationAssignments.find(
+    (assignment) => assignment.isPrimary,
+  ) ?? user.organizationAssignments[0];
+
   return {
     azureAdObjectId: user.azureAdObjectId,
     id: user.id,
     email: user.email,
     lastLoginAt: user.lastLoginAt,
     name: user.name,
-    organizationLevel: user.organizationLevel,
-    organizationTag: user.organizationTag,
+    organizationLevel: primaryAssignment?.organizationLevel ?? user.organizationLevel,
+    organizationTag: primaryAssignment?.organizationTag ?? user.organizationTag,
+    organizationAssignments: user.organizationAssignments,
     projectTag: user.projectTag,
     position: user.position,
     signatureDataUrl: user.signatureDataUrl,

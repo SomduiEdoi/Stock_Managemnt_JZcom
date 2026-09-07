@@ -95,9 +95,9 @@ describe("return and history action rules", () => {
   it("limits transaction item outcomes to operational final states", () => {
     expect(isTransactionItemResolutionStatus(AssetStatus.READY)).toBe(true);
     expect(isTransactionItemResolutionStatus(AssetStatus.SOLD)).toBe(true);
-    expect(isTransactionItemResolutionStatus(AssetStatus.LOST)).toBe(false);
-    expect(isTransactionItemResolutionStatus(AssetStatus.FAIL)).toBe(false);
-    expect(isTransactionItemResolutionStatus(AssetStatus.NEED_CHECK)).toBe(false);
+    expect(isTransactionItemResolutionStatus(AssetStatus.LOST)).toBe(true);
+    expect(isTransactionItemResolutionStatus(AssetStatus.FAIL)).toBe(true);
+    expect(isTransactionItemResolutionStatus(AssetStatus.NEED_CHECK)).toBe(true);
     expect(isTransactionItemResolutionStatus(AssetStatus.REQUEST)).toBe(false);
     expect(isTransactionItemResolutionStatus(AssetStatus.BORROW)).toBe(false);
   });

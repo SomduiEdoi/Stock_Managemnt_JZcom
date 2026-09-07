@@ -27,7 +27,6 @@ import {
   assertCanChangeAssetStatus,
   assertCanRequestWarehouse,
   assertCanViewWarehouse,
-  hasRole,
 } from "@/lib/permissions";
 import {
   canTransitionAssetStatus,
@@ -170,6 +169,7 @@ export type SubmitTransactionInput = {
   projectId?: string | null;
   projectRequest?: boolean;
   purpose: string;
+  requestContextAssignmentId?: string | null;
   requestDate: Date;
   serviceRequest?: boolean;
   soldPrice?: string | null;
@@ -179,8 +179,10 @@ export type SubmitTransactionInput = {
 };
 
 export type ResolveTransactionItemInput = {
+  allocations?: { quantity: number; toStatus: AssetStatus }[];
   itemId: string;
   note?: string | null;
+  quantity?: number | null;
   soldPrice?: string | null;
   toStatus: AssetStatus;
 };
@@ -367,6 +369,16 @@ async function findWorkflowUserById(tx: Prisma.TransactionClient, userId: string
       name: true,
       organizationLevel: true,
       organizationTag: true,
+      organizationAssignments: {
+        orderBy: [{ isPrimary: "desc" }, { organizationTag: "asc" }],
+        select: {
+          id: true,
+          isPrimary: true,
+          organizationLevel: true,
+          organizationTag: true,
+        },
+        where: { isActive: true },
+      },
       projectTag: true,
       position: true,
       signatureDataUrl: true,
@@ -406,14 +418,19 @@ async function requireWorkflowUserById(
 }
 
 function toWorkflowCurrentUser(user: WorkflowUserRecord): CurrentUser {
+  const primaryAssignment = user.organizationAssignments.find(
+    (assignment) => assignment.isPrimary,
+  ) ?? user.organizationAssignments[0];
+
   return {
     azureAdObjectId: user.azureAdObjectId,
     email: user.email,
     id: user.id,
     lastLoginAt: user.lastLoginAt,
     name: user.name,
-    organizationLevel: user.organizationLevel,
-    organizationTag: user.organizationTag,
+    organizationLevel: primaryAssignment?.organizationLevel ?? user.organizationLevel,
+    organizationTag: primaryAssignment?.organizationTag ?? user.organizationTag,
+    organizationAssignments: user.organizationAssignments,
     permissions: user.warehousePermissions.map((permission) => ({
       canManage: permission.canManage,
       canView: permission.canView,
@@ -920,6 +937,9 @@ type ApprovalCandidate = {
 
 type ApprovalUser = {
   id: string;
+  organizationAssignments: Array<{
+    organizationTag: OrganizationTag;
+  }>;
   name: string;
   organizationTag: OrganizationTag | null;
   projectTag: ProjectTag | null;
@@ -933,11 +953,11 @@ function managerTagFor(tag: string | null) {
   }
 
   if (tag.startsWith("S1_") || tag.startsWith("N1_") || tag.startsWith("C1_")) {
-    return OrganizationTag.SCN_MANAGER;
+    return OrganizationTag.SC_MANAGER;
   }
 
-  if (tag.startsWith("CMS_") || tag.startsWith("SD_")) {
-    return OrganizationTag.EN_MANAGER;
+  if (tag.startsWith("CMS_") || tag.startsWith("SD_") || tag.startsWith("PRT_") || tag.startsWith("LOCAL_")) {
+    return OrganizationTag.CS_MANAGER;
   }
 
   if (tag.startsWith("BSD_")) {
@@ -993,6 +1013,10 @@ async function findOrganizationApprover(
       },
       id: true,
       name: true,
+      organizationAssignments: {
+        select: { organizationTag: true },
+        where: { isActive: true },
+      },
       organizationTag: true,
       projectTag: true,
       stockControllerTag: true,
@@ -1000,12 +1024,15 @@ async function findOrganizationApprover(
     where: {
       id: { not: requesterId },
       isActive: true,
-      organizationTag: tag,
+      OR: [
+        { organizationTag: tag },
+        { organizationAssignments: { some: { organizationTag: tag, isActive: true } } },
+      ],
     },
   });
 }
 
-async function findProjectApprover(
+async function findProjectApprovers(
   tx: Prisma.TransactionClient,
   requesterId: string,
   projectId: string | null | undefined,
@@ -1016,6 +1043,10 @@ async function findProjectApprover(
     },
     id: true,
     name: true,
+    organizationAssignments: {
+      select: { organizationTag: true },
+      where: { isActive: true },
+    },
     organizationTag: true,
     projectTag: true,
     stockControllerTag: true,
@@ -1034,13 +1065,16 @@ async function findProjectApprover(
       },
     });
 
-    const projectLead = project?.members[0]?.user ?? project?.leadUser ?? null;
-    if (projectLead && projectLead.id !== requesterId) {
-      return projectLead;
+    const projectLeads = [
+      ...(project?.leadUser ? [project.leadUser] : []),
+      ...(project?.members ?? []).map((member) => member.user),
+    ].filter((lead, index, leads) => lead.id !== requesterId && leads.findIndex((item) => item.id === lead.id) === index);
+    if (projectLeads.length > 0) {
+      return projectLeads;
     }
   }
 
-  return tx.user.findFirst({
+  return tx.user.findMany({
     orderBy: { name: "asc" },
     select,
     where: {
@@ -1074,6 +1108,10 @@ async function findStockControllerApprovers(
         },
         id: true,
         name: true,
+        organizationAssignments: {
+          select: { organizationTag: true },
+          where: { isActive: true },
+        },
         organizationTag: true,
         projectTag: true,
         stockControllerTag: true,
@@ -1082,7 +1120,6 @@ async function findStockControllerApprovers(
         id: warehouse.headStockControllerId,
         isActive: true,
         roles: { some: { role: { code: "STOCK_CONTROLLER" } } },
-        stockControllerTag,
       },
     });
   }
@@ -1098,6 +1135,10 @@ async function findStockControllerApprovers(
       },
       id: true,
       name: true,
+      organizationAssignments: {
+        select: { organizationTag: true },
+        where: { isActive: true },
+      },
       organizationTag: true,
       projectTag: true,
       stockControllerTag: true,
@@ -1108,7 +1149,6 @@ async function findStockControllerApprovers(
       },
       isActive: true,
       roles: { some: { role: { code: "STOCK_CONTROLLER" } } },
-      stockControllerTag,
     },
   });
 }
@@ -1134,8 +1174,9 @@ async function buildApprovalCandidates(
   const approvals: ApprovalCandidate[] = [];
   let stepSequence = 1;
 
-  const organizationLevel = user.organizationLevel as OrganizationLevel | null;
-  const organizationTag = user.organizationTag as OrganizationTag | null;
+  const requestContext = resolveRequestOrganizationContext(user, input.requestContextAssignmentId);
+  const organizationLevel = requestContext.organizationLevel as OrganizationLevel | null;
+  const organizationTag = requestContext.organizationTag as OrganizationTag | null;
   const businessTag =
     organizationLevel === OrganizationLevel.STAFF
       ? supervisorTagFor(organizationTag)
@@ -1155,12 +1196,13 @@ async function buildApprovalCandidates(
 
   if (input.projectRequest && user.projectTag === ProjectTag.TEAM_MEMBER) {
     approvals.push(
-      candidateForUser(
-        await findProjectApprover(tx, user.id, input.projectId),
+      ...candidatesForUsers(
+        await findProjectApprovers(tx, user.id, input.projectId),
         ProjectTag.LEAD_PROJECT,
-        stepSequence++,
+        stepSequence,
       ),
     );
+    stepSequence++;
   }
 
   const warehouseCodes = Array.from(new Set(items.map((item) => item.asset.warehouse.code))).sort();
@@ -1203,6 +1245,31 @@ async function buildApprovalCandidates(
   );
 
   return approvals;
+}
+
+function resolveRequestOrganizationContext(
+  user: CurrentUser,
+  requestContextAssignmentId: string | null | undefined,
+) {
+  if (requestContextAssignmentId) {
+    const assignment = user.organizationAssignments.find(
+      (entry) => entry.id === requestContextAssignmentId,
+    );
+
+    if (!assignment) {
+      throw new WorkflowError("Selected request context is not available for this user.");
+    }
+
+    return {
+      organizationLevel: assignment.organizationLevel,
+      organizationTag: assignment.organizationTag,
+    };
+  }
+
+  return {
+    organizationLevel: user.organizationLevel,
+    organizationTag: user.organizationTag,
+  };
 }
 
 async function replaceTransactionApprovals(
@@ -1504,6 +1571,27 @@ function buildResolutionMap(items: ResolveTransactionItemInput[]) {
       throw new WorkflowError(`Cannot resolve item to ${item.toStatus}.`);
     }
 
+    for (const allocation of item.allocations ?? []) {
+      if (!isTransactionItemResolutionStatus(allocation.toStatus)) {
+        throw new WorkflowError(`Cannot resolve item to ${allocation.toStatus}.`);
+      }
+      if (!Number.isInteger(allocation.quantity) || allocation.quantity <= 0) {
+        throw new WorkflowError("Resolution quantity must be a positive whole number.");
+      }
+    }
+
+    for (const allocation of item.allocations ?? []) {
+      if (!isTransactionItemResolutionStatus(allocation.toStatus)) {
+        throw new WorkflowError(`Cannot resolve item to ${allocation.toStatus}.`);
+      }
+      if (!Number.isInteger(allocation.quantity) || allocation.quantity <= 0) {
+        throw new WorkflowError("Resolution quantity must be a positive whole number.");
+      }
+    }
+
+    if (item.quantity !== null && item.quantity !== undefined && (!Number.isInteger(item.quantity) || item.quantity <= 0)) {
+      throw new WorkflowError("Resolution quantity must be a positive whole number.");
+    }
     map.set(item.itemId, { ...item, soldPrice: validateSoldResolutionPrice(item) });
   }
 
@@ -1529,17 +1617,18 @@ async function resolveItem(
   toStatus: AssetStatus,
   note: string | null,
   soldPrice: string | null = null,
+  resolvedQuantity = item.requestedQuantity,
 ) {
   if (isQuantityTransactionItem(item)) {
     if (toStatus === AssetStatus.SOLD) {
       const result = await tx.asset.updateMany({
         where: {
-          assetQuantity: { gte: item.requestedQuantity },
+          assetQuantity: { gte: resolvedQuantity },
           id: item.assetId,
           isActive: true,
         },
         data: {
-          assetQuantity: { decrement: item.requestedQuantity },
+          assetQuantity: { decrement: resolvedQuantity },
           updatedById: user.id,
         },
       });
@@ -1563,10 +1652,11 @@ async function resolveItem(
       data: {
         requestLockedAt: null,
         requestLockedById: null,
-        status:
-          toStatus === AssetStatus.SOLD && (updatedAsset?.assetQuantity ?? 0) <= 0
-            ? AssetStatus.SOLD
-            : AssetStatus.READY,
+        status: toStatus === AssetStatus.SOLD && (updatedAsset?.assetQuantity ?? 0) <= 0
+          ? AssetStatus.SOLD
+          : toStatus === AssetStatus.READY || (updatedAsset?.assetQuantity ?? 0) > 0
+            ? AssetStatus.READY
+            : toStatus,
         updatedById: user.id,
       },
     });
@@ -1577,7 +1667,7 @@ async function resolveItem(
         resolutionNote: note,
         resolvedStatus: toStatus,
         soldPrice: toStatus === AssetStatus.SOLD && soldPrice ? new Prisma.Decimal(soldPrice) : null,
-        returnedAt: now,
+        returnedAt: resolvedQuantity >= item.requestedQuantity ? now : null,
         returnedById: user.id,
       },
     });
@@ -1975,9 +2065,9 @@ async function applyApprovedReturnTransaction(
       );
     }
 
-    if (returnItem.requestedQuantity !== sourceItem.requestedQuantity) {
+    if (returnItem.requestedQuantity > sourceItem.requestedQuantity) {
       throw new WorkflowError(
-        "Return quantity must match the open source item quantity.",
+        "Return quantity cannot exceed the open source quantity.",
         409,
         "RETURN_QUANTITY_MISMATCH",
       );
@@ -1988,15 +2078,24 @@ async function applyApprovedReturnTransaction(
       sourceItem,
       { id: userId } as CurrentUser,
       now,
-      AssetStatus.READY,
+      returnItem.toStatus,
       returnItem.note,
+      null,
+      returnItem.requestedQuantity,
     );
+
+    if (returnItem.requestedQuantity < sourceItem.requestedQuantity) {
+      await tx.transactionItem.update({
+        where: { id: sourceItem.id },
+        data: { requestedQuantity: { decrement: returnItem.requestedQuantity } },
+      });
+    }
   }
 
   await tx.transactionItem.updateMany({
     where: { transactionId: transaction.id },
     data: {
-      resolvedStatus: AssetStatus.READY,
+      resolvedStatus: transaction.items[0]?.toStatus ?? AssetStatus.READY,
       returnedAt: now,
       returnedById: userId,
     },
@@ -2004,14 +2103,14 @@ async function applyApprovedReturnTransaction(
 
   await tx.assetStatusHistory.createMany({
     data: transaction.items.map((item) => ({
-      actionType: AssetActionType.RETURN,
+      actionType: item.toStatus === AssetStatus.READY ? AssetActionType.RETURN : AssetActionType.STATUS_CHANGE,
       assetId: item.assetId,
       changedById: userId,
       fromStatus: item.fromStatus,
       previousQuantity: isQuantityTransactionItem(item) ? item.asset.assetQuantity : null,
       newQuantity: isQuantityTransactionItem(item) ? item.asset.assetQuantity : null,
-      note: `Approved return; source ${sourceTransaction.transactionNo ?? sourceTransaction.documentRef ?? sourceTransaction.id}`,
-      toStatus: AssetStatus.READY,
+      note: `Approved ${item.toStatus.toLowerCase()}; source ${sourceTransaction.transactionNo ?? sourceTransaction.documentRef ?? sourceTransaction.id}`,
+      toStatus: item.toStatus,
       transactionId: transaction.id,
     })),
   });
@@ -2081,48 +2180,10 @@ export async function approveTransaction(
         throw new WorkflowError("Transaction is not pending approval.", 409);
       }
 
-      let pendingApprovals = transaction.approvals.filter(
+      const pendingApprovals = transaction.approvals.filter(
         (approval) => approval.status === ApprovalStatus.PENDING,
       );
       const currentStep = Math.min(...pendingApprovals.map((approval) => approval.stepSequence));
-      const currentStepApprovals = pendingApprovals.filter(
-        (approval) => approval.stepSequence === currentStep,
-      );
-
-      if (
-        transaction.projectId &&
-        currentStepApprovals.some((approval) => approval.requiredTag === ProjectTag.LEAD_PROJECT)
-      ) {
-        const currentLead = await findProjectApprover(
-          tx,
-          transaction.requestedById,
-          transaction.projectId,
-        );
-
-        if (!currentLead) {
-          throw new WorkflowError("Lead Project approver is not configured.", 409, "PROJECT_LEAD_NOT_FOUND");
-        }
-
-        await tx.transactionApproval.updateMany({
-          where: {
-            requiredTag: ProjectTag.LEAD_PROJECT,
-            status: ApprovalStatus.PENDING,
-            stepSequence: currentStep,
-            transactionId,
-          },
-          data: {
-            approverNameSnapshot: currentLead.name,
-            userId: currentLead.id,
-          },
-        });
-
-        pendingApprovals = pendingApprovals.map((approval) =>
-          approval.requiredTag === ProjectTag.LEAD_PROJECT && approval.stepSequence === currentStep
-            ? { ...approval, userId: currentLead.id }
-            : approval,
-        );
-      }
-
       const currentApproval = pendingApprovals.find(
         (approval) =>
           approval.stepSequence === currentStep && approvalMatchesUser(user, approval),
@@ -2167,6 +2228,34 @@ export async function approveTransaction(
           userId: user.id,
         },
       });
+
+      // A user may hold consecutive approval sequences. Approve each matching
+      // sequence separately so every step keeps its own audit timestamp/signature.
+      while (true) {
+        const nextPending = await tx.transactionApproval.findMany({
+          where: { transactionId, status: ApprovalStatus.PENDING },
+          orderBy: [{ stepSequence: "asc" }, { createdAt: "asc" }],
+          select: { id: true, stepSequence: true, userId: true },
+        });
+        if (nextPending.length === 0) break;
+        const nextStep = nextPending[0].stepSequence;
+        const nextStepApprovals = nextPending.filter((approval) => approval.stepSequence === nextStep);
+        if (nextStepApprovals.some((approval) => approval.userId !== user.id)) break;
+        for (const approval of nextStepApprovals) {
+          await tx.transactionApproval.update({
+            where: { id: approval.id },
+            data: {
+              actedAt: new Date(),
+              approverNameSnapshot: user.name,
+              approverSignatureSnapshot: user.signatureDataUrl,
+              approverTagSnapshot: (await tx.transactionApproval.findUniqueOrThrow({ where: { id: approval.id }, select: { requiredTag: true } })).requiredTag,
+              comment: cleanText(input.comment),
+              status: ApprovalStatus.APPROVED,
+              userId: user.id,
+            },
+          });
+        }
+      }
 
       const remaining = await tx.transactionApproval.count({
         where: { transactionId, status: ApprovalStatus.PENDING },
@@ -2287,53 +2376,7 @@ export async function rejectTransaction(
         throw new WorkflowError("Transaction is not pending approval.", 409);
       }
 
-      let approvalsForMatch = transaction.approvals;
-      const pendingApprovals = transaction.approvals.filter(
-        (approval) => approval.status === ApprovalStatus.PENDING,
-      );
-      const currentStep = pendingApprovals.length > 0
-        ? Math.min(...pendingApprovals.map((approval) => approval.stepSequence))
-        : null;
-
-      if (
-        transaction.projectId &&
-        currentStep !== null &&
-        pendingApprovals.some(
-          (approval) =>
-            approval.stepSequence === currentStep && approval.requiredTag === ProjectTag.LEAD_PROJECT,
-        )
-      ) {
-        const currentLead = await findProjectApprover(
-          tx,
-          transaction.requestedBy.id,
-          transaction.projectId,
-        );
-
-        if (!currentLead) {
-          throw new WorkflowError("Lead Project approver is not configured.", 409, "PROJECT_LEAD_NOT_FOUND");
-        }
-
-        await tx.transactionApproval.updateMany({
-          where: {
-            requiredTag: ProjectTag.LEAD_PROJECT,
-            status: ApprovalStatus.PENDING,
-            stepSequence: currentStep,
-            transactionId,
-          },
-          data: {
-            approverNameSnapshot: currentLead.name,
-            userId: currentLead.id,
-          },
-        });
-
-        approvalsForMatch = transaction.approvals.map((approval) =>
-          approval.requiredTag === ProjectTag.LEAD_PROJECT && approval.stepSequence === currentStep
-            ? { ...approval, userId: currentLead.id }
-            : approval,
-        );
-      }
-
-      const currentApproval = currentPendingApproval(user, approvalsForMatch);
+      const currentApproval = currentPendingApproval(user, transaction.approvals);
 
       if (!currentApproval) {
         throw new WorkflowError("No approval is waiting for this user.", 403);
@@ -2890,6 +2933,7 @@ async function createReturnApprovalTransaction(
   returnItems: TransactionDetail["items"],
   note: string | null,
   now: Date,
+  outcome: AssetStatus = AssetStatus.READY,
 ) {
   const requester = await requireWorkflowUserById(
     tx,
@@ -2950,7 +2994,7 @@ async function createReturnApprovalTransaction(
       note,
       requestedQuantity: item.requestedQuantity,
       soldPrice: null,
-      toStatus: AssetStatus.READY,
+      toStatus: outcome,
       transactionId: transaction.id,
     })),
   });
@@ -2966,7 +3010,7 @@ async function createReturnApprovalTransaction(
       note: [note, `Created return approval from ${sourceTransaction.transactionNo ?? sourceTransaction.documentRef ?? sourceTransaction.id}`]
         .filter(Boolean)
         .join("\n"),
-      toStatus: item.toStatus,
+      toStatus: outcome,
       transactionId: transaction.id,
     })),
   });
@@ -3097,9 +3141,9 @@ export async function resolveTransactionItems(
         );
       }
 
-      if (transaction.requestedBy.id !== user.id && !hasRole(user, "ADMIN")) {
+      if (transaction.requestedBy.id !== user.id) {
         throw new WorkflowError(
-          "Only the requester or an admin can return this transaction.",
+          "Only the original requester can return this transaction.",
           403,
           "RETURN_REQUESTER_OR_ADMIN_ONLY",
         );
@@ -3117,39 +3161,30 @@ export async function resolveTransactionItems(
       assertCanResolveTransaction(user, { items });
       await assertNoPendingResolutionApproval(tx, transaction.id, items);
 
-      const saleItems = items.filter((item) => {
+      const grouped = new Map<AssetStatus, TransactionDetail["items"]>();
+      for (const item of items) {
         const resolution = resolutionMap.get(item.id);
-
-        return resolution?.toStatus === AssetStatus.SOLD;
-      });
-      const returnItems = items.filter((item) => {
-        const resolution = resolutionMap.get(item.id);
-
-        return resolution?.toStatus !== AssetStatus.SOLD;
-      });
-
-      if (returnItems.length > 0) {
-        const firstReturnResolution = resolutionMap.get(returnItems[0].id);
-        await createReturnApprovalTransaction(
-          tx,
-          user,
-          transaction,
-          returnItems,
-          cleanText(firstReturnResolution?.note),
-          now,
-        );
+        const allocations = resolution?.allocations?.length
+          ? resolution.allocations
+          : [{ quantity: resolution?.quantity ?? item.requestedQuantity, toStatus: resolution?.toStatus ?? AssetStatus.READY }];
+        const totalQuantity = allocations.reduce((sum, allocation) => sum + allocation.quantity, 0);
+        if (totalQuantity > item.requestedQuantity) {
+          throw new WorkflowError(`Resolution quantity for ${transactionItemAssetName(item)} cannot exceed the requested quantity.`);
+        }
+        for (const allocation of allocations) {
+          const group = grouped.get(allocation.toStatus) ?? [];
+          group.push({ ...item, requestedQuantity: allocation.quantity, toStatus: allocation.toStatus });
+          grouped.set(allocation.toStatus, group);
+        }
       }
 
-      if (saleItems.length > 0) {
-        const firstSaleResolution = resolutionMap.get(saleItems[0].id);
-        await createReturnSaleApprovalTransaction(
-          tx,
-          user,
-          transaction,
-          saleItems,
-          cleanText(firstSaleResolution?.note),
-          now,
-        );
+      for (const [outcome, groupedItems] of grouped) {
+        const firstResolution = resolutionMap.get(groupedItems[0].id);
+        if (outcome === AssetStatus.SOLD) {
+          await createReturnSaleApprovalTransaction(tx, user, transaction, groupedItems, cleanText(firstResolution?.note), now);
+        } else {
+          await createReturnApprovalTransaction(tx, user, transaction, groupedItems, cleanText(firstResolution?.note), now, outcome);
+        }
       }
 
       return findTransactionDetail(tx, transaction.id);

@@ -1,6 +1,6 @@
 # Task Plan: Warehouse Management
 
-อัปเดตล่าสุด: 2026-09-02
+อัปเดตล่าสุด: 2026-09-07
 
 Legend:
 
@@ -23,21 +23,22 @@ Legend:
 - [x] มี import batch/row model สำหรับ audit การย้ายข้อมูล
 - [ ] สำรองข้อมูลและ deploy migration `20260902090000_warehouse_and_transaction_status_cleanup` กับฐานข้อมูลจริง
 - [ ] สร้าง import verification report: row count, duplicate, missing serial/type และ rows ที่ต้องตรวจ
-- [ ] วางแผนแก้ stock code เดิมที่ไม่ตรง `XX-YYY0000` โดยไม่เปลี่ยน identifier อย่างไม่ควบคุม
+- [x] กำหนด policy stock code เดิม: ตรวจสอบก่อนแก้, ใช้ mapping/audit, ห้ามเปลี่ยนอัตโนมัติเมื่อมี transaction อ้างอิง และต้องคงความ unique
 
 ## 3. Roles, Users and Profile
 
 - [x] System role เหลือ `ADMIN`, `STOCK_CONTROLLER`, `USER`
-- [x] รองรับ Organization Level/Tag ค่าเดียว, Project Tag และ Stock Controller Tag ในระบบปัจจุบัน
+- [x] รองรับ Organization Level/Tag primary, Project Tag และ Stock Controller Tag ในระบบปัจจุบัน
 - [x] User Management รองรับ Warehouse view/manage permission
 - [x] Profile/Settings รองรับลายเซ็น
 - [x] Approval บังคับลายเซ็นและเก็บ signature snapshot
 - [ ] เพิ่ม tests สำหรับ User ที่ไม่มี Warehouse, หลาย Warehouse และหลาย organizational/project context
-- [ ] เพิ่ม `UserOrganizationAssignment` เพื่อรองรับหลายตำแหน่งต่อ User
-- [ ] ทำ migration จาก `users.organizationLevel/organizationTag` ไป assignments โดยคง primary assignment
-- [ ] ปรับ User Management ให้เพิ่ม/แก้ไข/ปิดหลาย assignments และเลือกตำแหน่งหลัก
-- [ ] ปรับ Session/CurrentUser ให้ส่ง active assignments ทั้งหมด
-- [ ] เพิ่ม Organization Tags ตามแผนผังใหม่: Executive, Solution Consult, Customer Service, Delivery & Client และ BSD
+- [x] เพิ่ม `UserOrganizationAssignment` เพื่อรองรับหลายตำแหน่งต่อ User
+- [x] ทำ migration จาก `users.organizationLevel/organizationTag` ไป assignments โดยคง primary assignment
+- [x] ปรับ User Management ให้เพิ่ม/แก้ไขหลาย assignments และเลือก Primary Assignment ได้อย่างชัดเจน
+- [x] ปรับ Session/CurrentUser ให้ส่ง active assignments ทั้งหมด
+- [x] เพิ่ม Organization Tags ตามแผนผังใหม่: Executive, Solution Consult, Customer Service, Delivery & Client และ BSD
+- [x] Seed account จาก organization chart โดยรวมคนชื่อซ้ำเป็น user เดียวและเก็บหลาย assignments
 
 ## 4. Warehouse and Master Data
 
@@ -58,7 +59,6 @@ Legend:
 - [x] Asset create/edit/detail และ status history
 - [x] Asset Status มี Ready, Request, Borrow, Using, Sold, Fail, Lost, Need Check
 - [~] ตรวจ Asset Detail ว่าแสดงทุก field จากข้อมูลจริงและทุก Custom Field
-- [ ] เชื่อม Asset Detail Export PDF เข้าหน้าจอและ endpoint
 - [ ] ทบทวน administrative delete/soft-delete ให้สอดคล้องกับกฎไม่ลบ asset จาก business flow
 
 ## 6. Request Cart and Quantity
@@ -90,8 +90,8 @@ Legend:
 - [x] Reject พร้อมเหตุผลและ release normal request lock/reservation
 - [x] แก้ PENDING/REJECTED request ได้ก่อนมี approval สำเร็จ
 - [ ] เพิ่ม focused tests ครบทุก organization/project route และ multi-Warehouse chain
-- [ ] ปรับ approval routing ให้เลือก request context จากหลาย assignments
-- [ ] เพิ่ม auto-approve สำหรับ User คนเดียวที่ถือหลาย sequence พร้อม audit history แยก
+- [x] ปรับ approval routing ให้เลือก request context จากหลาย assignments
+- [~] เพิ่ม auto-approve สำหรับ User คนเดียวที่ถือหลาย sequence พร้อม audit history แยก; ยังขาด focused/integration tests
 - [ ] เพิ่ม tests เช่น กรณี DL Manager/DL Supervisor เป็นคนเดียวกัน, ไม่มี Supervisor และ assignment ถูกปิด
 - [ ] เพิ่ม notification/indicator สำหรับงานอนุมัติค้าง
 - [ ] เพิ่ม Cancel Request endpoint และ UX
@@ -117,15 +117,15 @@ Legend:
 ## 11. Return and Close
 
 - [x] Return ใช้ได้เมื่อ Source Transaction เป็น `IN_PROGRESS`
-- [x] Requester/Admin คืนราย item หรือทั้งรายการ
+- [x] Requester เดิมเท่านั้นที่คืนราย item หรือทั้งรายการได้
 - [x] Return-to-ready สร้าง Derived Return Transaction แทนการ apply ทันที
 - [x] Return-to-sold สร้าง Derived Sold Transaction
 - [x] Derived transaction ผ่าน Controller ทุก Warehouse, BSD Staff และ BSD Manager
 - [x] ป้องกัน pending derived transaction ซ้ำ
 - [x] Source Transaction complete เมื่อ resolve ครบ
-- [ ] เพิ่ม outcome `FAIL`, `LOST`, `NEED_CHECK` ใน Return UI/API/approval
-- [ ] เพิ่ม auto remark สำหรับ Fail/Lost ที่อ้าง Source Request No.
-- [ ] เพิ่ม tests partial return, multi-item, Quantity return, rejection และ duplicate prevention
+- [~] เพิ่ม outcome `FAIL`, `LOST`, `NEED_CHECK` ใน Return UI/API/approval; มี UI/API และ derived approval แล้ว แต่ยังต้องทดสอบ end-to-end
+- [~] เพิ่ม auto remark สำหรับ Fail/Lost ที่อ้าง Source Request No.; มี status history/remark แล้ว แต่ควรตรวจข้อความใน PDF และทุกกรณี partial quantity
+- [~] เพิ่ม tests partial return, multi-item, Quantity return, rejection และ duplicate prevention
 
 ## 12. Transaction Log and PDF
 
@@ -135,7 +135,6 @@ Legend:
 - [x] Transaction PDF และ approval/signature snapshot
 - [~] เพิ่ม filter เฉพาะทาง เช่น Warehouse, Project, requester และ date range หาก UX ต้องการมากกว่าช่องค้นหา
 - [~] ปรับ official Borrow/Return/Sold document เมื่อได้ template
-- [ ] เชื่อม Asset Detail PDF
 
 ## 13. Project
 
@@ -146,10 +145,10 @@ Legend:
 - [x] Admin/Lead ที่เกี่ยวข้องแก้ไขหรือลบ Project
 - [x] Transaction เชื่อม Project และ approval ใช้ Project membership
 - [ ] เพิ่ม tests permission, closed project และ membership change ระหว่างมี transaction
-- [ ] Sync pending Project Approval ทันทีเมื่อเพิ่ม/ถอด/เปลี่ยน Lead Project
-- [ ] ทำให้ Project approval sequence รอ Lead ที่ active ครบทุกคน
-- [ ] ตัดสิทธิ์ Lead เดิมและอัปเดต Approval Queue ของ Lead ใหม่แบบ atomic
-- [ ] เพิ่ม Project Lead Change History หรือ audit event
+- [x] Sync pending Project Approval ทันทีเมื่อเพิ่ม/ถอด/เปลี่ยน Lead Project
+- [x] ทำให้ Project approval sequence รอ Lead ที่ active ครบทุกคน
+- [x] ตัดสิทธิ์ Lead เดิมและอัปเดต Approval Queue ของ Lead ใหม่แบบ atomic
+- [x] เพิ่ม Project Lead Change History หรือ audit event
 - [ ] เพิ่ม tests สำหรับ A -> B reassignment, multiple leads, partially approved sequence และ completed sequence
 
 ## 14. Quality
@@ -157,9 +156,16 @@ Legend:
 - [x] Prisma format/generate/validate ผ่านหลังแก้ Warehouse/status
 - [x] Typecheck และ lint ผ่าน
 - [x] Unit tests ปัจจุบันผ่าน 40 tests
-- [ ] เพิ่ม integration tests สำหรับ approval และ derived return
+- [ ] เพิ่ม integration tests สำหรับ approval, Project reassignment และ derived return
 - [ ] ทดสอบ migration กับสำเนาฐานข้อมูลก่อน production
 - [ ] ตรวจ UI end-to-end หลัง deploy schema ใหม่
+
+## 2026-09-07 Status Audit
+
+- [x] Project Lead reassignment: sync pending approvals, revoke previous Lead access, support multiple active Leads, and record Lead change history
+- [~] Approval auto-approve สำหรับผู้ใช้คนเดียวหลาย sequence: runtime logic มีแล้ว แต่ยังขาด focused/integration tests
+- [~] Return outcome `FAIL`, `LOST`, `NEED_CHECK` และ Quantity split: UI/API/derived approval มีแล้ว แต่ยังต้องทดสอบ end-to-end กับ partial return, rejection และ duplicate prevention
+- [ ] ยังต้องทำ integration tests ของ approval/project reassignment/derived return และตรวจ migration กับฐานข้อมูลสำเนาก่อน production
 
 ## 2026-09-03 Custom Specification Data Model
 

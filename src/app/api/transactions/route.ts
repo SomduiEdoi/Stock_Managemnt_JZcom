@@ -28,6 +28,7 @@ const submitTransactionSchema = z.object({
   projectId: z.string().uuid().optional().nullable(),
   projectRequest: z.boolean().optional().default(false),
   purpose: z.string().min(1).max(1000),
+  requestContextAssignmentId: z.string().uuid().optional().nullable(),
   serviceRequest: z.boolean().optional().default(false),
   soldPrice: z.string().trim().optional().nullable(),
   sourceTransactionId: z.string().uuid().optional().nullable(),

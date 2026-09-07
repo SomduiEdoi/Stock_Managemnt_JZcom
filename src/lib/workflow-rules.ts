@@ -68,6 +68,9 @@ export function isReturnableTransaction(type: TransactionType) {
 export const transactionItemResolutionStatuses = [
   AssetStatus.READY,
   AssetStatus.SOLD,
+  AssetStatus.FAIL,
+  AssetStatus.LOST,
+  AssetStatus.NEED_CHECK,
 ] as const satisfies readonly AssetStatus[];
 
 export function isTransactionItemResolutionStatus(status: AssetStatus) {

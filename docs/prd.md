@@ -1,6 +1,6 @@
 # PRD: Warehouse Management
 
-อัปเดตล่าสุด: 2026-09-02
+อัปเดตล่าสุด: 2026-09-04
 
 ## 1. Product Summary
 
@@ -117,7 +117,7 @@ Request No.:
 REQ-YYYYMMDD-XX
 ```
 
-- `XX` เป็น sequence สองหลักและ reset รายเดือน
+- `XX` เป็น sequence สองหลัก เริ่มที่ `01` และ reset รายเดือน
 - รองรับสูงสุด 99 รายการต่อเดือน
 
 Stock Code:
@@ -174,7 +174,7 @@ XX-YY-ZZZ0000
 ## 10. Return and Close
 
 - Return ใช้กับ Borrow/Using ที่ `IN_PROGRESS`
-- Requester เดิมหรือ Admin คืนได้ทั้ง transaction หรือราย item
+- Requester เดิมเท่านั้นที่คืนได้ทั้ง transaction หรือราย item
 - Return-to-ready สร้าง Derived Return Transaction ที่ `PENDING`
 - Return-to-sold สร้าง Derived Sold Transaction ที่ `PENDING`
 - Derived transaction ผ่าน approval chain เต็ม รวมทุก Warehouse, BSD Staff และ BSD Manager
@@ -182,7 +182,7 @@ XX-YY-ZZZ0000
 - Source Transaction อยู่ `IN_PROGRESS` จน item resolve ครบ แล้วเป็น `COMPLETED`
 - ระบบป้องกันการสร้าง derived request ซ้ำให้ item ที่กำลังรออนุมัติ
 
-ปัจจุบัน Return UI/API รองรับ `READY` และ `SOLD`; outcome `FAIL`, `LOST`, `NEED_CHECK` ยังเป็นงานเพิ่ม
+Return UI/API รองรับ `READY`, `SOLD`, `FAIL`, `LOST`, `NEED_CHECK` ผ่าน derived approval transaction และ Quantity สามารถแบ่งจำนวนเป็นหลาย outcome ได้
 
 ## 11. Project
 
@@ -220,7 +220,6 @@ Implemented:
 
 Pending:
 
-- เชื่อม Asset Detail PDF เข้าหน้าและ endpoint จริง
 - ปรับใบยืม/คืนตาม official template เมื่อได้รับจากธุรกิจ
 
 ## 14. Current Implementation Status
@@ -242,9 +241,8 @@ Implemented or mostly implemented:
 Partial or pending:
 
 - Deploy และตรวจข้อมูลจริงของ Warehouse/status cleanup migration
-- Return outcome Fail/Lost/Need Check
-- Asset Detail PDF
+- Return outcome Fail/Lost/Need Check ผ่าน derived approval transaction; ยังต้องทำ focused/E2E tests
 - Official transaction document template
 - Cancel Request UX/API
 - Focused regression tests สำหรับ approval, quantity และ derived return
-- Organization Assignment แบบหลายตำแหน่ง รวม migration, User Management และ approval routing
+- Organization Assignment แบบหลายตำแหน่ง รวม migration, User Management และ approval routing; ยังต้องเพิ่ม regression tests

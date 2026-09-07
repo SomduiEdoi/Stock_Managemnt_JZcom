@@ -123,6 +123,7 @@ type RequestableInventoryTableProps = {
   canDelete: boolean;
   canChangeStatus: boolean;
   warehouseLabel: string;
+  categoryName?: string;
   inventoryFamily?: InventoryFamily;
   rows: RequestableInventoryRow[];
   sortLinks?: Partial<Record<SortKey, { asc: string; desc: string }>>;
@@ -736,6 +737,7 @@ export function RequestableInventoryTable({
   rows,
   sortLinks,
   customFieldDefinitions = [],
+  categoryName,
 }: RequestableInventoryTableProps) {
   const router = useRouter();
   const [activeAsset, setActiveAsset] = useState<RequestableInventoryRow | null>(null);
@@ -807,7 +809,7 @@ export function RequestableInventoryTable({
   // Column definitions are derived from the current warehouse schema; load saved preferences only when the warehouse changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    const storageKey = `stock:inventory-columns:${warehouseLabel}`;
+    const storageKey = `stock:inventory-columns:${warehouseLabel}:${categoryName ?? "ALL"}`;
     try {
       const saved = JSON.parse(window.localStorage.getItem(storageKey) ?? "null") as { columns?: TableColumnKey[]; widths?: Record<string, number> } | null;
       setSelectedColumns(normalizeTableColumns((saved?.columns?.filter((key) => availableColumns.includes(key)) as TableColumnKey[] | undefined) ?? defaultColumns));
@@ -817,12 +819,12 @@ export function RequestableInventoryTable({
     }
   // These arrays are render-local projections of the current schema and intentionally reload only per warehouse.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [warehouseLabel]);
+  }, [warehouseLabel, categoryName]);
 
   useEffect(() => {
     if (selectedColumns.length === 0) return;
-    window.localStorage.setItem(`stock:inventory-columns:${warehouseLabel}`, JSON.stringify({ columns: selectedColumns, widths: columnWidths }));
-  }, [columnWidths, warehouseLabel, selectedColumns]);
+    window.localStorage.setItem(`stock:inventory-columns:${warehouseLabel}:${categoryName ?? "ALL"}`, JSON.stringify({ columns: selectedColumns, widths: columnWidths }));
+  }, [columnWidths, warehouseLabel, categoryName, selectedColumns]);
 
   useEffect(() => {
     if (!resizing) return;

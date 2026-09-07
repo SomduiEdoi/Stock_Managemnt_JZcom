@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { useRouter } from "next/navigation";
 import {
   Filter,
@@ -15,6 +16,7 @@ import {
 import {
   buildUserManagementHref,
   organizationLevelOptions,
+  organizationTagLabel,
   organizationUnitOptions,
   stockControllerTagOptions,
   type UserManagementFilters,
@@ -39,6 +41,11 @@ type UserManagementPageProps = {
 type UserFormState = {
   email: string;
   name: string;
+  organizationAssignments: Array<{
+    organizationLevel: string;
+    organizationTag: string;
+  }>;
+  primaryOrganizationTag: string;
   organizationLevel: string;
   organizationTag: string;
   role: UserSystemRole | "";
@@ -91,6 +98,8 @@ function emptyFormState(): UserFormState {
   return {
     email: "",
     name: "",
+    organizationAssignments: [{ organizationLevel: "", organizationTag: "" }],
+    primaryOrganizationTag: "",
     organizationLevel: "",
     organizationTag: "",
     role: "",
@@ -102,6 +111,18 @@ function toFormState(user: UserManagementRow): UserFormState {
   return {
     email: user.email,
     name: user.name,
+    organizationAssignments:
+      user.organizationAssignments.length > 0
+        ? user.organizationAssignments.map((assignment) => ({
+            organizationLevel: assignment.organizationLevel,
+            organizationTag: assignment.organizationTag,
+          }))
+        : [{ organizationLevel: user.organizationLevel ?? "", organizationTag: user.organizationTag ?? "" }],
+    primaryOrganizationTag:
+      user.organizationAssignments.find((assignment) => assignment.isPrimary)?.organizationTag ??
+      user.organizationAssignments[0]?.organizationTag ??
+      user.organizationTag ??
+      "",
     organizationLevel: user.organizationLevel ?? "",
     organizationTag: user.organizationTag ?? "",
     role: user.systemRole,
@@ -138,13 +159,10 @@ function tagPills(user: UserManagementRow) {
     );
   }
 
-  const values: string[] = [];
-  if (user.organizationLevel) {
-    values.push(user.organizationLevel);
-  }
-  if (user.organizationTag) {
-    values.push(user.organizationTag);
-  }
+  const values: string[] = user.organizationAssignments.map(
+    (assignment) =>
+      `${assignment.organizationLevel} / ${organizationTagLabel(assignment.organizationTag)}`,
+  );
   if (user.projectTag) {
     values.push(projectLabels[user.projectTag]);
   }
@@ -247,6 +265,126 @@ function baseInputClass(disabled = false) {
   }`;
 }
 
+function cleanOrganizationAssignments(form: UserFormState) {
+  return form.organizationAssignments.filter(
+    (assignment) => assignment.organizationLevel && assignment.organizationTag,
+  );
+}
+
+function OrganizationAssignmentsField({
+  disabled,
+  form,
+  setForm,
+}: {
+  disabled: boolean;
+  form: UserFormState;
+  setForm: Dispatch<SetStateAction<UserFormState>>;
+}) {
+  function updateAssignment(
+    index: number,
+    key: "organizationLevel" | "organizationTag",
+    value: string,
+  ) {
+    setForm((current) => ({
+      ...current,
+      organizationAssignments: current.organizationAssignments.map((assignment, assignmentIndex) =>
+        assignmentIndex === index ? { ...assignment, [key]: value } : assignment,
+      ),
+    }));
+  }
+
+  function addAssignment() {
+    setForm((current) => ({
+      ...current,
+      organizationAssignments: [
+        ...current.organizationAssignments,
+        { organizationLevel: "", organizationTag: "" },
+      ],
+    }));
+  }
+
+  function removeAssignment(index: number) {
+    setForm((current) => ({
+      ...current,
+      organizationAssignments:
+        current.organizationAssignments.length === 1
+          ? [{ organizationLevel: "", organizationTag: "" }]
+          : current.organizationAssignments.filter((_, assignmentIndex) => assignmentIndex !== index),
+      primaryOrganizationTag:
+        current.organizationAssignments[index]?.organizationTag === current.primaryOrganizationTag
+          ? current.organizationAssignments.find((_, assignmentIndex) => assignmentIndex !== index)?.organizationTag ?? ""
+          : current.primaryOrganizationTag,
+    }));
+  }
+
+  return (
+    <div className="md:col-span-2">
+      <span className="mb-2 block text-sm font-bold text-navy">
+        Organization Assignments
+        {!disabled ? <span className="ml-1 text-status-fail">*</span> : null}
+      </span>
+      <div className="space-y-3">
+        {form.organizationAssignments.map((assignment, index) => (
+          <div className="grid gap-3 md:grid-cols-[auto_1fr_1fr_auto]" key={index}>
+            <label className="flex h-11 items-center gap-2 whitespace-nowrap text-sm font-semibold text-navy">
+              <input
+                checked={form.primaryOrganizationTag === assignment.organizationTag && Boolean(assignment.organizationTag)}
+                className="h-4 w-4 accent-brand-accent"
+                disabled={disabled || !assignment.organizationTag}
+                onChange={() =>
+                  setForm((current) => ({
+                    ...current,
+                    primaryOrganizationTag: assignment.organizationTag,
+                  }))
+                }
+                type="radio"
+              />
+              Primary
+            </label>
+            <SearchableDropdown
+              disabled={disabled}
+              onChange={(value) => updateAssignment(index, "organizationLevel", value)}
+              options={organizationLevelDropdownOptions()}
+              placeholder={disabled ? "Disabled" : "Select Organization Level"}
+              searchPlaceholder="Search organization level"
+              value={disabled ? "" : assignment.organizationLevel}
+            />
+            <SearchableDropdown
+              disabled={disabled}
+              onChange={(value) => updateAssignment(index, "organizationTag", value)}
+              options={organizationUnitDropdownOptions()}
+              placeholder={disabled ? "Disabled" : "Select Unit / Team Tag"}
+              searchPlaceholder="Search unit or team tag"
+              value={disabled ? "" : assignment.organizationTag}
+            />
+            <button
+              className="h-11 rounded-md border border-border px-3 text-sm font-bold text-status-fail hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={disabled || form.organizationAssignments.length === 1}
+              onClick={() => removeAssignment(index)}
+              type="button"
+            >
+              Remove
+            </button>
+          </div>
+        ))}
+      </div>
+      <button
+        className="mt-3 h-10 rounded-md border border-border px-4 text-sm font-bold text-navy hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={disabled}
+        onClick={addAssignment}
+        type="button"
+      >
+        Add Assignment
+      </button>
+      {!disabled ? (
+        <p className="mt-2 text-xs font-semibold text-muted-foreground">
+          Select one assignment as the primary request context. This is used as the default approval context.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function ModalShell({
   children,
   onClose,
@@ -317,12 +455,17 @@ function UserFormModal({
       return "Stock controller tag is required for Stock Controller.";
     }
 
-    if (form.role === "USER" && !form.organizationLevel) {
-      return "Organization level is required for User.";
+    if (form.role === "USER" && cleanOrganizationAssignments(form).length === 0) {
+      return "At least one organization assignment is required for User.";
     }
 
-    if (form.role === "USER" && !form.organizationTag) {
-      return "Organization unit/team tag is required for User.";
+    if (
+      form.role === "USER" &&
+      !cleanOrganizationAssignments(form).some(
+        (assignment) => assignment.organizationTag === form.primaryOrganizationTag,
+      )
+    ) {
+      return "Select one primary organization assignment.";
     }
 
     return "";
@@ -341,8 +484,10 @@ function UserFormModal({
     const payload = {
       email: form.email.trim(),
       name: form.name.trim(),
-      organizationLevel: form.role === "USER" ? form.organizationLevel : null,
-      organizationTag: form.role === "USER" ? form.organizationTag : null,
+      organizationAssignments:
+        form.role === "USER" ? cleanOrganizationAssignments(form) : [],
+      primaryOrganizationTag:
+        form.role === "USER" ? form.primaryOrganizationTag : null,
       role: form.role,
       stockControllerTag: form.role === "STOCK_CONTROLLER" ? form.stockControllerTag : null,
     };
@@ -405,6 +550,7 @@ function UserFormModal({
               setForm((current) => ({
                 ...current,
                 organizationLevel: "",
+                organizationAssignments: [{ organizationLevel: "", organizationTag: "" }],
                 organizationTag: "",
                 role,
                 stockControllerTag: "",
@@ -428,27 +574,11 @@ function UserFormModal({
           />
         </Field>
 
-        <Field label="Organization Level" required={form.role === "USER"}>
-          <SearchableDropdown
-            disabled={form.role !== "USER"}
-            onChange={(value) => setField("organizationLevel", value)}
-            options={organizationLevelDropdownOptions()}
-            placeholder={form.role === "USER" ? "Select Organization Level" : "Disabled"}
-            searchPlaceholder="Search organization level"
-            value={form.role === "USER" ? form.organizationLevel : ""}
-          />
-        </Field>
-
-        <Field label="Organization Unit / Team Tag" required={form.role === "USER"}>
-          <SearchableDropdown
-            disabled={form.role !== "USER"}
-            onChange={(value) => setField("organizationTag", value)}
-            options={organizationUnitDropdownOptions()}
-            placeholder={form.role === "USER" ? "Select Unit / Team Tag" : "Disabled"}
-            searchPlaceholder="Search unit or team tag"
-            value={form.role === "USER" ? form.organizationTag : ""}
-          />
-        </Field>
+        <OrganizationAssignmentsField
+          disabled={form.role !== "USER"}
+          form={form}
+          setForm={setForm}
+        />
       </div>
 
       {error ? (
@@ -656,12 +786,17 @@ function EditUserModal({
       return "Stock controller tag is required for Stock Controller.";
     }
 
-    if (form.role === "USER" && !form.organizationLevel) {
-      return "Organization level is required for User.";
+    if (form.role === "USER" && cleanOrganizationAssignments(form).length === 0) {
+      return "At least one organization assignment is required for User.";
     }
 
-    if (form.role === "USER" && !form.organizationTag) {
-      return "Organization unit/team tag is required for User.";
+    if (
+      form.role === "USER" &&
+      !cleanOrganizationAssignments(form).some(
+        (assignment) => assignment.organizationTag === form.primaryOrganizationTag,
+      )
+    ) {
+      return "Select one primary organization assignment.";
     }
 
     return "";
@@ -683,8 +818,10 @@ function EditUserModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: form.name.trim(),
-          organizationLevel: form.role === "USER" ? form.organizationLevel : null,
-          organizationTag: form.role === "USER" ? form.organizationTag : null,
+          organizationAssignments:
+            form.role === "USER" ? cleanOrganizationAssignments(form) : [],
+          primaryOrganizationTag:
+            form.role === "USER" ? form.primaryOrganizationTag : null,
           role: form.role,
           stockControllerTag: form.role === "STOCK_CONTROLLER" ? form.stockControllerTag : null,
         }),
@@ -727,6 +864,7 @@ function EditUserModal({
               setForm((current) => ({
                 ...current,
                 organizationLevel: "",
+                organizationAssignments: [{ organizationLevel: "", organizationTag: "" }],
                 organizationTag: "",
                 role,
                 stockControllerTag: "",
@@ -750,27 +888,11 @@ function EditUserModal({
           />
         </Field>
 
-        <Field label="Organization Level" required={form.role === "USER"}>
-          <SearchableDropdown
-            disabled={form.role !== "USER"}
-            onChange={(value) => setField("organizationLevel", value)}
-            options={organizationLevelDropdownOptions()}
-            placeholder={form.role === "USER" ? "Select Organization Level" : "Disabled"}
-            searchPlaceholder="Search organization level"
-            value={form.role === "USER" ? form.organizationLevel : ""}
-          />
-        </Field>
-
-        <Field label="Organization Unit / Team Tag" required={form.role === "USER"}>
-          <SearchableDropdown
-            disabled={form.role !== "USER"}
-            onChange={(value) => setField("organizationTag", value)}
-            options={organizationUnitDropdownOptions()}
-            placeholder={form.role === "USER" ? "Select Unit / Team Tag" : "Disabled"}
-            searchPlaceholder="Search unit or team tag"
-            value={form.role === "USER" ? form.organizationTag : ""}
-          />
-        </Field>
+        <OrganizationAssignmentsField
+          disabled={form.role !== "USER"}
+          form={form}
+          setForm={setForm}
+        />
       </div>
 
       {error ? (
@@ -831,8 +953,17 @@ function UserDetailModal({
   onClose: () => void;
   user: UserManagementRow;
 }) {
-  const organizationLevelValues = user.organizationLevel ? [user.organizationLevel] : [];
-  const organizationTagValues = user.organizationTag ? [user.organizationTag] : [];
+  const organizationValues =
+    user.organizationAssignments.length > 0
+      ? user.organizationAssignments.map(
+          (assignment) =>
+            `${assignment.organizationLevel} / ${organizationTagLabel(
+              assignment.organizationTag,
+            )}${assignment.isPrimary ? " (Primary)" : ""}`,
+        )
+      : user.organizationLevel && user.organizationTag
+        ? [`${user.organizationLevel} / ${organizationTagLabel(user.organizationTag)}`]
+        : [];
   const projectValues = user.projectTag ? [projectLabels[user.projectTag]] : [];
   const controllerValues = user.stockControllerTag
     ? [stockControllerTagLabels[user.stockControllerTag]]
@@ -861,8 +992,7 @@ function UserDetailModal({
       </div>
 
       <div className="mt-4 grid gap-3">
-        <DetailSection label="Organization Level" values={organizationLevelValues} />
-        <DetailSection label="Organization Unit / Team" values={organizationTagValues} />
+        <DetailSection label="Organization Assignments" values={organizationValues} />
         <DetailSection label="Project" values={projectValues} />
         <DetailSection label="Controller Tag" values={controllerValues} />
         <DetailSection label="Warehouse Permission" values={warehouseValues} />

@@ -17,7 +17,6 @@ function toClientAsset(asset: RequestCartAsset): RequestCartAssetClient {
 }
 
 export async function RequestCartPage({ assets, user }: RequestCartPageProps) {
-  void user;
   const projects = await db.project.findMany({
     orderBy: [{ name: "asc" }],
     select: { id: true, name: true, projectId: true },
@@ -27,6 +26,7 @@ export async function RequestCartPage({ assets, user }: RequestCartPageProps) {
   return (
     <RequestCartClient
       initialAssets={assets.map(toClientAsset)}
+      organizationAssignments={user.organizationAssignments}
       projects={projects}
     />
   );

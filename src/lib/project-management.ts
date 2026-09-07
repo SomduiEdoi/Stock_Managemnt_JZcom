@@ -1,5 +1,6 @@
 ﻿import { Prisma, ProjectMemberTag, ProjectStatus } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
+import { ApprovalStatus, TransactionWorkflowStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { hasRole } from "@/lib/permissions";
 import { WorkflowError } from "@/lib/workflow";
@@ -287,6 +288,11 @@ export async function updateProjectForAdmin(
   }
 
   const project = await db.$transaction(async (tx) => {
+    const previousLeadIds = toUniqueUsers([
+      ...(existing.leadUser ? [existing.leadUser] : []),
+      ...existing.members.filter((member) => member.projectTag === ProjectMemberTag.LEAD_PROJECT).map((member) => member.user),
+    ]).map((lead) => lead.id);
+
     await tx.project.update({
       data: {
         leadUserId: clean.leadUserIds[0],
@@ -312,6 +318,54 @@ export async function updateProjectForAdmin(
       ],
       skipDuplicates: true,
     });
+
+    const pendingTransactions = await tx.transaction.findMany({
+      where: { projectId, workflowStatus: TransactionWorkflowStatus.PENDING },
+      select: {
+        id: true,
+        requestedById: true,
+        approvals: {
+          where: { requiredTag: ProjectMemberTag.LEAD_PROJECT, status: ApprovalStatus.PENDING },
+          orderBy: { stepSequence: "asc" },
+          select: { stepSequence: true },
+        },
+      },
+    });
+    const nextLeads = await tx.user.findMany({
+      where: { id: { in: clean.leadUserIds }, isActive: true },
+      select: { id: true, name: true },
+    });
+
+    for (const transaction of pendingTransactions) {
+      const leadStep = transaction.approvals[0]?.stepSequence;
+      if (leadStep === undefined) continue;
+      const approvers = nextLeads.filter((lead) => lead.id !== transaction.requestedById);
+      await tx.transactionApproval.deleteMany({
+        where: { transactionId: transaction.id, requiredTag: ProjectMemberTag.LEAD_PROJECT, status: ApprovalStatus.PENDING },
+      });
+      await tx.transactionApproval.createMany({
+        data: approvers.map((lead) => ({
+          transactionId: transaction.id,
+          requiredTag: ProjectMemberTag.LEAD_PROJECT,
+          stepSequence: leadStep,
+          userId: lead.id,
+          approverNameSnapshot: lead.name,
+          approverTagSnapshot: ProjectMemberTag.LEAD_PROJECT,
+          status: ApprovalStatus.PENDING,
+        })),
+      });
+    }
+
+    if (JSON.stringify(previousLeadIds) !== JSON.stringify(clean.leadUserIds)) {
+      await tx.projectLeadChange.create({
+        data: {
+          projectId,
+          changedById: user.id,
+          previousLeadIds,
+          nextLeadIds: clean.leadUserIds,
+        },
+      });
+    }
 
     return tx.project.findUniqueOrThrow({
       select: projectSelect,

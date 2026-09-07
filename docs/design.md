@@ -1,6 +1,6 @@
 # Design: Warehouse Management
 
-อัปเดตล่าสุด: 2026-09-02
+อัปเดตล่าสุด: 2026-09-04
 
 ## 1. Architecture
 
@@ -99,7 +99,7 @@ Workflow:
 ## 6. Submit and Approval Design
 
 1. ตรวจ Project, hold/reservation, quantity และ item availability
-2. สร้าง `REQ-YYYYMMDD-XX`, Transaction และ Transaction Items
+2. สร้าง `REQ-YYYYMMDD-XX` โดย sequence เริ่มที่ `01` และ reset รายเดือน, Transaction และ Transaction Items
 3. สร้าง approval candidates ตามบริบท
 4. เก็บ transaction เป็น `PENDING` และคง lock/reservation
 
@@ -127,7 +127,7 @@ Project approval ใช้ dynamic assignee:
 - Approval ที่สำเร็จแล้วเก็บ snapshot เดิมและไม่ถูกลบ
 - ถ้า sequence ยังไม่ครบ การเพิ่ม Lead ใหม่จะเพิ่ม pending approval ที่ต้องผ่าน
 - ถ้า Project sequence เสร็จและ workflow เลื่อนไปแล้ว ห้าม reopen จากการเปลี่ยน Lead
-- ควรมี Project Lead Change History หรือ audit event เก็บ old/new lead, actor และ timestamp
+- มี Project Lead Change History หรือ audit event เก็บ old/new lead, actor และ timestamp
 
 เมื่ออนุมัติครบ:
 
@@ -148,14 +148,14 @@ SOLD บังคับราคาเมื่อ current step เป็น `BS
 ## 8. Return Design
 
 - Return ใช้ได้กับ Borrow/Using ที่เป็น `IN_PROGRESS`
-- Requester หรือ Admin เลือก item ที่ยังไม่ถูก resolve
+- Requester เดิมเท่านั้นที่เลือก item ที่ยังไม่ถูก resolve ได้
 - `READY` สร้าง Derived Return Transaction: business `RETURNED`, workflow `PENDING`
 - `SOLD` สร้าง Derived Sold Transaction: business `COMPLETED`, workflow `PENDING`
 - Derived transaction ใช้ approval chain เต็ม รวม controller ทุก Warehouse, BSD Staff และ BSD Manager
 - เมื่อ Return ได้รับอนุมัติ ระบบคืน asset/quantity เป็น `READY`, บันทึก returned fields/history และ refresh Source Transaction
 - เมื่อ Sold ได้รับอนุมัติ ระบบเปลี่ยน asset/quantity เป็น `SOLD`
 - Source Transaction เป็น `COMPLETED` เมื่อทุก item resolve ครบ
-- UI/API ปัจจุบันยังไม่รวม outcome `FAIL`, `LOST`, `NEED_CHECK`
+- UI/API รองรับ outcome `FAIL`, `LOST`, `NEED_CHECK` ผ่าน derived approval transaction และรองรับ Quantity split
 
 ## 9. API Surface
 
@@ -195,7 +195,6 @@ PATCH                /api/users/:id/assignment
 Pending:
 
 - `POST /api/transactions/:id/cancel`
-- Asset Detail PDF endpoint/integration
 
 ## 10. UI Status
 
@@ -210,9 +209,8 @@ Implemented or mostly implemented:
 
 Partial:
 
-- Organization Assignment แบบหลายตำแหน่งยังไม่ได้เพิ่มใน Prisma/API/UI
-- Asset Detail PDF ยังไม่เชื่อมเข้าหน้าจอ
-- Return outcome Fail/Lost/Need Check ยังไม่อยู่ใน Return workflow
+- Organization Assignment แบบหลายตำแหน่งมีใน Prisma/API/UI แล้ว และรองรับ Primary Assignment
+- Return outcome Fail/Lost/Need Check อยู่ใน Return workflow แล้ว แต่ยังต้องเพิ่ม integration/E2E tests
 - PDF เอกสารทางการยังรอ template
 
 ## 11. Verification Strategy

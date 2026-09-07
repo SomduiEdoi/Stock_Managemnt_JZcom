@@ -56,11 +56,7 @@ export function approvalMatchesUser(
       return approval.userId === user.id && (permission.canView || permission.canManage);
     });
 
-    return (
-      hasRole(user, "STOCK_CONTROLLER") &&
-      user.stockControllerTag === warehouseController.controllerTag &&
-      hasWarehousePermission
-    );
+    return hasRole(user, "STOCK_CONTROLLER") && hasWarehousePermission;
   }
 
   if (approval.userId === user.id) {
@@ -69,6 +65,9 @@ export function approvalMatchesUser(
 
   return (
     user.organizationTag === approval.requiredTag ||
+    user.organizationAssignments.some(
+      (assignment) => assignment.organizationTag === approval.requiredTag,
+    ) ||
     user.projectTag === approval.requiredTag
   );
 }

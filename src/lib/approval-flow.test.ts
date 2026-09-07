@@ -13,6 +13,7 @@ function user(overrides: Partial<CurrentUser>): CurrentUser {
     id: "user-id",
     lastLoginAt: null,
     name: "User",
+    organizationAssignments: [],
     organizationLevel: null,
     organizationTag: null,
     permissions: [],

@@ -64,6 +64,16 @@ const userRowSelect = Prisma.validator<Prisma.UserSelect>()({
   name: true,
   organizationLevel: true,
   organizationTag: true,
+  organizationAssignments: {
+    orderBy: [{ isPrimary: "desc" }, { organizationTag: "asc" }],
+    select: {
+      id: true,
+      isPrimary: true,
+      organizationLevel: true,
+      organizationTag: true,
+    },
+    where: { isActive: true },
+  },
   position: true,
   projectTag: true,
   stockControllerTag: true,
@@ -101,6 +111,11 @@ export type UpsertManagedUserInput = {
   email: string;
   name: string;
   organizationLevel?: OrganizationLevel | null;
+  organizationAssignments?: Array<{
+    organizationLevel: OrganizationLevel;
+    organizationTag: OrganizationTag;
+  }>;
+  primaryOrganizationTag?: OrganizationTag | null;
   organizationTag?: OrganizationTag | null;
   role: UserSystemRole;
   stockControllerTag?: StockControllerTag | null;
@@ -158,6 +173,7 @@ function toRow(user: UserRecord): UserManagementRow {
     name: user.name,
     organizationLevel: user.organizationLevel,
     organizationTag: user.organizationTag,
+    organizationAssignments: user.organizationAssignments,
     position: user.position,
     projectTag: user.projectTag,
     roleCodes: user.roles.map(({ role }) => role.code),
@@ -191,6 +207,8 @@ function matchesUserFilters(user: UserManagementRow, filters: UserManagementFilt
     user.systemRole,
     user.organizationLevel ?? "",
     user.organizationTag ?? "",
+    ...user.organizationAssignments.map((assignment) => assignment.organizationLevel),
+    ...user.organizationAssignments.map((assignment) => assignment.organizationTag),
     user.projectTag ?? "",
     user.stockControllerTag ?? "",
     ...user.warehousePermissions.map((permission) => permission.warehouse.name),
@@ -309,12 +327,9 @@ function validateManagedUserInput(input: UpsertManagedUserInput) {
   }
 
   if (input.role === "USER") {
-    if (!input.organizationLevel) {
-      throw new WorkflowError("Organization level is required for User.");
-    }
-
-    if (!input.organizationTag) {
-      throw new WorkflowError("Organization unit/team tag is required for User.");
+    const assignments = normalizeOrganizationAssignments(input);
+    if (assignments.length === 0) {
+      throw new WorkflowError("At least one organization assignment is required for User.");
     }
   }
 }
@@ -331,14 +346,87 @@ function validateManagedUserUpdateInput(
   }
 
   if (input.role === "USER") {
-    if (!input.organizationLevel) {
-      throw new WorkflowError("Organization level is required for User.");
-    }
-
-    if (!input.organizationTag) {
-      throw new WorkflowError("Organization unit/team tag is required for User.");
+    const assignments = normalizeOrganizationAssignments(input);
+    if (assignments.length === 0) {
+      throw new WorkflowError("At least one organization assignment is required for User.");
     }
   }
+}
+
+function normalizeOrganizationAssignments(
+  input: Pick<UpsertManagedUserInput, "organizationAssignments" | "organizationLevel" | "organizationTag">,
+) {
+  const assignments = input.organizationAssignments?.filter(
+    (assignment) => assignment.organizationLevel && assignment.organizationTag,
+  );
+
+  if (assignments && assignments.length > 0) {
+    const seen = new Set<OrganizationTag>();
+
+    return assignments.filter((assignment) => {
+      if (seen.has(assignment.organizationTag)) {
+        return false;
+      }
+
+      seen.add(assignment.organizationTag);
+      return true;
+    });
+  }
+
+  if (input.organizationLevel && input.organizationTag) {
+    return [
+      {
+        organizationLevel: input.organizationLevel,
+        organizationTag: input.organizationTag,
+      },
+    ];
+  }
+
+  return [];
+}
+
+function resolvePrimaryOrganizationAssignment(
+  assignments: Array<{ organizationLevel: OrganizationLevel; organizationTag: OrganizationTag }>,
+  primaryOrganizationTag?: OrganizationTag | null,
+) {
+  return (
+    assignments.find((assignment) => assignment.organizationTag === primaryOrganizationTag) ??
+    assignments[0] ??
+    null
+  );
+}
+
+async function syncOrganizationAssignmentsForUser(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  input: Omit<UpsertManagedUserInput, "email"> | UpsertManagedUserInput,
+) {
+  const assignments = input.role === "USER" ? normalizeOrganizationAssignments(input) : [];
+  const primaryAssignment = resolvePrimaryOrganizationAssignment(
+    assignments,
+    input.primaryOrganizationTag,
+  );
+
+  await tx.userOrganizationAssignment.deleteMany({ where: { userId } });
+
+  if (assignments.length > 0) {
+    await tx.userOrganizationAssignment.createMany({
+      data: assignments.map((assignment) => ({
+        isPrimary: assignment.organizationTag === primaryAssignment?.organizationTag,
+        organizationLevel: assignment.organizationLevel,
+        organizationTag: assignment.organizationTag,
+        userId,
+      })),
+    });
+  }
+
+  await tx.user.update({
+    data: {
+      organizationLevel: primaryAssignment?.organizationLevel ?? null,
+      organizationTag: primaryAssignment?.organizationTag ?? null,
+    },
+    where: { id: userId },
+  });
 }
 
 function normalizeRoleCode(systemRole: UserSystemRole): RoleCode {
@@ -416,18 +504,22 @@ export async function createUserForAdmin(
   }
 
   const passwordHash = await bcrypt.hash(defaultPassword, 10);
-  const createdUser = await db.user.create({
-    data: {
-      email,
-      isActive: true,
-      name,
-      organizationLevel: input.role === "USER" ? input.organizationLevel : null,
-      organizationTag: input.role === "USER" ? input.organizationTag : null,
-      passwordHash,
-      projectTag: null,
-      stockControllerTag: input.role === "STOCK_CONTROLLER" ? input.stockControllerTag : null,
-    },
-    select: { id: true },
+  const createdUser = await db.$transaction(async (tx) => {
+    const nextUser = await tx.user.create({
+      data: {
+        email,
+        isActive: true,
+        name,
+        passwordHash,
+        projectTag: null,
+        stockControllerTag: input.role === "STOCK_CONTROLLER" ? input.stockControllerTag : null,
+      },
+      select: { id: true },
+    });
+
+    await syncOrganizationAssignmentsForUser(tx, nextUser.id, input);
+
+    return nextUser;
   });
 
   await syncRole(createdUser.id, normalizeRoleCode(input.role));
@@ -472,12 +564,11 @@ export async function updateUserForAdmin(
       where: { id: userId },
       data: {
         name: input.name.trim(),
-        organizationLevel: input.role === "USER" ? input.organizationLevel : null,
-        organizationTag: input.role === "USER" ? input.organizationTag : null,
         projectTag: input.role === "USER" ? existing.projectTag : null,
         stockControllerTag: input.role === "STOCK_CONTROLLER" ? input.stockControllerTag : null,
       },
     });
+    await syncOrganizationAssignmentsForUser(tx, userId, input);
   });
 
   await syncRole(userId, normalizeRoleCode(input.role));

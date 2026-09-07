@@ -19,6 +19,11 @@ type SeedUser = {
   stockControllerTag?: StockControllerTag;
   organizationLevel?: OrganizationLevel;
   organizationTag?: OrganizationTag;
+  organizationAssignments?: Array<{
+    level: OrganizationLevel;
+    tag: OrganizationTag;
+    isPrimary?: boolean;
+  }>;
   azureAdObjectId?: string;
   permissions: Array<{
     warehouseCode: string;
@@ -148,6 +153,234 @@ const seedUsers: SeedUser[] = [
       { warehouseCode: "DL", canView: true, canManage: false },
       { warehouseCode: "SALE_STOCK", canView: true, canManage: false },
     ],
+  },
+];
+
+const allViewerPermissions = [
+  { warehouseCode: "SERVER", canView: true, canManage: false },
+  { warehouseCode: "NETWORK", canView: true, canManage: false },
+  { warehouseCode: "BSD", canView: true, canManage: false },
+  { warehouseCode: "DL", canView: true, canManage: false },
+  { warehouseCode: "SALE_STOCK", canView: true, canManage: false },
+];
+
+const organizationChartUsers: SeedUser[] = [
+  {
+    name: "Piengchan K.",
+    email: "piengchan@example.com",
+    position: "Managing Director / CFO",
+    roleCode: "USER",
+    organizationLevel: "EXECUTIVE",
+    organizationTag: "EXECUTIVE",
+    organizationAssignments: [
+      { level: "EXECUTIVE", tag: "EXECUTIVE", isPrimary: true },
+      { level: "MANAGER", tag: "BSD_MANAGER" },
+    ],
+    permissions: allViewerPermissions,
+  },
+  {
+    name: "Bandit K.",
+    email: "bandit@example.com",
+    position: "CTO",
+    roleCode: "USER",
+    organizationLevel: "EXECUTIVE",
+    organizationTag: "EXECUTIVE",
+    permissions: allViewerPermissions,
+  },
+  {
+    name: "Yothin L.",
+    email: "yothin@example.com",
+    position: "Consultant",
+    roleCode: "USER",
+    organizationLevel: "EXECUTIVE",
+    organizationTag: "CONSULTANT",
+    permissions: allViewerPermissions,
+  },
+  {
+    name: "Theerajed Th.",
+    email: "theerajed@example.com",
+    position: "Service Manager",
+    roleCode: "USER",
+    organizationLevel: "MANAGER",
+    organizationTag: "CS_MANAGER",
+    permissions: allViewerPermissions,
+  },
+  {
+    name: "Phuchid Ch.",
+    email: "phuchid@example.com",
+    position: "Solution Consult Asst.Manager",
+    roleCode: "USER",
+    organizationLevel: "MANAGER",
+    organizationTag: "SC_MANAGER",
+    permissions: allViewerPermissions,
+  },
+  {
+    name: "Thawanat J.",
+    email: "thawanat@example.com",
+    position: "Customer Service Sr.System Engineer (Acting)",
+    roleCode: "USER",
+    organizationLevel: "MANAGER",
+    organizationTag: "CS_MANAGER",
+    organizationAssignments: [
+      { level: "MANAGER", tag: "CS_MANAGER", isPrimary: true },
+      { level: "SUPERVISOR", tag: "CMS_SUPERVISOR" },
+    ],
+    permissions: allViewerPermissions,
+  },
+  {
+    name: "Suriya K.",
+    email: "suriya@example.com",
+    position: "Delivery & Client Asst.Manager",
+    roleCode: "USER",
+    organizationLevel: "MANAGER",
+    organizationTag: "DL_MANAGER",
+    permissions: allViewerPermissions,
+  },
+  {
+    name: "Pongwut K.",
+    email: "pongwut@example.com",
+    position: "BSD Manager",
+    roleCode: "USER",
+    organizationLevel: "MANAGER",
+    organizationTag: "BSD_MANAGER",
+    permissions: allViewerPermissions,
+  },
+  {
+    name: "Thanapol P.",
+    email: "thanapol@example.com",
+    position: "Sr.System Engineer",
+    roleCode: "USER",
+    organizationLevel: "SUPERVISOR",
+    organizationTag: "S1_SUPERVISOR",
+    permissions: allViewerPermissions,
+  },
+  {
+    name: "Saran K.",
+    email: "saran@example.com",
+    position: "Network Engineer",
+    roleCode: "USER",
+    organizationLevel: "SUPERVISOR",
+    organizationTag: "N1_SUPERVISOR",
+    permissions: allViewerPermissions,
+  },
+  {
+    name: "Tanawat W.",
+    email: "tanawat@example.com",
+    position: "System Engineer",
+    roleCode: "USER",
+    organizationLevel: "SUPERVISOR",
+    organizationTag: "C1_SUPERVISOR",
+    permissions: allViewerPermissions,
+  },
+  {
+    name: "Chanvit L.",
+    email: "chanvit@example.com",
+    position: "Asst.Engineer (Acting Team Lead)",
+    roleCode: "USER",
+    organizationLevel: "SUPERVISOR",
+    organizationTag: "CMS_SUPERVISOR",
+    permissions: allViewerPermissions,
+  },
+  {
+    name: "Chutithep P.",
+    email: "chutithep@example.com",
+    position: "Asst.Engineer",
+    roleCode: "USER",
+    organizationLevel: "SUPERVISOR",
+    organizationTag: "SD_SUPERVISOR",
+    permissions: allViewerPermissions,
+  },
+  {
+    name: "Wirat Ch.",
+    email: "wirat@example.com",
+    position: "Sr.System Engineer",
+    roleCode: "USER",
+    organizationLevel: "SUPERVISOR",
+    organizationTag: "PRT_SUPERVISOR",
+    permissions: allViewerPermissions,
+  },
+  {
+    name: "Tananut K.",
+    email: "tananut@example.com",
+    position: "Sr.Helpdesk",
+    roleCode: "USER",
+    organizationLevel: "SUPERVISOR",
+    organizationTag: "LOCAL_SUPERVISOR",
+    permissions: allViewerPermissions,
+  },
+  {
+    name: "Sutthinan R.",
+    email: "sutthinan@example.com",
+    position: "Sr.Helpdesk",
+    roleCode: "USER",
+    organizationLevel: "STAFF",
+    organizationTag: "DL_STAFF",
+    permissions: allViewerPermissions,
+  },
+  {
+    name: "Paveena Ch.",
+    email: "paveena@example.com",
+    position: "Sr.Accounting",
+    roleCode: "USER",
+    organizationLevel: "STAFF",
+    organizationTag: "BSD_STAFF",
+    permissions: allViewerPermissions,
+  },
+  {
+    name: "Surarux S.",
+    email: "surarux@example.com",
+    position: "Sr.Administrator",
+    roleCode: "USER",
+    organizationLevel: "STAFF",
+    organizationTag: "BSD_STAFF",
+    permissions: allViewerPermissions,
+  },
+  {
+    name: "Suchira R.",
+    email: "suchira@example.com",
+    position: "Staff",
+    roleCode: "USER",
+    organizationLevel: "STAFF",
+    organizationTag: "BSD_STAFF",
+    permissions: allViewerPermissions,
+  },
+  ...[
+    ["Teeravet P.", "teeravet@example.com", "Asst.Engineer", "S1_STAFF"],
+    ["Porramuch D.", "porramuch@example.com", "Asst.Engineer", "S1_STAFF"],
+    ["Suebskul P.", "suebskul@example.com", "Asst.Engineer", "S1_STAFF"],
+    ["Chotiwit R.", "chotiwit@example.com", "Sr.Helpdesk", "S1_STAFF"],
+    ["Eakkapat J.", "eakkapat@example.com", "Sr.Helpdesk", "S1_STAFF"],
+    ["Tossapol W.", "tossapol@example.com", "Sr.Helpdesk", "S1_STAFF"],
+    ["Pongsatorn Sr.", "pongsatorn@example.com", "Sr.Helpdesk", "CMS_STAFF"],
+    ["Thanid S.", "thanid@example.com", "Sr.Helpdesk", "CMS_STAFF"],
+    ["Sarannupong S.", "sarannupong@example.com", "Asst.Engineer", "SD_STAFF"],
+    ["Panuwat Ch.", "panuwat@example.com", "Sr.Helpdesk", "SD_STAFF"],
+    ["Alongkorn S.", "alongkorn@example.com", "Sr.Helpdesk", "SD_STAFF"],
+    ["Amorntep P.", "amorntep@example.com", "Sr.Helpdesk", "SD_STAFF"],
+    ["Teerapong Ph.", "teerapong@example.com", "System Engineer", "PRT_STAFF"],
+    ["Kitti Ph.", "kitti@example.com", "Helpdesk", "PRT_STAFF"],
+    ["Siriluk Kh.", "siriluk@example.com", "Helpdesk", "PRT_STAFF"],
+  ].map(([name, email, position, tag]) => ({
+    name,
+    email,
+    position,
+    roleCode: "USER" as RoleCode,
+    organizationLevel: "STAFF" as OrganizationLevel,
+    organizationTag: tag as OrganizationTag,
+    permissions: allViewerPermissions,
+  })),
+  {
+    name: "Sathit P.",
+    email: "sathit@example.com",
+    position: "Helpdesk",
+    roleCode: "USER",
+    organizationLevel: "STAFF",
+    organizationTag: "SD_STAFF",
+    organizationAssignments: [
+      { level: "STAFF", tag: "SD_STAFF", isPrimary: true },
+      { level: "STAFF", tag: "LOCAL_STAFF" },
+    ],
+    permissions: allViewerPermissions,
   },
 ];
 
@@ -503,6 +736,52 @@ async function upsertSeedUser(
     },
   });
 
+  const assignments =
+    user.organizationAssignments ??
+    (user.organizationLevel && user.organizationTag
+      ? [
+          {
+            isPrimary: true,
+            level: user.organizationLevel,
+            tag: user.organizationTag,
+          },
+        ]
+      : []);
+
+  if (assignments.length > 0) {
+    const primaryAssignment = assignments.find((assignment) => assignment.isPrimary) ?? assignments[0];
+
+    await prisma.userOrganizationAssignment.updateMany({
+      data: { isPrimary: false },
+      where: { userId: createdUser.id },
+    });
+
+    for (const assignment of assignments) {
+      const isPrimary = assignment.tag === primaryAssignment.tag;
+
+      await prisma.userOrganizationAssignment.upsert({
+        where: {
+          userId_organizationTag: {
+            userId: createdUser.id,
+            organizationTag: assignment.tag,
+          },
+        },
+        update: {
+          isActive: true,
+          isPrimary,
+          organizationLevel: assignment.level,
+        },
+        create: {
+          isActive: true,
+          isPrimary,
+          organizationLevel: assignment.level,
+          organizationTag: assignment.tag,
+          userId: createdUser.id,
+        },
+      });
+    }
+  }
+
   for (const permission of user.permissions) {
     const warehouseId = warehouseByCode.get(permission.warehouseCode);
     if (!warehouseId) {
@@ -557,7 +836,7 @@ async function main() {
   await upsertDlTaxonomy(dlWarehouseId);
   await upsertSaleStockTaxonomy(saleStockWarehouseId);
 
-  for (const user of seedUsers) {
+  for (const user of [...seedUsers, ...organizationChartUsers]) {
     await upsertSeedUser(user, passwordHash, roleByCode, warehouseByCode);
   }
 

@@ -16,7 +16,9 @@ const returnTransactionSchema = z.object({
   items: z.array(
     z.object({
       itemId: z.string().uuid(),
+      allocations: z.array(z.object({ quantity: z.number().int().positive(), toStatus: z.nativeEnum(AssetStatus) })).max(10).optional(),
       note: z.string().max(1000).optional().nullable(),
+      quantity: z.number().int().positive().optional().nullable(),
       soldPrice: z.string().trim().max(30).optional().nullable(),
       toStatus: z.nativeEnum(AssetStatus),
     }),
