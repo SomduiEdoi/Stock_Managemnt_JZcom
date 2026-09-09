@@ -1,0 +1,1 @@
+ALTER TYPE "TransactionWorkflowStatus" ADD VALUE IF NOT EXISTS 'CANCELLED';

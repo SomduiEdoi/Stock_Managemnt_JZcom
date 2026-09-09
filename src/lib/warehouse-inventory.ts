@@ -170,24 +170,26 @@ function containsText(search: string) {
   };
 }
 
+function searchVariants(token: string) {
+  return [...new Set([
+    token,
+    token.replace(/(\d)([A-Za-z])/g, "$1 $2"),
+    token.replace(/([A-Za-z])(\d)/g, "$1 $2"),
+  ])].map(containsText);
+}
+
 function buildKeywordClause(token: string): Prisma.AssetWhereInput {
-  const contains = containsText(token);
+  const variants = searchVariants(token);
+  const field = (name: "assetNo" | "locationText" | "note" | "serialNo" | "stockCode") => variants.map((contains) => ({ [name]: contains }));
+  const modelField = (name: "brand" | "modelNo" | "name" | "partNo" | "typeName" | "description") => variants.map((contains) => ({ assetModel: { is: { [name]: contains } } }));
 
   return {
     OR: [
-      { assetNo: contains },
-      { locationText: contains },
-      { note: contains },
-      { serialNo: contains },
-      { stockCode: contains },
-      { assetModel: { is: { brand: contains } } },
-      { assetModel: { is: { modelNo: contains } } },
-      { assetModel: { is: { name: contains } } },
-      { assetModel: { is: { partNo: contains } } },
-      { assetModel: { is: { typeName: contains } } },
-      { assetModel: { is: { category: { is: { name: contains } } } } },
-      { location: { is: { name: contains } } },
-      { customFieldValues: { some: { field: { isSearchable: true }, valueText: contains } } },
+      ...field("assetNo"), ...field("locationText"), ...field("note"), ...field("serialNo"), ...field("stockCode"),
+      ...modelField("brand"), ...modelField("modelNo"), ...modelField("name"), ...modelField("partNo"), ...modelField("typeName"), ...modelField("description"),
+      ...variants.map((contains) => ({ assetModel: { is: { category: { is: { name: contains } } } } })),
+      ...variants.map((contains) => ({ location: { is: { name: contains } } })),
+      ...variants.map((contains) => ({ customFieldValues: { some: { field: { isSearchable: true }, valueText: contains } } })),
     ],
   };
 }

@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Eye, EyeOff, LockKeyhole, LogIn, Mail } from "lucide-react";
+import { Eye, EyeOff, KeyRound, LockKeyhole, LogIn } from "lucide-react";
 
 function getSafeNextPath(value: string | null) {
   if (!value || !value.startsWith("/") || value.startsWith("//")) {
@@ -15,8 +15,8 @@ function getSafeNextPath(value: string | null) {
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState("admin@example.com");
-  const [password, setPassword] = useState("ChangeMe123!");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -27,7 +27,7 @@ export function LoginForm() {
     setIsSubmitting(true);
 
     const response = await fetch("/api/auth/login", {
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ username, password }),
       headers: {
         "Content-Type": "application/json",
       },
@@ -53,21 +53,21 @@ export function LoginForm() {
     <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
       <label className="flex flex-col gap-2">
         <span className="text-[10px] font-bold uppercase leading-3 text-ink">
-          Work Email
+          AD Username
         </span>
         <span className="relative">
-          <Mail
+          <KeyRound
             aria-hidden="true"
             className="absolute left-3 top-1/2 -translate-y-1/2 text-navy/80"
             size={18}
           />
           <input
-            autoComplete="email"
+            autoComplete="username"
             className="h-10 w-full rounded-[4px] border border-border/25 bg-white pl-9 pr-4 text-sm text-ink outline-none transition placeholder:text-navy/80 focus:border-navy focus:ring-2 focus:ring-navy/15"
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="name@company.com"
-            type="email"
-            value={email}
+            onChange={(event) => setUsername(event.target.value)}
+            placeholder="it01 or it01@ad2012r2.local"
+            type="text"
+            value={username}
           />
         </span>
       </label>

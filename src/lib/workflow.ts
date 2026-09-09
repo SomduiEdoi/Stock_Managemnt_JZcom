@@ -1780,7 +1780,7 @@ export async function submitTransaction(
 ) {
   const requestItems = normalizeRequestItems(input);
   assertHasItems(requestItems, "Asset items");
-  const { purpose } = assertTransactionInput(input);
+  const { purpose, soldPrice } = assertTransactionInput(input);
   const note = cleanText(input.note);
   const now = new Date();
   const toStatus = getTransactionAssetStatus(input.type);
@@ -1830,7 +1830,7 @@ export async function submitTransaction(
           requestDate: input.requestDate,
           requestedById: user.id,
           serviceRequest: input.serviceRequest ?? false,
-          soldPrice: null,
+          soldPrice: input.type === TransactionType.SOLD && soldPrice ? new Prisma.Decimal(soldPrice) : null,
           sourceTransactionId: cleanText(input.sourceTransactionId),
           status: getInitialTransactionStatus(input.type),
           transactionNo: await createRequisitionNo(tx, now),
@@ -1845,7 +1845,7 @@ export async function submitTransaction(
           fromStatus: isQuantityAsset(asset) ? AssetStatus.READY : AssetStatus.REQUEST,
           note,
           requestedQuantity: quantity,
-          soldPrice: null,
+          soldPrice: input.type === TransactionType.SOLD && soldPrice ? new Prisma.Decimal(soldPrice) : null,
           toStatus,
           transactionId: transaction.id,
         })),
@@ -2193,29 +2193,6 @@ export async function approveTransaction(
         throw new WorkflowError("No approval is waiting for this user.", 403);
       }
 
-      const soldPrice = cleanText(input.soldPrice);
-      if (transaction.type === TransactionType.SOLD && currentApproval.requiredTag === OrganizationTag.BSD_STAFF) {
-        const effectiveSoldPrice = soldPrice ?? transaction.soldPrice?.toString() ?? null;
-
-        if (!effectiveSoldPrice) {
-          throw new WorkflowError("Price is required before BSD Staff approval.", 400, "SOLD_PRICE_REQUIRED");
-        }
-
-        if (Number.isNaN(Number(effectiveSoldPrice))) {
-          throw new WorkflowError("Price must be a valid number.", 400, "INVALID_SOLD_PRICE");
-        }
-
-        await tx.transaction.update({
-          where: { id: transactionId },
-          data: { soldPrice: new Prisma.Decimal(effectiveSoldPrice) },
-        });
-
-        await tx.transactionItem.updateMany({
-          where: { transactionId },
-          data: { soldPrice: new Prisma.Decimal(effectiveSoldPrice) },
-        });
-      }
-
       await tx.transactionApproval.update({
         where: { id: currentApproval.id },
         data: {
@@ -2360,6 +2337,48 @@ async function recordRejectedDerivedResolutionItems(
   });
 }
 
+export async function cancelTransactionRequest(
+  user: CurrentUser,
+  transactionId: string,
+) {
+  return db.$transaction(
+    async (tx) => {
+      const transaction = await findTransactionDetail(tx, transactionId);
+
+      if (transaction.requestedBy.id !== user.id) {
+        throw new WorkflowError("Only the original requester can cancel this request.", 403, "CANCEL_REQUESTER_ONLY");
+      }
+
+      if (
+        transaction.workflowStatus !== TransactionWorkflowStatus.PENDING &&
+        transaction.workflowStatus !== TransactionWorkflowStatus.REJECTED
+      ) {
+        throw new WorkflowError("Only pending or rejected requests can be cancelled.", 409, "CANCEL_REQUEST_NOT_ALLOWED");
+      }
+
+      const approvedCount = transaction.approvals.filter((approval) => approval.status === ApprovalStatus.APPROVED).length;
+      if (approvedCount > 0) {
+        throw new WorkflowError("A request with completed approval cannot be cancelled.", 409, "CANCEL_APPROVAL_ALREADY_COMPLETED");
+      }
+
+      if (!transaction.sourceTransactionId && transaction.workflowStatus === TransactionWorkflowStatus.PENDING) {
+        await releaseRejectedTransactionItems(tx, transaction, user.id, "Request cancelled by requester.");
+      }
+
+      await tx.transactionApproval.updateMany({
+        where: { transactionId: transaction.id, status: ApprovalStatus.PENDING },
+        data: { comment: "Cancelled by requester.", status: ApprovalStatus.REJECTED, actedAt: new Date() },
+      });
+
+      return tx.transaction.update({
+        where: { id: transaction.id },
+        data: { workflowStatus: TransactionWorkflowStatus.CANCELLED },
+      });
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
+}
+
 export async function rejectTransaction(
   user: CurrentUser,
   transactionId: string,
@@ -2424,6 +2443,7 @@ export type UpdatePendingTransactionRequestInput = {
   projectRequest?: boolean;
   purpose: string;
   serviceRequest?: boolean;
+  soldPrice?: string | null;
   type: TransactionType;
 };
 
@@ -2434,6 +2454,10 @@ export async function updatePendingTransactionRequest(
 ) {
   const purpose = requireText(input.purpose, input.projectRequest ? "Project" : "Customer Name");
   const note = cleanText(input.note);
+  const soldPrice = cleanText(input.soldPrice);
+  if (input.type === TransactionType.SOLD && soldPrice && Number.isNaN(Number(soldPrice))) {
+    throw new WorkflowError("Price must be a valid number.");
+  }
   const toStatus = getTransactionAssetStatus(input.type);
   const requestedItems = input.items ? normalizeRequestItems(input) : null;
 
@@ -2505,6 +2529,7 @@ export async function updatePendingTransactionRequest(
           projectRequest: input.projectRequest ?? false,
           purpose: requestPurpose,
           serviceRequest: input.serviceRequest ?? false,
+          soldPrice: input.type === TransactionType.SOLD && soldPrice ? new Prisma.Decimal(soldPrice) : null,
           type: input.type,
           workflowStatus: TransactionWorkflowStatus.PENDING,
           status: getInitialTransactionStatus(input.type),
@@ -2681,7 +2706,7 @@ export async function updatePendingTransactionRequest(
           data: {
             note,
             requestedQuantity: kept.quantity,
-            soldPrice: null,
+            soldPrice: input.type === TransactionType.SOLD && soldPrice ? new Prisma.Decimal(soldPrice) : null,
             toStatus,
           },
         });
@@ -2694,7 +2719,7 @@ export async function updatePendingTransactionRequest(
             fromStatus: isQuantityAsset(asset) ? AssetStatus.READY : AssetStatus.REQUEST,
             note,
             requestedQuantity: quantity,
-            soldPrice: null,
+            soldPrice: input.type === TransactionType.SOLD && soldPrice ? new Prisma.Decimal(soldPrice) : null,
             toStatus,
             transactionId,
           })),

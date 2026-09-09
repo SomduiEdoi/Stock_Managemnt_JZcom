@@ -73,6 +73,14 @@ export async function getRequestCartForUser(user: CurrentUser) {
       isActive: true,
       requestLockedById: user.id,
       status: AssetStatus.REQUEST,
+      transactionItems: {
+        none: {
+          transaction: {
+            requestedById: user.id,
+            workflowStatus: "PENDING",
+          },
+        },
+      },
     },
   });
   const reservations = await db.assetReservation.findMany({
@@ -84,6 +92,14 @@ export async function getRequestCartForUser(user: CurrentUser) {
       asset: {
         warehouse: { code: { in: visibleWarehouseCodes } },
         isActive: true,
+        transactionItems: {
+          none: {
+            transaction: {
+              requestedById: user.id,
+              workflowStatus: "PENDING",
+            },
+          },
+        },
       },
       userId: user.id,
     },

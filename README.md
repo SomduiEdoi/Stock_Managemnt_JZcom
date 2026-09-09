@@ -36,3 +36,33 @@
 - เพิ่ม schema/migration/UI/approval routing สำหรับหลาย Organization Assignments ต่อ User
 - เพิ่ม dynamic Project Lead approval reassignment และ Project Lead change audit
 - ตรวจและนำ migration เปลี่ยน Domain เป็น Warehouse ไปใช้กับฐานข้อมูลจริงอย่างควบคุม
+
+## Active Directory / LDAP
+
+ระบบ login ใช้ username และ password จาก Active Directory โดยไม่เก็บ password ของ AD ใน PostgreSQL ผู้ใช้แต่ละคนต้องถูกเพิ่มใน Stock Management พร้อมระบุ `AD Username`, role และ warehouse permissions ก่อนจึงจะเข้าใช้งานได้ ระบบรองรับ `it01`, `DOMAIN\\it01` และ `it01@ad2012r2.local` โดยเก็บค่า `sAMAccountName` เป็นตัวอ้างอิง
+
+ค่าที่ต้องตั้งใน `.env` สำหรับ LDAP แบบไม่เข้ารหัส:
+
+```text
+LDAP_URL="ldap://172.16.3.179:389"
+LDAP_DOMAIN="ad2012r2.local"
+LDAP_BASE_DN="DC=ad2012r2,DC=local"
+LDAP_USER_SEARCH_BASE="OU=IT,DC=ad2012r2,DC=local"
+LDAP_CA_CERT_PATH=""
+LDAP_ALLOW_INSECURE="true"
+```
+
+การตั้งค่านี้ไม่ใช้ CA Certificate และต้องใช้เฉพาะ network ภายในหรือ VPN เพราะ LDAP port 389 ไม่เข้ารหัสข้อมูลระหว่างทาง
+
+หลังสร้างหรือพบ user ใน AD แล้ว ให้ Admin ผูก username กับ user และสิทธิ์ในหน้า User Management หรือใช้คำสั่งสำหรับ provision โดยผู้ดูแลระบบ:
+
+```bash
+npm run db:link-ldap-user -- --email user@example.com --username it01
+```
+
+The link command refuses to overwrite an AD username already linked to a different Stock user. To remove a mapping while keeping the Stock user and its role, use either selector:
+
+```powershell
+npm.cmd run db:unlink-ldap-user -- --email user@example.com
+npm.cmd run db:unlink-ldap-user -- --username it01
+```

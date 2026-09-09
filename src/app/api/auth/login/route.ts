@@ -1,8 +1,8 @@
-import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getUserFromSessionToken } from "@/lib/auth";
+import { authenticateWithLdap } from "@/lib/ldap";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import {
   SESSION_COOKIE_NAME,
@@ -11,7 +11,7 @@ import {
 } from "@/lib/session";
 
 const loginSchema = z.object({
-  email: z.string().email(),
+  username: z.string().trim().min(1).max(255),
   password: z.string().min(1),
 });
 
@@ -26,27 +26,37 @@ export async function POST(request: Request) {
     );
   }
 
-  const email = parsed.data.email.trim().toLowerCase();
-
   try {
-    const user = await db.user.findUnique({
-      where: { email },
+    const directoryUser = await authenticateWithLdap(
+      parsed.data.username,
+      parsed.data.password,
+    );
+
+    if (!directoryUser) {
+      return NextResponse.json(
+        { message: "Invalid username or password." },
+        { status: 401 },
+      );
+    }
+
+    const user = await db.user.findFirst({
+      where: {
+        isActive: true,
+        OR: [
+          { ldapUsername: directoryUser.username },
+          ...(directoryUser.email ? [{ email: directoryUser.email.toLowerCase() }] : []),
+        ],
+      },
       select: {
         id: true,
         isActive: true,
-        passwordHash: true,
       },
     });
 
-    const passwordMatches =
-      user?.isActive && user.passwordHash
-        ? await bcrypt.compare(parsed.data.password, user.passwordHash)
-        : false;
-
-    if (!user || !passwordMatches) {
+    if (!user) {
       return NextResponse.json(
-        { message: "Invalid email or password." },
-        { status: 401 },
+        { message: "Your AD account is not registered in Stock Management." },
+        { status: 403 },
       );
     }
 

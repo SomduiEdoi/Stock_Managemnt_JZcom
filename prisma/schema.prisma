@@ -114,6 +114,7 @@ enum TransactionStatus {
 enum TransactionWorkflowStatus {
   PENDING
   REJECTED
+  CANCELLED
   IN_PROGRESS
   COMPLETED
 }
@@ -151,6 +152,7 @@ model User {
   id                       String                       @id @default(uuid()) @db.Uuid
   name                     String
   email                    String                       @unique
+  ldapUsername             String?                      @unique @map("ldap_username")
   passwordHash             String?                      @map("password_hash")
   azureAdObjectId          String?                      @unique @map("azure_ad_object_id")
   position                 String?

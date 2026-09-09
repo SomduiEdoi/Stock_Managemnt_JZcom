@@ -59,7 +59,7 @@ Legend:
 - [x] Asset create/edit/detail และ status history
 - [x] Asset Status มี Ready, Request, Borrow, Using, Sold, Fail, Lost, Need Check
 - [~] ตรวจ Asset Detail ว่าแสดงทุก field จากข้อมูลจริงและทุก Custom Field
-- [ ] ทบทวน administrative delete/soft-delete ให้สอดคล้องกับกฎไม่ลบ asset จาก business flow
+- [x] Asset ใช้ soft delete เท่านั้น และบล็อกการลบเมื่อมี reservation หรือ pending approval
 
 ## 6. Request Cart and Quantity
 
@@ -93,8 +93,8 @@ Legend:
 - [x] ปรับ approval routing ให้เลือก request context จากหลาย assignments
 - [~] เพิ่ม auto-approve สำหรับ User คนเดียวที่ถือหลาย sequence พร้อม audit history แยก; ยังขาด focused/integration tests
 - [ ] เพิ่ม tests เช่น กรณี DL Manager/DL Supervisor เป็นคนเดียวกัน, ไม่มี Supervisor และ assignment ถูกปิด
-- [ ] เพิ่ม notification/indicator สำหรับงานอนุมัติค้าง
-- [ ] เพิ่ม Cancel Request endpoint และ UX
+- [~] เพิ่ม notification/indicator สำหรับงานอนุมัติค้าง; มี badge จำนวนบน `/logs` tab Approve แล้ว แต่ยังต้องทดสอบหลัง approve/reject/auto-approve
+- [~] เพิ่ม Cancel Request endpoint และ UX; backend และปุ่มใน Transaction Log มีแล้ว แต่ยังต้อง migrate/test กับฐานข้อมูลจริง
 
 ## 9. Transaction Status Cleanup
 

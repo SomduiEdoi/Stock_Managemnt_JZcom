@@ -381,7 +381,7 @@ function ManageCategoriesDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6">
-      <section className="w-full max-w-4xl rounded-lg bg-white shadow-2xl">
+      <section className="w-full max-w-6xl rounded-lg bg-white shadow-2xl">
         <header className="flex items-center justify-between border-b border-border px-6 py-4">
           <h2 className="text-lg font-bold text-navy">Manage {warehouseLabel} Categories & Types</h2>
           <button className="rounded-md p-2 text-muted-foreground hover:bg-surface" onClick={onClose} type="button">
@@ -391,7 +391,7 @@ function ManageCategoriesDialog({
 
         <div className="max-h-[70vh] overflow-y-auto p-5">
           <div className="overflow-hidden rounded-md border border-ink">
-            <div className="grid grid-cols-[180px_90px_1fr_120px_170px_56px] border-b border-ink bg-surface px-3 py-2 text-sm font-semibold text-navy">
+            <div className="grid grid-cols-[190px_100px_minmax(500px,1fr)_120px_110px_44px] border-b border-ink bg-surface px-3 py-2 text-sm font-semibold text-navy">
               <span>Categories</span>
               <span>Prefix</span>
               <span>Types</span>
@@ -410,7 +410,7 @@ function ManageCategoriesDialog({
 
                 return (
                   <div className="border-b border-border px-2 py-3 last:border-b-0" key={category.id ?? `new-${categoryIndex}`}>
-                    <div className="grid grid-cols-[180px_90px_1fr_120px_170px_56px] gap-3">
+                    <div className="grid grid-cols-[190px_100px_minmax(500px,1fr)_120px_110px_44px] gap-3">
                       <div>
                         <input
                           className="h-9 w-full rounded-md border border-ink bg-white px-2 text-sm text-navy outline-none focus:ring-2 focus:ring-brand-accent/30"
@@ -447,7 +447,7 @@ function ManageCategoriesDialog({
                           const duplicate = hasDuplicatePrefix(type);
 
                           return (
-                            <div className="grid grid-cols-[1fr_120px_92px_40px] gap-3" key={type.id ?? `${categoryIndex}-${visibleTypeIndex}`}>
+                            <div className="grid grid-cols-[minmax(360px,1fr)_140px_96px_40px] gap-3" key={type.id ?? `${categoryIndex}-${visibleTypeIndex}`}>
                               <input
                                 className="h-9 rounded-md border border-ink bg-white px-2 text-sm text-navy outline-none focus:ring-2 focus:ring-brand-accent/30"
                                 onChange={(event) => updateType(categoryIndex, typeIndex, { name: event.target.value })}
@@ -523,7 +523,7 @@ function ManageCategoriesDialog({
 
                               return (
                                 <div className="rounded-md border border-border p-4" key={field.id ?? fieldIndex}>
-                                  <div className="grid items-center gap-3 md:grid-cols-[minmax(170px,275px)_max-content_max-content_32px]">
+                                  <div className="grid items-center gap-4 md:grid-cols-[minmax(240px,1fr)_max-content_max-content_36px]">
                                     <select
                                       className="h-11 w-full rounded-md border border-border bg-white px-3 text-sm font-medium text-navy outline-none focus:border-brand-accent"
                                       onChange={(event) => updateCustomField(categoryIndex, fieldIndex, { dataType: event.target.value as CustomFieldDataType, optionsText: "", placeholder: "", unit: event.target.value === "NUMBER" ? field.unit : "" })}

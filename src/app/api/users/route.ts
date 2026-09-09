@@ -6,6 +6,7 @@ import { createUserForAdmin } from "@/lib/user-management";
 
 const createUserSchema = z.object({
   email: z.string().trim().email(),
+  ldapUsername: z.string().trim().min(1).max(255),
   name: z.string().trim().min(1),
   organizationLevel: z.nativeEnum(OrganizationLevel).nullable().optional(),
   organizationAssignments: z

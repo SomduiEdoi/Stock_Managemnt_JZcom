@@ -218,6 +218,7 @@ function TransactionForm({
   onServiceRequestChange,
   onSubmit,
   onTypeChange,
+  onSoldPriceChange,
   projectId,
   projectRequest,
   projects,
@@ -225,6 +226,7 @@ function TransactionForm({
   requestContextAssignmentId,
   requestContextOptions,
   serviceRequest,
+  soldPrice,
   type,
 }: {
   assetCount: number;
@@ -251,6 +253,8 @@ function TransactionForm({
     value: string;
   }>;
   serviceRequest: boolean;
+  soldPrice: string;
+  onSoldPriceChange: (value: string) => void;
   type: TransactionTypeCode;
 }) {
   const showReferenceName = type !== "USING";
@@ -352,6 +356,12 @@ function TransactionForm({
                 searchPlaceholder="Search project"
                 value={projectId}
               />
+            </label>
+          ) : null}
+          {type === "SOLD" ? (
+            <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              <span>Price <RequiredMark /></span>
+              <input className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold normal-case tracking-normal text-ink outline-none ring-brand-accent/20 focus:ring-4" inputMode="decimal" onChange={(event) => onSoldPriceChange(event.target.value)} placeholder="Enter price before approval" value={soldPrice} />
             </label>
           ) : null}
           <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
@@ -505,6 +515,7 @@ export function RequestCartClient({
   const [assets, setAssets] = useState(initialAssets);
   const [error, setError] = useState<string | null>(null);
   const [type, setType] = useState<TransactionTypeCode>("BORROW");
+  const [soldPrice, setSoldPrice] = useState("");
   const internalRequest = type === "USING";
   const [isClearing, setIsClearing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -628,6 +639,7 @@ export function RequestCartClient({
     if (type !== "USING" && !serviceRequest && !projectRequest) {
       missingFields.push("Service / Project");
     }
+    if (type === "SOLD" && !soldPrice.trim()) missingFields.push("Price");
 
 
     if (missingFields.length > 0) {
@@ -673,7 +685,7 @@ export function RequestCartClient({
           purpose: type === "USING" ? "Internal use" : projectRequest ? projects.find((project) => project.id === projectId)?.name ?? "Project" : referenceName,
           requestContextAssignmentId: requestContextAssignmentId || null,
           serviceRequest: type === "USING" ? false : serviceRequest,
-          soldPrice: null,
+          soldPrice: type === "SOLD" ? soldPrice.trim() : null,
           type,
         }),
         headers: { "Content-Type": "application/json" },
@@ -711,6 +723,7 @@ export function RequestCartClient({
           onRequestContextChange={setRequestContextAssignmentId}
           onReferenceChange={setReferenceName}
           onServiceRequestChange={handleServiceRequestChange}
+          onSoldPriceChange={setSoldPrice}
           onSubmit={handleSubmit}
           onTypeChange={handleTypeChange}
           projectId={projectId}
@@ -720,6 +733,7 @@ export function RequestCartClient({
           requestContextAssignmentId={requestContextAssignmentId}
           requestContextOptions={requestContextOptions}
           serviceRequest={serviceRequest}
+          soldPrice={soldPrice}
           type={type}
         />
       </div>

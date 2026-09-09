@@ -28,6 +28,7 @@ export type UserManagementRow = {
     };
   }>;
   email: string;
+  ldapUsername: string | null;
   id: string;
   isActive: boolean;
   lastLoginAt: Date | null;

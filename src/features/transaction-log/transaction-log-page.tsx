@@ -59,7 +59,7 @@ function normalizeTab(value: string | string[] | undefined): TransactionLogTab {
   return first === "approve" ? "approve" : "log";
 }
 
-function TabNav({ activeTab }: { activeTab: TransactionLogTab }) {
+function TabNav({ activeTab, approvalCount }: { activeTab: TransactionLogTab; approvalCount: number }) {
   const tabs = [
     { href: "/logs", label: "Log", value: "log" },
     { href: "/logs?tab=approve", label: "Approve", value: "approve" },
@@ -79,6 +79,11 @@ function TabNav({ activeTab }: { activeTab: TransactionLogTab }) {
           key={tab.value}
         >
           {tab.label}
+          {tab.value === "approve" && approvalCount > 0 ? (
+            <span className="ml-2 inline-flex min-w-6 items-center justify-center rounded-full bg-status-fail px-2 py-0.5 text-xs text-white">
+              {approvalCount}
+            </span>
+          ) : null}
         </Link>
       ))}
     </nav>
@@ -497,8 +502,10 @@ function transactionQuantity(row: TransactionLogRow) {
 }
 
 function TransactionTable({
+  currentUserId,
   rows,
 }: {
+  currentUserId: string;
   rows: TransactionLogRow[];
 }) {
   return (
@@ -554,7 +561,13 @@ function TransactionTable({
                   </TransactionLink>
                 </td>
                 <td className="px-5 py-4">
-                  <TransactionRowActions transactionId={row.id} />
+                  <TransactionRowActions
+                    canCancel={
+                      row.requestedBy.id === currentUserId &&
+                      (row.workflowStatus === TransactionWorkflowStatus.PENDING || row.workflowStatus === TransactionWorkflowStatus.REJECTED)
+                    }
+                    transactionId={row.id}
+                  />
                 </td>
               </tr>
             ))}
@@ -606,6 +619,7 @@ function NoLogAccess() {
 export function TransactionLogPage({
   activeTab,
   approvalRows,
+  currentUserId,
   filters,
   requestQueueAssets,
   total,
@@ -615,6 +629,7 @@ export function TransactionLogPage({
 }: {
   activeTab: TransactionLogTab;
   approvalRows: TransactionApprovalQueueRow[];
+  currentUserId: string;
   filters: TransactionLogFilters;
   metrics: {
     allRequests: number;
@@ -628,7 +643,7 @@ export function TransactionLogPage({
 }) {
   return (
     <div className="flex flex-col gap-6">
-      <TabNav activeTab={activeTab} />
+      <TabNav activeTab={activeTab} approvalCount={approvalRows.length} />
       <SummaryCards filters={filters} metrics={metrics} />
       {activeTab === "approve" ? (
         <ApproveTable rows={approvalRows} />
@@ -638,7 +653,7 @@ export function TransactionLogPage({
             <RequestQueueTable assets={requestQueueAssets} />
           ) : null}
           <Controls filters={filters} rows={rows} />
-          <TransactionTable rows={rows} />
+          <TransactionTable currentUserId={currentUserId} rows={rows} />
           <Pagination filters={filters} page={filters.page} total={total} totalPages={totalPages} />
         </>
       )}
@@ -696,6 +711,7 @@ export default async function TransactionLogPageRoute({
     <TransactionLogPage
       activeTab={activeTab}
       approvalRows={approvalRows}
+      currentUserId={user.id}
       filters={filters}
       metrics={result.metrics}
       requestQueueAssets={requestQueueAssets}

@@ -1,4 +1,3 @@
-import bcrypt from "bcryptjs";
 import {
   OrganizationLevel,
   OrganizationTag,
@@ -9,6 +8,7 @@ import {
 } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { normalizeLdapUsername } from "@/lib/ldap";
 import { hasRole } from "@/lib/permissions";
 import { WorkflowError } from "@/lib/workflow";
 import {
@@ -54,10 +54,9 @@ const defaultFilters: UserManagementFilters = {
   status: "ALL",
 };
 
-const defaultPassword = "ChangeMe123!";
-
 const userRowSelect = Prisma.validator<Prisma.UserSelect>()({
   email: true,
+  ldapUsername: true,
   id: true,
   isActive: true,
   lastLoginAt: true,
@@ -109,6 +108,7 @@ type UserRecord = Prisma.UserGetPayload<{
 
 export type UpsertManagedUserInput = {
   email: string;
+  ldapUsername: string;
   name: string;
   organizationLevel?: OrganizationLevel | null;
   organizationAssignments?: Array<{
@@ -167,6 +167,7 @@ function toRow(user: UserRecord): UserManagementRow {
   return {
     warehousePermissions: user.warehousePermissions,
     email: user.email,
+    ldapUsername: user.ldapUsername,
     id: user.id,
     isActive: user.isActive,
     lastLoginAt: user.lastLoginAt,
@@ -322,6 +323,10 @@ function validateManagedUserInput(input: UpsertManagedUserInput) {
     throw new WorkflowError("Name is required.");
   }
 
+  if (!input.ldapUsername.trim()) {
+    throw new WorkflowError("AD username is required.");
+  }
+
   if (input.role === "STOCK_CONTROLLER" && !input.stockControllerTag) {
     throw new WorkflowError("Stock controller tag is required for Stock Controller.");
   }
@@ -341,6 +346,10 @@ function validateManagedUserUpdateInput(
     throw new WorkflowError("Name is required.");
   }
 
+  if (!input.ldapUsername.trim()) {
+    throw new WorkflowError("AD username is required.");
+  }
+
   if (input.role === "STOCK_CONTROLLER" && !input.stockControllerTag) {
     throw new WorkflowError("Stock controller tag is required for Stock Controller.");
   }
@@ -351,6 +360,55 @@ function validateManagedUserUpdateInput(
       throw new WorkflowError("At least one organization assignment is required for User.");
     }
   }
+}
+
+async function getAvailableLdapUsername(
+  value: string,
+  currentUserId?: string,
+) {
+  const ldapUsername = normalizeLdapUsername(value);
+
+  if (!ldapUsername) {
+    throw new WorkflowError("AD username is invalid.");
+  }
+
+  const existingMapping = await db.user.findUnique({
+    where: { ldapUsername },
+    select: { email: true, id: true, name: true },
+  });
+
+  if (existingMapping && existingMapping.id !== currentUserId) {
+    throw new WorkflowError(
+      `AD username "${ldapUsername}" is already linked to ${existingMapping.name} (${existingMapping.email}).`,
+      409,
+      "LDAP_USERNAME_ALREADY_LINKED",
+    );
+  }
+
+  return ldapUsername;
+}
+
+function isLdapUsernameUniqueError(error: unknown) {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
+    return false;
+  }
+
+  const target = error.meta?.target;
+  return Array.isArray(target)
+    ? target.some((field) => String(field).includes("ldap_username"))
+    : String(target ?? "").includes("ldap_username");
+}
+
+function throwLdapUsernameUniqueError(error: unknown): never {
+  if (isLdapUsernameUniqueError(error)) {
+    throw new WorkflowError(
+      "This AD username is already linked to another Stock user.",
+      409,
+      "LDAP_USERNAME_ALREADY_LINKED",
+    );
+  }
+
+  throw error;
 }
 
 function normalizeOrganizationAssignments(
@@ -494,6 +552,7 @@ export async function createUserForAdmin(
 
   const email = input.email.trim().toLowerCase();
   const name = input.name.trim();
+  const ldapUsername = await getAvailableLdapUsername(input.ldapUsername);
   const existing = await db.user.findUnique({
     where: { email },
     select: { id: true },
@@ -503,30 +562,34 @@ export async function createUserForAdmin(
     throw new WorkflowError("Email already exists in the system.");
   }
 
-  const passwordHash = await bcrypt.hash(defaultPassword, 10);
-  const createdUser = await db.$transaction(async (tx) => {
-    const nextUser = await tx.user.create({
-      data: {
-        email,
-        isActive: true,
-        name,
-        passwordHash,
-        projectTag: null,
-        stockControllerTag: input.role === "STOCK_CONTROLLER" ? input.stockControllerTag : null,
-      },
-      select: { id: true },
+  let createdUser;
+  try {
+    createdUser = await db.$transaction(async (tx) => {
+      const nextUser = await tx.user.create({
+        data: {
+          email,
+          isActive: true,
+          ldapUsername,
+          name,
+          passwordHash: null,
+          projectTag: null,
+          stockControllerTag: input.role === "STOCK_CONTROLLER" ? input.stockControllerTag : null,
+        },
+        select: { id: true },
+      });
+
+      await syncOrganizationAssignmentsForUser(tx, nextUser.id, input);
+
+      return nextUser;
     });
-
-    await syncOrganizationAssignmentsForUser(tx, nextUser.id, input);
-
-    return nextUser;
-  });
+  } catch (error) {
+    throwLdapUsernameUniqueError(error);
+  }
 
   await syncRole(createdUser.id, normalizeRoleCode(input.role));
   await syncWarehousePermissionsForUser(createdUser.id, input.role);
 
   return {
-    defaultPassword,
     id: createdUser.id,
   };
 }
@@ -548,6 +611,8 @@ export async function updateUserForAdmin(
     throw new WorkflowError("User not found.", 404);
   }
 
+  const ldapUsername = await getAvailableLdapUsername(input.ldapUsername, userId);
+
   const currentSystemRole = await db.user.findUnique({
     where: { id: userId },
     select: userRowSelect,
@@ -559,17 +624,22 @@ export async function updateUserForAdmin(
 
   const previousRole = inferSystemRole(currentSystemRole);
 
-  await db.$transaction(async (tx) => {
-    await tx.user.update({
-      where: { id: userId },
-      data: {
-        name: input.name.trim(),
-        projectTag: input.role === "USER" ? existing.projectTag : null,
-        stockControllerTag: input.role === "STOCK_CONTROLLER" ? input.stockControllerTag : null,
-      },
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          ldapUsername,
+          name: input.name.trim(),
+          projectTag: input.role === "USER" ? existing.projectTag : null,
+          stockControllerTag: input.role === "STOCK_CONTROLLER" ? input.stockControllerTag : null,
+        },
+      });
+      await syncOrganizationAssignmentsForUser(tx, userId, input);
     });
-    await syncOrganizationAssignmentsForUser(tx, userId, input);
-  });
+  } catch (error) {
+    throwLdapUsernameUniqueError(error);
+  }
 
   await syncRole(userId, normalizeRoleCode(input.role));
 
@@ -602,6 +672,53 @@ export async function setUserBlockedStateForAdmin(
   await db.user.update({
     where: { id: userId },
     data: { isActive },
+  });
+}
+
+export async function unlinkLdapUserForAdmin(user: CurrentUser, userId: string) {
+  ensureAdmin(user);
+
+  const target = await db.user.findUnique({
+    where: { id: userId },
+    select: {
+      email: true,
+      id: true,
+      isActive: true,
+      ldapUsername: true,
+      name: true,
+      roles: { select: { role: { select: { code: true } } } },
+    },
+  });
+
+  if (!target) {
+    throw new WorkflowError("User not found.", 404);
+  }
+
+  if (!target.ldapUsername) {
+    return;
+  }
+
+  const isAdmin = target.roles.some(({ role }) => role.code === "ADMIN");
+  if (isAdmin) {
+    const activeAdminCount = await db.user.count({
+      where: {
+        isActive: true,
+        roles: { some: { role: { code: "ADMIN" } } },
+      },
+    });
+
+    if (target.isActive && activeAdminCount <= 1) {
+      throw new WorkflowError(
+        "Cannot unlink the last active Admin account.",
+        409,
+        "LAST_ADMIN_LDAP_MAPPING",
+      );
+    }
+  }
+
+  await db.user.update({
+    where: { id: target.id },
+    data: { ldapUsername: null, passwordHash: null },
   });
 }
 

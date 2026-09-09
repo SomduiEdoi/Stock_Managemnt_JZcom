@@ -984,6 +984,25 @@ export async function deleteAssetForUser(user: CurrentUser, assetId: string) {
 
       assertCanDeleteAssets(user, asset.warehouse.code);
 
+      const [reservationCount, pendingApprovalCount] = await Promise.all([
+        tx.assetReservation.count({ where: { assetId: asset.id } }),
+        tx.transactionApproval.count({
+          where: {
+            status: "PENDING",
+            transaction: {
+              workflowStatus: "PENDING",
+              items: { some: { assetId: asset.id } },
+            },
+          },
+        }),
+      ]);
+
+      if (reservationCount > 0 || pendingApprovalCount > 0) {
+        throw new WorkflowError("Asset cannot be deleted while it has a reservation or pending approval.", 409, "ASSET_DELETE_BLOCKED");
+      }
+
+      // Assets are always retained for audit; deletion is an administrative soft delete.
+
       const deletedAsset = await tx.asset.update({
         data: {
           isActive: false,

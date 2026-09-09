@@ -44,7 +44,7 @@ export function TransactionLogControls({
     >
       <input name="scope" type="hidden" value={filters.scope} />
 
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_180px]">
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_180px_180px]">
         <SearchCombobox
           categories={[
             { label: "All", value: "ALL" },
@@ -55,7 +55,7 @@ export function TransactionLogControls({
           ]}
           defaultValue={filters.search}
           name="q"
-          placeholder="Search transaction id, borrower, model, serial no."
+          placeholder="Search transaction, requester, project, warehouse, model, serial no."
           suggestions={searchSuggestions}
         />
 
@@ -74,6 +74,14 @@ export function TransactionLogControls({
           searchPlaceholder="Search status"
           value={status}
         />
+
+        <select className="h-11 rounded-md border border-border bg-white px-3 text-sm" defaultValue={filters.type} name="type">
+          <option value="ALL">All transaction types</option>
+          <option value="BORROW">Borrow</option>
+          <option value="USING">Using</option>
+          <option value="SOLD">Sold</option>
+          <option value="RETURN">Return</option>
+        </select>
 
         <button className="sr-only" type="submit">
           Search

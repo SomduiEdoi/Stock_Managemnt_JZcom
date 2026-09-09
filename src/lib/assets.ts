@@ -214,27 +214,32 @@ function containsText(search: string) {
   };
 }
 
-function buildSearchWhere(search: string): Prisma.AssetWhereInput | undefined {
-  if (!search) {
-    return undefined;
-  }
+function searchVariants(token: string) {
+  return [...new Set([
+    token,
+    token.replace(/(\d)([A-Za-z])/g, "$1 $2"),
+    token.replace(/([A-Za-z])(\d)/g, "$1 $2"),
+  ])].map(containsText);
+}
 
-  const contains = containsText(search);
-
+function buildKeywordClause(token: string): Prisma.AssetWhereInput {
+  const variants = searchVariants(token);
+  const text = (field: "serialNo" | "stockCode" | "locationText" | "note") => variants.map((contains) => ({ [field]: contains }));
+  const modelText = (field: "brand" | "name" | "partNo" | "typeName" | "description") => variants.map((contains) => ({ assetModel: { is: { [field]: contains } } }));
   return {
     OR: [
-      { serialNo: contains },
-      { stockCode: contains },
-      { locationText: contains },
-      { note: contains },
-      { assetModel: { is: { brand: contains } } },
-      { assetModel: { is: { name: contains } } },
-      { assetModel: { is: { partNo: contains } } },
-      { assetModel: { is: { typeName: contains } } },
-      { assetModel: { is: { category: { is: { name: contains } } } } },
-      { location: { is: { name: contains } } },
+      ...text("serialNo"), ...text("stockCode"), ...text("locationText"), ...text("note"),
+      ...modelText("brand"), ...modelText("name"), ...modelText("partNo"), ...modelText("typeName"), ...modelText("description"),
+      ...variants.map((contains) => ({ assetModel: { is: { category: { is: { name: contains } } } } })),
+      ...variants.map((contains) => ({ location: { is: { name: contains } } })),
+      ...variants.map((contains) => ({ customFieldValues: { some: { field: { isSearchable: true }, valueText: contains } } })),
     ],
   };
+}
+
+function buildSearchWhere(search: string): Prisma.AssetWhereInput | undefined {
+  const tokens = search.split(/\s+/).map((token) => token.trim()).filter(Boolean);
+  return tokens.length > 0 ? { AND: tokens.slice(0, 8).map(buildKeywordClause) } : undefined;
 }
 
 export function buildAssetWhere(

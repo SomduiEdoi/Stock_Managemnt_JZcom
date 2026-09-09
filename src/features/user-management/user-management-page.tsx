@@ -40,6 +40,7 @@ type UserManagementPageProps = {
 
 type UserFormState = {
   email: string;
+  ldapUsername: string;
   name: string;
   organizationAssignments: Array<{
     organizationLevel: string;
@@ -56,6 +57,7 @@ type DialogMode =
   | { type: "ADD" }
   | { type: "DELETE"; user: UserManagementRow }
   | { type: "EDIT"; user: UserManagementRow }
+  | { type: "UNLINK_LDAP"; user: UserManagementRow }
   | { type: "STATUS"; user: UserManagementRow };
 
 const roleLabels: Record<UserSystemRole, string> = {
@@ -97,6 +99,7 @@ function getUserInitials(name: string) {
 function emptyFormState(): UserFormState {
   return {
     email: "",
+    ldapUsername: "",
     name: "",
     organizationAssignments: [{ organizationLevel: "", organizationTag: "" }],
     primaryOrganizationTag: "",
@@ -110,6 +113,7 @@ function emptyFormState(): UserFormState {
 function toFormState(user: UserManagementRow): UserFormState {
   return {
     email: user.email,
+    ldapUsername: user.ldapUsername ?? "",
     name: user.name,
     organizationAssignments:
       user.organizationAssignments.length > 0
@@ -447,6 +451,10 @@ function UserFormModal({
       return "Name is required.";
     }
 
+    if (!form.ldapUsername.trim()) {
+      return "AD username is required.";
+    }
+
     if (!form.role) {
       return "Role is required.";
     }
@@ -483,6 +491,7 @@ function UserFormModal({
 
     const payload = {
       email: form.email.trim(),
+      ldapUsername: form.ldapUsername.trim(),
       name: form.name.trim(),
       organizationAssignments:
         form.role === "USER" ? cleanOrganizationAssignments(form) : [],
@@ -509,7 +518,7 @@ function UserFormModal({
       router.refresh();
       onSaved(
         mode === "ADD"
-          ? `User created successfully. Default password: ${data.user?.defaultPassword ?? "ChangeMe123!"}`
+          ? "User created successfully. AD login is ready after the account is enabled."
           : "User updated successfully.",
       );
     } catch {
@@ -540,6 +549,16 @@ function UserFormModal({
             onChange={(event) => setField("name", event.target.value)}
             type="text"
             value={form.name}
+          />
+        </Field>
+
+        <Field label="AD Username" required>
+          <input
+            className={baseInputClass()}
+            onChange={(event) => setField("ldapUsername", event.target.value)}
+            placeholder="it01 or DOMAIN\\it01"
+            type="text"
+            value={form.ldapUsername}
           />
         </Field>
 
@@ -725,6 +744,30 @@ function ManagementDialogs({
     );
   }
 
+  if (dialog.type === "UNLINK_LDAP") {
+    return (
+      <ConfirmModal
+        actionLabel="Unlink AD"
+        description={`Remove the AD mapping from ${dialog.user.name}? The Stock user and role will be kept.`}
+        onClose={onClose}
+        onConfirm={async () => {
+          const response = await fetch(`/api/users/${dialog.user.id}`, {
+            body: JSON.stringify({ unlinkLdap: true }),
+            headers: { "Content-Type": "application/json" },
+            method: "PATCH",
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(data.message ?? "Unable to unlink AD account.");
+          }
+          router.refresh();
+          onSaved("AD account unlinked successfully.");
+        }}
+        title="Unlink AD Account"
+      />
+    );
+  }
+
   return (
     <ConfirmModal
       actionLabel={dialog.user.isActive ? "Block User" : "Unblock User"}
@@ -778,6 +821,10 @@ function EditUserModal({
       return "Name is required.";
     }
 
+    if (!form.ldapUsername.trim()) {
+      return "AD username is required.";
+    }
+
     if (!form.role) {
       return "Role is required.";
     }
@@ -817,6 +864,7 @@ function EditUserModal({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          ldapUsername: form.ldapUsername.trim(),
           name: form.name.trim(),
           organizationAssignments:
             form.role === "USER" ? cleanOrganizationAssignments(form) : [],
@@ -854,6 +902,16 @@ function EditUserModal({
             onChange={(event) => setField("name", event.target.value)}
             type="text"
             value={form.name}
+          />
+        </Field>
+
+        <Field label="AD Username" required>
+          <input
+            className={baseInputClass()}
+            onChange={(event) => setField("ldapUsername", event.target.value)}
+            placeholder="it01 or DOMAIN\\it01"
+            type="text"
+            value={form.ldapUsername}
           />
         </Field>
 
@@ -1055,9 +1113,11 @@ function UserTable({
                 </td>
                 <td className="px-5 py-4">
                   <UserActionMenu
+                    hasLdapUsername={Boolean(user.ldapUsername)}
                     isActive={user.isActive}
                     onDelete={() => onOpenDialog({ type: "DELETE", user })}
                     onEdit={() => onOpenDialog({ type: "EDIT", user })}
+                    onUnlink={() => onOpenDialog({ type: "UNLINK_LDAP", user })}
                     onToggleBlock={() => onOpenDialog({ type: "STATUS", user })}
                     userName={user.name}
                   />

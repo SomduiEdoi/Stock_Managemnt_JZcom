@@ -4,23 +4,28 @@ import { useEffect, useRef, useState } from "react";
 import {
   Ban,
   EllipsisVertical,
+  Link2Off,
   SquarePen,
   Trash2,
   UnlockKeyhole,
 } from "lucide-react";
 
 type UserActionMenuProps = {
+  hasLdapUsername: boolean;
   isActive: boolean;
   onDelete: () => void;
   onEdit: () => void;
+  onUnlink: () => void;
   onToggleBlock: () => void;
   userName: string;
 };
 
 export function UserActionMenu({
+  hasLdapUsername,
   isActive,
   onDelete,
   onEdit,
+  onUnlink,
   onToggleBlock,
   userName,
 }: UserActionMenuProps) {
@@ -80,6 +85,17 @@ export function UserActionMenu({
             <SquarePen className="h-4 w-4" />
             Edit
           </button>
+
+          {hasLdapUsername ? (
+            <button
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-semibold text-navy hover:bg-surface"
+              onClick={() => handleClick(onUnlink)}
+              type="button"
+            >
+              <Link2Off className="h-4 w-4" />
+              Unlink AD
+            </button>
+          ) : null}
 
           <button
             className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-semibold text-navy hover:bg-surface"
