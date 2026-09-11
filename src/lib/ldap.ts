@@ -7,11 +7,20 @@ export type LdapUser = {
   username: string;
 };
 
+export class LdapDirectoryError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LdapDirectoryError";
+  }
+}
+
 type LdapConfig = {
   baseDn: string;
   domain: string;
   searchBase: string;
   url: string;
+  verifyBindDn?: string;
+  verifyBindPassword?: string;
 };
 
 function getConfig(): LdapConfig {
@@ -24,12 +33,21 @@ function getConfig(): LdapConfig {
   }
 
   const searchBase = process.env.LDAP_USER_SEARCH_BASE || baseDn;
+  const verifyBindDn = process.env.LDAP_VERIFY_BIND_DN;
+  const verifyBindPassword = process.env.LDAP_VERIFY_BIND_PASSWORD;
 
   if (process.env.NODE_ENV === "production" && url.startsWith("ldap://") && process.env.LDAP_ALLOW_INSECURE !== "true") {
     throw new Error("Production LDAP must use LDAPS or explicitly allow insecure LDAP.");
   }
 
-  return { baseDn, domain, searchBase, url };
+  return {
+    baseDn,
+    domain,
+    searchBase,
+    url,
+    verifyBindDn,
+    verifyBindPassword,
+  };
 }
 
 function escapeFilterValue(value: string) {
@@ -114,24 +132,25 @@ function toLdapUser(entry: Record<string, unknown>, fallbackUsername: string): L
 }
 
 export async function authenticateWithLdap(
-  username: string,
+  email: string,
   password: string,
 ): Promise<LdapUser | null> {
   const config = getConfig();
-  const normalizedUsername = normalizeLdapUsername(username);
+  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedUsername = normalizeLdapUsername(normalizedEmail);
 
-  if (!normalizedUsername || !password) {
+  if (!normalizedEmail || !password) {
     return null;
   }
 
   const client = createClient(config);
 
   try {
-    await client.bind(bindUsername(username, config.domain), password);
+    await client.bind(bindUsername(normalizedEmail, config.domain), password);
 
     const result = await client.search(config.searchBase, {
       scope: "sub",
-      filter: `(&(objectCategory=person)(sAMAccountName=${escapeFilterValue(normalizedUsername)}))`,
+      filter: `(&(objectCategory=person)(|(mail=${escapeFilterValue(normalizedEmail)})(userPrincipalName=${escapeFilterValue(normalizedEmail)})(sAMAccountName=${escapeFilterValue(normalizedUsername)})))`,
       attributes: ["sAMAccountName", "displayName", "cn", "mail", "userPrincipalName"],
       sizeLimit: 2,
     });
@@ -139,12 +158,54 @@ export async function authenticateWithLdap(
     const entry = result.searchEntries[0];
 
     return entry ? toLdapUser(entry as unknown as Record<string, unknown>, normalizedUsername) : {
-      email: username.includes("@") ? username.trim().toLowerCase() : null,
+      email: normalizedEmail,
       name: normalizedUsername,
       username: normalizedUsername,
     };
   } catch {
     return null;
+  } finally {
+    await client.unbind().catch(() => undefined);
+  }
+}
+
+export async function findLdapUserByEmail(email: string): Promise<LdapUser | null> {
+  const config = getConfig();
+  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedUsername = normalizeLdapUsername(normalizedEmail);
+
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  if (!config.verifyBindDn || !config.verifyBindPassword) {
+    throw new LdapDirectoryError(
+      "Active Directory verification requires LDAP_VERIFY_BIND_DN and LDAP_VERIFY_BIND_PASSWORD.",
+    );
+  }
+
+  const client = createClient(config);
+
+  try {
+    await client.bind(config.verifyBindDn, config.verifyBindPassword);
+
+    const result = await client.search(config.searchBase, {
+      scope: "sub",
+      filter: `(&(objectCategory=person)(|(mail=${escapeFilterValue(normalizedEmail)})(userPrincipalName=${escapeFilterValue(normalizedEmail)})))`,
+      attributes: ["sAMAccountName", "displayName", "cn", "mail", "userPrincipalName"],
+      sizeLimit: 2,
+    });
+    const entry = result.searchEntries[0];
+
+    return entry
+      ? toLdapUser(entry as unknown as Record<string, unknown>, normalizedUsername)
+      : null;
+  } catch (error) {
+    if (error instanceof LdapDirectoryError) {
+      throw error;
+    }
+
+    throw new LdapDirectoryError("Unable to query Active Directory right now.");
   } finally {
     await client.unbind().catch(() => undefined);
   }

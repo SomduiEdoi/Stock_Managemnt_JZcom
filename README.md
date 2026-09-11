@@ -39,7 +39,7 @@
 
 ## Active Directory / LDAP
 
-ระบบ login ใช้ username และ password จาก Active Directory โดยไม่เก็บ password ของ AD ใน PostgreSQL ผู้ใช้แต่ละคนต้องถูกเพิ่มใน Stock Management พร้อมระบุ `AD Username`, role และ warehouse permissions ก่อนจึงจะเข้าใช้งานได้ ระบบรองรับ `it01`, `DOMAIN\\it01` และ `it01@ad2012r2.local` โดยเก็บค่า `sAMAccountName` เป็นตัวอ้างอิง
+ระบบ login ใช้ Email และ password จาก Active Directory โดยไม่เก็บ password ของ AD ใน PostgreSQL ผู้ใช้แต่ละคนต้องถูกเพิ่มใน Stock Management พร้อมยืนยัน Email กับ AD, role และ warehouse permissions ก่อนจึงจะเข้าใช้งานได้ ระบบค้นหาและยืนยันบัญชีจากทั้ง `mail` และ `userPrincipalName`
 
 ค่าที่ต้องตั้งใน `.env` สำหรับ LDAP แบบไม่เข้ารหัส:
 
@@ -50,19 +50,12 @@ LDAP_BASE_DN="DC=ad2012r2,DC=local"
 LDAP_USER_SEARCH_BASE="OU=IT,DC=ad2012r2,DC=local"
 LDAP_CA_CERT_PATH=""
 LDAP_ALLOW_INSECURE="true"
+LDAP_VERIFY_BIND_DN="readonly-account@ad2012r2.local"
+LDAP_VERIFY_BIND_PASSWORD="change-me"
 ```
 
 การตั้งค่านี้ไม่ใช้ CA Certificate และต้องใช้เฉพาะ network ภายในหรือ VPN เพราะ LDAP port 389 ไม่เข้ารหัสข้อมูลระหว่างทาง
 
-หลังสร้างหรือพบ user ใน AD แล้ว ให้ Admin ผูก username กับ user และสิทธิ์ในหน้า User Management หรือใช้คำสั่งสำหรับ provision โดยผู้ดูแลระบบ:
+Admin ต้องกด `Verify AD` ในฟอร์ม Add/Edit User ให้ผ่านก่อนจึงบันทึกได้ หากบัญชีเดิมยังไม่เชื่อมต่อ ระบบจะแสดง `Not Linked` และสามารถกรอก Email ใหม่เพื่อยืนยันจากหน้า UI ได้โดยตรง
 
-```bash
-npm run db:link-ldap-user -- --email user@example.com --username it01
-```
-
-The link command refuses to overwrite an AD username already linked to a different Stock user. To remove a mapping while keeping the Stock user and its role, use either selector:
-
-```powershell
-npm.cmd run db:unlink-ldap-user -- --email user@example.com
-npm.cmd run db:unlink-ldap-user -- --username it01
-```
+การ Verify ต้องใช้บัญชี AD แบบ read-only สำหรับค้นหา directory โดยตั้งค่า `LDAP_VERIFY_BIND_DN` และ `LDAP_VERIFY_BIND_PASSWORD` ใน `.env` ห้ามใช้บัญชี anonymous และห้าม commit password ลง repository

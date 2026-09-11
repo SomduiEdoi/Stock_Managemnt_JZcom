@@ -4,7 +4,8 @@ import { AssetStatus } from "@prisma/client";
 import { CheckCircle2, ChevronDown, Columns3, Loader2, Package, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AssetStatusBadge } from "@/components/status/asset-status-badge";
 import { assetStatusHexColors, assetStatusLabels } from "@/lib/status-style";
 import { formatWarehouseHeading } from "@/lib/display-labels";
@@ -317,13 +318,25 @@ function RequestConfirmDialog({
   pendingRequests: PendingRequestOption[];
   quantity: number;
 }) {
-  const [mode, setMode] = useState<"NEW" | "EXISTING">("NEW");
   const [transactionId, setTransactionId] = useState("");
   const isReady = asset.status === AssetStatus.READY && asset.availableQuantity > 0;
   const isQuantityAsset =
     inventoryFamily === "QUANTITY" ||
     asset.assetModel.assetType?.trackMethod === "QUANTITY";
   const maxQuantity = Math.max(1, asset.availableQuantity);
+
+  useEffect(() => {
+    if (pendingRequests.length === 0) {
+      setTransactionId("");
+      return;
+    }
+
+    setTransactionId((current) =>
+      pendingRequests.some((request) => request.id === current)
+        ? current
+        : pendingRequests[0].id,
+    );
+  }, [pendingRequests]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -371,57 +384,6 @@ function RequestConfirmDialog({
           </div>
         </div>
 
-        {pendingRequests.length > 0 ? (
-          <div className="mt-5 rounded-md border border-border p-3">
-            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-              Request Destination
-            </p>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              <button
-                className={`h-10 rounded-md border px-3 text-sm font-bold transition ${
-                  mode === "NEW"
-                    ? "border-navy bg-navy text-white"
-                    : "border-border bg-white text-navy hover:bg-surface"
-                }`}
-                onClick={() => {
-                  setMode("NEW");
-                  setTransactionId("");
-                }}
-                type="button"
-              >
-                Create new request
-              </button>
-              <button
-                className={`h-10 rounded-md border px-3 text-sm font-bold transition ${
-                  mode === "EXISTING"
-                    ? "border-navy bg-navy text-white"
-                    : "border-border bg-white text-navy hover:bg-surface"
-                }`}
-                onClick={() => {
-                  setMode("EXISTING");
-                  setTransactionId(pendingRequests[0]?.id ?? "");
-                }}
-                type="button"
-              >
-                Add to existing
-              </button>
-            </div>
-            {mode === "EXISTING" ? (
-              <select
-                className="mt-3 h-11 w-full rounded-md border border-border bg-white px-3 text-sm font-semibold text-navy outline-none ring-brand-accent/20 focus:ring-4"
-                onChange={(event) => setTransactionId(event.target.value)}
-                value={transactionId}
-              >
-                {pendingRequests.map((request) => (
-                  <option key={request.id} value={request.id}>
-                    {request.transactionNo} - {request.purpose} ({request.itemCount} items)
-                  </option>
-                ))}
-              </select>
-            ) : null}
-          </div>
-        ) : null}
-
         {isQuantityAsset ? (
           <label className="mt-5 block">
             <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
@@ -452,27 +414,46 @@ function RequestConfirmDialog({
           </p>
         ) : null}
 
-        <div className="mt-6 flex gap-3">
-          <button
-            className="inline-flex h-11 flex-1 items-center justify-center rounded-md border border-border bg-white px-4 text-sm font-bold text-navy hover:bg-surface"
-            onClick={onClose}
-            type="button"
-          >
-            Cancel
-          </button>
-          <button
-            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-navy px-4 text-sm font-bold text-white hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={!isReady || isSubmitting}
-            onClick={() => onConfirm(quantity, mode === "EXISTING" ? transactionId : null)}
-            type="button"
-          >
-            {isSubmitting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <CheckCircle2 className="h-4 w-4" />
-            )}
-            Request Asset
-          </button>
+        <div className="mt-5 rounded-md border border-border p-3">
+          <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+            Request Destination
+          </p>
+          {pendingRequests.length > 1 ? (
+            <select
+              aria-label="Existing request"
+              className="mt-3 h-11 w-full rounded-md border border-border bg-white px-3 text-sm font-semibold text-navy outline-none ring-brand-accent/20 focus:ring-4"
+              onChange={(event) => setTransactionId(event.target.value)}
+              value={transactionId}
+            >
+              {pendingRequests.map((request) => (
+                <option key={request.id} value={request.id}>
+                  {request.transactionNo} - {request.purpose} ({request.itemCount} items)
+                </option>
+              ))}
+            </select>
+          ) : null}
+          <div className={`mt-3 grid gap-2 ${pendingRequests.length > 0 ? "sm:grid-cols-2" : ""}`}>
+            <button
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-navy bg-navy px-3 text-sm font-bold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={!isReady || isSubmitting}
+              onClick={() => onConfirm(quantity, null)}
+              type="button"
+            >
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Create new request
+            </button>
+            {pendingRequests.length > 0 ? (
+              <button
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-bold text-navy transition hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={!isReady || isSubmitting || !transactionId}
+                onClick={() => onConfirm(quantity, transactionId)}
+                type="button"
+              >
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Add to existing
+              </button>
+            ) : null}
+          </div>
         </div>
       </section>
     </div>
@@ -755,6 +736,9 @@ export function RequestableInventoryTable({
   const [isChangingStatus, setIsChangingStatus] = useState(false);
   const [pendingRequests, setPendingRequests] = useState<PendingRequestOption[]>([]);
   const [columnMenuOpen, setColumnMenuOpen] = useState(false);
+  const columnTriggerRef = useRef<HTMLButtonElement>(null);
+  const columnMenuRef = useRef<HTMLDivElement>(null);
+  const [columnMenuPosition, setColumnMenuPosition] = useState({ left: 0, top: 0 });
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [selectedColumns, setSelectedColumns] = useState<TableColumnKey[]>([]);
   const [resizing, setResizing] = useState<{ key: TableColumnKey; startX: number; startWidth: number } | null>(null);
@@ -835,6 +819,39 @@ export function RequestableInventoryTable({
     return () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", stop); };
   }, [resizing]);
 
+  useLayoutEffect(() => {
+    if (!columnMenuOpen || !columnTriggerRef.current) return;
+
+    const updateColumnMenuPosition = () => {
+      const trigger = columnTriggerRef.current;
+      if (!trigger) return;
+
+      const triggerRect = trigger.getBoundingClientRect();
+      const menuWidth = columnMenuRef.current?.offsetWidth ?? 256;
+      const menuHeight = columnMenuRef.current?.offsetHeight ?? 360;
+      const gap = 8;
+      const viewportPadding = 8;
+      const opensBelow = triggerRect.bottom + gap + menuHeight <= window.innerHeight - viewportPadding;
+      const top = opensBelow
+        ? triggerRect.bottom + gap
+        : Math.max(viewportPadding, triggerRect.top - menuHeight - gap);
+      const left = Math.min(
+        Math.max(viewportPadding, triggerRect.right - menuWidth),
+        Math.max(viewportPadding, window.innerWidth - menuWidth - viewportPadding),
+      );
+
+      setColumnMenuPosition({ left, top });
+    };
+
+    updateColumnMenuPosition();
+    window.addEventListener("resize", updateColumnMenuPosition);
+    window.addEventListener("scroll", updateColumnMenuPosition, true);
+    return () => {
+      window.removeEventListener("resize", updateColumnMenuPosition);
+      window.removeEventListener("scroll", updateColumnMenuPosition, true);
+    };
+  }, [columnMenuOpen, selectableColumns.length]);
+
   const columns = normalizeTableColumns(selectedColumns.length > 0 ? selectedColumns : defaultColumns);
 
   function autoFitColumn(columnKey: TableColumnKey) {
@@ -891,8 +908,9 @@ export function RequestableInventoryTable({
         throw new Error(data.message ?? "Unable to request asset.");
       }
 
+      setActiveAsset(null);
+      setRequestQuantity(1);
       router.refresh();
-      router.push(transactionId ? `/logs/${transactionId}/return` : "/request");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to request asset.");
     } finally {
@@ -994,11 +1012,16 @@ export function RequestableInventoryTable({
           </div>
           <div className="relative flex items-center gap-3">
             {canRequest ? <p className="text-sm font-semibold text-muted-foreground">{requestableCount.toLocaleString("en-US")} requestable</p> : null}
-            <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-bold text-navy hover:bg-surface" onClick={() => setColumnMenuOpen((open) => !open)} type="button">
+            <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-bold text-navy hover:bg-surface" onClick={() => setColumnMenuOpen((open) => !open)} ref={columnTriggerRef} type="button">
               <Columns3 className="h-4 w-4" /> Columns
             </button>
-            {columnMenuOpen ? (
-              <div className="absolute right-0 top-12 z-40 w-64 rounded-md border border-border bg-white p-3 shadow-xl" onClick={(event) => event.stopPropagation()}>
+            {columnMenuOpen && typeof document !== "undefined" ? createPortal(
+              <div
+                className="fixed z-[100] max-h-[calc(100vh-1rem)] w-64 rounded-md border border-border bg-white p-3 shadow-xl"
+                onClick={(event) => event.stopPropagation()}
+                ref={columnMenuRef}
+                style={{ left: columnMenuPosition.left, top: columnMenuPosition.top }}
+              >
                 <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">Visible columns ({columns.length}/10)</p>
                 <div className="max-h-72 space-y-1 overflow-y-auto">
                   {selectableColumns.map((key) => {
@@ -1012,7 +1035,8 @@ export function RequestableInventoryTable({
                     </label>;
                   })}
                 </div>
-              </div>
+              </div>,
+              document.body,
             ) : null}
           </div>
         </div>

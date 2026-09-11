@@ -18,7 +18,7 @@ type TransactionReturnPageProps = {
   transactionId: string;
 };
 
-function personName(person: { email: string; name: string } | null | undefined) {
+function personName(person: { email: string | null; name: string } | null | undefined) {
   if (!person) {
     return "-";
   }

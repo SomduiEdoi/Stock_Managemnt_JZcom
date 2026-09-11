@@ -5,6 +5,12 @@ import { getVisibleWarehouseCodesForUser } from "@/lib/assets";
 import { db } from "@/lib/db";
 import { canRequestAssetsForUser } from "@/lib/permissions";
 
+const pendingSubmittedRequestWhere = {
+  transaction: {
+    workflowStatus: "PENDING",
+  },
+} satisfies Prisma.TransactionItemWhereInput;
+
 const requestCartAssetSelect = Prisma.validator<Prisma.AssetSelect>()({
   assetQuantity: true,
   id: true,
@@ -121,6 +127,9 @@ export async function getRequestQueueForLog() {
       isActive: true,
       requestLockedById: { not: null },
       status: AssetStatus.REQUEST,
+      transactionItems: {
+        none: pendingSubmittedRequestWhere,
+      },
     },
     }),
     db.assetReservation.findMany({
@@ -131,6 +140,14 @@ export async function getRequestQueueForLog() {
         userId: true,
         user: { select: { email: true, name: true } },
         asset: { select: requestCartAssetSelect },
+      },
+      where: {
+        asset: {
+          isActive: true,
+          transactionItems: {
+            none: pendingSubmittedRequestWhere,
+          },
+        },
       },
     }),
   ]);

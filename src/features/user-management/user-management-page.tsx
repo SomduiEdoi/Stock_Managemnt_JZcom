@@ -4,7 +4,9 @@ import { useMemo, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { useRouter } from "next/navigation";
 import {
+  CheckCircle2,
   Filter,
+  Loader2,
   Mail,
   ShieldCheck,
   UserCheck,
@@ -18,7 +20,6 @@ import {
   organizationLevelOptions,
   organizationTagLabel,
   organizationUnitOptions,
-  stockControllerTagOptions,
   type UserManagementFilters,
   type UserManagementMetrics,
   type UserManagementRow,
@@ -40,7 +41,7 @@ type UserManagementPageProps = {
 
 type UserFormState = {
   email: string;
-  ldapUsername: string;
+  emailVerified: boolean;
   name: string;
   organizationAssignments: Array<{
     organizationLevel: string;
@@ -50,14 +51,12 @@ type UserFormState = {
   organizationLevel: string;
   organizationTag: string;
   role: UserSystemRole | "";
-  stockControllerTag: string;
 };
 
 type DialogMode =
   | { type: "ADD" }
   | { type: "DELETE"; user: UserManagementRow }
   | { type: "EDIT"; user: UserManagementRow }
-  | { type: "UNLINK_LDAP"; user: UserManagementRow }
   | { type: "STATUS"; user: UserManagementRow };
 
 const roleLabels: Record<UserSystemRole, string> = {
@@ -65,11 +64,6 @@ const roleLabels: Record<UserSystemRole, string> = {
   STOCK_CONTROLLER: "Stock Controller",
   USER: "User",
 };
-
-const stockControllerTagLabels = {
-  HEAD_STOCK_CONTROLLER: "Head Stock Controller",
-  STOCK_CONTROLLER: "Stock Controller",
-} as const;
 
 const projectLabels = {
   LEAD_PROJECT: "Lead Project",
@@ -99,21 +93,20 @@ function getUserInitials(name: string) {
 function emptyFormState(): UserFormState {
   return {
     email: "",
-    ldapUsername: "",
+    emailVerified: false,
     name: "",
     organizationAssignments: [{ organizationLevel: "", organizationTag: "" }],
     primaryOrganizationTag: "",
     organizationLevel: "",
     organizationTag: "",
     role: "",
-    stockControllerTag: "",
   };
 }
 
 function toFormState(user: UserManagementRow): UserFormState {
   return {
-    email: user.email,
-    ldapUsername: user.ldapUsername ?? "",
+    email: user.email ?? "",
+    emailVerified: false,
     name: user.name,
     organizationAssignments:
       user.organizationAssignments.length > 0
@@ -130,7 +123,6 @@ function toFormState(user: UserManagementRow): UserFormState {
     organizationLevel: user.organizationLevel ?? "",
     organizationTag: user.organizationTag ?? "",
     role: user.systemRole,
-    stockControllerTag: user.stockControllerTag ?? "",
   };
 }
 
@@ -152,15 +144,9 @@ function tagPills(user: UserManagementRow) {
   }
 
   if (user.systemRole === "STOCK_CONTROLLER") {
-    const values: string[] = user.stockControllerTag
-      ? [stockControllerTagLabels[user.stockControllerTag]]
-      : [];
-
-    return values.concat(
-      user.warehousePermissions
-        .filter((permission) => permission.canManage)
-        .map((permission) => permission.warehouse.name),
-    );
+    return user.warehousePermissions
+      .filter((permission) => permission.canManage)
+      .map((permission) => permission.warehouse.name);
   }
 
   const values: string[] = user.organizationAssignments.map(
@@ -242,14 +228,6 @@ function roleOptions() {
   return userRoleOptions.map((role) => ({ label: roleLabels[role], value: role }));
 }
 
-function stockControllerOptions() {
-  return stockControllerTagOptions.map((option) => ({
-    label: stockControllerTagLabels[option],
-    searchText: `${stockControllerTagLabels[option]} ${option}`,
-    value: option,
-  }));
-}
-
 function organizationLevelDropdownOptions() {
   return organizationLevelOptions.map((option) => ({ label: option, value: option }));
 }
@@ -267,6 +245,93 @@ function baseInputClass(disabled = false) {
   return `h-11 w-full rounded-md border border-border bg-white px-3 text-sm font-medium text-ink outline-none ring-brand-accent/20 transition focus:ring-4 ${
     disabled ? "cursor-not-allowed bg-surface text-muted-foreground" : ""
   }`;
+}
+
+function AdEmailField({
+  email,
+  onEmailChange,
+  onVerified,
+  verified,
+}: {
+  email: string;
+  onEmailChange: (value: string) => void;
+  onVerified: (value: boolean) => void;
+  verified: boolean;
+}) {
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState("");
+
+  async function handleVerify() {
+    const value = email.trim();
+    setVerifyError("");
+    onVerified(false);
+
+    if (!value) {
+      setVerifyError("Email is required.");
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      setVerifyError("Email must be a valid email address.");
+      return;
+    }
+
+    setIsVerifying(true);
+
+    try {
+      const response = await fetch("/api/users/verify-ad", {
+        body: JSON.stringify({ email: value }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setVerifyError(data.message ?? "Unable to verify AD account.");
+        return;
+      }
+
+      onEmailChange(data.email ?? value.toLowerCase());
+      onVerified(true);
+    } catch {
+      setVerifyError("Unable to verify AD account right now.");
+    } finally {
+      setIsVerifying(false);
+    }
+  }
+
+  return (
+    <div className="block">
+      <span className="mb-2 block text-sm font-bold text-navy">
+        Email<span className="ml-1 text-status-fail">*</span>
+      </span>
+      <div className="flex items-start gap-2">
+        <input
+          className={`${baseInputClass()} min-w-0 flex-1`}
+          onChange={(event) => {
+            onEmailChange(event.target.value);
+            onVerified(false);
+            setVerifyError("");
+          }}
+          type="email"
+          value={email}
+        />
+        <button
+          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-md border border-navy px-3 text-sm font-bold text-navy hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={isVerifying}
+          onClick={handleVerify}
+          type="button"
+        >
+          {isVerifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+          {isVerifying ? "Verifying..." : verified ? "Verified" : "Verify AD"}
+        </button>
+      </div>
+      <p className={`mt-2 text-xs font-semibold ${verified ? "text-status-ready" : "text-muted-foreground"}`}>
+        {verified ? "AD account verified." : "Not Linked. Verify this Email before saving."}
+      </p>
+      {verifyError ? <p className="mt-1 text-xs font-semibold text-status-fail">{verifyError}</p> : null}
+    </div>
+  );
 }
 
 function cleanOrganizationAssignments(form: UserFormState) {
@@ -323,13 +388,23 @@ function OrganizationAssignmentsField({
 
   return (
     <div className="md:col-span-2">
-      <span className="mb-2 block text-sm font-bold text-navy">
-        Organization Assignments
-        {!disabled ? <span className="ml-1 text-status-fail">*</span> : null}
-      </span>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <span className="text-sm font-bold text-navy">
+          Organization Assignments
+          {!disabled ? <span className="ml-1 text-status-fail">*</span> : null}
+        </span>
+        <button
+          className="h-10 shrink-0 rounded-md border border-border px-4 text-sm font-bold text-navy hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={disabled}
+          onClick={addAssignment}
+          type="button"
+        >
+          Add Assignment
+        </button>
+      </div>
       <div className="space-y-3">
         {form.organizationAssignments.map((assignment, index) => (
-          <div className="grid gap-3 md:grid-cols-[auto_1fr_1fr_auto]" key={index}>
+          <div className="grid gap-3 md:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_40px]" key={index}>
             <label className="flex h-11 items-center gap-2 whitespace-nowrap text-sm font-semibold text-navy">
               <input
                 checked={form.primaryOrganizationTag === assignment.organizationTag && Boolean(assignment.organizationTag)}
@@ -362,24 +437,18 @@ function OrganizationAssignmentsField({
               value={disabled ? "" : assignment.organizationTag}
             />
             <button
-              className="h-11 rounded-md border border-border px-3 text-sm font-bold text-status-fail hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label={`Remove organization assignment ${index + 1}`}
+              className="flex h-11 w-10 shrink-0 items-center justify-center rounded-md text-navy transition hover:bg-status-fail/10 hover:text-status-fail disabled:cursor-not-allowed disabled:opacity-50"
               disabled={disabled || form.organizationAssignments.length === 1}
               onClick={() => removeAssignment(index)}
+              title="Remove assignment"
               type="button"
             >
-              Remove
+              <X className="h-5 w-5" strokeWidth={2.4} />
             </button>
           </div>
         ))}
       </div>
-      <button
-        className="mt-3 h-10 rounded-md border border-border px-4 text-sm font-bold text-navy hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={disabled}
-        onClick={addAssignment}
-        type="button"
-      >
-        Add Assignment
-      </button>
       {!disabled ? (
         <p className="mt-2 text-xs font-semibold text-muted-foreground">
           Select one assignment as the primary request context. This is used as the default approval context.
@@ -447,20 +516,16 @@ function UserFormModal({
       return "Email must be a valid email address.";
     }
 
+    if (!form.emailVerified) {
+      return "Verify the Email against Active Directory before saving.";
+    }
+
     if (!form.name.trim()) {
       return "Name is required.";
     }
 
-    if (!form.ldapUsername.trim()) {
-      return "AD username is required.";
-    }
-
     if (!form.role) {
       return "Role is required.";
-    }
-
-    if (form.role === "STOCK_CONTROLLER" && !form.stockControllerTag) {
-      return "Stock controller tag is required for Stock Controller.";
     }
 
     if (form.role === "USER" && cleanOrganizationAssignments(form).length === 0) {
@@ -491,14 +556,12 @@ function UserFormModal({
 
     const payload = {
       email: form.email.trim(),
-      ldapUsername: form.ldapUsername.trim(),
       name: form.name.trim(),
       organizationAssignments:
         form.role === "USER" ? cleanOrganizationAssignments(form) : [],
       primaryOrganizationTag:
         form.role === "USER" ? form.primaryOrganizationTag : null,
       role: form.role,
-      stockControllerTag: form.role === "STOCK_CONTROLLER" ? form.stockControllerTag : null,
     };
 
     try {
@@ -533,15 +596,12 @@ function UserFormModal({
       title={mode === "ADD" ? "Add User" : "Edit User"}
     >
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Email" required>
-          <input
-            className={baseInputClass(mode === "EDIT")}
-            disabled={mode === "EDIT"}
-            onChange={(event) => setField("email", event.target.value)}
-            type="email"
-            value={form.email}
-          />
-        </Field>
+        <AdEmailField
+          email={form.email}
+          onEmailChange={(email) => setField("email", email)}
+          onVerified={(emailVerified) => setField("emailVerified", emailVerified)}
+          verified={form.emailVerified}
+        />
 
         <Field label="Name" required>
           <input
@@ -549,16 +609,6 @@ function UserFormModal({
             onChange={(event) => setField("name", event.target.value)}
             type="text"
             value={form.name}
-          />
-        </Field>
-
-        <Field label="AD Username" required>
-          <input
-            className={baseInputClass()}
-            onChange={(event) => setField("ldapUsername", event.target.value)}
-            placeholder="it01 or DOMAIN\\it01"
-            type="text"
-            value={form.ldapUsername}
           />
         </Field>
 
@@ -572,24 +622,12 @@ function UserFormModal({
                 organizationAssignments: [{ organizationLevel: "", organizationTag: "" }],
                 organizationTag: "",
                 role,
-                stockControllerTag: "",
               }));
             }}
             options={roleOptions()}
             placeholder="Select Role"
             searchPlaceholder="Search role"
             value={form.role}
-          />
-        </Field>
-
-        <Field label="Stock Controller Tag" required={form.role === "STOCK_CONTROLLER"}>
-          <SearchableDropdown
-            disabled={form.role !== "STOCK_CONTROLLER"}
-            onChange={(value) => setField("stockControllerTag", value)}
-            options={stockControllerOptions()}
-            placeholder={form.role === "STOCK_CONTROLLER" ? "Select Stock Controller Tag" : "Disabled"}
-            searchPlaceholder="Search stock controller tag"
-            value={form.role === "STOCK_CONTROLLER" ? form.stockControllerTag : ""}
           />
         </Field>
 
@@ -616,7 +654,7 @@ function UserFormModal({
         </button>
         <button
           className="h-11 rounded-md bg-navy px-4 text-sm font-bold text-white hover:bg-navy/90 disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={isSubmitting}
+          disabled={isSubmitting || !form.emailVerified}
           onClick={handleSubmit}
           type="button"
         >
@@ -744,30 +782,6 @@ function ManagementDialogs({
     );
   }
 
-  if (dialog.type === "UNLINK_LDAP") {
-    return (
-      <ConfirmModal
-        actionLabel="Unlink AD"
-        description={`Remove the AD mapping from ${dialog.user.name}? The Stock user and role will be kept.`}
-        onClose={onClose}
-        onConfirm={async () => {
-          const response = await fetch(`/api/users/${dialog.user.id}`, {
-            body: JSON.stringify({ unlinkLdap: true }),
-            headers: { "Content-Type": "application/json" },
-            method: "PATCH",
-          });
-          const data = await response.json().catch(() => ({}));
-          if (!response.ok) {
-            throw new Error(data.message ?? "Unable to unlink AD account.");
-          }
-          router.refresh();
-          onSaved("AD account unlinked successfully.");
-        }}
-        title="Unlink AD Account"
-      />
-    );
-  }
-
   return (
     <ConfirmModal
       actionLabel={dialog.user.isActive ? "Block User" : "Unblock User"}
@@ -817,20 +831,24 @@ function EditUserModal({
 
 
   function validate() {
+    if (!form.email.trim()) {
+      return "Email is required.";
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      return "Email must be a valid email address.";
+    }
+
+    if (!form.emailVerified) {
+      return "Verify the Email against Active Directory before saving.";
+    }
+
     if (!form.name.trim()) {
       return "Name is required.";
     }
 
-    if (!form.ldapUsername.trim()) {
-      return "AD username is required.";
-    }
-
     if (!form.role) {
       return "Role is required.";
-    }
-
-    if (form.role === "STOCK_CONTROLLER" && !form.stockControllerTag) {
-      return "Stock controller tag is required for Stock Controller.";
     }
 
     if (form.role === "USER" && cleanOrganizationAssignments(form).length === 0) {
@@ -864,14 +882,13 @@ function EditUserModal({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ldapUsername: form.ldapUsername.trim(),
+          email: form.email.trim(),
           name: form.name.trim(),
           organizationAssignments:
             form.role === "USER" ? cleanOrganizationAssignments(form) : [],
           primaryOrganizationTag:
             form.role === "USER" ? form.primaryOrganizationTag : null,
           role: form.role,
-          stockControllerTag: form.role === "STOCK_CONTROLLER" ? form.stockControllerTag : null,
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -892,9 +909,12 @@ function EditUserModal({
   return (
     <ModalShell onClose={onClose} title="Edit User">
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Email" required>
-          <input className={baseInputClass(true)} disabled type="email" value={form.email} />
-        </Field>
+        <AdEmailField
+          email={form.email}
+          onEmailChange={(email) => setField("email", email)}
+          onVerified={(emailVerified) => setField("emailVerified", emailVerified)}
+          verified={form.emailVerified}
+        />
 
         <Field label="Name" required>
           <input
@@ -902,16 +922,6 @@ function EditUserModal({
             onChange={(event) => setField("name", event.target.value)}
             type="text"
             value={form.name}
-          />
-        </Field>
-
-        <Field label="AD Username" required>
-          <input
-            className={baseInputClass()}
-            onChange={(event) => setField("ldapUsername", event.target.value)}
-            placeholder="it01 or DOMAIN\\it01"
-            type="text"
-            value={form.ldapUsername}
           />
         </Field>
 
@@ -925,24 +935,12 @@ function EditUserModal({
                 organizationAssignments: [{ organizationLevel: "", organizationTag: "" }],
                 organizationTag: "",
                 role,
-                stockControllerTag: "",
               }));
             }}
             options={roleOptions()}
             placeholder="Select Role"
             searchPlaceholder="Search role"
             value={form.role}
-          />
-        </Field>
-
-        <Field label="Stock Controller Tag" required={form.role === "STOCK_CONTROLLER"}>
-          <SearchableDropdown
-            disabled={form.role !== "STOCK_CONTROLLER"}
-            onChange={(value) => setField("stockControllerTag", value)}
-            options={stockControllerOptions()}
-            placeholder={form.role === "STOCK_CONTROLLER" ? "Select Stock Controller Tag" : "Disabled"}
-            searchPlaceholder="Search stock controller tag"
-            value={form.role === "STOCK_CONTROLLER" ? form.stockControllerTag : ""}
           />
         </Field>
 
@@ -969,7 +967,7 @@ function EditUserModal({
         </button>
         <button
           className="h-11 rounded-md bg-navy px-4 text-sm font-bold text-white hover:bg-navy/90 disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={isSubmitting}
+          disabled={isSubmitting || !form.emailVerified}
           onClick={handleSubmit}
           type="button"
         >
@@ -1023,14 +1021,6 @@ function UserDetailModal({
         ? [`${user.organizationLevel} / ${organizationTagLabel(user.organizationTag)}`]
         : [];
   const projectValues = user.projectTag ? [projectLabels[user.projectTag]] : [];
-  const controllerValues = user.stockControllerTag
-    ? [stockControllerTagLabels[user.stockControllerTag]]
-    : [];
-  const warehouseValues = user.warehousePermissions.map((permission) => {
-    const access = permission.canManage ? "Manage" : permission.canView ? "View" : "No access";
-    return `${permission.warehouse.name} (${access})`;
-  });
-
   return (
     <ModalShell onClose={onClose} title="User Detail">
       <div className="flex items-start gap-4 rounded-md border border-border bg-surface p-4">
@@ -1039,7 +1029,9 @@ function UserDetailModal({
         </span>
         <div className="min-w-0">
           <h3 className="text-xl font-bold text-navy">{user.name}</h3>
-          <p className="mt-1 text-sm font-medium text-muted-foreground">{user.email}</p>
+          <p className={`mt-1 text-sm font-medium ${user.email ? "text-muted-foreground" : "text-status-fail"}`}>
+            {user.email ?? "Not Linked"}
+          </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <span className={`rounded-full px-3 py-1 text-xs font-bold ${roleTone(user.systemRole)}`}>
               {roleLabels[user.systemRole]}
@@ -1052,8 +1044,6 @@ function UserDetailModal({
       <div className="mt-4 grid gap-3">
         <DetailSection label="Organization Assignments" values={organizationValues} />
         <DetailSection label="Project" values={projectValues} />
-        <DetailSection label="Controller Tag" values={controllerValues} />
-        <DetailSection label="Warehouse Permission" values={warehouseValues} />
       </div>
     </ModalShell>
   );
@@ -1098,7 +1088,7 @@ function UserTable({
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-2 font-medium text-ink">
                     <Mail className="h-4 w-4 text-muted-foreground" />
-                    <span>{user.email}</span>
+                    <span>{user.email ?? "Not Linked"}</span>
                   </div>
                 </td>
                 <td className="px-5 py-4">
@@ -1113,11 +1103,9 @@ function UserTable({
                 </td>
                 <td className="px-5 py-4">
                   <UserActionMenu
-                    hasLdapUsername={Boolean(user.ldapUsername)}
                     isActive={user.isActive}
                     onDelete={() => onOpenDialog({ type: "DELETE", user })}
                     onEdit={() => onOpenDialog({ type: "EDIT", user })}
-                    onUnlink={() => onOpenDialog({ type: "UNLINK_LDAP", user })}
                     onToggleBlock={() => onOpenDialog({ type: "STATUS", user })}
                     userName={user.name}
                   />
@@ -1153,12 +1141,16 @@ export function UserManagementPage({
   const [roleFilter, setRoleFilter] = useState(filters.role);
   const [statusFilter, setStatusFilter] = useState(filters.status);
 
-  const searchSuggestions = useMemo(() => users.flatMap((user) => [
-    { category: "NAME", label: user.name, searchText: `${user.email} ${roleLabels[user.systemRole]}`, value: user.name },
-    { category: "MAIL", label: user.email, searchText: user.name, value: user.email },
-    { category: "ROLE", label: roleLabels[user.systemRole], searchText: `${user.name} ${user.email}`, value: roleLabels[user.systemRole] },
-    ...tagPills(user).map((tag) => ({ category: "TAG", label: tag, searchText: `${user.name} ${user.email}`, value: tag })),
-  ]), [users]);
+  const searchSuggestions = useMemo(() => users.flatMap((user) => {
+    const email = user.email ?? "Not Linked";
+
+    return [
+      { category: "NAME", label: user.name, searchText: `${email} ${roleLabels[user.systemRole]}`, value: user.name },
+      { category: "MAIL", label: email, searchText: user.name, value: email },
+      { category: "ROLE", label: roleLabels[user.systemRole], searchText: `${user.name} ${email}`, value: roleLabels[user.systemRole] },
+      ...tagPills(user).map((tag) => ({ category: "TAG", label: tag, searchText: `${user.name} ${email}`, value: tag })),
+    ];
+  }), [users]);
 
   const pageLabel = useMemo(
     () => `Showing ${users.length.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} users`,

@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   BriefcaseBusiness,
@@ -478,25 +479,97 @@ function ProjectActionMenu({
   onEdit: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const portalMenuRef = useRef<HTMLDivElement>(null);
+  const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0 });
+
+  useEffect(() => {
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as Node;
+      if (!triggerRef.current?.contains(target) && !portalMenuRef.current?.contains(target)) {
+        setOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current || !portalMenuRef.current) return;
+
+    function updatePosition() {
+      if (!triggerRef.current || !portalMenuRef.current) return;
+
+      const triggerRect = triggerRef.current.getBoundingClientRect();
+      const menuRect = portalMenuRef.current.getBoundingClientRect();
+      const gap = 8;
+      const viewportPadding = 8;
+      const left = Math.min(
+        Math.max(viewportPadding, triggerRect.right - menuRect.width),
+        window.innerWidth - menuRect.width - viewportPadding,
+      );
+      const canOpenBelow = triggerRect.bottom + gap + menuRect.height <= window.innerHeight - viewportPadding;
+      const preferredTop = canOpenBelow
+        ? triggerRect.bottom + gap
+        : triggerRect.top - menuRect.height - gap;
+      const top = Math.min(
+        Math.max(viewportPadding, preferredTop),
+        window.innerHeight - menuRect.height - viewportPadding,
+      );
+
+      setMenuPosition({ left, top });
+    }
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open]);
+
+  function handleAction(action: () => void) {
+    setOpen(false);
+    action();
+  }
 
   return (
-    <div className="relative inline-flex">
+    <div className="inline-flex">
       <button
+        aria-expanded={open}
         aria-label="Open project actions"
         className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-white text-navy hover:bg-surface"
         onClick={() => setOpen((current) => !current)}
+        ref={triggerRef}
         type="button"
       >
         <MoreVertical className="h-4 w-4" />
       </button>
-      {open ? (
-        <div className="absolute right-0 top-10 z-20 w-36 rounded-md border border-border bg-white p-1 shadow-lg">
+
+      {open ? createPortal(
+        <div
+          className="fixed z-[100] w-36 rounded-md border border-border bg-white p-1 shadow-lg"
+          onClick={(event) => event.stopPropagation()}
+          ref={portalMenuRef}
+          style={menuPosition}
+        >
           <button
             className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm font-semibold text-ink hover:bg-surface"
-            onClick={() => {
-              setOpen(false);
-              onEdit();
-            }}
+            onClick={() => handleAction(onEdit)}
             type="button"
           >
             <SquarePen className="h-4 w-4" />
@@ -504,16 +577,14 @@ function ProjectActionMenu({
           </button>
           <button
             className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm font-semibold text-status-fail hover:bg-status-fail/10"
-            onClick={() => {
-              setOpen(false);
-              onDelete();
-            }}
+            onClick={() => handleAction(onDelete)}
             type="button"
           >
             <Trash2 className="h-4 w-4" />
             Delete
           </button>
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </div>
   );

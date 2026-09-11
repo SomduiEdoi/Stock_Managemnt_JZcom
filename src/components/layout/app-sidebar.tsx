@@ -28,10 +28,10 @@ type StockControllerOption = {
   email: string;
   id: string;
   name: string;
-  stockControllerTag: string | null;
 };
 
 type AppSidebarProps = {
+  approvalCount: number;
   warehouses: SidebarWarehouse[];
   requestCount: number;
   roles: RoleCode[];
@@ -148,10 +148,8 @@ function inventoryFamilyLabel(value: AssetTrackMethod) {
 
 function stockControllerOptions(
   stockControllers: StockControllerOption[],
-  tag: "HEAD_STOCK_CONTROLLER" | "STOCK_CONTROLLER",
 ) {
   return stockControllers
-    .filter((controller) => controller.stockControllerTag === tag)
     .map((controller) => ({
       description: controller.email,
       label: controller.name,
@@ -260,7 +258,7 @@ function AddWarehouseModal({
             <SearchableDropdown
               multiple
               onChange={(value) => setField("headControllerIds", value)}
-              options={stockControllerOptions(stockControllers, "HEAD_STOCK_CONTROLLER")}
+              options={stockControllerOptions(stockControllers)}
               placeholder="Select head stock controller"
               searchPlaceholder="Search by name or email"
               value={form.headControllerIds}
@@ -270,7 +268,7 @@ function AddWarehouseModal({
           <Field label="Stock Controller" required>
             <SearchableDropdown
               onChange={(value) => setField("controllerId", value)}
-              options={stockControllerOptions(stockControllers, "STOCK_CONTROLLER")}
+              options={stockControllerOptions(stockControllers)}
               placeholder="Select stock controller"
               searchPlaceholder="Search by name or email"
               value={form.controllerId}
@@ -412,7 +410,7 @@ function EditWarehouseModal({
             <SearchableDropdown
               multiple
               onChange={(value) => setField("headControllerIds", value)}
-              options={stockControllerOptions(stockControllers, "HEAD_STOCK_CONTROLLER")}
+              options={stockControllerOptions(stockControllers)}
               placeholder="Select head stock controller"
               searchPlaceholder="Search by name or email"
               value={form.headControllerIds}
@@ -422,7 +420,7 @@ function EditWarehouseModal({
           <Field label="Stock Controller" required>
             <SearchableDropdown
               onChange={(value) => setField("controllerId", value)}
-              options={stockControllerOptions(stockControllers, "STOCK_CONTROLLER")}
+              options={stockControllerOptions(stockControllers)}
               placeholder="Select stock controller"
               searchPlaceholder="Search by name or email"
               value={form.controllerId}
@@ -601,6 +599,7 @@ function SidebarLink({
 }
 
 export function AppSidebar({
+  approvalCount,
   warehouses,
   requestCount,
   roles,
@@ -766,6 +765,11 @@ export function AppSidebar({
             <SidebarLink active={pathname === "/logs"} href="/logs">
               <ReceiptText className="h-4 w-4 shrink-0" />
               <span>Transaction Log</span>
+              {approvalCount > 0 ? (
+                <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-status-fail px-1.5 py-0.5 text-[11px] font-bold leading-4 text-white">
+                  {approvalCount}
+                </span>
+              ) : null}
             </SidebarLink>
 
             {canShowProjects(roles) ? (

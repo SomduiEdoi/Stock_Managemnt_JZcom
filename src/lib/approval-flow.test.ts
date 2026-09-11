@@ -23,7 +23,6 @@ function user(overrides: Partial<CurrentUser>): CurrentUser {
     signatureDataUrl: null,
     signatureUploadedAt: null,
     signatureUploadedBy: null,
-    stockControllerTag: null,
     ...overrides,
   };
 }
@@ -32,7 +31,6 @@ describe("warehouse approval matching", () => {
   it("matches stock controllers by stock tag and managed warehouse", () => {
     const approver = user({
       roles: ["STOCK_CONTROLLER"],
-      stockControllerTag: "STOCK_CONTROLLER",
       permissions: [{ canManage: true, canView: true, warehouseCode: "SERVER" }],
     });
 
@@ -50,7 +48,6 @@ describe("warehouse approval matching", () => {
     const approver = user({
       id: "old-controller",
       roles: ["STOCK_CONTROLLER"],
-      stockControllerTag: "STOCK_CONTROLLER",
       permissions: [{ canManage: false, canView: true, warehouseCode: "SERVER" }],
     });
 
@@ -65,7 +62,6 @@ describe("warehouse approval matching", () => {
   it("does not let a regular stock controller match head controller approval", () => {
     const approver = user({
       roles: ["STOCK_CONTROLLER"],
-      stockControllerTag: "STOCK_CONTROLLER",
       permissions: [{ canManage: true, canView: true, warehouseCode: "SERVER" }],
     });
 
@@ -82,7 +78,6 @@ describe("warehouse approval matching", () => {
   it("does not match stock controller approval with read-only warehouse permission", () => {
     const approver = user({
       roles: ["STOCK_CONTROLLER"],
-      stockControllerTag: "STOCK_CONTROLLER",
       permissions: [{ canManage: false, canView: true, warehouseCode: "SERVER" }],
     });
 
@@ -97,7 +92,6 @@ describe("warehouse approval matching", () => {
   it("does not match head stock controller approval without warehouse visibility", () => {
     const approver = user({
       roles: ["STOCK_CONTROLLER"],
-      stockControllerTag: "HEAD_STOCK_CONTROLLER",
       permissions: [{ canManage: false, canView: false, warehouseCode: "NETWORK" }],
     });
 
@@ -112,7 +106,6 @@ describe("warehouse approval matching", () => {
   it("does not match head stock controllers without being assigned to the approval", () => {
     const approver = user({
       roles: ["STOCK_CONTROLLER"],
-      stockControllerTag: "HEAD_STOCK_CONTROLLER",
       permissions: [{ canManage: false, canView: true, warehouseCode: "NETWORK" }],
     });
 
@@ -124,11 +117,31 @@ describe("warehouse approval matching", () => {
     ).toBe(false);
   });
 
+  it("matches a controller with both positions for both approval paths", () => {
+    const approver = user({
+      id: "dual-controller",
+      roles: ["STOCK_CONTROLLER"],
+      permissions: [{ canManage: true, canView: true, warehouseCode: "SERVER" }],
+    });
+
+    expect(
+      approvalMatchesUser(approver, {
+        requiredTag: warehouseStockControllerRequiredTag("SERVER"),
+        userId: null,
+      }),
+    ).toBe(true);
+    expect(
+      approvalMatchesUser(approver, {
+        requiredTag: warehouseHeadStockControllerRequiredTag("SERVER"),
+        userId: "dual-controller",
+      }),
+    ).toBe(true);
+  });
+
   it("matches assigned head stock controllers by user id and visible warehouse", () => {
     const approver = user({
       id: "assigned-head",
       roles: ["STOCK_CONTROLLER"],
-      stockControllerTag: "HEAD_STOCK_CONTROLLER",
       permissions: [{ canManage: false, canView: true, warehouseCode: "NETWORK" }],
     });
 

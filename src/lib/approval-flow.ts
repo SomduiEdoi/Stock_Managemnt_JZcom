@@ -44,6 +44,10 @@ export function approvalMatchesUser(
   const warehouseController = parseWarehouseControllerTag(approval.requiredTag);
 
   if (warehouseController) {
+    if (!hasRole(user, "STOCK_CONTROLLER")) {
+      return false;
+    }
+
     const hasWarehousePermission = user.permissions.some((permission) => {
       if (permission.warehouseCode !== warehouseController.warehouseCode) {
         return false;
@@ -56,7 +60,7 @@ export function approvalMatchesUser(
       return approval.userId === user.id && (permission.canView || permission.canManage);
     });
 
-    return hasRole(user, "STOCK_CONTROLLER") && hasWarehousePermission;
+    return hasWarehousePermission;
   }
 
   if (approval.userId === user.id) {

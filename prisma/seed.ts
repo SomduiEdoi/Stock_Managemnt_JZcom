@@ -5,7 +5,6 @@ import {
   type OrganizationTag,
   PrismaClient,
   type RoleCode,
-  type StockControllerTag,
 } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -16,7 +15,6 @@ type SeedUser = {
   email: string;
   position: string;
   roleCode: RoleCode;
-  stockControllerTag?: StockControllerTag;
   organizationLevel?: OrganizationLevel;
   organizationTag?: OrganizationTag;
   organizationAssignments?: Array<{
@@ -53,7 +51,6 @@ const seedUsers: SeedUser[] = [
     email: "joy@example.com",
     position: "Sale Stock Controller",
     roleCode: "STOCK_CONTROLLER",
-    stockControllerTag: "STOCK_CONTROLLER",
     organizationLevel: "STAFF",
     organizationTag: "BSD_STAFF",
     permissions: [
@@ -69,7 +66,6 @@ const seedUsers: SeedUser[] = [
     email: "server@example.com",
     position: "Server Stock Controller",
     roleCode: "STOCK_CONTROLLER",
-    stockControllerTag: "STOCK_CONTROLLER",
     organizationLevel: "STAFF",
     organizationTag: "S1_STAFF",
     permissions: [
@@ -84,7 +80,6 @@ const seedUsers: SeedUser[] = [
     email: "network@example.com",
     position: "Network Stock Controller",
     roleCode: "STOCK_CONTROLLER",
-    stockControllerTag: "STOCK_CONTROLLER",
     organizationLevel: "STAFF",
     organizationTag: "N1_STAFF",
     permissions: [
@@ -99,7 +94,6 @@ const seedUsers: SeedUser[] = [
     email: "server-head@example.com",
     position: "Server Head Stock Controller",
     roleCode: "STOCK_CONTROLLER",
-    stockControllerTag: "HEAD_STOCK_CONTROLLER",
     organizationLevel: "MANAGER",
     organizationTag: "SCN_MANAGER",
     permissions: [
@@ -114,7 +108,6 @@ const seedUsers: SeedUser[] = [
     email: "network-head@example.com",
     position: "Network Head Stock Controller",
     roleCode: "STOCK_CONTROLLER",
-    stockControllerTag: "HEAD_STOCK_CONTROLLER",
     organizationLevel: "MANAGER",
     organizationTag: "SCN_MANAGER",
     permissions: [
@@ -693,7 +686,6 @@ async function upsertSeedUser(
       passwordHash,
       position: user.position,
       projectTag: null,
-      stockControllerTag: user.roleCode === "STOCK_CONTROLLER" ? user.stockControllerTag ?? "STOCK_CONTROLLER" : null,
       ...identityData,
     },
     create: {
@@ -705,7 +697,6 @@ async function upsertSeedUser(
       passwordHash,
       position: user.position,
       projectTag: null,
-      stockControllerTag: user.roleCode === "STOCK_CONTROLLER" ? user.stockControllerTag ?? "STOCK_CONTROLLER" : null,
       ...identityData,
     },
   });

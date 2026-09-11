@@ -71,7 +71,6 @@ const sidebarWarehouseSelect = {
     select: {
       canManage: true,
       canView: true,
-      user: { select: { stockControllerTag: true } },
       userId: true,
     },
     where: { OR: [{ canManage: true }, { canView: true }] },
@@ -88,7 +87,6 @@ type SidebarWarehouseRecord = {
   permissions: Array<{
     canManage: boolean;
     canView: boolean;
-    user: { stockControllerTag: string | null };
     userId: string;
   }>;
   prefix: string;
@@ -140,7 +138,6 @@ async function ensureWarehouseViewPermissionsForActiveUsers(
 async function findStockControllerOrThrow(
   tx: WarehouseTx,
   userId: string,
-  controllerTag: "HEAD_STOCK_CONTROLLER" | "STOCK_CONTROLLER",
   label: string,
 ) {
   const controller = await tx.user.findFirst({
@@ -149,7 +146,6 @@ async function findStockControllerOrThrow(
       id: userId,
       isActive: true,
       roles: { some: { role: { code: "STOCK_CONTROLLER" } } },
-      stockControllerTag: controllerTag,
     },
   });
 
@@ -214,10 +210,7 @@ function toSidebarWarehouse(warehouse: SidebarWarehouseRecord): SidebarWarehouse
     ? [warehouse.headStockControllerId]
     : [];
 
-  const controllerId = warehouse.permissions.find(
-    (permission) =>
-      permission.canManage && permission.user.stockControllerTag === "STOCK_CONTROLLER",
-  )?.userId ?? null;
+  const controllerId = warehouse.permissions.find((permission) => permission.canManage)?.userId ?? null;
 
   return {
     assetCount: warehouse._count.assets,
@@ -242,14 +235,16 @@ export async function getSidebarWarehousesForUser() {
 }
 
 export async function getStockControllersForWarehouseForm() {
-  return db.user.findMany({
+  const users = await db.user.findMany({
     orderBy: { name: "asc" },
-    select: { email: true, id: true, name: true, stockControllerTag: true },
+    select: { email: true, id: true, name: true },
     where: {
       isActive: true,
       roles: { some: { role: { code: "STOCK_CONTROLLER" } } },
     },
   });
+
+  return users.map((user) => ({ ...user, email: user.email ?? "Not Linked" }));
 }
 
 export type CreateWarehouseInput = {
@@ -289,14 +284,13 @@ export async function createWarehouseForUser(user: CurrentUser, input: CreateWar
     const controller = await findStockControllerOrThrow(
       tx,
       input.controllerId,
-      "STOCK_CONTROLLER",
       "Stock controller",
     );
     await assertStockControllerManageSlot(tx, controller.id);
     const headControllerIds = uniqueControllerIds([...(input.headControllerIds ?? []), input.headControllerId]);
     const headControllers = await Promise.all(
       headControllerIds.map((id) =>
-        findStockControllerOrThrow(tx, id, "HEAD_STOCK_CONTROLLER", "Head stock controller"),
+        findStockControllerOrThrow(tx, id, "Head stock controller"),
       ),
     );
     const managerIds = uniqueControllerIds([controller.id]);
@@ -397,14 +391,13 @@ export async function updateWarehouseForUser(
     const controller = await findStockControllerOrThrow(
       tx,
       input.controllerId,
-      "STOCK_CONTROLLER",
       "Stock controller",
     );
     await assertStockControllerManageSlot(tx, controller.id, warehouse.id);
     const headControllerIds = uniqueControllerIds([...(input.headControllerIds ?? []), input.headControllerId]);
     const headControllers = await Promise.all(
       headControllerIds.map((id) =>
-        findStockControllerOrThrow(tx, id, "HEAD_STOCK_CONTROLLER", "Head stock controller"),
+        findStockControllerOrThrow(tx, id, "Head stock controller"),
       ),
     );
     const managerIds = uniqueControllerIds([controller.id]);

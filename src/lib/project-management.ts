@@ -100,11 +100,19 @@ function toUniqueUsers(users: ProjectUserOption[]) {
   });
 }
 
+function toProjectUserOption(user: { email: string | null; id: string; name: string }): ProjectUserOption {
+  return { email: user.email ?? "Not Linked", id: user.id, name: user.name };
+}
+
 function toProjectRow(project: ProjectRecord, user: CurrentUser): ProjectRow {
   const leadMembers = project.members
     .filter((member) => member.projectTag === ProjectMemberTag.LEAD_PROJECT)
-    .map((member) => member.user);
-  const leads = toUniqueUsers(project.leadUser ? [project.leadUser, ...leadMembers] : leadMembers);
+    .map((member) => toProjectUserOption(member.user));
+  const leads = toUniqueUsers(
+    project.leadUser
+      ? [toProjectUserOption(project.leadUser), ...leadMembers]
+      : leadMembers,
+  );
   const canManage = canManageProject(user, project);
 
   return {
@@ -115,7 +123,7 @@ function toProjectRow(project: ProjectRecord, user: CurrentUser): ProjectRow {
     leads,
     members: project.members
       .filter((member) => member.projectTag === ProjectMemberTag.TEAM_MEMBER)
-      .map((member) => member.user),
+      .map((member) => toProjectUserOption(member.user)),
     name: project.name,
     projectId: project.projectId,
     status: project.status,
@@ -123,7 +131,7 @@ function toProjectRow(project: ProjectRecord, user: CurrentUser): ProjectRow {
 }
 
 async function getUserOptions() {
-  return db.user.findMany({
+  const users = await db.user.findMany({
     orderBy: { name: "asc" },
     select: { email: true, id: true, name: true },
     where: {
@@ -131,6 +139,8 @@ async function getUserOptions() {
       roles: { some: { role: { code: "USER" } } },
     },
   });
+
+  return users.map(toProjectUserOption);
 }
 
 async function assertUserOptions(userIds: string[]) {
@@ -289,8 +299,10 @@ export async function updateProjectForAdmin(
 
   const project = await db.$transaction(async (tx) => {
     const previousLeadIds = toUniqueUsers([
-      ...(existing.leadUser ? [existing.leadUser] : []),
-      ...existing.members.filter((member) => member.projectTag === ProjectMemberTag.LEAD_PROJECT).map((member) => member.user),
+      ...(existing.leadUser ? [toProjectUserOption(existing.leadUser)] : []),
+      ...existing.members
+        .filter((member) => member.projectTag === ProjectMemberTag.LEAD_PROJECT)
+        .map((member) => toProjectUserOption(member.user)),
     ]).map((lead) => lead.id);
 
     await tx.project.update({

@@ -88,6 +88,7 @@ export type AssetEditRecord = Prisma.AssetGetPayload<{
 }>;
 
 export type AssetEditOptions = {
+  brands: string[];
   categories: Array<{
     customFields: Array<{
       dataType: "TEXT" | "NUMBER" | "DROPDOWN" | "BOOLEAN";
@@ -105,6 +106,7 @@ export type AssetEditOptions = {
     warehouseCode: string;
     name: string;
   }>;
+  partNos: string[];
   warehouses: Array<{ code: string; inventoryFamily: AssetTrackMethod; name: string }>;
   locations: Array<{ code: string | null; name: string }>;
   statuses: AssetStatus[];
@@ -410,7 +412,7 @@ async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus
     ...(manageableWarehouseCodes ? { code: { in: manageableWarehouseCodes } } : {}),
   };
 
-  const [warehouses, categories, locations, types] = await Promise.all([
+  const [warehouses, categories, locations, types, assetModels] = await Promise.all([
     db.assetWarehouse.findMany({
       orderBy: { name: "asc" },
       select: { code: true, inventoryFamily: true, name: true },
@@ -467,6 +469,10 @@ async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus
         isActive: true,
       },
     }),
+    db.assetModel.findMany({
+      select: { brand: true, partNo: true },
+      where: { isActive: true, warehouse: warehouseWhere },
+    }),
   ]);
 
   const uniqueTypes = Array.from(
@@ -486,6 +492,7 @@ async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus
   );
 
   return {
+    brands: [...new Set(assetModels.map((model) => model.brand).filter((brand): brand is string => Boolean(brand)))].sort((left, right) => left.localeCompare(right)),
     categories: categories.map((category) => ({
       customFields: category.customFields.map((field) => ({
         dataType: field.dataType,
@@ -503,6 +510,7 @@ async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus
       warehouseCode: category.warehouse.code,
       name: category.name,
     })),
+    partNos: [...new Set(assetModels.map((model) => model.partNo).filter((partNo): partNo is string => Boolean(partNo)))].sort((left, right) => left.localeCompare(right)),
     warehouses,
     locations,
     statuses: editableStatuses(currentStatus),

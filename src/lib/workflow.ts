@@ -7,7 +7,6 @@ import {
   OrganizationTag,
   Prisma,
   ProjectTag,
-  StockControllerTag,
   TransactionStatus,
   TransactionWorkflowStatus,
   TransactionType,
@@ -383,7 +382,6 @@ async function findWorkflowUserById(tx: Prisma.TransactionClient, userId: string
       position: true,
       signatureDataUrl: true,
       signatureUploadedAt: true,
-      stockControllerTag: true,
       signatureUploadedBy: {
         select: { email: true, name: true },
       },
@@ -424,7 +422,7 @@ function toWorkflowCurrentUser(user: WorkflowUserRecord): CurrentUser {
 
   return {
     azureAdObjectId: user.azureAdObjectId,
-    email: user.email,
+    email: user.email ?? "",
     id: user.id,
     lastLoginAt: user.lastLoginAt,
     name: user.name,
@@ -441,8 +439,9 @@ function toWorkflowCurrentUser(user: WorkflowUserRecord): CurrentUser {
     roles: user.roles.map(({ role }) => role.code),
     signatureDataUrl: user.signatureDataUrl,
     signatureUploadedAt: user.signatureUploadedAt,
-    signatureUploadedBy: user.signatureUploadedBy,
-    stockControllerTag: user.stockControllerTag,
+    signatureUploadedBy: user.signatureUploadedBy
+      ? { ...user.signatureUploadedBy, email: user.signatureUploadedBy.email ?? "" }
+      : null,
   };
 }
 
@@ -943,7 +942,6 @@ type ApprovalUser = {
   name: string;
   organizationTag: OrganizationTag | null;
   projectTag: ProjectTag | null;
-  stockControllerTag: StockControllerTag | null;
   warehousePermissions: Array<{ canManage: boolean; canView?: boolean; warehouse: { code: string } }>;
 };
 
@@ -1019,7 +1017,6 @@ async function findOrganizationApprover(
       },
       organizationTag: true,
       projectTag: true,
-      stockControllerTag: true,
     },
     where: {
       id: { not: requesterId },
@@ -1049,7 +1046,6 @@ async function findProjectApprovers(
     },
     organizationTag: true,
     projectTag: true,
-    stockControllerTag: true,
   } satisfies Prisma.UserSelect;
 
   if (projectId) {
@@ -1088,9 +1084,9 @@ async function findProjectApprovers(
 async function findStockControllerApprovers(
   tx: Prisma.TransactionClient,
   warehouseCode: string,
-  stockControllerTag: StockControllerTag,
+  stockControllerTag: "HEAD_STOCK_CONTROLLER" | "STOCK_CONTROLLER",
 ) {
-  if (stockControllerTag === StockControllerTag.HEAD_STOCK_CONTROLLER) {
+  if (stockControllerTag === "HEAD_STOCK_CONTROLLER") {
     const warehouse = await tx.assetWarehouse.findFirst({
       select: { headStockControllerId: true },
       where: { code: warehouseCode, isActive: true },
@@ -1114,7 +1110,6 @@ async function findStockControllerApprovers(
         },
         organizationTag: true,
         projectTag: true,
-        stockControllerTag: true,
       },
       where: {
         id: warehouse.headStockControllerId,
@@ -1141,7 +1136,6 @@ async function findStockControllerApprovers(
       },
       organizationTag: true,
       projectTag: true,
-      stockControllerTag: true,
     },
     where: {
       warehousePermissions: {
@@ -1210,7 +1204,7 @@ async function buildApprovalCandidates(
   for (const warehouseCode of warehouseCodes) {
     approvals.push(
       ...candidatesForUsers(
-        await findStockControllerApprovers(tx, warehouseCode, StockControllerTag.STOCK_CONTROLLER),
+        await findStockControllerApprovers(tx, warehouseCode, "STOCK_CONTROLLER"),
         warehouseStockControllerRequiredTag(warehouseCode),
         stockStep,
       ),
@@ -1221,7 +1215,7 @@ async function buildApprovalCandidates(
   for (const warehouseCode of warehouseCodes) {
     approvals.push(
       ...candidatesForUsers(
-        await findStockControllerApprovers(tx, warehouseCode, StockControllerTag.HEAD_STOCK_CONTROLLER),
+        await findStockControllerApprovers(tx, warehouseCode, "HEAD_STOCK_CONTROLLER"),
         warehouseHeadStockControllerRequiredTag(warehouseCode),
         headStockStep,
       ),

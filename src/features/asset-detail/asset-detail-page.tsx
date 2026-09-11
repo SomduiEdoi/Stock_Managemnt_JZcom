@@ -53,12 +53,12 @@ function formatDateTime(value: Date | null) {
   }).format(value);
 }
 
-function personName(person: { email: string; name: string } | null | undefined) {
+function personName(person: { email: string | null; name: string } | null | undefined) {
   if (!person) {
     return "-";
   }
 
-  return person.name || person.email;
+  return person.name || person.email || "-";
 }
 
 function fallback(value: number | string | null | undefined) {

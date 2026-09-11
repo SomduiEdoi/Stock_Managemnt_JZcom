@@ -1,40 +1,40 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Ban,
   EllipsisVertical,
-  Link2Off,
   SquarePen,
   Trash2,
   UnlockKeyhole,
 } from "lucide-react";
 
 type UserActionMenuProps = {
-  hasLdapUsername: boolean;
   isActive: boolean;
   onDelete: () => void;
   onEdit: () => void;
-  onUnlink: () => void;
   onToggleBlock: () => void;
   userName: string;
 };
 
 export function UserActionMenu({
-  hasLdapUsername,
   isActive,
   onDelete,
   onEdit,
-  onUnlink,
   onToggleBlock,
   userName,
 }: UserActionMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
+  const portalMenuRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0 });
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
-      if (!menuRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (!menuRef.current?.contains(target) && !portalMenuRef.current?.contains(target)) {
         setIsOpen(false);
       }
     }
@@ -54,6 +54,16 @@ export function UserActionMenu({
     };
   }, []);
 
+  useLayoutEffect(() => {
+    if (!isOpen || !triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const width = 176;
+    const height = 152;
+    const gap = 8;
+    const top = rect.bottom + gap + height <= window.innerHeight ? rect.bottom + gap : Math.max(8, rect.top - height - gap);
+    setMenuPosition({ left: Math.min(Math.max(8, rect.right - width), window.innerWidth - width - 8), top });
+  }, [isOpen]);
+
   function handleClick(action: () => void) {
     setIsOpen(false);
     action();
@@ -69,14 +79,18 @@ export function UserActionMenu({
         aria-expanded={isOpen}
         aria-label={`Open actions for ${userName}`}
         className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-surface hover:text-navy"
-        onClick={() => setIsOpen((current) => !current)}
+        onClick={(event) => {
+          event.stopPropagation();
+          setIsOpen((current) => !current);
+        }}
+        ref={triggerRef}
         type="button"
       >
         <EllipsisVertical className="h-4 w-4" />
       </button>
 
-      {isOpen ? (
-        <div className="absolute right-0 top-9 z-20 w-44 rounded-md border border-border bg-white p-1 shadow-lg">
+      {isOpen ? createPortal(
+        <div className="fixed z-[100] w-44 rounded-md border border-border bg-white p-1 shadow-lg" ref={portalMenuRef} style={menuPosition} onClick={(event) => event.stopPropagation()}>
           <button
             className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-semibold text-navy hover:bg-surface"
             onClick={() => handleClick(onEdit)}
@@ -85,17 +99,6 @@ export function UserActionMenu({
             <SquarePen className="h-4 w-4" />
             Edit
           </button>
-
-          {hasLdapUsername ? (
-            <button
-              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-semibold text-navy hover:bg-surface"
-              onClick={() => handleClick(onUnlink)}
-              type="button"
-            >
-              <Link2Off className="h-4 w-4" />
-              Unlink AD
-            </button>
-          ) : null}
 
           <button
             className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-semibold text-navy hover:bg-surface"
@@ -118,7 +121,7 @@ export function UserActionMenu({
             <Trash2 className="h-4 w-4" />
             Delete
           </button>
-        </div>
+        </div>, document.body,
       ) : null}
     </div>
   );

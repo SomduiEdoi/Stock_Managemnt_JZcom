@@ -1,6 +1,7 @@
 ﻿import type { ReactNode } from "react";
 import type { CurrentUser } from "@/lib/auth";
 import { getRequestCartForUser } from "@/lib/request-cart";
+import { getPendingApprovalsForUser } from "@/lib/transaction-log";
 import { getSidebarWarehousesForUser, getStockControllersForWarehouseForm } from "@/lib/warehouses";
 import { AppSidebar } from "./app-sidebar";
 import { AppShellTitle } from "./app-shell-title";
@@ -13,16 +14,18 @@ type AppShellProps = {
 };
 
 export async function AppShell({ children, title, user }: AppShellProps) {
-  const [requestCart, warehouses, stockControllers] = await Promise.all([
+  const [requestCart, warehouses, stockControllers, pendingApprovals] = await Promise.all([
     getRequestCartForUser(user as CurrentUser),
     getSidebarWarehousesForUser(),
     user.roles.includes("ADMIN") ? getStockControllersForWarehouseForm() : Promise.resolve([]),
+    getPendingApprovalsForUser(user as CurrentUser),
   ]);
   const requestCount = requestCart.canRequest ? requestCart.assets.length : 0;
+  const approvalCount = pendingApprovals.length;
 
   return (
     <main className="min-h-screen bg-background text-foreground lg:grid lg:grid-cols-[240px_1fr]">
-      <AppSidebar warehouses={warehouses} requestCount={requestCount} roles={user.roles} stockControllers={stockControllers} />
+      <AppSidebar approvalCount={approvalCount} warehouses={warehouses} requestCount={requestCount} roles={user.roles} stockControllers={stockControllers} />
 
       <section className="min-w-0">
         <header className="border-b border-border bg-white">

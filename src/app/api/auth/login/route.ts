@@ -11,7 +11,7 @@ import {
 } from "@/lib/session";
 
 const loginSchema = z.object({
-  username: z.string().trim().min(1).max(255),
+  email: z.string().trim().email().max(255),
   password: z.string().min(1),
 });
 
@@ -28,13 +28,13 @@ export async function POST(request: Request) {
 
   try {
     const directoryUser = await authenticateWithLdap(
-      parsed.data.username,
+      parsed.data.email,
       parsed.data.password,
     );
 
     if (!directoryUser) {
       return NextResponse.json(
-        { message: "Invalid username or password." },
+        { message: "Invalid email or password." },
         { status: 401 },
       );
     }
@@ -42,10 +42,7 @@ export async function POST(request: Request) {
     const user = await db.user.findFirst({
       where: {
         isActive: true,
-        OR: [
-          { ldapUsername: directoryUser.username },
-          ...(directoryUser.email ? [{ email: directoryUser.email.toLowerCase() }] : []),
-        ],
+        email: (directoryUser.email ?? parsed.data.email).toLowerCase(),
       },
       select: {
         id: true,
@@ -55,7 +52,7 @@ export async function POST(request: Request) {
 
     if (!user) {
       return NextResponse.json(
-        { message: "Your AD account is not registered in Stock Management." },
+        { message: "Your email is not registered in Stock Management." },
         { status: 403 },
       );
     }

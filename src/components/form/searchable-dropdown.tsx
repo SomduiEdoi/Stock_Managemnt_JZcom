@@ -175,14 +175,14 @@ export function SearchableDropdown(props: SearchableDropdownProps) {
         <div className="flex items-center gap-2">
           <input
             ref={inputRef}
-            className="h-7 min-w-0 flex-1 border-0 bg-transparent p-0 text-sm font-medium text-ink outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
+            className="h-7 min-w-0 flex-1 border-0 bg-transparent p-0 text-sm font-medium text-ink outline-none placeholder:font-normal placeholder:text-gray-400 disabled:cursor-not-allowed"
             disabled={disabled}
             onChange={(event) => {
               setQuery(event.target.value);
               setIsOpen(true);
             }}
             onFocus={openDropdown}
-            placeholder={props.multiple ? searchPlaceholder ?? placeholder : searchPlaceholder || placeholder}
+            placeholder={isOpen ? searchPlaceholder ?? placeholder : placeholder}
             value={isOpen ? query : props.multiple ? "" : singleDisplayValue}
           />
           {!props.multiple && props.value ? (

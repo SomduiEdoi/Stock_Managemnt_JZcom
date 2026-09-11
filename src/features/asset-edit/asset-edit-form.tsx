@@ -14,6 +14,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { AssetEditOptions, AssetEditRecord } from "@/lib/asset-edit";
+import { CreatableDropdown } from "@/components/form/creatable-dropdown";
 import { SearchableDropdown } from "@/components/form/searchable-dropdown";
 import { AssetStatusBadge } from "@/components/status/asset-status-badge";
 import { formatWarehouseName } from "@/lib/display-labels";
@@ -269,7 +270,7 @@ function Input(
     <input
       {...props}
       className={[
-        "h-11 rounded-md border bg-white px-3 text-sm font-semibold text-ink outline-none ring-brand-accent/20 focus:ring-4",
+        "h-11 rounded-md border bg-white px-3 text-sm font-semibold text-ink outline-none ring-brand-accent/20 placeholder:font-normal placeholder:text-gray-400 focus:ring-4",
         isInvalid ? "border-status-fail" : "border-border",
         props.className,
       ].filter(Boolean).join(" ")}
@@ -639,11 +640,14 @@ export function AssetEditForm(props: AssetEditFormProps) {
               label="Brand"
               required
             >
-              <Input
+              <CreatableDropdown
                 required
-                aria-invalid={Boolean(fieldErrors.brand)}
-                onChange={(event) => setField("brand", event.target.value)}
-                placeholder="Enter brand (Symbols allowed: - / ( ) + .)"
+                ariaLabel="Brand"
+                error={Boolean(fieldErrors.brand)}
+                onChange={(value) => setField("brand", value)}
+                options={options.brands.map((brand) => ({ label: brand, value: brand }))}
+                placeholder="Select or enter brand"
+                searchPlaceholder="Search brand"
                 value={form.brand}
               />
             </Field>
@@ -673,10 +677,13 @@ export function AssetEditForm(props: AssetEditFormProps) {
               error={fieldErrors.partNo}
               label="Part No."
             >
-              <Input
-                aria-invalid={Boolean(fieldErrors.partNo)}
-                onChange={(event) => setField("partNo", event.target.value)}
-                placeholder="Enter part no. (Symbols allowed: - / .)"
+              <CreatableDropdown
+                ariaLabel="Part No."
+                error={Boolean(fieldErrors.partNo)}
+                onChange={(value) => setField("partNo", value)}
+                options={options.partNos.map((partNo) => ({ label: partNo, value: partNo }))}
+                placeholder="Select or enter part no."
+                searchPlaceholder="Search part no."
                 value={form.partNo}
               />
             </Field>
@@ -737,11 +744,19 @@ export function AssetEditForm(props: AssetEditFormProps) {
             label="Location"
             required
           >
-            <Input
+            <CreatableDropdown
               required
-              aria-invalid={Boolean(fieldErrors.location)}
-              onChange={(event) => setField("location", event.target.value)}
-              placeholder="Enter location (Symbols allowed: space - . / ,)"
+              ariaLabel="Location"
+              error={Boolean(fieldErrors.location)}
+              onChange={(value) => setField("location", value)}
+              options={options.locations.map((location) => ({
+                description: location.code ?? undefined,
+                label: location.name,
+                searchText: location.code ?? undefined,
+                value: location.name,
+              }))}
+              placeholder="Select or enter location"
+              searchPlaceholder="Search location"
               value={form.location}
             />
           </Field>

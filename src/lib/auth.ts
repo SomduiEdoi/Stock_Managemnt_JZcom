@@ -23,7 +23,6 @@ export type CurrentUser = {
   signatureDataUrl: string | null;
   signatureUploadedAt: Date | null;
   signatureUploadedBy: { email: string; name: string } | null;
-  stockControllerTag: string | null;
   roles: RoleCode[];
   permissions: WarehousePermission[];
 };
@@ -56,7 +55,6 @@ async function findActiveUser(userId: string) {
       position: true,
       signatureDataUrl: true,
       signatureUploadedAt: true,
-      stockControllerTag: true,
       signatureUploadedBy: {
         select: {
           email: true,
@@ -98,7 +96,7 @@ function toCurrentUser(
   return {
     azureAdObjectId: user.azureAdObjectId,
     id: user.id,
-    email: user.email,
+    email: user.email ?? "",
     lastLoginAt: user.lastLoginAt,
     name: user.name,
     organizationLevel: primaryAssignment?.organizationLevel ?? user.organizationLevel,
@@ -108,8 +106,9 @@ function toCurrentUser(
     position: user.position,
     signatureDataUrl: user.signatureDataUrl,
     signatureUploadedAt: user.signatureUploadedAt,
-    signatureUploadedBy: user.signatureUploadedBy,
-    stockControllerTag: user.stockControllerTag,
+    signatureUploadedBy: user.signatureUploadedBy
+      ? { ...user.signatureUploadedBy, email: user.signatureUploadedBy.email ?? "" }
+      : null,
     roles: user.roles.map(({ role }) => role.code as RoleCode),
     permissions: user.warehousePermissions.map((permission) => ({
       canManage: permission.canManage,

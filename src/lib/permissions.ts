@@ -15,7 +15,6 @@ export type WarehousePermission = {
 export type PermissionUser = {
   roles: RoleCode[];
   permissions: WarehousePermission[];
-  stockControllerTag?: string | null;
 };
 
 export class PermissionError extends Error {
@@ -29,10 +28,6 @@ export class PermissionError extends Error {
 
 export function hasRole(user: PermissionUser, roleCode: RoleCode) {
   return user.roles.includes(roleCode);
-}
-
-export function isHeadStockController(user: PermissionUser) {
-  return user.stockControllerTag === "HEAD_STOCK_CONTROLLER";
 }
 
 export function hasAnyRole(

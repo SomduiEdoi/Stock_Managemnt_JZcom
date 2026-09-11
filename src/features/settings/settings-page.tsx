@@ -46,7 +46,6 @@ function userTag(user: CurrentUser) {
   }
 
   const tags = [
-    user.stockControllerTag ? formatTag(user.stockControllerTag) : null,
     user.organizationLevel ? formatTag(user.organizationLevel) : null,
     user.organizationTag ? formatTag(user.organizationTag) : null,
     user.projectTag ? formatTag(user.projectTag) : null,

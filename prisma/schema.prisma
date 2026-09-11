@@ -64,11 +64,6 @@ enum ProjectMemberTag {
   TEAM_MEMBER
 }
 
-enum StockControllerTag {
-  HEAD_STOCK_CONTROLLER
-  STOCK_CONTROLLER
-}
-
 enum AssetTrackMethod {
   SERIAL
   QUANTITY
@@ -151,15 +146,13 @@ enum MigrationRowStatus {
 model User {
   id                       String                       @id @default(uuid()) @db.Uuid
   name                     String
-  email                    String                       @unique
-  ldapUsername             String?                      @unique @map("ldap_username")
+  email                    String?                      @unique
   passwordHash             String?                      @map("password_hash")
   azureAdObjectId          String?                      @unique @map("azure_ad_object_id")
   position                 String?
   organizationLevel        OrganizationLevel?           @map("organization_level")
   organizationTag          OrganizationTag?             @map("organization_tag")
   projectTag               ProjectTag?                  @map("project_tag")
-  stockControllerTag       StockControllerTag?          @map("stock_controller_tag")
   signatureDataUrl         String?                      @map("signature_data_url")
   signatureUploadedAt      DateTime?                    @map("signature_uploaded_at")
   signatureUploadedById    String?                      @map("signature_uploaded_by") @db.Uuid
@@ -379,15 +372,15 @@ model AssetModel {
 }
 
 model Project {
-  id           String          @id @default(uuid()) @db.Uuid
+  id           String              @id @default(uuid()) @db.Uuid
   name         String
-  projectId    String?         @unique @map("project_id")
-  status       ProjectStatus   @default(ACTIVE)
+  projectId    String?             @unique @map("project_id")
+  status       ProjectStatus       @default(ACTIVE)
   description  String?
-  leadUserId   String?         @map("lead_user_id") @db.Uuid
-  createdAt    DateTime        @default(now()) @map("created_at")
-  updatedAt    DateTime        @updatedAt @map("updated_at")
-  leadUser     User?           @relation("ProjectLeadUser", fields: [leadUserId], references: [id], onDelete: SetNull)
+  leadUserId   String?             @map("lead_user_id") @db.Uuid
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
+  leadUser     User?               @relation("ProjectLeadUser", fields: [leadUserId], references: [id], onDelete: SetNull)
   members      ProjectMember[]
   leadChanges  ProjectLeadChange[]
   transactions Transaction[]
@@ -414,14 +407,15 @@ model ProjectMember {
 }
 
 model ProjectLeadChange {
-  id            String   @id @default(uuid()) @db.Uuid
-  projectId     String   @map("project_id") @db.Uuid
-  changedById   String   @map("changed_by") @db.Uuid
-  previousLeadIds Json?  @map("previous_lead_ids")
-  nextLeadIds     Json   @map("next_lead_ids")
-  createdAt     DateTime @default(now()) @map("created_at")
-  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  changedBy     User     @relation(fields: [changedById], references: [id])
+  id              String   @id @default(uuid()) @db.Uuid
+  projectId       String   @map("project_id") @db.Uuid
+  changedById     String   @map("changed_by") @db.Uuid
+  previousLeadIds Json?    @map("previous_lead_ids")
+  nextLeadIds     Json     @map("next_lead_ids")
+  createdAt       DateTime @default(now()) @map("created_at")
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  changedBy       User     @relation(fields: [changedById], references: [id])
+
   @@index([projectId, createdAt])
   @@map("project_lead_changes")
 }

@@ -451,7 +451,6 @@ async function ensureSaleStockMaster(tx: Prisma.TransactionClient) {
       ],
       isActive: true,
       roles: { some: { role: { code: "STOCK_CONTROLLER" } } },
-      stockControllerTag: "STOCK_CONTROLLER",
     },
   });
 

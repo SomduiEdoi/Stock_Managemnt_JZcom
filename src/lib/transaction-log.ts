@@ -367,6 +367,13 @@ async function getTransactionLogMetrics() {
     isActive: true,
     requestLockedById: { not: null },
     status: AssetStatus.REQUEST,
+    transactionItems: {
+      none: {
+        transaction: {
+          workflowStatus: TransactionWorkflowStatus.PENDING,
+        },
+      },
+    },
   } satisfies Prisma.AssetWhereInput;
   const completedWhere = {
     OR: [
