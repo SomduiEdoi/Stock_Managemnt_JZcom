@@ -1,7 +1,7 @@
 # Task Status: Warehouse Management
 
 อัปเดตเอกสาร: 2026-10-16
-หลักฐานทดสอบล่าสุด: 2026-10-15
+หลักฐานทดสอบล่าสุด: 2026-10-16
 [x] ใช้งาน/ตรวจแล้วในขอบเขตที่ระบุ; [~] มีบางส่วน/ยังไม่ตรวจรับครบ; [ ] ยังไม่มีหลักฐานว่าครบ
 
 ## 1. Implemented Baseline
@@ -27,6 +27,9 @@
 
 ## 2. Verification ที่มีหลักฐาน
 
+- [x] 2026-10-16 Environment Baseline: PostgreSQL 16 ว่าง migrate deploy ครบ 58 ชุด; 390 tests ผ่าน ไม่มี skip รวม real PDF sample; Typecheck ผ่านและ Lint ไม่มี error (4 warnings เดิม)
+- [x] เพิ่ม GitHub Actions สำหรับทุก PR เข้า main เปิด workflow/concurrency/auth/scope flags และ fail เมื่อพบ skipped/todo หรือ integration suite ไม่ครบ; ดู [Environment Baseline](environment-baseline.md)
+
 - [x] TypeScript ผ่าน และ Production build ผ่าน
 - [~] Lint ไม่มี error ในงานล่าสุด แต่ build ยังรายงาน unused warnings เดิม 3 จุดใน workflow.ts ไม่เขียนว่า warning-free
 - [x] 2026-10-15: full suite เปิด PostgreSQL workflow/auth/concurrency ได้ 372 passed, 1 skipped
@@ -49,7 +52,7 @@
 - [ ] Multi-user load/network interruption และ operational monitoring ตามปริมาณใช้งานจริง
 - [ ] ธุรกิจรับรอง PDF/Excel, ราคา, signatures และรูปแบบพิมพ์ทุกชนิด
 - [ ] ตรวจหมายเหตุ/UUID และหัวข้อ Customer / Project ที่ยังเหลือใน Inventory/Problem Items/Logs
-- [ ] เพิ่มขั้นตอน CI/ฐานข้อมูลทดสอบให้รัน Integration/Concurrency โดยไม่ต้องเปิดด้วยมือ
+- [x] เพิ่มขั้นตอน CI/ฐานข้อมูลทดสอบให้รัน Integration/Concurrency โดยไม่ต้องเปิดด้วยมือ
 - [ ] กำหนด retention/monitoring ของ login audits และการดูแลบัญชีฉุกเฉิน
 
 ## 4. งานฐานข้อมูลที่ยังไม่อนุมัติให้เปลี่ยน
