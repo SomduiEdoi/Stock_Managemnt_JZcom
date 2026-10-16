@@ -9,8 +9,8 @@ out
 build
 
 # env
-.env
-.env*.local
+.env*
+!.env.example
 
 # certificates
 certs/*.crt
@@ -26,6 +26,18 @@ pnpm-debug.log*
 
 # testing
 coverage
+test-results/
+playwright-report/
+.artifacts/
+*.log
+.tmp*
+*.tmp
+*.dump
+*.backup
+*.bak
+*.pfx
+*.p12
+*.key
 
 # typescript
 tsconfig.tsbuildinfo
