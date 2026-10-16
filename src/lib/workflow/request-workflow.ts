@@ -28,13 +28,13 @@ import {
   requireText,
   requireWorkflowUserById,
   uniqueIds,
+  toWorkflowAsset,
 } from "./shared";
 import type {
   HoldAssetsInput,
   ReleaseAssetsInput,
   RequestAssetItemInput,
   SubmitTransactionInput,
-  WorkflowAsset,
 } from "./shared";
 import {
   assertAssetsCanBeHeld,
@@ -448,7 +448,7 @@ export async function updatePendingTransactionRequest(
           transaction.requestedBy.id,
         );
         const workflowItems = transaction.items.map((item) => ({
-          asset: item.asset as unknown as WorkflowAsset,
+          asset: toWorkflowAsset(item.asset),
           quantity: item.requestedQuantity,
         }));
 
@@ -572,7 +572,7 @@ export async function updatePendingTransactionRequest(
 
       for (const removed of removedItems) {
         const workflowItem = {
-          asset: removed.asset as unknown as WorkflowAsset,
+          asset: toWorkflowAsset(removed.asset),
           quantity: removed.requestedQuantity,
         };
 

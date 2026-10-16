@@ -34,8 +34,9 @@ import {
   findTransactionDetail,
   isQuantityTransactionItem,
   requireText,
+  toWorkflowAsset,
 } from "./shared";
-import type { TransactionDetail, WorkflowAsset } from "./shared";
+import type { TransactionDetail } from "./shared";
 import {
   assertReturnFinalGate,
   currentPendingApproval,
@@ -120,7 +121,7 @@ async function applyApprovedTransaction(
     )
       continue;
     const workflowItem = {
-      asset: item.asset as unknown as WorkflowAsset,
+      asset: toWorkflowAsset(item.asset),
       quantity: item.requestedQuantity,
     };
     if (isQuantityTransactionItem(item)) {
@@ -758,7 +759,7 @@ async function releaseRejectedTransactionItems(
 ) {
   for (const item of transaction.items) {
     const workflowItem = {
-      asset: item.asset as unknown as WorkflowAsset,
+      asset: toWorkflowAsset(item.asset),
       quantity: item.requestedQuantity,
     };
 

@@ -12,6 +12,7 @@ import { AssetStatusBadge } from "@/components/status/asset-status-badge";
 import { assetStatusHexColors, assetStatusLabels } from "@/lib/status-style";
 import { formatWarehouseHeading } from "@/lib/display-labels";
 import { getEffectiveAssetTrackMethod } from "@/lib/asset-tracking";
+import { readInventoryPreferences } from "./inventory-preferences";
 
 export type RequestableInventoryRow = {
   assetNo?: string | null;
@@ -825,7 +826,7 @@ export function RequestableInventoryTable({
   }, [activeAsset, canRequest]);
 
   const defaultColumns: TableColumnKey[] = ["status", "category", "type", "brand", "model", "action"];
-  const customColumns = customFieldDefinitions.map((field) => `custom:${field.key}` as CustomInventoryColumnKey);
+  const customColumns = customFieldDefinitions.map((field): CustomInventoryColumnKey => `custom:${field.key}`);
   const productColumns: InventoryColumnKey[] = ["category", "type", "brand", "model", "serialNo", "stockCode", "location", "partNo", "description", "remark", "availability"];
   const selectableColumns: TableColumnKey[] = Array.from(
     new Set<TableColumnKey>([
@@ -841,11 +842,13 @@ export function RequestableInventoryTable({
   useEffect(() => {
     const storageKey = `stock:inventory-columns:${warehouseLabel}:${categoryName ?? "ALL"}`;
     try {
-      const saved = JSON.parse(window.localStorage.getItem(storageKey) ?? "null") as { columns?: TableColumnKey[]; widths?: Record<string, number> } | null;
-      setSelectedColumns(normalizeTableColumns((saved?.columns?.filter((key) => availableColumns.includes(key)) as TableColumnKey[] | undefined) ?? defaultColumns));
+      const saved = readInventoryPreferences(window.localStorage.getItem(storageKey));
+      const columns = saved?.columns?.filter((key): key is TableColumnKey => availableColumns.some((column) => column === key));
+      setSelectedColumns(normalizeTableColumns(columns ?? defaultColumns));
       setColumnWidths(saved?.widths ?? {});
     } catch {
       setSelectedColumns(normalizeTableColumns(defaultColumns));
+      setColumnWidths({});
     }
   // These arrays are render-local projections of the current schema and intentionally reload only per warehouse.
   // eslint-disable-next-line react-hooks/exhaustive-deps

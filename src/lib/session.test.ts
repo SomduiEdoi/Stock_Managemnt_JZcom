@@ -1,7 +1,28 @@
-import { describe, expect, it, vi } from "vitest";
+import { createHmac } from "node:crypto";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createSessionToken, verifySessionToken } from "./session";
+afterEach(() => vi.unstubAllEnvs());
 
 describe("session tokens", () => {
+  it.each([
+    null,
+    [],
+    {},
+    { userId: 1, issuedAt: 1000, expiresAt: 10000 },
+    { userId: "user-1", issuedAt: 1000, expiresAt: "10000" },
+    { userId: "user-1", issuedAt: -1, expiresAt: 10000 },
+    { userId: "user-1", issuedAt: 10000, expiresAt: 9000 },
+  ])(
+    "rejects invalid JSON payloads even with a valid signature: %j",
+    (value) => {
+      vi.stubEnv("AUTH_SECRET", "test-secret");
+      const payload = Buffer.from(JSON.stringify(value)).toString("base64url");
+      const signature = createHmac("sha256", "test-secret")
+        .update(payload)
+        .digest("base64url");
+      expect(verifySessionToken(`${payload}.${signature}`, 2000)).toBeNull();
+    },
+  );
   it("verifies a signed session token", () => {
     vi.stubEnv("AUTH_SECRET", "test-secret");
 

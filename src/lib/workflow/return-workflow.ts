@@ -36,6 +36,7 @@ import {
   transactionDetailSelect,
   transactionItemAssetName,
   uniqueIds,
+  toWorkflowAsset,
 } from "./shared";
 import type {
   DeleteReturnOutcomeInput,
@@ -43,7 +44,6 @@ import type {
   ResolveTransactionItemInput,
   ReturnTransactionInput,
   TransactionDetail,
-  WorkflowAsset,
 } from "./shared";
 import {
   assertReturnBatchEditable,
@@ -556,7 +556,7 @@ async function createReturnApprovalTransaction(
   resolutionBatchId: string,
 ) {
   const workflowItems = returnItems.map((item) => ({
-    asset: item.asset as unknown as WorkflowAsset,
+    asset: toWorkflowAsset(item.asset),
     quantity: item.requestedQuantity,
   }));
   const approvals = await buildReturnApprovalCandidates(
@@ -856,7 +856,7 @@ async function createReturnSaleApprovalTransaction(
   }
   saleItems = Array.from(combined.values());
   const workflowItems = saleItems.map((item) => ({
-    asset: item.asset as unknown as WorkflowAsset,
+    asset: toWorkflowAsset(item.asset),
     quantity: item.requestedQuantity,
   }));
   const approvals = await buildReturnApprovalCandidates(
@@ -1601,7 +1601,7 @@ export async function migrateLegacyReturnBatch(
         tx,
         transaction,
         items.map((item) => ({
-          asset: item.asset as WorkflowAsset,
+          asset: toWorkflowAsset(item.asset),
           quantity: item.requestedQuantity,
         })),
       );

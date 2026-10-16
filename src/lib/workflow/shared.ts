@@ -217,6 +217,33 @@ export type WorkflowAsset = Prisma.AssetGetPayload<{
   select: typeof assetWorkflowSelect;
 }>;
 
+export function toWorkflowAsset(asset: WorkflowAsset): WorkflowAsset {
+  return {
+    id: asset.id,
+    assetQuantity: asset.assetQuantity,
+    condition: asset.condition,
+    stockCode: asset.stockCode,
+    requestLockedById: asset.requestLockedById,
+    serialNo: asset.serialNo,
+    status: asset.status,
+    assetModel: {
+      isSerialized: asset.assetModel.isSerialized,
+      name: asset.assetModel.name,
+    },
+    warehouse: {
+      code: asset.warehouse.code,
+      permissions: asset.warehouse.permissions.map((permission) => ({
+        canManage: permission.canManage,
+        user: {
+          id: permission.user.id,
+          name: permission.user.name,
+          email: permission.user.email,
+        },
+      })),
+    },
+  };
+}
+
 type RawTransactionDetail = Prisma.TransactionGetPayload<{
   select: typeof transactionDetailSelect;
 }>;

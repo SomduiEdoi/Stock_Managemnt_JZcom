@@ -1,13 +1,17 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { z } from "zod";
 
 export const SESSION_COOKIE_NAME = "stock_session";
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 8;
 
-type SessionPayload = {
-  userId: string;
-  issuedAt: number;
-  expiresAt: number;
-};
+const sessionPayloadSchema = z
+  .object({
+    userId: z.string().min(1),
+    issuedAt: z.number().int().nonnegative().safe(),
+    expiresAt: z.number().int().nonnegative().safe(),
+  })
+  .refine((payload) => payload.expiresAt > payload.issuedAt);
+type SessionPayload = z.infer<typeof sessionPayloadSchema>;
 
 function getAuthSecret() {
   const secret = process.env.AUTH_SECRET;
@@ -20,7 +24,9 @@ function getAuthSecret() {
 }
 
 function sign(value: string) {
-  return createHmac("sha256", getAuthSecret()).update(value).digest("base64url");
+  return createHmac("sha256", getAuthSecret())
+    .update(value)
+    .digest("base64url");
 }
 
 function encodePayload(payload: SessionPayload) {
@@ -29,7 +35,7 @@ function encodePayload(payload: SessionPayload) {
 
 function decodePayload(value: string) {
   const json = Buffer.from(value, "base64url").toString("utf8");
-  return JSON.parse(json) as SessionPayload;
+  return sessionPayloadSchema.parse(JSON.parse(json));
 }
 
 function signaturesMatch(actual: string, expected: string) {
@@ -52,7 +58,10 @@ export function createSessionToken(userId: string, now = Date.now()) {
   return `${payload}.${sign(payload)}`;
 }
 
-export function verifySessionToken(token: string | undefined, now = Date.now()) {
+export function verifySessionToken(
+  token: string | undefined,
+  now = Date.now(),
+) {
   if (!token) {
     return null;
   }

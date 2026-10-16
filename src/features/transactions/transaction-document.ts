@@ -1,4 +1,5 @@
 import { formatProjectLabel } from "@/lib/project-label";
+import { readStoredSalePriceGroups } from "@/lib/sale-price-groups-schema";
 
 export type PrintableAsset = {
   isSerialized?: boolean | null;
@@ -561,9 +562,12 @@ function approvalsForDocument(
 }
 
 function documentsFor(transaction: PrintableTransaction): ExportDocument[] {
-  const items = (transaction.items ?? []).flatMap((item) => transaction.type === "SOLD" && Array.isArray(item.salePriceGroups) && item.salePriceGroups.length
-    ? item.salePriceGroups.map((group: { quantity: number; unitPrice: string; total: string }) => ({ ...item, requestedQuantity: group.quantity, soldPrice: group.unitPrice, soldTotal: group.total }))
-    : [item]);
+  const items = (transaction.items ?? []).flatMap((item) => {
+    const groups = transaction.type === "SOLD" ? readStoredSalePriceGroups(item.salePriceGroups) : undefined;
+    return groups?.length
+      ? groups.map((group) => ({ ...item, requestedQuantity: group.quantity, soldPrice: group.unitPrice, soldTotal: group.total }))
+      : [item];
+  });
   const referenceNo = transactionNo(transaction);
   const documents: ExportDocument[] = [];
 

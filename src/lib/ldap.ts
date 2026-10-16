@@ -159,7 +159,7 @@ export async function authenticateWithLdap(
 
     const entry = result.searchEntries[0];
 
-    return entry ? toLdapUser(entry as unknown as Record<string, unknown>, normalizedUsername) : {
+    return entry ? toLdapUser(entry, normalizedUsername) : {
       email: normalizedEmail,
       name: normalizedUsername,
       username: normalizedUsername,
@@ -202,7 +202,7 @@ export async function findLdapUserByEmail(email: string): Promise<LdapUser | nul
     const entry = result.searchEntries[0];
 
     return entry
-      ? toLdapUser(entry as unknown as Record<string, unknown>, normalizedUsername)
+      ? toLdapUser(entry, normalizedUsername)
       : null;
   } catch (error) {
     if (error instanceof LdapDirectoryError) {
