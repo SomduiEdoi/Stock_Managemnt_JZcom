@@ -1,7 +1,7 @@
 # Task Status: Warehouse Management
 
 อัปเดตเอกสาร: 2026-10-16
-หลักฐานทดสอบล่าสุด: 2026-10-15
+หลักฐานทดสอบล่าสุด: 2026-10-16
 [x] ใช้งาน/ตรวจแล้วในขอบเขตที่ระบุ; [~] มีบางส่วน/ยังไม่ตรวจรับครบ; [ ] ยังไม่มีหลักฐานว่าครบ
 
 ## 1. Implemented Baseline
@@ -27,8 +27,16 @@
 
 ## 2. Verification ที่มีหลักฐาน
 
+- [x] Type safety / handover: Prisma Asset mapper แทน double casts, Zod สำหรับ price-group JSON/Session/Inventory Preferences; 433 tests ผ่านบน PostgreSQL ชั่วคราว ไม่มี skip, Typecheck/Lint ผ่าน ดู [Onboarding Handover](ONBOARDING_HANDOVER.md)
+
+- [x] Domain refactor: คง Transaction Entry Points 16 จุด, facade/error identity, รวม reservation query/calculation และ UI golden snapshots 4 สถานะ; 403 tests ผ่านบน PostgreSQL ชั่วคราว ไม่มี skip ดู [Module Map](workflow-modules.md)
+
+- [x] 2026-10-16 Environment Baseline: PostgreSQL 16 ว่าง migrate deploy ครบ 58 ชุด; 390 tests ผ่าน ไม่มี skip รวม real PDF sample; Typecheck ผ่านและ Lint ไม่มี error (4 warnings เดิม)
+- [x] เพิ่ม GitHub Actions สำหรับทุก PR เข้า main เปิด workflow/concurrency/auth/scope flags และ fail เมื่อพบ skipped/todo หรือ integration suite ไม่ครบ; ดู [Environment Baseline](environment-baseline.md)
+
 - [x] TypeScript ผ่าน และ Production build ผ่าน
-- [~] Lint ไม่มี error ในงานล่าสุด แต่ build ยังรายงาน unused warnings เดิม 3 จุดใน workflow.ts ไม่เขียนว่า warning-free
+- [x] ผลล่าสุด: Typecheck ผ่าน, Lint 0 errors / 0 warnings และ 433 tests passed ไม่มี skip; ตัวเลข 390/403 และ warnings ข้างต้นเป็นหลักฐานย้อนหลัง ไม่ใช่สถานะปัจจุบัน
+- [x] CI บังคับ Production Build (`npm run build`) หลัง Tests และการตรวจ skipped/missing suites; ต้องผ่าน Required Check ของ PR ก่อน Merge
 - [x] 2026-10-15: full suite เปิด PostgreSQL workflow/auth/concurrency ได้ 372 passed, 1 skipped
 - [x] เปิด DAMAGE_PDF_LAYOUT_SAMPLE รัน PDF suite แยก 19 passed รวม case ที่ถูก skip จึงตรวจครบ 373 unique cases ใน baseline นี้
 - [x] PostgreSQL rollback workflow: rejected edit เลขเดิม, asset serial edits, approval gates/partial posting
@@ -42,6 +50,14 @@
 
 ## 3. ยังต้องตรวจรับก่อน Production
 
+### Pre-Production Launch Checklist (สำหรับทีมรับช่วงต่อก่อนขึ้นใช้งานจริง)
+
+- [ ] **Dependency Security Update:** อัปเดต Patch แพ็กเกจ Next.js เพื่อแก้ช่องโหว่ RCE และอัปเดต/เปลี่ยนแหล่งแพ็กเกจ `xlsx` เป็นรุ่นที่แก้ช่องโหว่แล้ว; ตรวจ advisory และรัน CI ใหม่ ไม่ใช้ `npm audit fix --force` โดยไม่ Review
+- [ ] **Environment & Security Drill:** ทดสอบ Backup/Restore Data ลงฐานแยกและตรวจข้อมูล/PDF ครบ พร้อมทดสอบ LDAPS/HTTPS บน Server จริง
+- [ ] **End-to-End UAT:** ทดสอบ Workflow การเบิก/คืน/ขายจริงร่วมกับผู้ใช้ทุก Role และบันทึกผลตรวจรับ
+
+รายละเอียดประกอบการตรวจรับ:
+
 - [ ] Backup/Restore drill ลงฐานข้อมูลแยก รวม PDF, signatures และ audit
 - [ ] AD outage จริงใน isolated environment ไม่หยุดบริการร่วม
 - [ ] Cloud/HTTPS/LDAPS/Proxy headers/cookies และ edge upload/concurrency limits
@@ -49,7 +65,7 @@
 - [ ] Multi-user load/network interruption และ operational monitoring ตามปริมาณใช้งานจริง
 - [ ] ธุรกิจรับรอง PDF/Excel, ราคา, signatures และรูปแบบพิมพ์ทุกชนิด
 - [ ] ตรวจหมายเหตุ/UUID และหัวข้อ Customer / Project ที่ยังเหลือใน Inventory/Problem Items/Logs
-- [ ] เพิ่มขั้นตอน CI/ฐานข้อมูลทดสอบให้รัน Integration/Concurrency โดยไม่ต้องเปิดด้วยมือ
+- [x] เพิ่มขั้นตอน CI/ฐานข้อมูลทดสอบให้รัน Integration/Concurrency โดยไม่ต้องเปิดด้วยมือ
 - [ ] กำหนด retention/monitoring ของ login audits และการดูแลบัญชีฉุกเฉิน
 
 ## 4. งานฐานข้อมูลที่ยังไม่อนุมัติให้เปลี่ยน

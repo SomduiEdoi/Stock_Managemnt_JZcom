@@ -2,6 +2,20 @@ import { describe, expect, it } from "vitest";
 import { buildTransactionDocumentHtml } from "./transaction-document";
 
 describe("transaction document", () => {
+  it("rejects malformed stored price-group JSON before rendering sale amounts", () => {
+    expect(() => buildTransactionDocumentHtml({
+      type: "SOLD", transactionNo: "REQ-INVALID-PRICE",
+      items: [{ requestedQuantity: 1, salePriceGroups: [{ quantity: "1", unitPrice: "10.00", total: "10.00" }] }],
+    })).toThrow("Stored sale price groups are invalid");
+  });
+
+  it("preserves valid historical price-group totals", () => {
+    const html = buildTransactionDocumentHtml({
+      type: "SOLD", transactionNo: "REQ-VALID-PRICE",
+      items: [{ requestedQuantity: 2, salePriceGroups: [{ quantity: 2, unitPrice: "10.00", total: "25.00" }] }],
+    });
+    expect(html).toContain("25.00");
+  });
   it("uses BSD sale approval rather than acknowledgements as authorization", () => {
     const html = buildTransactionDocumentHtml({
       type: "SOLD",

@@ -1,10 +1,9 @@
-import {
-  AssetStatus,
-  Prisma,
-  TransactionWorkflowStatus,
-} from "@prisma/client";
+import { AssetStatus, Prisma, TransactionWorkflowStatus } from "@prisma/client";
 import { db } from "@/lib/db";
-import { AssetTrackMethod, getEffectiveAssetTrackMethod } from "@/lib/asset-tracking";
+import {
+  AssetTrackMethod,
+  getEffectiveAssetTrackMethod,
+} from "@/lib/asset-tracking";
 
 type QueryClient = typeof db | Prisma.TransactionClient;
 
@@ -31,7 +30,7 @@ function isQuantityAsset(asset: AvailabilityAsset) {
   return getEffectiveAssetTrackMethod(asset) === AssetTrackMethod.QUANTITY;
 }
 
-async function sumDraftReservations(
+export async function sumDraftReservations(
   client: QueryClient,
   assetIds: string[],
   userId?: string,
@@ -57,7 +56,39 @@ async function sumDraftReservations(
   );
 }
 
-async function sumOpenTransactionQuantities(
+export function openQuantityTransactionWhere(
+  assetId: Prisma.TransactionItemWhereInput["assetId"],
+): Prisma.TransactionItemWhereInput {
+  return {
+    assetId,
+    returnedAt: null,
+    dispatchedAt: null,
+    toStatus: { in: [AssetStatus.BORROW, AssetStatus.USING, AssetStatus.SOLD] },
+    transaction: {
+      sourceTransactionId: null,
+      workflowStatus: {
+        in: [
+          TransactionWorkflowStatus.PENDING,
+          TransactionWorkflowStatus.IN_PROGRESS,
+        ],
+      },
+    },
+  };
+}
+
+export function calculateQuantityAvailability(
+  onHand: number,
+  draftReserved: number,
+  openReserved: number,
+) {
+  const reservedQuantity = draftReserved + openReserved;
+  return {
+    reservedQuantity,
+    availableQuantity: Math.max(0, onHand - reservedQuantity),
+  };
+}
+
+export async function sumOpenTransactionQuantities(
   client: QueryClient,
   assetIds: string[],
 ) {
@@ -68,25 +99,15 @@ async function sumOpenTransactionQuantities(
   const items = await client.transactionItem.groupBy({
     by: ["assetId"],
     _sum: { requestedQuantity: true },
-    where: {
-      assetId: { in: assetIds },
-      returnedAt: null,
-      dispatchedAt: null,
-      toStatus: { in: [AssetStatus.BORROW, AssetStatus.USING, AssetStatus.SOLD] },
-      transaction: {
-        sourceTransactionId: null,
-        workflowStatus: {
-          in: [
-            TransactionWorkflowStatus.PENDING,
-            TransactionWorkflowStatus.IN_PROGRESS,
-          ],
-        },
-      },
-    },
+    where: openQuantityTransactionWhere({ in: assetIds }),
   });
 
   return new Map<string, number>(
-    items.flatMap((item) => item.assetId ? [[item.assetId, item._sum.requestedQuantity ?? 0] as [string, number]] : []),
+    items.flatMap((item) =>
+      item.assetId
+        ? [[item.assetId, item._sum.requestedQuantity ?? 0] as [string, number]]
+        : [],
+    ),
   );
 }
 
@@ -104,7 +125,9 @@ async function findOpenTransactionAssetIds(
     where: {
       assetId: { in: assetIds },
       returnedAt: null,
-      toStatus: { in: [AssetStatus.BORROW, AssetStatus.USING, AssetStatus.SOLD] },
+      toStatus: {
+        in: [AssetStatus.BORROW, AssetStatus.USING, AssetStatus.SOLD],
+      },
       transaction: {
         workflowStatus: {
           in: [
@@ -129,21 +152,33 @@ export async function getAvailabilityByAssetId(
   const client = options.client ?? db;
   const quantityAssets = assets.filter(isQuantityAsset);
   const quantityAssetIds = quantityAssets.map((asset) => asset.id);
-  const [allReservations, ownReservations, openTransactions, openTransactionAssetIds] = await Promise.all([
+  const [
+    allReservations,
+    ownReservations,
+    openTransactions,
+    openTransactionAssetIds,
+  ] = await Promise.all([
     sumDraftReservations(client, quantityAssetIds),
     sumDraftReservations(client, quantityAssetIds, options.userId),
     sumOpenTransactionQuantities(client, quantityAssetIds),
-    findOpenTransactionAssetIds(client, assets.map((asset) => asset.id)),
+    findOpenTransactionAssetIds(
+      client,
+      assets.map((asset) => asset.id),
+    ),
   ]);
 
   return new Map<string, AssetAvailability>(
     assets.map<[string, AssetAvailability]>((asset) => {
       if (!isQuantityAsset(asset)) {
         const hasOpenTransaction = openTransactionAssetIds.has(asset.id);
-        const availableQuantity = asset.status === AssetStatus.READY && !hasOpenTransaction ? 1 : 0;
+        const availableQuantity =
+          asset.status === AssetStatus.READY && !hasOpenTransaction ? 1 : 0;
         const ownReservedQuantity =
-          asset.requestLockedById && asset.requestLockedById === options.userId ? 1 : 0;
-        const reservedQuantity = asset.status === AssetStatus.REQUEST || hasOpenTransaction ? 1 : 0;
+          asset.requestLockedById && asset.requestLockedById === options.userId
+            ? 1
+            : 0;
+        const reservedQuantity =
+          asset.status === AssetStatus.REQUEST || hasOpenTransaction ? 1 : 0;
 
         return [
           asset.id,
@@ -157,14 +192,17 @@ export async function getAvailabilityByAssetId(
         ];
       }
 
-      const reservedQuantity =
-        (allReservations.get(asset.id) ?? 0) +
-        (openTransactions.get(asset.id) ?? 0);
+      const { reservedQuantity, availableQuantity } =
+        calculateQuantityAvailability(
+          asset.assetQuantity,
+          allReservations.get(asset.id) ?? 0,
+          openTransactions.get(asset.id) ?? 0,
+        );
 
       return [
         asset.id,
         {
-          availableQuantity: Math.max(0, asset.assetQuantity - reservedQuantity),
+          availableQuantity,
           ownReservedQuantity: ownReservations.get(asset.id) ?? 0,
           reservedQuantity,
           totalQuantity: asset.assetQuantity,
@@ -174,5 +212,3 @@ export async function getAvailabilityByAssetId(
     }),
   );
 }
-
-

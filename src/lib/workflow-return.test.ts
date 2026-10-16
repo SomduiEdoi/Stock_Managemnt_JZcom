@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AssetCondition, AssetStatus } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
+import type { WorkflowAsset } from "@/lib/workflow/shared";
 
 const mocks = vi.hoisted(() => {
   const delegate = () => ({ findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn(), createMany: vi.fn(), update: vi.fn(), updateMany: vi.fn(), delete: vi.fn(), deleteMany: vi.fn(), count: vi.fn(), aggregate: vi.fn(), groupBy: vi.fn() });
@@ -18,7 +19,7 @@ import { approveTransaction, cancelReturnBatch, deletePendingReturnOutcome, getT
 
 const user = { id: "requester", name: "Requester", signatureDataUrl: "signature", roles: [], organizationAssignments: [], permissions: [] } as unknown as CurrentUser;
 const storeman = { ...user, id: "storeman" };
-const asset = (id = "asset", warehouse = "A", serialized = false) => ({ id, assetModelId: "model", warehouseId: warehouse, stockCode: "LAN001", serialNo: serialized ? "SERIAL" : null, status: serialized ? "BORROW" : "READY", condition: "NEW", assetQuantity: 70, assetModel: { id: "model", isSerialized: serialized, name: "LAN" }, warehouse: { code: warehouse } });
+const asset = (id = "asset", warehouse = "A", serialized = false): WorkflowAsset & { assetModelId: string; warehouseId: string; assetModel: WorkflowAsset["assetModel"] & { id: string } } => ({ id, assetModelId: "model", warehouseId: warehouse, stockCode: "LAN001", serialNo: serialized ? "SERIAL" : null, status: serialized ? AssetStatus.BORROW : AssetStatus.READY, condition: AssetCondition.NEW, assetQuantity: 70, requestLockedById: null, assetModel: { id: "model", isSerialized: serialized, name: "LAN" }, warehouse: { code: warehouse, permissions: [] } });
 const item = (id = "item", warehouse = "A", serialized = false) => ({ id, assetId: id === "item" ? "asset" : id, requestedQuantity: serialized ? 1 : 30, returnedAt: null, dispatchedAt: new Date(), toStatus: "BORROW", soldPrice: null, asset: asset(id === "item" ? "asset" : id, warehouse, serialized) });
 const approval = (tag: string, status = "PENDING", sequence = 4, actor = "storeman") => ({ id: tag, requiredTag: tag, status, stepSequence: sequence, userId: actor, resolutionBatchId: "batch", isCurrent: true });
 const outcome = (status = "FAIL", quantity = 10, id = "outcome", sourceItem = item()) => ({ id, transactionId: "source", transactionItemId: sourceItem.id, resolutionBatchId: "batch", outcomeStatus: status, quantity, approvedAt: null as Date | null, soldTransactionId: null as string | null, returnCondition: status === "READY" ? "NEW" : null, assetId: sourceItem.assetId, checks: [{ userId: "storeman" }], transactionItem: sourceItem });

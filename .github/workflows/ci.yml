@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-and-tests:
+    name: Quality and PostgreSQL Tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci-disposable-only
+          POSTGRES_DB: stock_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d stock_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      CI: 'true'
+      DATABASE_URL: postgresql://ci:ci-disposable-only@127.0.0.1:5432/stock_ci?schema=public
+      AUTH_SECRET: disposable-ci-session-secret-not-for-deployment
+      RUN_POSTGRES_WORKFLOW_TESTS: '1'
+      RUN_POSTGRES_CONCURRENCY_TESTS: '1'
+      RUN_POSTGRES_AUTH_TESTS: '1'
+      RUN_POSTGRES_SCOPE_TESTS: '1'
+      DAMAGE_PDF_LAYOUT_SAMPLE: ${{ github.workspace }}/.artifacts/damage-layout.pdf
+      THAI_PDF_FONT_PATH: /usr/share/fonts/truetype/tlwg/Garuda.ttf
+      THAI_PDF_FONT_BOLD_PATH: /usr/share/fonts/truetype/tlwg/Garuda-Bold.ttf
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Thai PDF fonts and locate Chrome
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-thai-tlwg
+          test -f "$THAI_PDF_FONT_PATH"
+          test -f "$THAI_PDF_FONT_BOLD_PATH"
+          echo "CHROME_EXECUTABLE_PATH=$(command -v google-chrome)" >> "$GITHUB_ENV"
+          google-chrome --version
+      - name: Generate Prisma client
+        run: npx prisma generate
+      - name: Deploy migrations to empty PostgreSQL
+        run: npx prisma migrate deploy
+      - name: Seed test reference roles only
+        run: node scripts/ci-seed.cjs
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Lint
+        run: npm run lint
+      - name: Unit, PostgreSQL, concurrency, auth, scope and PDF tests
+        # Separate suites share tables; each concurrency test still runs its own parallel operations.
+        run: npm test -- --no-file-parallelism --reporter=default --reporter=json --outputFile=.artifacts/vitest.json
+      - name: Reject skipped or missing integration suites
+        run: node scripts/check-ci-results.cjs
+      - name: Production build
+        run: npm run build

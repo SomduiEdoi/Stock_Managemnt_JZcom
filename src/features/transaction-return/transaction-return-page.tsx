@@ -15,6 +15,7 @@ import {
 import { approvalMatchesUser, approvalMatchesWarehouse } from "@/lib/approval-flow";
 import { hasRole } from "@/lib/permissions";
 import { getReturnBatchReviews } from "@/lib/return-batch-service";
+import { readStoredSalePriceGroups } from "@/lib/sale-price-groups-schema";
 import { ReturnBatchReview, type ReturnBatchReviewBatch } from "@/features/transaction-return/return-batch-review";
 import { isReturnableTransaction } from "@/lib/workflow-rules";
 import { canConfirmIssueSerial } from "./serial-confirmation";
@@ -450,7 +451,7 @@ function serializeTransaction(
       resolutionNote: item.resolutionNote,
       soldPrice: item.soldPrice?.toString() ?? null,
       soldTotal: item.soldTotal?.toString() ?? null,
-      salePriceGroups: Array.isArray(item.salePriceGroups) ? item.salePriceGroups as unknown as import("@/lib/sale-price-groups").SalePriceGroup[] : undefined,
+      salePriceGroups: readStoredSalePriceGroups(item.salePriceGroups),
       serialNo: asset?.serialNo ?? null,
       stockCode: asset?.stockCode ?? null,
       typeName: asset?.assetModel.typeName ?? null,
