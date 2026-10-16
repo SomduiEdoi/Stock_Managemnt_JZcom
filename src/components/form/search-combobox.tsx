@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 import { clsx } from "clsx";
+import { flushSync } from "react-dom";
 
 export type SearchComboboxSuggestion = {
   category?: string;
@@ -83,6 +84,9 @@ export function SearchCombobox({
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const currentValue = isControlled ? value : internalValue;
+  useEffect(() => {
+    if (!isControlled) setInternalValue(defaultValue);
+  }, [defaultValue, isControlled]);
   const filteredSuggestions = useMemo(() => {
     const normalizedQuery = normalize(currentValue);
     return uniqueSuggestions(
@@ -94,7 +98,7 @@ export function SearchCombobox({
   }, [currentValue, suggestions]);
 
   useEffect(() => {
-    function handlePointerDown(event: MouseEvent) {
+    function handlePointerDown(event: PointerEvent) {
       if (!rootRef.current?.contains(event.target as Node)) {
         setIsOpen(false);
       }
@@ -107,10 +111,10 @@ export function SearchCombobox({
       }
     }
 
-    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
@@ -123,8 +127,9 @@ export function SearchCombobox({
   }
 
   function chooseSuggestion(suggestion: SearchComboboxSuggestion) {
-    updateValue(suggestion.value ?? suggestion.label);
+    flushSync(() => updateValue(suggestion.value ?? suggestion.label));
     setIsOpen(false);
+    inputRef.current?.form?.requestSubmit();
   }
 
   return (
@@ -141,6 +146,13 @@ export function SearchCombobox({
           onFocus={() => {
             setIsOpen(true);
           }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              setIsOpen(false);
+              inputRef.current?.form?.requestSubmit();
+            }
+          }}
           placeholder={placeholder}
           value={currentValue}
         />
@@ -149,9 +161,10 @@ export function SearchCombobox({
             aria-label="Clear search"
             className="flex w-11 items-center justify-center border-l border-border text-muted-foreground transition hover:bg-surface hover:text-navy"
             onClick={() => {
-              updateValue("");
-              setIsOpen(true);
+              flushSync(() => updateValue(""));
               inputRef.current?.focus();
+              setIsOpen(false);
+              inputRef.current?.form?.requestSubmit();
             }}
             type="button"
           >

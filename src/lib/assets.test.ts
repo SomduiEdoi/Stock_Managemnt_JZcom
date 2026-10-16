@@ -8,7 +8,7 @@ import {
 import type { PermissionUser } from "./permissions";
 
 const arm: PermissionUser = {
-  roles: ["STOCK_CONTROLLER"],
+  roles: ["STOREMAN"],
   permissions: [
     { warehouseCode: "SERVER", canView: true, canManage: true },
     { warehouseCode: "NETWORK", canView: true, canManage: false },
@@ -29,7 +29,7 @@ describe("asset list permissions", () => {
 
   it("does not select a hidden filtered warehouse", () => {
     const serverOnly: PermissionUser = {
-      roles: ["STOCK_CONTROLLER"],
+      roles: ["STOREMAN"],
       permissions: [{ warehouseCode: "SERVER", canView: true, canManage: true }],
     };
 

@@ -1,4 +1,4 @@
-import { ApprovalStatus, AssetStatus, Prisma, TransactionStatus, TransactionWorkflowStatus } from "@prisma/client";
+import { ApprovalStatus, AssetStatus, Prisma, ProjectMemberTag, TransactionStatus, TransactionWorkflowStatus } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
 import { approvalMatchesUser } from "@/lib/approval-flow";
 import { db } from "@/lib/db";
@@ -67,13 +67,18 @@ const transactionLogSelect = Prisma.validator<Prisma.TransactionSelect>()({
   requestDate: true,
   returnedAt: true,
   sourceTransactionId: true,
-  sourceTransaction: { select: { documentRef: true, id: true, transactionNo: true } },
+  purpose: true,
+  serviceRequest: true,
+  internalRequest: true,
+  projectRequest: true,
+  sourceTransaction: { select: { documentRef: true, id: true, transactionNo: true, purpose: true, serviceRequest: true, internalRequest: true, projectRequest: true, project: { select: { id: true, name: true, projectId: true, customerName: true } } } },
   requestedBy: { select: { email: true, id: true, name: true } },
-  project: { select: { id: true, name: true, projectId: true } },
+  project: { select: { id: true, name: true, projectId: true, customerName: true } },
   status: true,
   transactionNo: true,
   type: true,
   workflowStatus: true,
+  outcomeRecords: { select: { approvedAt: true, outcomeStatus: true } },
   items: {
     orderBy: { createdAt: "asc" },
     select: {
@@ -112,6 +117,7 @@ export type TransactionLogRow = Prisma.TransactionGetPayload<{
 
 const approvalTransactionSelect = Prisma.validator<Prisma.TransactionApprovalSelect>()({
   id: true,
+  resolutionBatchId: true,
   requiredTag: true,
   stepSequence: true,
   status: true,
@@ -120,19 +126,30 @@ const approvalTransactionSelect = Prisma.validator<Prisma.TransactionApprovalSel
       createdAt: true,
       id: true,
       requestDate: true,
-  requestedBy: { select: { email: true, id: true, name: true } },
+      requestedBy: { select: { email: true, id: true, name: true } },
+      project: {
+        select: {
+          leadUser: { select: { id: true, name: true } },
+          members: {
+            where: { projectTag: ProjectMemberTag.LEAD_PROJECT },
+            select: { userId: true, user: { select: { name: true } } },
+          },
+        },
+      },
       transactionNo: true,
       sourceTransactionId: true,
       sourceTransaction: { select: { documentRef: true, id: true, transactionNo: true } },
       type: true,
       workflowStatus: true,
       approvals: {
+        where: { isCurrent: true },
         orderBy: [{ stepSequence: "asc" }, { createdAt: "asc" }],
-        select: { id: true, requiredTag: true, status: true, stepSequence: true, userId: true },
+        select: { id: true, requiredTag: true, status: true, stepSequence: true, userId: true, resolutionBatchId: true },
       },
       items: {
         orderBy: { createdAt: "asc" },
         select: {
+          id: true,
           requestedQuantity: true,
           asset: {
             select: {
@@ -147,15 +164,19 @@ const approvalTransactionSelect = Prisma.validator<Prisma.TransactionApprovalSel
     },
   },
   userId: true,
+  user: { select: { id: true, name: true, email: true } },
 });
 
 export type TransactionApprovalQueueRow = Prisma.TransactionApprovalGetPayload<{
   select: typeof approvalTransactionSelect;
-}>;
+}> & { returnRound?: { requestNo: string; createdAt: Date } };
 
 function isCurrentApprovalStep(approval: TransactionApprovalQueueRow) {
+  if (approval.requiredTag.startsWith("ACK_")) return true;
   return !approval.transaction.approvals.some(
     (candidate) =>
+      candidate.resolutionBatchId === approval.resolutionBatchId &&
+      !candidate.requiredTag.startsWith("ACK_") &&
       candidate.stepSequence < approval.stepSequence &&
       candidate.status === ApprovalStatus.PENDING,
   );
@@ -199,6 +220,11 @@ function buildSearchKeywordClause(token: string): Prisma.TransactionWhereInput {
       { requestedBy: { is: { name: contains } } },
       { project: { is: { name: contains } } },
       { project: { is: { projectId: contains } } },
+      { project: { is: { customerName: contains } } },
+      { sourceTransaction: { is: { project: { is: { name: contains } } } } },
+      { sourceTransaction: { is: { project: { is: { projectId: contains } } } } },
+      { sourceTransaction: { is: { project: { is: { customerName: contains } } } } },
+      { sourceTransaction: { is: { purpose: contains } } },
       { items: { some: { asset: { is: { warehouse: { is: { name: contains } } } } } } },
       { items: { some: { asset: { is: { warehouse: { is: { code: contains } } } } } } },
       { items: { some: { asset: { is: { serialNo: contains } } } } },
@@ -437,6 +463,16 @@ export async function getTransactionLogForUser(
 }
 
 export async function getPendingApprovalsForUser(user: CurrentUser) {
+  const batches = await db.returnBatch.findMany({
+    where: { state: { in: ["SUBMITTED", "COMPLETED"] } },
+    select: { id: true, transactionId: true, state: true, requestNo: true, createdAt: true },
+  });
+  const batchById = new Map(batches.map((batch) => [batch.id, batch]));
+  const submittedBatchIds = batches.filter((batch) => batch.state === "SUBMITTED").map((batch) => batch.id);
+  const sourceApprovals = await db.transactionApproval.findMany({
+    where: { resolutionBatchId: { in: batches.map((batch) => batch.id) }, isCurrent: true },
+    select: { transactionId: true, resolutionBatchId: true, requiredTag: true, status: true },
+  });
   const approvals = await db.transactionApproval.findMany({
     orderBy: [
       { stepSequence: "asc" },
@@ -445,11 +481,63 @@ export async function getPendingApprovalsForUser(user: CurrentUser) {
     select: approvalTransactionSelect,
     where: {
       status: ApprovalStatus.PENDING,
-      transaction: { workflowStatus: TransactionWorkflowStatus.PENDING },
+      isCurrent: true,
+      OR: [
+        { resolutionBatchId: { in: submittedBatchIds } },
+        { transaction: { workflowStatus: TransactionWorkflowStatus.PENDING } },
+        {
+          requiredTag: { in: ["ACK_BSD", "ACK_WAREHOUSE_MANAGER"] },
+          transaction: { workflowStatus: { not: TransactionWorkflowStatus.PENDING } },
+        },
+      ],
     },
   });
 
-  return approvals.filter(
-    (approval) => approvalMatchesUser(user, approval) && isCurrentApprovalStep(approval),
-  );
+  const current = approvals.filter((approval) => {
+    if (approval.resolutionBatchId) {
+      const batch = batchById.get(approval.resolutionBatchId);
+      if (!batch) return false;
+      const pendingSalePricing = batch.state === "COMPLETED" &&
+        batch.transactionId === approval.transaction.sourceTransactionId &&
+        approval.transaction.type === "SOLD" &&
+        approval.transaction.workflowStatus === TransactionWorkflowStatus.PENDING &&
+        approval.requiredTag === "BSD_STAFF";
+      if (batch.state !== "SUBMITTED" && !pendingSalePricing) return false;
+    }
+    if (approval.transaction.sourceTransactionId && !approval.requiredTag.startsWith("ACK_")) {
+      const cycle = sourceApprovals.filter((candidate) =>
+        candidate.transactionId === approval.transaction.sourceTransactionId &&
+        candidate.resolutionBatchId === approval.resolutionBatchId &&
+        candidate.requiredTag !== "BSD_STAFF" && !candidate.requiredTag.startsWith("ACK_"));
+      if (!cycle.some((candidate) => candidate.requiredTag.startsWith("STOREMAN:")) ||
+          !cycle.every((candidate) => candidate.status === ApprovalStatus.APPROVED)) return false;
+    }
+    if (!isCurrentApprovalStep(approval)) return false;
+
+    if (approval.requiredTag === ProjectMemberTag.LEAD_PROJECT && approval.transaction.project) {
+      const leadIds = new Set([
+        ...(approval.transaction.project.leadUser ? [approval.transaction.project.leadUser.id] : []),
+        ...approval.transaction.project.members.map((member) => member.userId),
+      ]);
+      return leadIds.has(user.id) && approval.userId === user.id;
+    }
+
+    return approvalMatchesUser(user, approval);
+  });
+  const outcomes = await db.transactionItemOutcome.findMany({
+    where: { resolutionBatchId: { in: [...new Set(current.flatMap((approval) => approval.resolutionBatchId ? [approval.resolutionBatchId] : []))] }, approvedAt: null },
+    select: { resolutionBatchId: true, transactionItemId: true, quantity: true },
+  });
+  return current.map((approval): TransactionApprovalQueueRow => {
+    const batch = approval.resolutionBatchId ? batchById.get(approval.resolutionBatchId) : undefined;
+    if (!batch || approval.transaction.sourceTransactionId) return approval;
+    const quantities = new Map<string, number>();
+    for (const outcome of outcomes.filter((row) => row.resolutionBatchId === batch.id)) {
+      quantities.set(outcome.transactionItemId, (quantities.get(outcome.transactionItemId) ?? 0) + outcome.quantity);
+    }
+    return { ...approval, returnRound: batch, transaction: { ...approval.transaction,
+      items: approval.transaction.items.filter((item) => quantities.has(item.id))
+        .map((item) => ({ ...item, requestedQuantity: quantities.get(item.id)! })),
+    } };
+  });
 }

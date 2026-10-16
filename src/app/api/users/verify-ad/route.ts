@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
-import { apiErrorResponse, readJsonBody, requireApiUser } from "@/lib/api";
+import { apiErrorResponse, readJsonBody, requireApiUser, apiJson } from "@/lib/api";
 import { verifyEmailAgainstDirectory } from "@/lib/user-management";
 
 const verifyEmailSchema = z.object({
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     const body = verifyEmailSchema.parse(await readJsonBody(request));
     const verified = await verifyEmailAgainstDirectory(user, body.email);
 
-    return NextResponse.json({
+    return apiJson({
       email: verified.email,
       name: verified.name,
       verified: true,
@@ -22,3 +22,4 @@ export async function POST(request: NextRequest) {
     return apiErrorResponse(error);
   }
 }
+

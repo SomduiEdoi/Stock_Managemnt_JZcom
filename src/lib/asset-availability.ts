@@ -1,18 +1,18 @@
 import {
   AssetStatus,
-  AssetTrackMethod,
   Prisma,
   TransactionWorkflowStatus,
 } from "@prisma/client";
 import { db } from "@/lib/db";
+import { AssetTrackMethod, getEffectiveAssetTrackMethod } from "@/lib/asset-tracking";
 
 type QueryClient = typeof db | Prisma.TransactionClient;
 
 export type AvailabilityAsset = {
   assetModel: {
-    assetType: { trackMethod: AssetTrackMethod } | null;
+    isSerialized?: boolean;
   };
-  warehouse?: { inventoryFamily?: AssetTrackMethod | null } | null;
+  serialNo?: string | null;
   assetQuantity: number;
   id: string;
   requestLockedById?: string | null;
@@ -28,10 +28,7 @@ export type AssetAvailability = {
 };
 
 function isQuantityAsset(asset: AvailabilityAsset) {
-  return (
-    asset.warehouse?.inventoryFamily === AssetTrackMethod.QUANTITY ||
-    asset.assetModel.assetType?.trackMethod === AssetTrackMethod.QUANTITY
-  );
+  return getEffectiveAssetTrackMethod(asset) === AssetTrackMethod.QUANTITY;
 }
 
 async function sumDraftReservations(
@@ -74,8 +71,10 @@ async function sumOpenTransactionQuantities(
     where: {
       assetId: { in: assetIds },
       returnedAt: null,
+      dispatchedAt: null,
       toStatus: { in: [AssetStatus.BORROW, AssetStatus.USING, AssetStatus.SOLD] },
       transaction: {
+        sourceTransactionId: null,
         workflowStatus: {
           in: [
             TransactionWorkflowStatus.PENDING,
@@ -87,7 +86,7 @@ async function sumOpenTransactionQuantities(
   });
 
   return new Map<string, number>(
-    items.map((item) => [item.assetId, item._sum.requestedQuantity ?? 0]),
+    items.flatMap((item) => item.assetId ? [[item.assetId, item._sum.requestedQuantity ?? 0] as [string, number]] : []),
   );
 }
 
@@ -153,7 +152,7 @@ export async function getAvailabilityByAssetId(
             ownReservedQuantity,
             reservedQuantity,
             totalQuantity: 1,
-            trackMethod: AssetTrackMethod.SERIAL,
+            trackMethod: getEffectiveAssetTrackMethod(asset),
           },
         ];
       }
@@ -169,7 +168,7 @@ export async function getAvailabilityByAssetId(
           ownReservedQuantity: ownReservations.get(asset.id) ?? 0,
           reservedQuantity,
           totalQuantity: asset.assetQuantity,
-          trackMethod: AssetTrackMethod.QUANTITY,
+          trackMethod: getEffectiveAssetTrackMethod(asset),
         },
       ];
     }),

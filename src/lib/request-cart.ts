@@ -3,7 +3,47 @@ import { getAvailabilityByAssetId } from "@/lib/asset-availability";
 import type { CurrentUser } from "@/lib/auth";
 import { getVisibleWarehouseCodesForUser } from "@/lib/assets";
 import { db } from "@/lib/db";
-import { canRequestAssetsForUser } from "@/lib/permissions";
+import { canRequestAssetsForUser, hasAnyRole } from "@/lib/permissions";
+
+export type RequestCartProject = {
+  customerName: string;
+  id: string;
+  name: string;
+  projectId: string | null;
+};
+
+export function canRequestForProject(
+  user: Pick<CurrentUser, "id" | "roles">,
+  project: { leadUserId: string | null; memberUserIds: string[] },
+) {
+  return (
+    user.roles.some((role) => role === "ADMIN" || role === "STOREMAN") ||
+    project.leadUserId === user.id ||
+    project.memberUserIds.includes(user.id)
+  );
+}
+
+export async function getRequestProjectsForUser(user: CurrentUser): Promise<RequestCartProject[]> {
+  const bypassParticipation = hasAnyRole(user, ["ADMIN", "STOREMAN"]);
+
+  const projects = await db.project.findMany({
+    orderBy: [{ name: "asc" }],
+    select: { customerName: true, id: true, name: true, projectId: true },
+    where: {
+      status: "ACTIVE",
+      ...(bypassParticipation
+        ? {}
+        : {
+            OR: [
+              { leadUserId: user.id },
+              { members: { some: { userId: user.id } } },
+            ],
+          }),
+    },
+  });
+
+  return projects;
+}
 
 const pendingSubmittedRequestWhere = {
   transaction: {
@@ -21,14 +61,16 @@ const requestCartAssetSelect = Prisma.validator<Prisma.AssetSelect>()({
   serialNo: true,
   status: true,
   stockCode: true,
-  warehouse: { select: { code: true, inventoryFamily: true, name: true } },
+  warehouse: { select: { code: true, name: true } },
   location: { select: { name: true } },
   assetModel: {
     select: {
-      assetType: { select: { trackMethod: true } },
+      isSerialized: true,
       brand: true,
       category: { select: { name: true } },
+      description: true,
       name: true,
+      partNo: true,
       typeName: true,
     },
   },

@@ -1,12 +1,14 @@
+import { calculateSaleGrandTotal, validateSalePriceGroups, type SalePriceGroup } from "@/lib/sale-price-groups";
+import { appendUsedReturnRemarks } from "@/lib/used-return-remark";
 import {
   ApprovalStatus,
   AssetActionType,
-  AssetTrackMethod,
+  AssetCondition,
   AssetStatus,
-  OrganizationLevel,
   OrganizationTag,
   Prisma,
   ProjectTag,
+  ProjectMemberTag,
   TransactionStatus,
   TransactionWorkflowStatus,
   TransactionType,
@@ -14,10 +16,15 @@ import {
 import type { CurrentUser } from "@/lib/auth";
 import {
   approvalMatchesUser,
-  warehouseHeadStockControllerRequiredTag,
+  requiresRequesterSupervisorApproval,
+  supervisorTagsForOrganizationTags,
+  ACK_BSD_REQUIRED_TAG,
+  ACK_WAREHOUSE_MANAGER_REQUIRED_TAG,
+  isWarehouseStockControllerRequiredTag,
   warehouseStockControllerRequiredTag,
 } from "@/lib/approval-flow";
 import { db } from "@/lib/db";
+import { AssetTrackMethod, getEffectiveAssetTrackMethod } from "@/lib/asset-tracking";
 import {
   createMonthlyRequisitionNo,
   MonthlyRequisitionLimitError,
@@ -26,6 +33,8 @@ import {
   assertCanChangeAssetStatus,
   assertCanRequestWarehouse,
   assertCanViewWarehouse,
+  canManageWarehouseForUser,
+  hasAnyRole,
 } from "@/lib/permissions";
 import {
   canTransitionAssetStatus,
@@ -35,6 +44,7 @@ import {
   isTransactionItemResolutionStatus,
   isReturnableTransaction,
 } from "@/lib/workflow-rules";
+import { randomUUID } from "node:crypto";
 
 export class WorkflowError extends Error {
   constructor(
@@ -50,16 +60,26 @@ export class WorkflowError extends Error {
 const assetWorkflowSelect = Prisma.validator<Prisma.AssetSelect>()({
   assetModel: {
     select: {
+      isSerialized: true,
       name: true,
-      assetType: { select: { trackMethod: true } },
     },
   },
   assetQuantity: true,
+  condition: true,
+  stockCode: true,
   id: true,
   requestLockedById: true,
   serialNo: true,
   status: true,
-  warehouse: { select: { code: true, inventoryFamily: true } },
+          warehouse: {
+            select: {
+              code: true,
+              permissions: {
+                where: { canView: true },
+                select: { canManage: true, user: { select: { id: true, name: true, email: true } } },
+              },
+            },
+          },
 });
 
 const transactionDetailSelect = Prisma.validator<Prisma.TransactionSelect>()({
@@ -71,7 +91,20 @@ const transactionDetailSelect = Prisma.validator<Prisma.TransactionSelect>()({
   internalRequest: true,
   note: true,
   projectId: true,
-  project: { select: { id: true, name: true, projectId: true } },
+  project: {
+    select: {
+      id: true,
+      name: true,
+      customerName: true,
+      projectId: true,
+      leadUser: { select: { id: true, name: true, email: true } },
+      members: {
+        where: { projectTag: ProjectMemberTag.LEAD_PROJECT },
+        orderBy: { createdAt: "asc" },
+        select: { user: { select: { id: true, name: true, email: true } } },
+      },
+    },
+  },
   projectRequest: true,
   purpose: true,
   requestDate: true,
@@ -84,11 +117,13 @@ const transactionDetailSelect = Prisma.validator<Prisma.TransactionSelect>()({
   type: true,
   workflowStatus: true,
   approvals: {
+    where: { isCurrent: true },
     orderBy: [{ stepSequence: "asc" }, { createdAt: "asc" }],
     select: {
       actedAt: true,
       comment: true,
       id: true,
+      resolutionBatchId: true,
       requiredTag: true,
       status: true,
       stepSequence: true,
@@ -96,7 +131,7 @@ const transactionDetailSelect = Prisma.validator<Prisma.TransactionSelect>()({
       user: { select: { email: true, id: true, name: true } },
     },
   },
-  requestedBy: { select: { email: true, id: true, name: true } },
+  requestedBy: { select: { email: true, id: true, name: true, position: true } },
   createdBy: { select: { email: true, id: true, name: true } },
   derivedTransactions: {
     select: {
@@ -115,25 +150,44 @@ const transactionDetailSelect = Prisma.validator<Prisma.TransactionSelect>()({
       note: true,
       requestedQuantity: true,
       returnedAt: true,
+      dispatchedAt: true,
+      salePriceGroups: true,
       soldPrice: true,
+      soldTotal: true,
       toStatus: true,
       asset: {
         select: {
           assetQuantity: true,
+          requestLockedById: true,
           id: true,
+          assetModelId: true,
+          warehouseId: true,
+          condition: true,
           location: { select: { name: true } },
           locationText: true,
           serialNo: true,
           status: true,
           stockCode: true,
-          warehouse: { select: { code: true, inventoryFamily: true } },
+          warehouse: {
+            select: {
+              code: true,
+              name: true,
+              permissions: {
+                where: { canView: true },
+                select: { canManage: true, user: { select: { id: true, name: true, email: true } } },
+              },
+            },
+          },
           assetModel: {
             select: {
+              id: true,
               brand: true,
-              assetType: { select: { trackMethod: true } },
+              isSerialized: true,
               category: { select: { name: true } },
               name: true,
+              partNo: true,
               typeName: true,
+              description: true,
             },
           },
         },
@@ -143,15 +197,63 @@ const transactionDetailSelect = Prisma.validator<Prisma.TransactionSelect>()({
       returnedBy: { select: { email: true, id: true, name: true } },
     },
   },
+  outcomeRecords: {
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      resolutionBatchId: true,
+      transactionItemId: true,
+      outcomeStatus: true,
+      quantity: true,
+      note: true,
+      soldPrice: true,
+      soldTotal: true,
+      approvedAt: true,
+      soldTransactionId: true,
+      returnCondition: true,
+      assetId: true,
+      soldTransaction: {
+        select: {
+          approvals: {
+            where: { isCurrent: true },
+            orderBy: [{ stepSequence: "asc" }, { createdAt: "asc" }],
+            select: {
+              id: true,
+              comment: true,
+              requiredTag: true,
+              resolutionBatchId: true,
+              status: true,
+              stepSequence: true,
+              userId: true,
+              user: { select: { id: true, name: true, email: true } },
+            },
+          },
+        },
+      },
+    },
+  },
 });
+
 
 type WorkflowAsset = Prisma.AssetGetPayload<{
   select: typeof assetWorkflowSelect;
 }>;
 
-type TransactionDetail = Prisma.TransactionGetPayload<{
+type RawTransactionDetail = Prisma.TransactionGetPayload<{
   select: typeof transactionDetailSelect;
 }>;
+type OperationalTransactionItem = RawTransactionDetail["items"][number] & {
+  assetId: string;
+  asset: NonNullable<RawTransactionDetail["items"][number]["asset"]>;
+};
+type TransactionDetail = Omit<RawTransactionDetail, "items"> & { items: OperationalTransactionItem[] };
+
+function requireOperationalTransaction(transaction: RawTransactionDetail): TransactionDetail {
+  return { ...transaction, items: transaction.items.map((item) => {
+    if (!item.asset || !item.assetId) throw new WorkflowError("Assign a valid source asset before operating this transaction.", 409, "TRANSACTION_ASSET_MISSING");
+    return { ...item, asset: item.asset, assetId: item.assetId };
+  }) };
+}
 
 export type HoldAssetsInput = {
   assetIds?: string[];
@@ -178,10 +280,11 @@ export type SubmitTransactionInput = {
 };
 
 export type ResolveTransactionItemInput = {
-  allocations?: { quantity: number; toStatus: AssetStatus }[];
+  allocations?: { quantity: number; toStatus: AssetStatus; returnCondition?: AssetCondition; note?: string | null; soldPrice?: string | null }[];
   itemId: string;
   note?: string | null;
   quantity?: number | null;
+  returnCondition?: AssetCondition;
   soldPrice?: string | null;
   toStatus: AssetStatus;
 };
@@ -189,11 +292,17 @@ export type ResolveTransactionItemInput = {
 export type ResolveTransactionInput = {
   items: ResolveTransactionItemInput[];
   transactionId: string;
+  resolutionBatchId?: string;
 };
 
 export type ReturnTransactionInput = {
   itemIds?: string[];
   note?: string | null;
+  transactionId: string;
+};
+
+export type DeleteReturnOutcomeInput = {
+  outcomeId: string;
   transactionId: string;
 };
 
@@ -446,10 +555,7 @@ function toWorkflowCurrentUser(user: WorkflowUserRecord): CurrentUser {
 }
 
 function isQuantityAsset(asset: WorkflowAsset) {
-  return (
-    asset.warehouse.inventoryFamily === AssetTrackMethod.QUANTITY ||
-    asset.assetModel.assetType?.trackMethod === AssetTrackMethod.QUANTITY
-  );
+  return getEffectiveAssetTrackMethod(asset) === AssetTrackMethod.QUANTITY;
 }
 
 function assetDisplayName(asset: WorkflowAsset) {
@@ -483,9 +589,11 @@ async function sumOpenTransactionQuantities(
     _sum: { requestedQuantity: true },
     where: {
       assetId: { in: assetIds },
+      dispatchedAt: null,
       returnedAt: null,
       toStatus: { in: [AssetStatus.BORROW, AssetStatus.USING, AssetStatus.SOLD] },
       transaction: {
+        sourceTransactionId: null,
         workflowStatus: {
           in: [
             TransactionWorkflowStatus.PENDING,
@@ -561,7 +669,7 @@ async function assertNoOpenSerialTransactionItems(
     },
   });
 
-  if (existingItem) {
+  if (existingItem?.asset) {
     throw new WorkflowError(
       `Asset ${existingItem.asset.serialNo ?? existingItem.asset.assetModel.name} is already in ${existingItem.transaction.transactionNo}.`,
       409,
@@ -672,9 +780,11 @@ async function refreshQuantityRequestStatus(
       _sum: { requestedQuantity: true },
       where: {
         assetId,
+        dispatchedAt: null,
         returnedAt: null,
         toStatus: { in: [AssetStatus.BORROW, AssetStatus.USING, AssetStatus.SOLD] },
         transaction: {
+          sourceTransactionId: null,
           workflowStatus: {
             in: [
               TransactionWorkflowStatus.PENDING,
@@ -945,41 +1055,6 @@ type ApprovalUser = {
   warehousePermissions: Array<{ canManage: boolean; canView?: boolean; warehouse: { code: string } }>;
 };
 
-function managerTagFor(tag: string | null) {
-  if (!tag) {
-    return null;
-  }
-
-  if (tag.startsWith("S1_") || tag.startsWith("N1_") || tag.startsWith("C1_")) {
-    return OrganizationTag.SC_MANAGER;
-  }
-
-  if (tag.startsWith("CMS_") || tag.startsWith("SD_") || tag.startsWith("PRT_") || tag.startsWith("LOCAL_")) {
-    return OrganizationTag.CS_MANAGER;
-  }
-
-  if (tag.startsWith("BSD_")) {
-    return OrganizationTag.BSD_MANAGER;
-  }
-
-  if (tag.startsWith("DL_")) {
-    return OrganizationTag.DL_MANAGER;
-  }
-
-  return null;
-}
-
-function supervisorTagFor(tag: string | null) {
-  if (!tag?.endsWith("_STAFF")) {
-    return null;
-  }
-
-  const candidate = tag.replace(/_STAFF$/, "_SUPERVISOR") as OrganizationTag;
-  return Object.values(OrganizationTag).includes(candidate)
-    ? candidate
-    : managerTagFor(tag);
-}
-
 function candidateForUser(
   user: ApprovalUser | null | undefined,
   requiredTag: string,
@@ -1001,6 +1076,58 @@ async function findOrganizationApprover(
 ) {
   if (!tag) {
     return null;
+  }
+
+  if (tag === OrganizationTag.BSD_STAFF) {
+    return tx.user.findFirst({
+      select: {
+        warehousePermissions: {
+          select: { canManage: true, warehouse: { select: { code: true } } },
+        },
+        id: true,
+        name: true,
+        organizationAssignments: {
+          select: { organizationTag: true },
+          where: { isActive: true },
+        },
+        organizationTag: true,
+        projectTag: true,
+      },
+      where: {
+        isActive: true,
+        id: { not: requesterId },
+        OR: [
+          { organizationTag: OrganizationTag.BSD_STAFF },
+          { organizationAssignments: { some: { isActive: true, organizationTag: OrganizationTag.BSD_STAFF } } },
+        ],
+      },
+    });
+  }
+
+  if (tag === OrganizationTag.BSD_MANAGER) {
+    return tx.user.findFirst({
+      select: {
+        warehousePermissions: {
+          select: { canManage: true, warehouse: { select: { code: true } } },
+        },
+        id: true,
+        name: true,
+        organizationAssignments: {
+          select: { organizationTag: true },
+          where: { isActive: true },
+        },
+        organizationTag: true,
+        projectTag: true,
+      },
+      where: {
+        isActive: true,
+        id: { not: requesterId },
+        OR: [
+          { organizationTag: OrganizationTag.BSD_MANAGER },
+          { organizationAssignments: { some: { isActive: true, organizationTag: OrganizationTag.BSD_MANAGER } } },
+        ],
+      },
+    });
   }
 
   return tx.user.findFirst({
@@ -1027,6 +1154,53 @@ async function findOrganizationApprover(
       ],
     },
   });
+}
+
+function supervisorTagsForUser(user: CurrentUser) {
+  return supervisorTagsForOrganizationTags([
+    user.organizationTag,
+    ...user.organizationAssignments.map((assignment) => assignment.organizationTag),
+  ]) as OrganizationTag[];
+}
+
+async function findUsingSupervisorApprover(
+  tx: Prisma.TransactionClient,
+  user: CurrentUser,
+) {
+  const supervisorTags = supervisorTagsForUser(user);
+
+  for (const supervisorTag of supervisorTags) {
+    const approvers = await tx.user.findMany({
+      orderBy: { name: "asc" },
+      select: {
+        warehousePermissions: {
+          select: { canManage: true, warehouse: { select: { code: true } } },
+        },
+        id: true,
+        name: true,
+        organizationAssignments: {
+          select: { organizationTag: true },
+          where: { isActive: true },
+        },
+        organizationTag: true,
+        projectTag: true,
+      },
+      where: {
+        id: { not: user.id },
+        isActive: true,
+        OR: [
+          { organizationTag: supervisorTag },
+          { organizationAssignments: { some: { isActive: true, organizationTag: supervisorTag } } },
+        ],
+      },
+    });
+
+    if (approvers.length > 0) {
+      return { approvers, requiredTag: supervisorTag };
+    }
+  }
+
+  return null;
 }
 
 async function findProjectApprovers(
@@ -1084,15 +1258,15 @@ async function findProjectApprovers(
 async function findStockControllerApprovers(
   tx: Prisma.TransactionClient,
   warehouseCode: string,
-  stockControllerTag: "HEAD_STOCK_CONTROLLER" | "STOCK_CONTROLLER",
-) {
-  if (stockControllerTag === "HEAD_STOCK_CONTROLLER") {
+  stockControllerTag: "WAREHOUSE_MANAGER" | "STOREMAN",
+  ) {
+  if (stockControllerTag === "WAREHOUSE_MANAGER") {
     const warehouse = await tx.assetWarehouse.findFirst({
-      select: { headStockControllerId: true },
+      select: { managerAssignments: { select: { userId: true } } },
       where: { code: warehouseCode, isActive: true },
     });
 
-    if (!warehouse?.headStockControllerId) {
+    if (!warehouse || warehouse.managerAssignments.length === 0) {
       return [];
     }
 
@@ -1112,9 +1286,8 @@ async function findStockControllerApprovers(
         projectTag: true,
       },
       where: {
-        id: warehouse.headStockControllerId,
+        id: { in: warehouse.managerAssignments.map((assignment) => assignment.userId) },
         isActive: true,
-        roles: { some: { role: { code: "STOCK_CONTROLLER" } } },
       },
     });
   }
@@ -1142,7 +1315,7 @@ async function findStockControllerApprovers(
         some: warehousePermissionWhere,
       },
       isActive: true,
-      roles: { some: { role: { code: "STOCK_CONTROLLER" } } },
+      roles: { some: { role: { code: "STOREMAN" } } },
     },
   });
 }
@@ -1156,6 +1329,7 @@ function candidatesForUsers(
     return [candidateForUser(null, requiredTag, stepSequence)];
   }
 
+  // Every eligible user in the step must approve before the workflow advances.
   return users.map((user) => candidateForUser(user, requiredTag, stepSequence));
 }
 
@@ -1166,29 +1340,13 @@ async function buildApprovalCandidates(
   items: WorkflowRequestItem[],
 ) {
   const approvals: ApprovalCandidate[] = [];
-  let stepSequence = 1;
+  // Step 1 is the request record itself. Approval sequences start at Step 2.
+  let stepSequence = 2;
 
-  const requestContext = resolveRequestOrganizationContext(user, input.requestContextAssignmentId);
-  const organizationLevel = requestContext.organizationLevel as OrganizationLevel | null;
-  const organizationTag = requestContext.organizationTag as OrganizationTag | null;
-  const businessTag =
-    organizationLevel === OrganizationLevel.STAFF
-      ? supervisorTagFor(organizationTag)
-      : organizationLevel === OrganizationLevel.SUPERVISOR
-        ? managerTagFor(organizationTag)
-        : null;
-
-  if (businessTag) {
-    approvals.push(
-      candidateForUser(
-        await findOrganizationApprover(tx, businessTag, user.id),
-        businessTag,
-        stepSequence++,
-      ),
-    );
-  }
-
-  if (input.projectRequest && user.projectTag === ProjectTag.TEAM_MEMBER) {
+  // Project approval is determined by the selected project, not by the
+  // requester's global project tag. A requester may have a different
+  // organizational role while still submitting a project request.
+  if (input.projectRequest && input.projectId) {
     approvals.push(
       ...candidatesForUsers(
         await findProjectApprovers(tx, user.id, input.projectId),
@@ -1199,79 +1357,182 @@ async function buildApprovalCandidates(
     stepSequence++;
   }
 
+  // Internal Using and Sold requests, plus service requests, pass through the
+  // requester's supervisor before warehouse approval. Only staff-tagged users
+  // have a supervisor step; fail closed if that configured approver is missing.
+  if (requiresRequesterSupervisorApproval(input.type, input.serviceRequest)) {
+    const supervisorTags = supervisorTagsForUser(user);
+    const supervisor = await findUsingSupervisorApprover(tx, user);
+    if (supervisorTags.length > 0) {
+      if (!supervisor || supervisor.approvers.length === 0) {
+        throw new WorkflowError(
+          "No active supervisor is configured for your organization.",
+          409,
+          "SUPERVISOR_NOT_CONFIGURED",
+        );
+      }
+      approvals.push(...candidatesForUsers(supervisor.approvers, supervisor.requiredTag, stepSequence));
+      stepSequence++;
+    }
+  }
+
+  // Storeman is the final warehouse step. Every eligible Storeman for each
+  // warehouse must approve before a Sold request can move to BSD.
   const warehouseCodes = Array.from(new Set(items.map((item) => item.asset.warehouse.code))).sort();
-  const stockStep = stepSequence++;
   for (const warehouseCode of warehouseCodes) {
     approvals.push(
       ...candidatesForUsers(
-        await findStockControllerApprovers(tx, warehouseCode, "STOCK_CONTROLLER"),
+        await findStockControllerApprovers(tx, warehouseCode, "STOREMAN"),
         warehouseStockControllerRequiredTag(warehouseCode),
-        stockStep,
+        stepSequence,
       ),
     );
   }
 
-  const headStockStep = stepSequence++;
-  for (const warehouseCode of warehouseCodes) {
+  stepSequence++;
+
+  // Sold requests are reviewed by Joy (BSD_STAFF) after all Storeman
+  // approvals. This is a real approval step, not the later acknowledgement.
+  if (input.type === TransactionType.SOLD) {
+    const bsd = await findOrganizationApprover(tx, OrganizationTag.BSD_STAFF, user.id);
+    if (!bsd) throw new WorkflowError("No active BSD Staff approver is configured.", 409, "BSD_APPROVER_NOT_CONFIGURED");
     approvals.push(
       ...candidatesForUsers(
-        await findStockControllerApprovers(tx, warehouseCode, "HEAD_STOCK_CONTROLLER"),
-        warehouseHeadStockControllerRequiredTag(warehouseCode),
-        headStockStep,
+        [bsd],
+        OrganizationTag.BSD_STAFF,
+        stepSequence,
       ),
     );
   }
-
-  approvals.push(
-    candidateForUser(
-      await findOrganizationApprover(tx, OrganizationTag.BSD_STAFF, user.id),
-      OrganizationTag.BSD_STAFF,
-      stepSequence++,
-    ),
-  );
-
-  approvals.push(
-    candidateForUser(
-      await findOrganizationApprover(tx, OrganizationTag.BSD_MANAGER, user.id),
-      OrganizationTag.BSD_MANAGER,
-      stepSequence++,
-    ),
-  );
 
   return approvals;
 }
 
-function resolveRequestOrganizationContext(
-  user: CurrentUser,
-  requestContextAssignmentId: string | null | undefined,
+async function buildReturnApprovalCandidates(
+  tx: Prisma.TransactionClient,
+  sourceTransaction: TransactionDetail,
+  items: WorkflowRequestItem[],
+  isSaleOutcome = false,
 ) {
-  if (requestContextAssignmentId) {
-    const assignment = user.organizationAssignments.find(
-      (entry) => entry.id === requestContextAssignmentId,
-    );
+  const approvals: ApprovalCandidate[] = [];
+  let stepSequence = 2;
 
-    if (!assignment) {
-      throw new WorkflowError("Selected request context is not available for this user.");
-    }
-
-    return {
-      organizationLevel: assignment.organizationLevel,
-      organizationTag: assignment.organizationTag,
-    };
+  if (isSaleOutcome) {
+    const approver = await findOrganizationApprover(tx, OrganizationTag.BSD_STAFF, sourceTransaction.requestedBy.id);
+    if (!approver) throw new WorkflowError("No active BSD Staff approver is configured.", 409, "BSD_APPROVER_NOT_CONFIGURED");
+    return candidatesForUsers([approver], OrganizationTag.BSD_STAFF, stepSequence);
   }
 
-  return {
-    organizationLevel: user.organizationLevel,
-    organizationTag: user.organizationTag,
-  };
+  if (sourceTransaction.projectRequest && sourceTransaction.projectId) {
+    approvals.push(
+      ...candidatesForUsers(
+        await findProjectApprovers(tx, sourceTransaction.requestedBy.id, sourceTransaction.projectId),
+        ProjectTag.LEAD_PROJECT,
+        stepSequence,
+      ),
+    );
+    stepSequence++;
+  } else {
+    const requester = await requireWorkflowUserById(tx, sourceTransaction.requestedBy.id);
+    const supervisorTags = supervisorTagsForUser(requester);
+    const supervisor = await findUsingSupervisorApprover(tx, requester);
+    if (supervisorTags.length === 0 || !supervisor || supervisor.approvers.length === 0) {
+      throw new WorkflowError(
+        "No active supervisor is configured for the requester's organization.",
+        409,
+        "SUPERVISOR_NOT_CONFIGURED",
+      );
+    }
+    approvals.push(
+      ...candidatesForUsers(supervisor.approvers, supervisor.requiredTag, stepSequence),
+    );
+    stepSequence++;
+  }
+
+  const warehouseCodes = Array.from(new Set(items.map((item) => item.asset.warehouse.code))).sort();
+
+  for (const warehouseCode of warehouseCodes) {
+    approvals.push(...candidatesForUsers(
+      await findStockControllerApprovers(tx, warehouseCode, "STOREMAN"),
+      `RETURN_CHECK:${warehouseCode}`,
+      stepSequence,
+    ));
+  }
+  stepSequence++;
+
+  for (const warehouseCode of warehouseCodes) {
+    approvals.push(
+      ...candidatesForUsers(
+        await findStockControllerApprovers(tx, warehouseCode, "STOREMAN"),
+        warehouseStockControllerRequiredTag(warehouseCode),
+        stepSequence,
+      ),
+    );
+  }
+
+  if (sourceTransaction.type === TransactionType.SOLD) {
+    approvals.push(
+      ...candidatesForUsers(
+        [await findOrganizationApprover(tx, OrganizationTag.BSD_STAFF, sourceTransaction.requestedBy.id)].filter(
+          (approver): approver is ApprovalUser => Boolean(approver),
+        ),
+        OrganizationTag.BSD_STAFF,
+        stepSequence + 1,
+      ),
+    );
+  }
+
+  return approvals;
+}
+
+async function findProjectForRequest(
+  tx: Prisma.TransactionClient,
+  user: CurrentUser,
+  projectId: string | null | undefined,
+) {
+  const project = await tx.project.findFirst({
+    where: { id: projectId ?? "", status: "ACTIVE" },
+    select: {
+      id: true,
+      leadUserId: true,
+      members: {
+        select: { userId: true },
+        where: { userId: user.id },
+      },
+      name: true,
+    },
+  });
+
+  if (!project) {
+    throw new WorkflowError("Project not found or inactive.", 404, "PROJECT_NOT_FOUND");
+  }
+
+  const canBypassParticipation = hasAnyRole(user, ["ADMIN", "STOREMAN"]);
+  const isParticipant =
+    project.leadUserId === user.id || project.members.length > 0;
+
+  if (!canBypassParticipation && !isParticipant) {
+    throw new WorkflowError(
+      "You are not assigned to this project",
+      403,
+      "FORBIDDEN",
+    );
+  }
+
+  return project;
 }
 
 async function replaceTransactionApprovals(
   tx: Prisma.TransactionClient,
   transactionId: string,
   approvals: ApprovalCandidate[],
+  resolutionBatchId?: string,
+  requester?: CurrentUser,
 ) {
-  await tx.transactionApproval.deleteMany({ where: { transactionId } });
+  await tx.transactionApproval.updateMany({
+    where: { transactionId, resolutionBatchId: resolutionBatchId ?? null, isCurrent: true },
+    data: { isCurrent: false },
+  });
 
   if (approvals.length === 0) {
     return;
@@ -1282,10 +1543,23 @@ async function replaceTransactionApprovals(
       approverNameSnapshot: approval.approverNameSnapshot,
       approverTagSnapshot: approval.approverTagSnapshot,
       requiredTag: approval.requiredTag,
+      resolutionBatchId,
       stepSequence: approval.stepSequence,
       transactionId,
       userId: approval.userId,
     })),
+  });
+  if (requester) await recordRequesterConfirmation(tx, transactionId, requester, new Date(), resolutionBatchId);
+}
+
+async function recordRequesterConfirmation(tx: Prisma.TransactionClient, transactionId: string, requester: CurrentUser, now: Date, resolutionBatchId?: string) {
+  await tx.transactionApproval.create({
+    data: {
+      transactionId, resolutionBatchId, userId: requester.id,
+      stepSequence: 1, requiredTag: "REQUESTER", status: ApprovalStatus.APPROVED,
+      actedAt: now, approverNameSnapshot: requester.name,
+      approverTagSnapshot: "REQUESTER", approverSignatureSnapshot: requester.signatureDataUrl,
+    },
   });
 }
 
@@ -1355,6 +1629,8 @@ async function decrementQuantityAsset(
   tx: Prisma.TransactionClient,
   item: WorkflowRequestItem,
   userId: string,
+  toStatus: AssetStatus,
+  transactionId: string,
 ) {
   const result = await tx.asset.updateMany({
     where: {
@@ -1380,8 +1656,19 @@ async function decrementQuantityAsset(
     where: { id: item.asset.id },
     select: { assetQuantity: true },
   });
+  if (!updatedAsset) throw new WorkflowError("Stock row disappeared while posting.", 409, "ASSET_POST_CONFLICT");
+  await tx.assetStatusHistory.create({ data: {
+    actionType: AssetActionType.REQUEST_SUBMIT,
+    assetId: item.asset.id, changedById: userId,
+    fromStatus: item.asset.status, toStatus,
+    condition: item.asset.condition, stockCode: item.asset.stockCode,
+    quantityBefore: updatedAsset.assetQuantity + item.quantity,
+    quantityAfter: updatedAsset.assetQuantity, quantityChanged: -item.quantity,
+    note: "Approved quantity issue or direct sale",
+    transactionId,
+  } });
 
-  if ((updatedAsset?.assetQuantity ?? 0) <= 0) {
+  if ((updatedAsset?.assetQuantity ?? 0) <= 0 && toStatus === AssetStatus.SOLD) {
     await tx.asset.update({
       data: { status: AssetStatus.SOLD, updatedById: userId },
       where: { id: item.asset.id },
@@ -1394,9 +1681,14 @@ async function updateSubmittedQuantityAsset(
   item: WorkflowRequestItem,
   userId: string,
   toStatus: AssetStatus,
+  transactionId: string,
 ) {
-  if (toStatus === AssetStatus.SOLD) {
-    await decrementQuantityAsset(tx, item, userId);
+  if (
+    toStatus === AssetStatus.BORROW ||
+    toStatus === AssetStatus.USING ||
+    toStatus === AssetStatus.SOLD
+  ) {
+    await decrementQuantityAsset(tx, item, userId, toStatus, transactionId);
   }
 }
 
@@ -1491,16 +1783,195 @@ async function findTransactionDetail(
     throw new WorkflowError("Transaction not found.", 404);
   }
 
-  return transaction;
+  return requireOperationalTransaction(transaction);
+}
+
+type SerialSwapAsset = {
+  id: string;
+  serialNo: string;
+  stockCode: string | null;
+  model: string;
+};
+
+async function assertStoremanCanSwap(
+  tx: Prisma.TransactionClient,
+  user: CurrentUser,
+  transactionId: string,
+  itemId: string,
+) {
+  const transaction = await tx.transaction.findUnique({
+    where: { id: transactionId },
+    select: {
+      sourceTransactionId: true,
+      type: true,
+      workflowStatus: true,
+      outcomeRecords: { select: { id: true }, take: 1 },
+      approvals: { where: { isCurrent: true }, select: { id: true, requiredTag: true, status: true, stepSequence: true, userId: true } },
+      items: {
+        where: { id: itemId },
+        select: {
+          id: true,
+          assetId: true,
+          asset: {
+            select: {
+              serialNo: true,
+              stockCode: true,
+              warehouseId: true,
+              warehouse: { select: { code: true } },
+              status: true,
+              assetModel: { select: { isSerialized: true, categoryId: true, assetTypeId: true, partNo: true, name: true, description: true, brand: true, modelNo: true, typeName: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!transaction || transaction.items.length === 0) {
+    throw new WorkflowError("Transaction item not found.", 404);
+  }
+  const item = transaction.items[0];
+  if (!item.asset || !item.assetId) throw new WorkflowError("The requested serial asset is missing.", 409, "TRANSACTION_ASSET_MISSING");
+  if (transaction.type !== TransactionType.BORROW && transaction.type !== TransactionType.USING && transaction.type !== TransactionType.SOLD) {
+    throw new WorkflowError("Serial numbers can only be assigned for Borrow, Using, or direct Sale requests.", 409);
+  }
+  if (transaction.sourceTransactionId || transaction.outcomeRecords.length > 0) {
+    throw new WorkflowError("Serial numbers cannot be changed during return resolution.", 409, "SERIAL_SWAP_NOT_ALLOWED_ON_RETURN");
+  }
+  if (transaction.workflowStatus !== TransactionWorkflowStatus.PENDING) {
+    throw new WorkflowError("Serial numbers can only be assigned during approval.", 409);
+  }
+  if (getEffectiveAssetTrackMethod(item.asset) === AssetTrackMethod.QUANTITY) {
+    throw new WorkflowError("Quantity-tracked items do not require a serial number.", 409);
+  }
+  if (item.asset.status !== AssetStatus.REQUEST) {
+    throw new WorkflowError("The requested serial is no longer held for this transaction.", 409);
+  }
+
+  const pending = currentPendingApproval(user, transaction.approvals);
+  if (!pending || !isWarehouseStockControllerRequiredTag(pending.requiredTag)) {
+    throw new WorkflowError("Only the Storeman assigned to this approval step can change the serial number.", 403);
+  }
+
+  const warehouseCode = pending.requiredTag.split(":")[1];
+  if (warehouseCode !== item.asset.warehouse.code || !canManageWarehouseForUser(user, warehouseCode)) {
+    throw new WorkflowError("You can only change serial numbers in warehouses managed by you.", 403);
+  }
+
+  return { item: { ...item, asset: item.asset, assetId: item.assetId }, warehouseCode };
+}
+
+export async function findStoremanSerialOptions(
+  user: CurrentUser,
+  transactionId: string,
+  itemId: string,
+  search = "",
+): Promise<SerialSwapAsset[]> {
+  return db.$transaction(async (tx) => {
+    const { item } = await assertStoremanCanSwap(tx, user, transactionId, itemId);
+    if (getEffectiveAssetTrackMethod(item.asset) === AssetTrackMethod.QUANTITY) {
+      throw new WorkflowError("Quantity-tracked items cannot be swapped by serial number.", 409);
+    }
+    const assets = await tx.asset.findMany({
+      orderBy: { serialNo: "asc" },
+      select: { id: true, serialNo: true, stockCode: true, assetModel: { select: { name: true } } },
+      where: {
+        id: { not: item.assetId },
+        isActive: true,
+        serialNo: { not: null },
+        status: AssetStatus.READY,
+        warehouseId: item.asset.warehouseId,
+        assetModel: {
+          categoryId: item.asset.assetModel.categoryId,
+          assetTypeId: item.asset.assetModel.assetTypeId,
+          partNo: item.asset.assetModel.partNo,
+          name: item.asset.assetModel.name,
+        },
+      },
+    });
+    const normalizedSearch = search.trim().toLowerCase();
+    const choices = assets
+      .filter((asset) => !normalizedSearch || [asset.serialNo, asset.stockCode, asset.assetModel.name].some((value) => value?.toLowerCase().includes(normalizedSearch)))
+      .map((asset) => ({ id: asset.id, serialNo: asset.serialNo as string, stockCode: asset.stockCode, model: asset.assetModel.name }));
+    if (item.asset.serialNo && (!normalizedSearch || [item.asset.serialNo, item.asset.stockCode, item.asset.assetModel.name].some((value) => value?.toLowerCase().includes(normalizedSearch)))) {
+      choices.unshift({ id: item.assetId, serialNo: item.asset.serialNo, stockCode: item.asset.stockCode, model: item.asset.assetModel.name });
+    }
+    return choices;
+  });
+}
+
+export async function swapStoremanSerialNumber(
+  user: CurrentUser,
+  transactionId: string,
+  itemId: string,
+  replacementAssetId: string,
+) {
+  return db.$transaction(async (tx) => {
+    const { item } = await assertStoremanCanSwap(tx, user, transactionId, itemId);
+    if (replacementAssetId === item.assetId) {
+      if (!item.asset.serialNo) {
+        throw new WorkflowError("This item does not have a valid serial number.", 409);
+      }
+      await tx.transactionItem.update({
+        where: { id: itemId },
+        data: { dispatchedAt: new Date(), dispatchedById: user.id },
+      });
+      return { ok: true, assetId: item.assetId, serialNo: item.asset.serialNo };
+    }
+    const replacement = await tx.asset.findUnique({
+      where: { id: replacementAssetId },
+      select: {
+        id: true,
+        status: true,
+        serialNo: true,
+        warehouseId: true,
+        assetModel: { select: { isSerialized: true, categoryId: true, assetTypeId: true, partNo: true, name: true, description: true, brand: true, modelNo: true, typeName: true } },
+      },
+    });
+    const oldModel = item.asset.assetModel;
+    if (!replacement || replacement.status !== AssetStatus.READY || !replacement.serialNo || replacement.warehouseId !== item.asset.warehouseId ||
+      getEffectiveAssetTrackMethod(replacement) === AssetTrackMethod.QUANTITY ||
+      replacement.assetModel.categoryId !== oldModel.categoryId || replacement.assetModel.assetTypeId !== oldModel.assetTypeId ||
+      replacement.assetModel.partNo !== oldModel.partNo || replacement.assetModel.name !== oldModel.name) {
+      throw new WorkflowError("Replacement asset must be Ready and match the same category, type, part number, and model.", 409);
+    }
+
+    const released = await tx.asset.updateMany({
+      where: { id: item.assetId, status: AssetStatus.REQUEST },
+      data: { requestLockedAt: null, requestLockedById: null, status: AssetStatus.READY, updatedById: user.id },
+    });
+    if (released.count !== 1) throw new WorkflowError("The requested asset is no longer available for swapping.", 409);
+    const held = await tx.asset.updateMany({
+      where: { id: replacement.id, status: AssetStatus.READY },
+      data: { requestLockedAt: new Date(), requestLockedById: (await tx.transaction.findUniqueOrThrow({ where: { id: transactionId }, select: { requestedById: true } })).requestedById, status: AssetStatus.REQUEST, updatedById: user.id },
+    });
+    if (held.count !== 1) throw new WorkflowError("The replacement asset is no longer Ready.", 409);
+    await tx.transactionItem.update({ where: { id: itemId }, data: { assetId: replacement.id, dispatchedAt: new Date(), dispatchedById: user.id } });
+    await tx.assetStatusHistory.createMany({ data: [
+      { actionType: AssetActionType.STATUS_CHANGE, assetId: item.assetId, changedById: user.id, fromStatus: AssetStatus.REQUEST, toStatus: AssetStatus.READY, note: "Released after Storeman serial swap", transactionId },
+      { actionType: AssetActionType.REQUEST_HOLD, assetId: replacement.id, changedById: user.id, fromStatus: AssetStatus.READY, toStatus: AssetStatus.REQUEST, note: "Held after Storeman serial swap", transactionId },
+    ] });
+    return { ok: true, assetId: replacement.id, serialNo: replacement.serialNo };
+  });
 }
 
 export async function getTransactionResolutionForUser(
   user: CurrentUser,
   transactionId: string,
 ) {
-  const transaction = await db.transaction.findUnique({
-    where: { id: transactionId },
-    select: transactionDetailSelect,
+  const transaction = await db.$transaction(async (tx) => {
+    const existing = await tx.transaction.findUnique({
+      where: { id: transactionId },
+      select: transactionDetailSelect,
+    });
+
+    if (!existing) {
+      throw new WorkflowError("Transaction not found.", 404);
+    }
+
+    const detail = requireOperationalTransaction(existing);
+    assertCanResolveTransaction(user, detail);
+    return detail;
   });
 
   if (!transaction) {
@@ -1553,6 +2024,18 @@ function validateSoldResolutionPrice(item: ResolveTransactionItemInput) {
   return soldPrice;
 }
 
+function validateSoldAllocationPrice(
+  allocation: NonNullable<ResolveTransactionItemInput["allocations"]>[number],
+) {
+  const soldPrice = cleanText(allocation.soldPrice);
+  if (allocation.toStatus !== AssetStatus.SOLD) return null;
+  if (!soldPrice) return null;
+  if (Number.isNaN(Number(soldPrice))) {
+    throw new WorkflowError("Sold price must be a valid number.");
+  }
+  return soldPrice;
+}
+
 function buildResolutionMap(items: ResolveTransactionItemInput[]) {
   const map = new Map<string, ResolveTransactionItemInput>();
 
@@ -1572,31 +2055,28 @@ function buildResolutionMap(items: ResolveTransactionItemInput[]) {
       if (!Number.isInteger(allocation.quantity) || allocation.quantity <= 0) {
         throw new WorkflowError("Resolution quantity must be a positive whole number.");
       }
-    }
-
-    for (const allocation of item.allocations ?? []) {
-      if (!isTransactionItemResolutionStatus(allocation.toStatus)) {
-        throw new WorkflowError(`Cannot resolve item to ${allocation.toStatus}.`);
-      }
-      if (!Number.isInteger(allocation.quantity) || allocation.quantity <= 0) {
-        throw new WorkflowError("Resolution quantity must be a positive whole number.");
-      }
+      validateSoldAllocationPrice(allocation);
     }
 
     if (item.quantity !== null && item.quantity !== undefined && (!Number.isInteger(item.quantity) || item.quantity <= 0)) {
       throw new WorkflowError("Resolution quantity must be a positive whole number.");
     }
-    map.set(item.itemId, { ...item, soldPrice: validateSoldResolutionPrice(item) });
+    map.set(item.itemId, {
+      ...item,
+      soldPrice: validateSoldResolutionPrice(item),
+      allocations: item.allocations?.map((allocation) => ({
+        ...allocation,
+        note: cleanText(allocation.note),
+        soldPrice: validateSoldAllocationPrice(allocation),
+      })),
+    });
   }
 
   return map;
 }
 
 function isQuantityTransactionItem(item: TransactionDetail["items"][number]) {
-  return (
-    item.asset.warehouse.inventoryFamily === AssetTrackMethod.QUANTITY ||
-    item.asset.assetModel.assetType?.trackMethod === AssetTrackMethod.QUANTITY
-  );
+  return getEffectiveAssetTrackMethod(item.asset) === AssetTrackMethod.QUANTITY;
 }
 
 function transactionItemAssetName(item: TransactionDetail["items"][number]) {
@@ -1707,6 +2187,30 @@ async function refreshTransactionResolutionStatus(
   const openItems = await tx.transactionItem.count({
     where: { returnedAt: null, transactionId },
   });
+  const activeBatches = await tx.returnBatch.findMany({ where: { transactionId, state: { notIn: ["REJECTED", "CANCELLED"] } }, select: { id: true } });
+
+  const [pendingOutcomes, pendingApprovals, pendingSales] = await Promise.all([
+    tx.transactionItemOutcome.count({ where: { transactionId, approvedAt: null, OR: [{ resolutionBatchId: null }, { resolutionBatchId: { in: activeBatches.map((batch) => batch.id) } }] } }),
+    tx.transactionApproval.count({
+      where: {
+        transactionId,
+        isCurrent: true,
+        status: ApprovalStatus.PENDING,
+        requiredTag: { notIn: [ACK_BSD_REQUIRED_TAG, ACK_WAREHOUSE_MANAGER_REQUIRED_TAG] },
+      },
+    }),
+    tx.transaction.count({
+      where: { sourceTransactionId: transactionId, type: TransactionType.SOLD, workflowStatus: TransactionWorkflowStatus.PENDING },
+    }),
+  ]);
+
+  if (pendingOutcomes > 0 || pendingApprovals > 0 || pendingSales > 0) {
+    await tx.transaction.update({
+      where: { id: transactionId },
+      data: { completedAt: null, returnedAt: null, workflowStatus: TransactionWorkflowStatus.IN_PROGRESS },
+    });
+    return;
+  }
 
   if (openItems === 0) {
     await tx.transaction.update({
@@ -1718,7 +2222,13 @@ async function refreshTransactionResolutionStatus(
         workflowStatus: TransactionWorkflowStatus.COMPLETED,
       },
     });
+    return;
   }
+
+  await tx.transaction.update({
+    where: { id: transactionId },
+    data: { completedAt: null, returnedAt: null, workflowStatus: TransactionWorkflowStatus.IN_PROGRESS },
+  });
 }
 
 export async function holdAssetsForRequest(
@@ -1793,15 +2303,7 @@ export async function submitTransaction(
       let projectId = cleanText(input.projectId);
 
       if (input.projectRequest) {
-        const project = await tx.project.findFirst({
-          where: { id: projectId ?? "", status: "ACTIVE" },
-          select: { id: true, name: true },
-        });
-
-        if (!project) {
-          throw new WorkflowError("Project not found or inactive.", 404, "PROJECT_NOT_FOUND");
-        }
-
+        const project = await findProjectForRequest(tx, user, projectId);
         projectId = project.id;
         requestPurpose = project.name;
       } else {
@@ -1865,6 +2367,8 @@ export async function submitTransaction(
         });
       }
 
+      await recordRequesterConfirmation(tx, transaction.id, user, now);
+
       await tx.assetStatusHistory.createMany({
         data: items.map(({ asset, quantity }) => ({
           actionType: AssetActionType.REQUEST_SUBMIT,
@@ -1890,8 +2394,23 @@ async function applyApprovedTransaction(
   transactionId: string,
   userId: string,
   now: Date,
+  resolutionBatchId?: string | null,
 ) {
   const transaction = await findTransactionDetail(tx, transactionId);
+
+  if (resolutionBatchId && !transaction.sourceTransactionId) {
+    await assertReturnFinalGate(tx, transactionId, resolutionBatchId, true);
+    await applyApprovedOutcomeCycle(tx, transaction, userId, now, resolutionBatchId);
+    await tx.returnBatch.update({ where: { id: resolutionBatchId }, data: { state: "COMPLETED" } });
+    return;
+  }
+
+  if (transaction.outcomeRecords.some((outcome) =>
+    !outcome.approvedAt && (!resolutionBatchId || outcome.resolutionBatchId === resolutionBatchId),
+  )) {
+    await applyApprovedOutcomeCycle(tx, transaction, userId, now, resolutionBatchId);
+    return;
+  }
   const toStatus = getTransactionAssetStatus(transaction.type);
 
   if (transaction.status === TransactionStatus.RETURNED && transaction.sourceTransactionId) {
@@ -1905,11 +2424,19 @@ async function applyApprovedTransaction(
   }
 
   for (const item of transaction.items) {
+    if ((isQuantityTransactionItem(item) && item.dispatchedAt) || (!isQuantityTransactionItem(item) && item.asset.status === toStatus)) continue;
     const workflowItem = { asset: item.asset as unknown as WorkflowAsset, quantity: item.requestedQuantity };
     if (isQuantityTransactionItem(item)) {
-      await updateSubmittedQuantityAsset(tx, workflowItem, transaction.requestedBy.id, toStatus);
+      await updateSubmittedQuantityAsset(tx, workflowItem, userId, toStatus, transactionId);
+      if (toStatus === AssetStatus.BORROW || toStatus === AssetStatus.USING || toStatus === AssetStatus.SOLD) {
+        await tx.transactionItem.update({
+          where: { id: item.id },
+          data: { dispatchedAt: now, dispatchedById: userId },
+        });
+      }
     } else {
       await updateSubmittedAsset(tx, workflowItem.asset, transaction.requestedBy.id, toStatus);
+      await tx.transactionItem.update({ where: { id: item.id }, data: { dispatchedAt: now, dispatchedById: userId } });
     }
   }
 
@@ -1957,6 +2484,17 @@ async function applyApprovedReturnSaleTransaction(
     tx,
     transaction.sourceTransactionId,
   );
+  const linkedBatches = await tx.transactionItemOutcome.findMany({
+    where: { soldTransactionId: transaction.id, approvedAt: null },
+    select: { resolutionBatchId: true },
+  });
+  for (const batchId of new Set(linkedBatches.map((outcome) => outcome.resolutionBatchId))) {
+    if (!batchId) throw new WorkflowError("The sale is not linked to a verified return batch.", 409, "RETURN_BATCH_REQUIRED");
+    await assertReturnFinalGate(tx, sourceTransaction.id, batchId, true);
+  }
+  if (!transaction.items.every((item) => item.soldPrice !== null || (Array.isArray(item.salePriceGroups) && item.salePriceGroups.length > 0))) {
+    throw new WorkflowError("BSD must price every sold item before posting.", 409, "SOLD_PRICE_REQUIRED");
+  }
   const sourceItemsByAsset = new Map(
     sourceTransaction.items
       .filter((item) => !item.returnedAt)
@@ -1974,33 +2512,65 @@ async function applyApprovedReturnSaleTransaction(
       );
     }
 
-    if (saleItem.requestedQuantity !== sourceItem.requestedQuantity) {
+    const linkedOutcomes = await tx.transactionItemOutcome.findMany({
+      where: {
+        soldTransactionId: transaction.id,
+        transactionItemId: sourceItem.id,
+        outcomeStatus: AssetStatus.SOLD,
+        approvedAt: null,
+      },
+      select: { quantity: true },
+    });
+    if (!linkedOutcomes.length || saleItem.requestedQuantity !== linkedOutcomes.reduce((sum, outcome) => sum + outcome.quantity, 0)) {
       throw new WorkflowError(
-        "Return sale quantity must match the open source item quantity.",
+        "Sale quantity must match the pending sold outcome quantity.",
         409,
         "RETURN_SALE_QUANTITY_MISMATCH",
       );
     }
 
-    await resolveItem(
-      tx,
-      sourceItem,
-      { id: userId } as CurrentUser,
-      now,
-      AssetStatus.SOLD,
-      "Sold after return approval",
-      saleItem.soldPrice?.toString() ?? transaction.soldPrice?.toString() ?? null,
-    );
+    if (!isQuantityTransactionItem(sourceItem)) {
+      await resolveItem(
+        tx,
+        sourceItem,
+        { id: userId } as CurrentUser,
+        now,
+        AssetStatus.SOLD,
+        "Sold after return approval",
+        saleItem.soldPrice?.toString() ?? transaction.soldPrice?.toString() ?? null,
+        saleItem.requestedQuantity,
+      );
+    }
+    await tx.transactionItemOutcome.updateMany({ where: { soldTransactionId: transaction.id, transactionItemId: sourceItem.id, approvedAt: null }, data: { soldPrice: saleItem.soldPrice, soldTotal: saleItem.soldTotal } });
   }
 
-  await tx.transactionItem.updateMany({
-    where: { transactionId: transaction.id },
-    data: {
-      resolvedStatus: AssetStatus.SOLD,
-      returnedAt: now,
-      returnedById: userId,
+  await tx.transactionItemOutcome.updateMany({
+    where: {
+      soldTransactionId: transaction.id,
+      transactionId: sourceTransaction.id,
+      outcomeStatus: AssetStatus.SOLD,
+      approvedAt: null,
     },
+    data: { approvedAt: now, approvedById: userId, soldTransactionId: transaction.id },
   });
+
+  for (const saleItem of transaction.items) {
+    const sourceItem = sourceItemsByAsset.get(saleItem.assetId);
+    if (!sourceItem) continue;
+    const approvedQuantity = await tx.transactionItemOutcome.aggregate({
+      _sum: { quantity: true },
+      where: { transactionItemId: sourceItem.id, approvedAt: { not: null } },
+    });
+    const fullyResolved = (approvedQuantity._sum.quantity ?? 0) >= sourceItem.requestedQuantity;
+    await tx.transactionItem.update({
+      where: { id: sourceItem.id },
+      data: {
+        resolvedStatus: AssetStatus.SOLD,
+        returnedAt: fullyResolved ? now : null,
+        returnedById: fullyResolved ? userId : null,
+      },
+    });
+  }
 
   await tx.assetStatusHistory.createMany({
     data: transaction.items.map((item) => ({
@@ -2009,14 +2579,12 @@ async function applyApprovedReturnSaleTransaction(
       changedById: userId,
       fromStatus: item.fromStatus,
       previousQuantity: isQuantityTransactionItem(item) ? item.asset.assetQuantity : null,
-      newQuantity: isQuantityTransactionItem(item) ? Math.max(0, item.asset.assetQuantity - item.requestedQuantity) : null,
+      newQuantity: isQuantityTransactionItem(item) ? item.asset.assetQuantity : null,
       note: `Sold from return; source ${sourceTransaction.transactionNo ?? sourceTransaction.documentRef ?? sourceTransaction.id}`,
       toStatus: AssetStatus.SOLD,
       transactionId: transaction.id,
     })),
   });
-
-  await refreshTransactionResolutionStatus(tx, sourceTransaction.id, now);
 
   await tx.transaction.update({
     where: { id: transaction.id },
@@ -2026,6 +2594,8 @@ async function applyApprovedReturnSaleTransaction(
       workflowStatus: TransactionWorkflowStatus.COMPLETED,
     },
   });
+
+  await refreshTransactionResolutionStatus(tx, sourceTransaction.id, now);
 }
 
 async function applyApprovedReturnTransaction(
@@ -2124,8 +2694,141 @@ async function applyApprovedReturnTransaction(
 
 export type ApproveTransactionInput = {
   comment?: string | null;
+  prices?: Record<string, string>;
+  totals?: Record<string, string>;
+  priceGroups?: Record<string, SalePriceGroup[]>;
+  returnConditions?: Record<string, AssetCondition>;
+  returnStockAssetIds?: Record<string, string>;
   soldPrice?: string | null;
 };
+
+async function assertReturnFinalGate(
+  tx: Prisma.TransactionClient,
+  transactionId: string,
+  batchId: string,
+  requireFinalApprovals = false,
+) {
+  const batch = await tx.returnBatch.findFirst({ where: { id: batchId, transactionId } });
+  if (!batch || ["REJECTED", "CANCELLED"].includes(batch.state)) {
+    throw new WorkflowError("This return batch is not active.", 409, "RETURN_BATCH_NOT_ACTIVE");
+  }
+  const [approvals, outcomes] = await Promise.all([
+    tx.transactionApproval.findMany({ where: { transactionId, resolutionBatchId: batchId, isCurrent: true } }),
+    tx.transactionItemOutcome.findMany({ where: { transactionId, resolutionBatchId: batchId, approvedAt: null }, include: { checks: true, transactionItem: { include: { asset: { include: { warehouse: true } } } } } }),
+  ]);
+  const checks = approvals.filter((approval) => approval.requiredTag.startsWith("RETURN_CHECK:"));
+  if (!checks.length || checks.some((approval) => approval.status !== ApprovalStatus.APPROVED) || outcomes.some((outcome) => {
+    const code = outcome.transactionItem.asset?.warehouse.code;
+    const required = checks.filter((approval) => approval.requiredTag === `RETURN_CHECK:${code}`);
+    return !required.length || required.some((approval) => !approval.userId || !outcome.checks.some((check) => check.userId === approval.userId));
+  })) {
+    throw new WorkflowError("All outcomes must be checked by every assigned Storeman.", 409, "RETURN_CHECKS_REQUIRED");
+  }
+  const requiresDocument = outcomes.some((outcome) => outcome.outcomeStatus === AssetStatus.FAIL || outcome.outcomeStatus === AssetStatus.LOST || outcome.returnCondition === AssetCondition.USED);
+  if (requiresDocument && (!batch.signedPdf?.byteLength || !batch.signedAt || !batch.signedById)) {
+    throw new WorkflowError("Upload the signed PDF for this return revision before final approval.", 409, "SIGNED_RETURN_PDF_REQUIRED");
+  }
+  if (requireFinalApprovals) {
+    const finalApprovals = approvals.filter((approval) => approval.requiredTag.startsWith("STOREMAN:"));
+    if (!finalApprovals.length || finalApprovals.some((approval) => approval.status !== ApprovalStatus.APPROVED) || approvals.some((approval) => !approval.requiredTag.startsWith("ACK_") && approval.status !== ApprovalStatus.APPROVED)) {
+      throw new WorkflowError("Every warehouse must complete final return approval before sale or stock posting.", 409, "RETURN_FINAL_APPROVAL_REQUIRED");
+    }
+  }
+}
+
+async function assertReturnBatchEditable(tx: Prisma.TransactionClient, transactionId: string, batchId: string) {
+  const batch = await tx.returnBatch.findFirst({ where: { id: batchId, transactionId } });
+  if (!batch || ["COMPLETED", "CANCELLED"].includes(batch.state)) throw new WorkflowError("This return batch cannot be edited.", 409, "RETURN_BATCH_LOCKED");
+  if (batch.state === "REJECTED") return;
+  const approved = await tx.transactionApproval.findFirst({
+    where: { transactionId, resolutionBatchId: batchId, isCurrent: true, status: ApprovalStatus.APPROVED, stepSequence: { gt: 1 } },
+  });
+  if (approved) throw new WorkflowError("The return batch is locked after lead approval. Reject it before editing.", 409, "RETURN_LEAD_ALREADY_APPROVED");
+}
+
+async function createTransactionAcknowledgements(
+  tx: Prisma.TransactionClient,
+  transactionId: string,
+) {
+  const transaction = await tx.transaction.findUniqueOrThrow({
+    where: { id: transactionId },
+    select: {
+      requestedById: true,
+      items: { select: { asset: { select: { warehouse: { select: { code: true } } } } } },
+    },
+  });
+  const recipients = new Map<string, { userId: string; requiredTag: string }>();
+  const bsd = await findOrganizationApprover(tx, OrganizationTag.BSD_STAFF, transaction.requestedById);
+  if (bsd) recipients.set(`${bsd.id}:${ACK_BSD_REQUIRED_TAG}`, { userId: bsd.id, requiredTag: ACK_BSD_REQUIRED_TAG });
+  for (const item of transaction.items) {
+    if (!item.asset) throw new WorkflowError("Transaction asset is missing.", 409, "TRANSACTION_ASSET_MISSING");
+    const managers = await tx.warehouseManagerAssignment.findMany({
+      where: { warehouse: { code: item.asset.warehouse.code, isActive: true } },
+      select: { userId: true },
+    });
+    for (const manager of managers) {
+      recipients.set(`${manager.userId}:${ACK_WAREHOUSE_MANAGER_REQUIRED_TAG}`, { userId: manager.userId, requiredTag: ACK_WAREHOUSE_MANAGER_REQUIRED_TAG });
+    }
+  }
+  if (recipients.size === 0) return;
+  await tx.transactionApproval.createMany({
+    data: [...recipients.values()].map(({ userId, requiredTag }) => ({
+      transactionId,
+      userId,
+      requiredTag,
+      stepSequence: 999,
+      approverTagSnapshot: requiredTag,
+      status: ApprovalStatus.PENDING,
+    })),
+    skipDuplicates: true,
+  });
+}
+
+function calculateTransactionSalePricing(
+  items: Array<{ id: string; requestedQuantity: number }>,
+  input: ApproveTransactionInput,
+  draft: boolean,
+) {
+  try {
+    const calculated = items.map((item) => {
+      const source = input.priceGroups?.[item.id] ?? [{ quantity: item.requestedQuantity, unitPrice: input.prices?.[item.id] ?? "", total: "" }];
+      if (!draft && source.some((group) => !group.unitPrice.trim())) {
+        throw new WorkflowError("BSD must enter a valid Price / unit for every sold item.", 400, "SOLD_PRICE_REQUIRED");
+      }
+      const groups = validateSalePriceGroups(source, item.requestedQuantity, item.requestedQuantity === 1, draft);
+      return { id: item.id, groups, total: groups.every((group) => group.unitPrice) ? calculateSaleGrandTotal(groups) : null };
+    });
+    return { items: calculated, grandTotal: calculateSaleGrandTotal(calculated.flatMap((item) => item.groups)) };
+  } catch (error) {
+    if (error instanceof WorkflowError) throw error;
+    throw new WorkflowError((error as Error).message, 400, "SALE_PRICE_GROUPS_INVALID");
+  }
+}
+
+export async function saveSalePriceDraft(user: CurrentUser, transactionId: string, input: ApproveTransactionInput) {
+  return db.$transaction(async (tx) => {
+    const transaction = await tx.transaction.findUnique({ where: { id: transactionId }, include: { items: true, approvals: { where: { isCurrent: true } } } });
+    if (!transaction) throw new WorkflowError("Transaction not found.", 404);
+    const approval = currentPendingApproval(user, transaction.approvals);
+    if (transaction.type !== TransactionType.SOLD || transaction.workflowStatus !== TransactionWorkflowStatus.PENDING || approval?.requiredTag !== OrganizationTag.BSD_STAFF) {
+      throw new WorkflowError("Only the assigned BSD Staff can save prices at the sale approval step.", 403);
+    }
+    if (transaction.sourceTransactionId) {
+      if (!approval.resolutionBatchId) throw new WorkflowError("Sale source batch is missing.", 409);
+      await assertReturnFinalGate(tx, transaction.sourceTransactionId, approval.resolutionBatchId, true);
+    }
+    const pricing = calculateTransactionSalePricing(transaction.items, input, true);
+    for (const item of pricing.items) {
+      await tx.transactionItem.update({ where: { id: item.id }, data: {
+        salePriceGroups: item.groups,
+        soldPrice: item.groups.length === 1 && item.groups[0].unitPrice ? new Prisma.Decimal(item.groups[0].unitPrice) : null,
+        soldTotal: item.total ? new Prisma.Decimal(item.total) : null,
+      } });
+    }
+    await tx.transaction.update({ where: { id: transactionId }, data: { soldPrice: new Prisma.Decimal(pricing.grandTotal) } });
+    return { saved: true };
+  });
+}
 
 export async function approveTransaction(
   user: CurrentUser,
@@ -2134,14 +2837,6 @@ export async function approveTransaction(
 ) {
   const now = new Date();
 
-  if (!user.signatureDataUrl) {
-    throw new WorkflowError(
-      "Please upload your signature before approving the document.",
-      400,
-      "SIGNATURE_REQUIRED",
-    );
-  }
-
   return db.$transaction(
     async (tx) => {
       const transaction = await tx.transaction.findUnique({
@@ -2149,15 +2844,53 @@ export async function approveTransaction(
         select: {
           id: true,
           projectId: true,
+          project: {
+            select: {
+              leadUser: { select: { id: true } },
+              members: {
+                where: { projectTag: ProjectMemberTag.LEAD_PROJECT },
+                select: { userId: true },
+              },
+            },
+          },
           requestedById: true,
+          sourceTransactionId: true,
           soldPrice: true,
           type: true,
           workflowStatus: true,
+          items: {
+            select: {
+              id: true,
+              requestedQuantity: true,
+              dispatchedAt: true,
+              asset: {
+                select: {
+                      assetModelId: true,
+                      warehouseId: true,
+                  serialNo: true,
+                  warehouse: { select: { code: true } },
+                      assetModel: {
+                        select: {
+                          id: true,
+                          isSerialized: true,
+                          name: true,
+                          brand: true,
+                          partNo: true,
+                          description: true,
+                        },
+                      },
+                },
+              },
+            },
+          },
           approvals: {
+            where: { isCurrent: true },
             orderBy: [{ stepSequence: "asc" }, { createdAt: "asc" }],
             select: {
               id: true,
               requiredTag: true,
+              resolutionBatchId: true,
+              comment: true,
               status: true,
               stepSequence: true,
               userId: true,
@@ -2170,21 +2903,176 @@ export async function approveTransaction(
         throw new WorkflowError("Transaction not found.", 404);
       }
 
-      if (transaction.workflowStatus !== TransactionWorkflowStatus.PENDING) {
-        throw new WorkflowError("Transaction is not pending approval.", 409);
-      }
-
       const pendingApprovals = transaction.approvals.filter(
         (approval) => approval.status === ApprovalStatus.PENDING,
       );
-      const currentStep = Math.min(...pendingApprovals.map((approval) => approval.stepSequence));
-      const currentApproval = pendingApprovals.find(
-        (approval) =>
-          approval.stepSequence === currentStep && approvalMatchesUser(user, approval),
-      );
+      if (pendingApprovals.length === 0 || (
+        transaction.workflowStatus !== TransactionWorkflowStatus.PENDING &&
+        !pendingApprovals.some((approval) => approval.requiredTag.startsWith("ACK_") || approval.resolutionBatchId)
+      )) {
+        throw new WorkflowError("Transaction is not pending approval.", 409);
+      }
+      const currentProjectLeadIds = new Set([
+        ...(transaction.project?.leadUser ? [transaction.project.leadUser.id] : []),
+        ...(transaction.project?.members ?? []).map((member) => member.userId),
+      ]);
+      const currentApproval = pendingApprovals
+        .filter((approval) =>
+          approval.requiredTag === ProjectMemberTag.LEAD_PROJECT
+            ? currentProjectLeadIds.has(user.id) && approval.userId === user.id
+            : approvalMatchesUser(user, approval),
+        )
+        .find((approval) => {
+          if (approval.requiredTag.startsWith("ACK_")) return true;
+          const cyclePending = pendingApprovals.filter(
+            (candidate) => candidate.resolutionBatchId === approval.resolutionBatchId && !candidate.requiredTag.startsWith("ACK_"),
+          );
+          return approval.stepSequence === Math.min(...cyclePending.map((candidate) => candidate.stepSequence));
+        });
 
       if (!currentApproval) {
         throw new WorkflowError("No approval is waiting for this user.", 403);
+      }
+
+      if (currentApproval.requiredTag.startsWith("RETURN_CHECK:")) {
+        throw new WorkflowError("Confirm the individual outcomes through the return check service.", 409, "RETURN_MANUAL_CHECK_REQUIRED");
+      }
+      if (currentApproval.resolutionBatchId && !transaction.sourceTransactionId) {
+        const batch = await tx.returnBatch.findFirst({ where: { id: currentApproval.resolutionBatchId, transactionId } });
+        if (!batch || ["REJECTED", "CANCELLED", "COMPLETED"].includes(batch.state)) throw new WorkflowError("This return batch is not pending approval.", 409, "RETURN_BATCH_NOT_ACTIVE");
+        if (currentApproval.requiredTag.startsWith("STOREMAN:")) await assertReturnFinalGate(tx, transactionId, batch.id);
+      }
+      if (transaction.type === TransactionType.SOLD && transaction.sourceTransactionId) {
+        const linked = await tx.transactionItemOutcome.findMany({ where: { soldTransactionId: transactionId, approvedAt: null }, select: { resolutionBatchId: true } });
+        if (!linked.length) throw new WorkflowError("No pending sold outcome exists.", 409);
+        for (const batchId of new Set(linked.map((outcome) => outcome.resolutionBatchId))) {
+          if (!batchId) throw new WorkflowError("The sale has no return batch.", 409, "RETURN_BATCH_REQUIRED");
+          await assertReturnFinalGate(tx, transaction.sourceTransactionId, batchId, true);
+        }
+      }
+
+      if (isWarehouseStockControllerRequiredTag(currentApproval.requiredTag) && !currentApproval.resolutionBatchId) {
+        const warehouseCode = currentApproval.requiredTag.split(":")[1];
+        const pendingReturns = await tx.transactionItemOutcome.findMany({
+          where: {
+            transactionId,
+            approvedAt: null,
+            resolutionBatchId: currentApproval.resolutionBatchId,
+            outcomeStatus: AssetStatus.READY,
+          },
+          select: { id: true, transactionItemId: true },
+        });
+        const itemsById = new Map(transaction.items.map((item) => [item.id, item]));
+        const quantityReturns = pendingReturns.filter((outcome) => {
+          const item = itemsById.get(outcome.transactionItemId);
+          return Boolean(
+            item?.asset &&
+            getEffectiveAssetTrackMethod(item.asset) === AssetTrackMethod.QUANTITY &&
+            item.asset.warehouse.code === warehouseCode,
+          );
+        });
+        const returnConditions = input.returnConditions ?? {};
+        const returnStockAssetIds = input.returnStockAssetIds ?? {};
+        const missingCondition = quantityReturns.some((outcome) => {
+          const condition = returnConditions[outcome.id];
+          return condition !== AssetCondition.NEW && condition !== AssetCondition.USED;
+        });
+        if (missingCondition) {
+          throw new WorkflowError(
+            "Select NEW or USED for every quantity-pool item being returned.",
+            409,
+            "RETURN_CONDITION_REQUIRED",
+          );
+        }
+        const missingStockCode = quantityReturns.some((outcome) => !returnStockAssetIds[outcome.id]);
+        if (missingStockCode) {
+          throw new WorkflowError(
+            "Choose an existing Stock Code for every quantity-pool return.",
+            409,
+            "RETURN_STOCK_CODE_REQUIRED",
+          );
+        }
+        for (const outcome of quantityReturns) {
+          const item = itemsById.get(outcome.transactionItemId);
+          const selectedAssetId = returnStockAssetIds[outcome.id];
+          const selectedAsset = await tx.asset.findFirst({
+            where: {
+              id: selectedAssetId,
+              warehouseId: item?.asset?.warehouseId,
+              isActive: true,
+              serialNo: null,
+              stockCode: { not: null },
+            },
+            select: {
+              id: true,
+              assetModelId: true,
+              condition: true,
+              assetModel: {
+                select: { id: true, name: true, brand: true, partNo: true, description: true, isSerialized: true },
+              },
+            },
+          });
+          const sourceModel = item?.asset?.assetModel;
+          const matchesSourceModel = Boolean(
+            selectedAsset && sourceModel &&
+            selectedAsset.assetModelId === sourceModel.id,
+          );
+          if (!selectedAsset || !matchesSourceModel) {
+            throw new WorkflowError(
+              "The selected Stock Code is not valid for this product and warehouse.",
+              409,
+              "RETURN_STOCK_CODE_INVALID",
+            );
+          }
+          await tx.transactionItemOutcome.update({
+            where: { id: outcome.id },
+            data: { returnCondition: returnConditions[outcome.id], assetId: selectedAsset.id },
+          });
+        }
+      }
+
+      if (isWarehouseStockControllerRequiredTag(currentApproval.requiredTag) && !currentApproval.resolutionBatchId && !transaction.sourceTransactionId) {
+        const warehouseCode = currentApproval.requiredTag.split(":")[1];
+        const undispatchedSerialItems = transaction.items.filter(
+          (item) => item.asset && getEffectiveAssetTrackMethod(item.asset) === AssetTrackMethod.SERIAL &&
+            item.asset.warehouse.code === warehouseCode &&
+            (!item.dispatchedAt || !item.asset.serialNo),
+        );
+        if (undispatchedSerialItems.length > 0) {
+          throw new WorkflowError(
+            "Select an available serial number for every serialized item before approving this request.",
+            409,
+            "SERIAL_DISPATCH_REQUIRED",
+          );
+        }
+      }
+
+      const isAcknowledgement = currentApproval.requiredTag.startsWith("ACK_");
+      if (!isAcknowledgement && !user.signatureDataUrl) {
+        throw new WorkflowError(
+          "Please upload your signature before approving the document.",
+          400,
+          "SIGNATURE_REQUIRED",
+        );
+      }
+
+      const isBsdSaleApproval = !isAcknowledgement && currentApproval.requiredTag === OrganizationTag.BSD_STAFF && transaction.type === TransactionType.SOLD;
+      if (isBsdSaleApproval) {
+        const pricing = calculateTransactionSalePricing(transaction.items, input, false);
+        for (const item of pricing.items) {
+          await tx.transactionItem.update({
+            where: { id: item.id },
+            data: {
+              salePriceGroups: item.groups,
+              soldPrice: item.groups.length === 1 ? new Prisma.Decimal(item.groups[0].unitPrice) : null,
+              soldTotal: new Prisma.Decimal(item.total!),
+            },
+          });
+        }
+        await tx.transaction.update({
+          where: { id: transactionId },
+          data: { soldPrice: new Prisma.Decimal(pricing.grandTotal) },
+        });
       }
 
       await tx.transactionApproval.update({
@@ -2192,7 +3080,7 @@ export async function approveTransaction(
         data: {
           actedAt: now,
           approverNameSnapshot: user.name,
-          approverSignatureSnapshot: user.signatureDataUrl,
+          approverSignatureSnapshot: isAcknowledgement ? null : user.signatureDataUrl,
           approverTagSnapshot: currentApproval.requiredTag,
           comment: cleanText(input.comment),
           status: ApprovalStatus.APPROVED,
@@ -2200,40 +3088,21 @@ export async function approveTransaction(
         },
       });
 
-      // A user may hold consecutive approval sequences. Approve each matching
-      // sequence separately so every step keeps its own audit timestamp/signature.
-      while (true) {
-        const nextPending = await tx.transactionApproval.findMany({
-          where: { transactionId, status: ApprovalStatus.PENDING },
-          orderBy: [{ stepSequence: "asc" }, { createdAt: "asc" }],
-          select: { id: true, stepSequence: true, userId: true },
-        });
-        if (nextPending.length === 0) break;
-        const nextStep = nextPending[0].stepSequence;
-        const nextStepApprovals = nextPending.filter((approval) => approval.stepSequence === nextStep);
-        if (nextStepApprovals.some((approval) => approval.userId !== user.id)) break;
-        for (const approval of nextStepApprovals) {
-          await tx.transactionApproval.update({
-            where: { id: approval.id },
-            data: {
-              actedAt: new Date(),
-              approverNameSnapshot: user.name,
-              approverSignatureSnapshot: user.signatureDataUrl,
-              approverTagSnapshot: (await tx.transactionApproval.findUniqueOrThrow({ where: { id: approval.id }, select: { requiredTag: true } })).requiredTag,
-              comment: cleanText(input.comment),
-              status: ApprovalStatus.APPROVED,
-              userId: user.id,
-            },
-          });
-        }
-      }
-
       const remaining = await tx.transactionApproval.count({
-        where: { transactionId, status: ApprovalStatus.PENDING },
+        where: {
+          transactionId,
+          status: ApprovalStatus.PENDING,
+          resolutionBatchId: currentApproval.resolutionBatchId,
+          isCurrent: true,
+          requiredTag: { notIn: [ACK_BSD_REQUIRED_TAG, ACK_WAREHOUSE_MANAGER_REQUIRED_TAG] },
+        },
       });
 
-      if (remaining === 0) {
-        await applyApprovedTransaction(tx, transactionId, user.id, now);
+      if (!isAcknowledgement && remaining === 0) {
+        await applyApprovedTransaction(tx, transactionId, user.id, now, currentApproval.resolutionBatchId);
+        if (!currentApproval.resolutionBatchId) {
+          await createTransactionAcknowledgements(tx, transactionId);
+        }
       }
 
       return findTransactionDetail(tx, transactionId);
@@ -2256,23 +3125,25 @@ function currentPendingApproval(
     status: ApprovalStatus;
     stepSequence: number;
     userId: string | null;
+    resolutionBatchId?: string | null;
+    comment?: string | null;
   }>,
+  currentProjectLeadIds?: Set<string>,
 ) {
   const pendingApprovals = approvals.filter(
-    (approval) => approval.status === ApprovalStatus.PENDING,
+    (approval) => approval.status === ApprovalStatus.PENDING && !approval.requiredTag.startsWith("ACK_"),
   );
 
   if (pendingApprovals.length === 0) {
     return null;
   }
 
-  const currentStep = Math.min(
-    ...pendingApprovals.map((approval) => approval.stepSequence),
-  );
-
   return pendingApprovals.find(
     (approval) =>
-      approval.stepSequence === currentStep && approvalMatchesUser(user, approval),
+      approval.stepSequence === Math.min(...pendingApprovals.filter((candidate) => candidate.resolutionBatchId === approval.resolutionBatchId).map((candidate) => candidate.stepSequence)) &&
+      (approval.requiredTag === ProjectMemberTag.LEAD_PROJECT && currentProjectLeadIds
+        ? currentProjectLeadIds.has(user.id) && approval.userId === user.id
+        : approvalMatchesUser(user, approval)),
   ) ?? null;
 }
 
@@ -2350,8 +3221,8 @@ export async function cancelTransactionRequest(
         throw new WorkflowError("Only pending or rejected requests can be cancelled.", 409, "CANCEL_REQUEST_NOT_ALLOWED");
       }
 
-      const approvedCount = transaction.approvals.filter((approval) => approval.status === ApprovalStatus.APPROVED).length;
-      if (approvedCount > 0) {
+      const approvedCount = transaction.approvals.filter((approval) => approval.status === ApprovalStatus.APPROVED && approval.stepSequence > 1).length;
+      if (approvedCount > 0 && transaction.workflowStatus !== TransactionWorkflowStatus.REJECTED) {
         throw new WorkflowError("A request with completed approval cannot be cancelled.", 409, "CANCEL_APPROVAL_ALREADY_COMPLETED");
       }
 
@@ -2385,11 +3256,15 @@ export async function rejectTransaction(
     async (tx) => {
       const transaction = await findTransactionDetail(tx, transactionId);
 
-      if (transaction.workflowStatus !== TransactionWorkflowStatus.PENDING) {
+      if (transaction.workflowStatus !== TransactionWorkflowStatus.PENDING && !transaction.approvals.some((approval) => approval.resolutionBatchId && approval.status === ApprovalStatus.PENDING)) {
         throw new WorkflowError("Transaction is not pending approval.", 409);
       }
 
-      const currentApproval = currentPendingApproval(user, transaction.approvals);
+      const currentProjectLeadIds = new Set([
+        ...(transaction.project?.leadUser ? [transaction.project.leadUser.id] : []),
+        ...(transaction.project?.members ?? []).map((member) => member.user.id),
+      ]);
+      const currentApproval = currentPendingApproval(user, transaction.approvals, currentProjectLeadIds);
 
       if (!currentApproval) {
         throw new WorkflowError("No approval is waiting for this user.", 403);
@@ -2407,10 +3282,25 @@ export async function rejectTransaction(
         },
       });
 
+      if (currentApproval.resolutionBatchId && !transaction.sourceTransactionId) {
+        const batchId = currentApproval.resolutionBatchId;
+        const unposted = await tx.transactionItemOutcome.count({ where: { transactionId, resolutionBatchId: batchId, approvedAt: null } });
+        if (!unposted) throw new WorkflowError("Posted outcomes cannot be rejected.", 409, "RETURN_BATCH_ALREADY_POSTED");
+        await tx.returnBatch.update({ where: { id: batchId }, data: { state: "REJECTED" } });
+        await tx.transactionApproval.updateMany({ where: { transactionId, resolutionBatchId: batchId, status: ApprovalStatus.PENDING }, data: { status: ApprovalStatus.REJECTED, comment: reason, actedAt: now } });
+        const soldOutcomes = await tx.transactionItemOutcome.findMany({ where: { transactionId, resolutionBatchId: batchId, soldTransactionId: { not: null } }, select: { soldTransactionId: true } });
+        for (const saleId of new Set(soldOutcomes.map((outcome) => outcome.soldTransactionId).filter((id): id is string => Boolean(id)))) {
+          await tx.transaction.update({ where: { id: saleId }, data: { workflowStatus: TransactionWorkflowStatus.REJECTED } });
+          await tx.transactionApproval.updateMany({ where: { transactionId: saleId, status: ApprovalStatus.PENDING }, data: { status: ApprovalStatus.REJECTED, comment: reason, actedAt: now } });
+        }
+        await refreshTransactionResolutionStatus(tx, transactionId, now);
+        return findTransactionDetail(tx, transactionId);
+      }
+
       await tx.transaction.update({
         where: { id: transactionId },
         data: {
-          completedAt: now,
+          completedAt: null,
           status: transaction.status,
           workflowStatus: TransactionWorkflowStatus.REJECTED,
         },
@@ -2418,6 +3308,11 @@ export async function rejectTransaction(
 
       if (transaction.sourceTransactionId) {
         await recordRejectedDerivedResolutionItems(tx, transaction, user.id, reason);
+        const linked = await tx.transactionItemOutcome.findMany({ where: { soldTransactionId: transactionId, approvedAt: null }, select: { resolutionBatchId: true } });
+        for (const batchId of new Set(linked.map((outcome) => outcome.resolutionBatchId).filter((id): id is string => Boolean(id)))) {
+          await tx.returnBatch.update({ where: { id: batchId }, data: { state: "REJECTED" } });
+        }
+        await refreshTransactionResolutionStatus(tx, transaction.sourceTransactionId, now);
       } else {
         await releaseRejectedTransactionItems(tx, transaction, user.id, reason);
       }
@@ -2474,7 +3369,7 @@ export async function updatePendingTransactionRequest(
 
       if (
         !isRejectedEdit &&
-        transaction.approvals.some((approval) => approval.status === ApprovalStatus.APPROVED)
+        transaction.approvals.some((approval) => approval.status === ApprovalStatus.APPROVED && approval.stepSequence > 1)
       ) {
         throw new WorkflowError("This request is locked because approval has already started.", 409);
       }
@@ -2497,15 +3392,7 @@ export async function updatePendingTransactionRequest(
       let projectId = cleanText(input.projectId);
 
       if (input.projectRequest) {
-        const project = await tx.project.findFirst({
-          where: { id: projectId ?? "", status: "ACTIVE" },
-          select: { id: true, name: true },
-        });
-
-        if (!project) {
-          throw new WorkflowError("Project not found or inactive.", 404, "PROJECT_NOT_FOUND");
-        }
-
+        const project = await findProjectForRequest(tx, user, projectId);
         projectId = project.id;
         requestPurpose = project.name;
       } else {
@@ -2558,6 +3445,8 @@ export async function updatePendingTransactionRequest(
           tx,
           transactionId,
           await buildApprovalCandidates(tx, requester, { ...approvalInput, requestDate: transaction.requestDate }, workflowItems),
+          undefined,
+          requester,
         );
 
         return findTransactionDetail(tx, transactionId);
@@ -2729,6 +3618,8 @@ export async function updatePendingTransactionRequest(
         tx,
         transactionId,
         await buildApprovalCandidates(tx, requester, { ...approvalInput, requestDate: transaction.requestDate }, nextItems),
+        undefined,
+        requester,
       );
 
       const historyRows = [
@@ -2789,12 +3680,19 @@ export async function getEditablePendingRequestsForUser(user: CurrentUser) {
       purpose: true,
       transactionNo: true,
       type: true,
+      workflowStatus: true,
       _count: { select: { items: true } },
     },
     where: {
-      approvals: { none: { status: ApprovalStatus.APPROVED } },
       requestedById: user.id,
-      workflowStatus: TransactionWorkflowStatus.PENDING,
+      sourceTransactionId: null,
+      OR: [
+        { workflowStatus: TransactionWorkflowStatus.REJECTED },
+        {
+          workflowStatus: TransactionWorkflowStatus.PENDING,
+          approvals: { none: { isCurrent: true, status: ApprovalStatus.APPROVED, stepSequence: { gt: 1 } } },
+        },
+      ],
     },
   });
 
@@ -2805,6 +3703,7 @@ export async function getEditablePendingRequestsForUser(user: CurrentUser) {
     purpose: transaction.purpose,
     transactionNo: transaction.transactionNo,
     type: transaction.type,
+    workflowStatus: transaction.workflowStatus,
   }));
 }
 
@@ -2842,6 +3741,7 @@ export async function addItemsToPendingTransaction(
 
   const nextItems = new Map<string, RequestAssetItemInput>();
   for (const item of transaction.items) {
+    if (!item.assetId) throw new WorkflowError("Assign a valid asset before editing this request.", 409, "TRANSACTION_ASSET_MISSING");
     nextItems.set(item.assetId, {
       assetId: item.assetId,
       quantity: item.requestedQuantity,
@@ -2914,6 +3814,28 @@ async function assertNoPendingResolutionApproval(
   sourceTransactionId: string,
   items: TransactionDetail["items"],
 ) {
+  const pendingOutcome = await tx.transactionItemOutcome.findFirst({
+    select: {
+      transactionItem: {
+        select: {
+          asset: {
+            select: {
+              assetModel: { select: { name: true } },
+              serialNo: true,
+              stockCode: true,
+            },
+          },
+        },
+      },
+    },
+    where: { approvedAt: null, transactionItem: { transactionId: sourceTransactionId, assetId: { in: items.map((item) => item.assetId) } } },
+  });
+  if (pendingOutcome) {
+    const asset = pendingOutcome.transactionItem.asset;
+    if (!asset) throw new WorkflowError("Pending return asset is missing.", 409, "RETURN_ASSET_MISSING");
+    throw new WorkflowError(`Return approval for ${asset.serialNo ?? asset.stockCode ?? asset.assetModel.name} is already pending.`, 409, "RETURN_APPROVAL_ALREADY_PENDING");
+  }
+
   const pendingItem = await tx.transactionItem.findFirst({
     select: {
       asset: {
@@ -2937,6 +3859,7 @@ async function assertNoPendingResolutionApproval(
   if (!pendingItem) {
     return;
   }
+  if (!pendingItem.asset) throw new WorkflowError("Pending return asset is missing.", 409, "RETURN_ASSET_MISSING");
 
   throw new WorkflowError(
     `Return approval for ${pendingItem.asset.serialNo ?? pendingItem.asset.stockCode ?? pendingItem.asset.assetModel.name} is already pending in ${pendingItem.transaction.transactionNo ?? "another transaction"}.`,
@@ -2949,76 +3872,28 @@ async function createReturnApprovalTransaction(
   tx: Prisma.TransactionClient,
   actor: CurrentUser,
   sourceTransaction: TransactionDetail,
-  returnItems: TransactionDetail["items"],
+  returnItems: Array<TransactionDetail["items"][number] & { returnCondition?: AssetCondition }>,
   note: string | null,
   now: Date,
-  outcome: AssetStatus = AssetStatus.READY,
+  resolutionBatchId: string,
 ) {
-  const requester = await requireWorkflowUserById(
-    tx,
-    sourceTransaction.requestedBy.id,
-  );
   const workflowItems = returnItems.map((item) => ({
     asset: item.asset as unknown as WorkflowAsset,
     quantity: item.requestedQuantity,
   }));
-  const approvalInput: SubmitTransactionInput = {
-    internalRequest: sourceTransaction.internalRequest,
-    items: workflowItems.map((item) => ({
-      assetId: item.asset.id,
-      quantity: item.quantity,
-    })),
-    note,
-    projectId: sourceTransaction.projectId,
-    projectRequest: sourceTransaction.projectRequest,
-    purpose: sourceTransaction.purpose,
-    requestDate: now,
-    serviceRequest: sourceTransaction.serviceRequest,
-    sourceTransactionId: sourceTransaction.id,
-    type: sourceTransaction.type,
-  };
-  const approvals = await buildApprovalCandidates(
-    tx,
-    requester,
-    approvalInput,
-    workflowItems,
-  );
-  const transaction = await tx.transaction.create({
-    data: {
-      completedAt: null,
-      createdById: actor.id,
-      documentRef: null,
-      dueDate: null,
-      internalRequest: sourceTransaction.internalRequest,
-      note,
-      projectId: sourceTransaction.projectId,
-      projectRequest: sourceTransaction.projectRequest,
-      purpose: sourceTransaction.purpose,
-      requestDate: now,
-      requestedById: sourceTransaction.requestedBy.id,
-      serviceRequest: sourceTransaction.serviceRequest,
-      soldPrice: null,
-      sourceTransactionId: sourceTransaction.id,
-      status: TransactionStatus.RETURNED,
-      transactionNo: await createRequisitionNo(tx, now),
-      type: sourceTransaction.type,
-      workflowStatus: TransactionWorkflowStatus.PENDING,
-    },
-  });
-
-  await tx.transactionItem.createMany({
+  const approvals = await buildReturnApprovalCandidates(tx, sourceTransaction, workflowItems);
+  await tx.transactionItemOutcome.createMany({
     data: returnItems.map((item) => ({
-      assetId: item.assetId,
-      fromStatus: item.toStatus,
-      note,
-      requestedQuantity: item.requestedQuantity,
-      soldPrice: null,
-      toStatus: outcome,
-      transactionId: transaction.id,
+      transactionId: sourceTransaction.id,
+      transactionItemId: item.id,
+      outcomeStatus: item.toStatus,
+      returnCondition: item.toStatus === AssetStatus.READY && isQuantityTransactionItem(item) ? item.returnCondition ?? AssetCondition.NEW : null,
+      resolutionBatchId,
+      quantity: item.requestedQuantity,
+      note: item.resolutionNote,
+      soldPrice: item.toStatus === AssetStatus.SOLD && item.soldPrice ? new Prisma.Decimal(item.soldPrice) : null,
     })),
   });
-
-  await replaceTransactionApprovals(tx, transaction.id, approvals);
 
   await tx.assetStatusHistory.createMany({
     data: returnItems.map((item) => ({
@@ -3026,15 +3901,381 @@ async function createReturnApprovalTransaction(
       assetId: item.assetId,
       changedById: actor.id,
       fromStatus: item.toStatus,
-      note: [note, `Created return approval from ${sourceTransaction.transactionNo ?? sourceTransaction.documentRef ?? sourceTransaction.id}`]
-        .filter(Boolean)
-        .join("\n"),
-      toStatus: outcome,
-      transactionId: transaction.id,
+      toStatus: item.toStatus,
+      note: [note, `Return approval pending: ${item.toStatus} (${item.requestedQuantity})`].filter(Boolean).join("\n"),
+      transactionId: sourceTransaction.id,
     })),
   });
 
-  return transaction;
+  await tx.transactionApproval.createMany({
+    data: approvals.map((approval) => ({
+      approverNameSnapshot: approval.approverNameSnapshot,
+      approverTagSnapshot: approval.approverTagSnapshot,
+      requiredTag: approval.requiredTag,
+      resolutionBatchId,
+      stepSequence: approval.stepSequence,
+      transactionId: sourceTransaction.id,
+      userId: approval.userId,
+    })),
+  });
+
+  await recordRequesterConfirmation(tx, sourceTransaction.id, actor, now, resolutionBatchId);
+
+  await tx.transaction.update({
+    where: { id: sourceTransaction.id },
+    data: { completedAt: null, returnedAt: null, workflowStatus: TransactionWorkflowStatus.IN_PROGRESS },
+  });
+
+  return sourceTransaction;
+}
+
+/**
+ * Return outcomes are item/warehouse scoped. Older return batches can exist
+ * without the matching approval rows (or with only one warehouse's rows), so
+ * repair that state before evaluating who may approve the transaction.
+ */
+async function ensureReturnOutcomeApprovalCoverage(
+  tx: Prisma.TransactionClient,
+  transactionId: string,
+) {
+  let transaction = await findTransactionDetail(tx, transactionId);
+  const activeBatches = await tx.returnBatch.findMany({ where: { transactionId, state: { notIn: ["REJECTED", "CANCELLED", "COMPLETED"] } }, select: { id: true } });
+  const activeIds = new Set(activeBatches.map((batch) => batch.id));
+  const pendingOutcomes = transaction.outcomeRecords.filter((outcome) => !outcome.approvedAt && (!outcome.resolutionBatchId || activeIds.has(outcome.resolutionBatchId)));
+
+  if (pendingOutcomes.length === 0) return;
+
+  const legacyOutcomes = pendingOutcomes.filter((outcome) => !outcome.resolutionBatchId);
+  if (legacyOutcomes.length > 0) {
+    const resolutionBatchId = randomUUID();
+    await tx.transactionItemOutcome.updateMany({
+      where: { id: { in: legacyOutcomes.map((outcome) => outcome.id) } },
+      data: { resolutionBatchId },
+    });
+    transaction = await findTransactionDetail(tx, transactionId);
+  }
+
+  const batches = new Set(
+    transaction.outcomeRecords
+      .filter((outcome) => !outcome.approvedAt && outcome.resolutionBatchId && activeIds.has(outcome.resolutionBatchId))
+      .map((outcome) => outcome.resolutionBatchId)
+      .filter((batchId): batchId is string => Boolean(batchId)),
+  );
+
+  for (const resolutionBatchId of batches) {
+    const batchOutcomes = transaction.outcomeRecords.filter(
+      (outcome) => !outcome.approvedAt && outcome.resolutionBatchId === resolutionBatchId,
+    );
+    const itemIds = new Set(batchOutcomes.map((outcome) => outcome.transactionItemId));
+    const batchItems = transaction.items.filter((item) => itemIds.has(item.id));
+    if (batchItems.length === 0) continue;
+
+    const workflowItems = batchItems.map((item) => ({
+      asset: item.asset as unknown as WorkflowAsset,
+      quantity: item.requestedQuantity,
+    }));
+    const approvals = await buildReturnApprovalCandidates(
+      tx,
+      transaction,
+      workflowItems,
+    );
+
+    const existing = await tx.transactionApproval.findMany({
+      where: { transactionId, resolutionBatchId, isCurrent: true },
+      select: { id: true, requiredTag: true, status: true, userId: true, stepSequence: true },
+    });
+    const approvalKey = (requiredTag: string, userId: string | null) => `${requiredTag}:${userId ?? "UNASSIGNED"}`;
+    const expectedByKey = new Map(
+      approvals.map((approval) => [approvalKey(approval.requiredTag, approval.userId), approval]),
+    );
+    const stalePending = existing.filter(
+      (approval) => approval.status === ApprovalStatus.PENDING && !expectedByKey.has(approvalKey(approval.requiredTag, approval.userId)),
+    );
+    if (stalePending.length > 0) {
+      await tx.transactionApproval.deleteMany({
+        where: { id: { in: stalePending.map((approval) => approval.id) } },
+      });
+    }
+    const activeExisting = existing.filter((approval) => !stalePending.some((stale) => stale.id === approval.id));
+    const existingKeys = new Set(activeExisting.map((approval) => approvalKey(approval.requiredTag, approval.userId)));
+    const offsets = activeExisting.flatMap((existingApproval) => {
+      const expected = expectedByKey.get(approvalKey(existingApproval.requiredTag, existingApproval.userId));
+      return expected ? [existingApproval.stepSequence - expected.stepSequence] : [];
+    });
+    // Approval steps are scoped to a return batch; unrelated batches must not
+    // push this batch's supervisor/storeman sequence forward.
+    const stepOffset = offsets[0] ?? 0;
+    const missing = approvals.filter(
+      (approval) => !existingKeys.has(approvalKey(approval.requiredTag, approval.userId)),
+    );
+
+    if (missing.length > 0) {
+      await tx.transactionApproval.createMany({
+        data: missing.map((approval) => ({
+          approverNameSnapshot: approval.approverNameSnapshot,
+          approverTagSnapshot: approval.approverTagSnapshot,
+          requiredTag: approval.requiredTag,
+          resolutionBatchId,
+          status: ApprovalStatus.PENDING,
+          stepSequence: approval.stepSequence + stepOffset,
+          transactionId,
+          userId: approval.userId,
+        })),
+      });
+    }
+  }
+}
+
+async function applyQuantityReturnStock(
+  tx: Prisma.TransactionClient,
+  item: TransactionDetail["items"][number],
+  condition: AssetCondition,
+  quantity: number,
+  userId: string,
+  stockCodeAssetId: string | null,
+) {
+  const sourceAsset = item.asset;
+  if (!sourceAsset) {
+    throw new WorkflowError("The returned quantity is not linked to an asset model.", 409, "RETURN_ASSET_MISSING");
+  }
+
+  if (!stockCodeAssetId) {
+    throw new WorkflowError("Storeman must select an existing Stock Code before approving this return.", 409, "RETURN_STOCK_CODE_REQUIRED");
+  }
+
+  const stockCodeSource = await tx.asset.findFirst({
+    where: {
+      id: stockCodeAssetId,
+      warehouseId: sourceAsset.warehouseId,
+      assetModelId: sourceAsset.assetModelId,
+      isActive: true,
+      serialNo: null,
+      stockCode: { not: null },
+    },
+    select: {
+      id: true,
+      assetModelId: true,
+      assetModel: { select: { id: true, name: true, brand: true, partNo: true, description: true } },
+      stockCode: true,
+    },
+  });
+
+  const selectedStockCode = stockCodeSource?.stockCode;
+  if (!stockCodeSource || !selectedStockCode || (condition === AssetCondition.NEW && selectedStockCode !== sourceAsset.stockCode)) {
+    throw new WorkflowError(
+      "The selected Stock Code must match the canonical model, warehouse and condition. Legacy Used masters require an approved migration first.",
+      409,
+      "RETURN_STOCK_CODE_INVALID",
+    );
+  }
+
+  const bucketKey = JSON.stringify([sourceAsset.assetModelId, sourceAsset.warehouseId, selectedStockCode, condition]);
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${bucketKey}, 0))`;
+
+  const existing = await tx.asset.findFirst({
+    where: {
+      assetModelId: sourceAsset.assetModelId,
+      warehouseId: sourceAsset.warehouseId,
+      condition,
+      stockCode: selectedStockCode,
+      isActive: true,
+      serialNo: null,
+    },
+    select: { id: true, assetQuantity: true },
+  });
+
+  if (existing) {
+    const quantityBefore = existing.assetQuantity;
+    const quantityAfter = quantityBefore + quantity;
+    const updated = await tx.asset.update({
+      where: { id: existing.id },
+      data: {
+        assetQuantity: { increment: quantity },
+        requestLockedAt: null,
+        requestLockedById: null,
+        status: AssetStatus.READY,
+        updatedById: userId,
+      },
+      select: { id: true },
+    });
+    return { assetId: updated.id, stockCode: selectedStockCode, quantityBefore, quantityAfter };
+  }
+
+  const created = await tx.asset.create({
+    data: {
+      assetModelId: sourceAsset.assetModelId,
+      warehouseId: sourceAsset.warehouseId,
+      condition,
+      stockCode: selectedStockCode,
+      status: AssetStatus.READY,
+      assetQuantity: quantity,
+      createdById: userId,
+      updatedById: userId,
+      note: "Created from approved quantity-pool return using selected Stock Code",
+    },
+    select: { id: true },
+  });
+  return { assetId: created.id, stockCode: selectedStockCode, quantityBefore: 0, quantityAfter: quantity };
+}
+
+async function applyApprovedOutcomeCycle(
+  tx: Prisma.TransactionClient,
+  transaction: TransactionDetail,
+  userId: string,
+  now: Date,
+  resolutionBatchId?: string | null,
+) {
+  const outcomesByItem = new Map<string, typeof transaction.outcomeRecords>();
+  for (const outcome of transaction.outcomeRecords.filter((record) =>
+    record.outcomeStatus !== AssetStatus.SOLD &&
+    (!resolutionBatchId || record.resolutionBatchId === resolutionBatchId),
+  )) {
+    const existing = outcomesByItem.get(outcome.transactionItemId) ?? [];
+    existing.push(outcome);
+    outcomesByItem.set(outcome.transactionItemId, existing);
+  }
+
+  for (const [itemId, outcomes] of outcomesByItem) {
+    const item = transaction.items.find((candidate) => candidate.id === itemId);
+    if (!item) continue;
+    for (const outcome of outcomes.filter((candidate) => !candidate.approvedAt)) {
+      const asset = item.asset;
+      if (!asset || !item.assetId) throw new WorkflowError("The issued item has no source asset.", 409, "RETURN_ASSET_MISSING");
+      const isQuantityPool = getEffectiveAssetTrackMethod(asset) === AssetTrackMethod.QUANTITY;
+      let outcomeAssetId = item.assetId;
+
+      if (isQuantityPool && outcome.outcomeStatus === AssetStatus.READY) {
+        if (!outcome.returnCondition) {
+          throw new WorkflowError(
+            "Storeman must select a return condition for every quantity-pool return.",
+            409,
+            "RETURN_CONDITION_REQUIRED",
+          );
+        }
+
+        // Older quantity loans were reserved but never removed from stock at
+        // checkout. Only add stock back for loans recorded as dispatched by
+        // the quantity-accounting flow; otherwise this would inflate stock.
+        const stock = item.dispatchedAt
+          ? await applyQuantityReturnStock(
+              tx,
+              item,
+              outcome.returnCondition,
+              outcome.quantity,
+              userId,
+              outcome.assetId,
+            )
+          : {
+              assetId: asset.id,
+              stockCode: asset.stockCode,
+              quantityBefore: asset?.assetQuantity ?? 0,
+              quantityAfter: asset?.assetQuantity ?? 0,
+            };
+        outcomeAssetId = stock.assetId;
+        if (outcome.returnCondition === AssetCondition.USED) {
+          const target = await tx.asset.findUniqueOrThrow({ where: { id: stock.assetId }, select: { note: true } });
+          await tx.asset.update({ where: { id: stock.assetId }, data: {
+            note: appendUsedReturnRemarks(target.note, [{ id: outcome.id, quantity: outcome.quantity, requestNo: transaction.transactionNo ?? transaction.documentRef }]),
+            updatedById: userId,
+          } });
+        }
+
+        await tx.assetStatusHistory.create({
+          data: {
+            actionType: AssetActionType.RETURN,
+            assetId: stock.assetId,
+            changedById: userId,
+            condition: outcome.returnCondition,
+            stockCode: stock.stockCode,
+            fromStatus: asset?.status ?? null,
+            toStatus: AssetStatus.READY,
+            quantityBefore: stock.quantityBefore,
+            quantityAfter: stock.quantityAfter,
+            quantityChanged: stock.quantityAfter - stock.quantityBefore,
+            note: "Approved quantity-pool return",
+            transactionId: transaction.id,
+          },
+        });
+      } else if (isQuantityPool && (outcome.outcomeStatus === AssetStatus.FAIL || outcome.outcomeStatus === AssetStatus.LOST)) {
+        const currentAsset = await tx.asset.findUnique({ where: { id: asset.id }, select: { note: true } });
+        if (!currentAsset) throw new WorkflowError("Source stock row disappeared.", 409, "RETURN_ASSET_MISSING");
+        const marker = `[return-outcome:${outcome.id}]`;
+        if (!currentAsset.note?.includes(marker)) {
+          await tx.asset.update({ where: { id: asset.id }, data: {
+            note: [currentAsset.note, `${marker} ${outcome.outcomeStatus} ${outcome.quantity} from ${transaction.transactionNo ?? transaction.id}; return batch ${outcome.resolutionBatchId}`].filter(Boolean).join("\n"),
+            updatedById: userId,
+          } });
+        }
+        await tx.assetStatusHistory.create({
+          data: {
+            actionType: AssetActionType.STATUS_CHANGE,
+            assetId: item.assetId,
+            changedById: userId,
+            condition: asset?.condition ?? AssetCondition.NEW,
+            stockCode: asset?.stockCode,
+            fromStatus: asset?.status ?? null,
+            toStatus: asset?.status ?? AssetStatus.READY,
+            quantityBefore: asset?.assetQuantity,
+            quantityAfter: asset?.assetQuantity,
+            quantityChanged: 0,
+            note: `${outcome.outcomeStatus} ${outcome.quantity} from ${transaction.transactionNo ?? transaction.id}; return batch ${outcome.resolutionBatchId}; outcome ${outcome.id}. ${outcome.note ?? ""}`,
+            transactionId: transaction.id,
+          },
+        });
+      } else {
+        await resolveItem(
+          tx,
+          item,
+          { id: userId } as CurrentUser,
+          now,
+          outcome.outcomeStatus,
+          "Approved return outcome",
+          null,
+          outcome.quantity,
+        );
+
+        await tx.assetStatusHistory.create({
+          data: {
+            actionType: outcome.outcomeStatus === AssetStatus.READY
+              ? AssetActionType.RETURN
+              : AssetActionType.STATUS_CHANGE,
+            assetId: item.assetId,
+            changedById: userId,
+            condition: asset?.condition ?? AssetCondition.NEW,
+            fromStatus: asset?.status ?? null,
+            toStatus: outcome.outcomeStatus,
+            quantityChanged: isQuantityPool ? outcome.quantity : null,
+            note: "Approved return outcome",
+            transactionId: transaction.id,
+          },
+        });
+      }
+
+      await tx.transactionItemOutcome.update({
+        where: { id: outcome.id },
+        data: {
+          assetId: outcomeAssetId,
+          approvedAt: now,
+          approvedById: userId,
+        },
+      });
+    }
+    const approvedQuantity = await tx.transactionItemOutcome.aggregate({
+      _sum: { quantity: true },
+      where: { transactionItemId: item.id, approvedAt: { not: null } },
+    });
+    const fullyResolved = (approvedQuantity._sum.quantity ?? 0) >= item.requestedQuantity;
+    await tx.transactionItem.update({
+      where: { id: item.id },
+      data: {
+        resolvedStatus: outcomes.at(-1)?.outcomeStatus ?? null,
+        returnedAt: fullyResolved ? now : null,
+        returnedById: fullyResolved ? userId : null,
+      },
+    });
+  }
+
+  await refreshTransactionResolutionStatus(tx, transaction.id, now);
 }
 
 async function createReturnSaleApprovalTransaction(
@@ -3044,36 +4285,19 @@ async function createReturnSaleApprovalTransaction(
   saleItems: TransactionDetail["items"],
   note: string | null,
   now: Date,
+  resolutionBatchId: string,
 ) {
-  const requester = await requireWorkflowUserById(
-    tx,
-    sourceTransaction.requestedBy.id,
-  );
+  const combined = new Map<string, TransactionDetail["items"][number]>();
+  for (const item of saleItems) {
+    const previous = combined.get(item.id);
+    combined.set(item.id, { ...item, requestedQuantity: (previous?.requestedQuantity ?? 0) + item.requestedQuantity });
+  }
+  saleItems = Array.from(combined.values());
   const workflowItems = saleItems.map((item) => ({
     asset: item.asset as unknown as WorkflowAsset,
     quantity: item.requestedQuantity,
   }));
-  const approvalInput: SubmitTransactionInput = {
-    internalRequest: false,
-    items: workflowItems.map((item) => ({
-      assetId: item.asset.id,
-      quantity: item.quantity,
-    })),
-    note,
-    projectId: sourceTransaction.projectId,
-    projectRequest: sourceTransaction.projectRequest,
-    purpose: sourceTransaction.purpose,
-    requestDate: now,
-    serviceRequest: sourceTransaction.serviceRequest,
-    sourceTransactionId: sourceTransaction.id,
-    type: TransactionType.SOLD,
-  };
-  const approvals = await buildApprovalCandidates(
-    tx,
-    requester,
-    approvalInput,
-    workflowItems,
-  );
+  const approvals = await buildReturnApprovalCandidates(tx, sourceTransaction, workflowItems, true);
   const transaction = await tx.transaction.create({
     data: {
       completedAt: null,
@@ -3091,7 +4315,10 @@ async function createReturnSaleApprovalTransaction(
       soldPrice: null,
       sourceTransactionId: sourceTransaction.id,
       status: TransactionStatus.COMPLETED,
-      transactionNo: await createRequisitionNo(tx, now),
+      // A sold-from-return ticket is a child history record, not a new request.
+      // Keep the original requisition sequence untouched and display it as
+      // `From REQ-...` through sourceTransactionId.
+      transactionNo: null,
       type: TransactionType.SOLD,
       workflowStatus: TransactionWorkflowStatus.PENDING,
     },
@@ -3103,13 +4330,18 @@ async function createReturnSaleApprovalTransaction(
       fromStatus: item.toStatus,
       note,
       requestedQuantity: item.requestedQuantity,
-      soldPrice: null,
+      soldPrice: item.soldPrice ? new Prisma.Decimal(item.soldPrice) : null,
       toStatus: AssetStatus.SOLD,
       transactionId: transaction.id,
     })),
   });
 
-  await replaceTransactionApprovals(tx, transaction.id, approvals);
+  await tx.transactionItemOutcome.updateMany({
+    where: { transactionId: sourceTransaction.id, resolutionBatchId, outcomeStatus: AssetStatus.SOLD, approvedAt: null },
+    data: { soldTransactionId: transaction.id },
+  });
+
+  await replaceTransactionApprovals(tx, transaction.id, approvals, resolutionBatchId);
 
   await tx.assetStatusHistory.createMany({
     data: saleItems.map((item) => ({
@@ -3136,6 +4368,7 @@ export async function resolveTransactionItems(
   assertHasIds(itemIds, "Transaction items");
   const resolutionMap = buildResolutionMap(
     input.items.map((item) => ({
+      ...item,
       itemId: item.itemId.trim(),
       note: cleanText(item.note),
       soldPrice: cleanText(item.soldPrice),
@@ -3152,7 +4385,17 @@ export async function resolveTransactionItems(
         throw new WorkflowError("This transaction type cannot be returned.");
       }
 
-      if (transaction.workflowStatus !== TransactionWorkflowStatus.IN_PROGRESS) {
+      const hasPendingReturnOutcome = transaction.outcomeRecords.some(
+        (outcome) => !outcome.approvedAt,
+      );
+      const canAppendReturnBatch =
+        transaction.workflowStatus === TransactionWorkflowStatus.PENDING &&
+        hasPendingReturnOutcome;
+
+      if (
+        transaction.workflowStatus !== TransactionWorkflowStatus.IN_PROGRESS &&
+        !canAppendReturnBatch
+      ) {
         throw new WorkflowError(
           "This transaction is still pending approval and cannot be returned.",
           409,
@@ -3164,7 +4407,7 @@ export async function resolveTransactionItems(
         throw new WorkflowError(
           "Only the original requester can return this transaction.",
           403,
-          "RETURN_REQUESTER_OR_ADMIN_ONLY",
+          "RETURN_REQUESTER_ONLY",
         );
       }
 
@@ -3178,38 +4421,297 @@ export async function resolveTransactionItems(
       }
 
       assertCanResolveTransaction(user, { items });
-      await assertNoPendingResolutionApproval(tx, transaction.id, items);
-
-      const grouped = new Map<AssetStatus, TransactionDetail["items"]>();
+      const grouped = new Map<AssetStatus, Array<TransactionDetail["items"][number] & { returnCondition?: AssetCondition }>>();
+      const resolutionBatchId = input.resolutionBatchId ?? randomUUID();
+      const existingBatch = input.resolutionBatchId ? await tx.returnBatch.findFirst({ where: { id: resolutionBatchId, transactionId: transaction.id } }) : null;
+      if (input.resolutionBatchId && !existingBatch) throw new WorkflowError("Return batch not found.", 404);
+      if (existingBatch) {
+        await assertReturnBatchEditable(tx, transaction.id, existingBatch.id);
+        const posted = await tx.transactionItemOutcome.count({ where: { resolutionBatchId, approvedAt: { not: null } } });
+        if (posted && existingBatch.state !== "REJECTED") throw new WorkflowError("Posted return batches cannot be revised.", 409, "RETURN_BATCH_ALREADY_POSTED");
+      }
+      const activeBatches = await tx.returnBatch.findMany({ where: { transactionId: transaction.id, state: { notIn: ["REJECTED", "CANCELLED"] } }, select: { id: true } });
+      const activeBatchIds = new Set(activeBatches.map((batch) => batch.id));
+      const approvedQuantities = new Map<string, number>();
+      for (const outcome of transaction.outcomeRecords) {
+        if (outcome.approvedAt || (outcome.resolutionBatchId !== existingBatch?.id && (!outcome.resolutionBatchId || activeBatchIds.has(outcome.resolutionBatchId)))) {
+          approvedQuantities.set(
+            outcome.transactionItemId,
+            (approvedQuantities.get(outcome.transactionItemId) ?? 0) + outcome.quantity,
+          );
+        }
+      }
       for (const item of items) {
         const resolution = resolutionMap.get(item.id);
+        const remainingQuantity = Math.max(0, item.requestedQuantity - (approvedQuantities.get(item.id) ?? 0));
         const allocations = resolution?.allocations?.length
           ? resolution.allocations
-          : [{ quantity: resolution?.quantity ?? item.requestedQuantity, toStatus: resolution?.toStatus ?? AssetStatus.READY }];
+          : [{ quantity: resolution?.quantity ?? remainingQuantity, toStatus: resolution?.toStatus ?? AssetStatus.READY, returnCondition: resolution?.returnCondition, note: resolution?.note, soldPrice: resolution?.soldPrice }];
         const totalQuantity = allocations.reduce((sum, allocation) => sum + allocation.quantity, 0);
-        if (totalQuantity > item.requestedQuantity) {
+        if (totalQuantity <= 0 || totalQuantity > remainingQuantity) {
           throw new WorkflowError(`Resolution quantity for ${transactionItemAssetName(item)} cannot exceed the requested quantity.`);
         }
         for (const allocation of allocations) {
+          if (!isQuantityTransactionItem(item) && (allocation.quantity !== 1 || allocations.length !== 1 || allocation.returnCondition === AssetCondition.USED)) throw new WorkflowError("Serialized returns must use quantity 1 and cannot be USED.", 400, "INVALID_SERIAL_RETURN");
+          if (allocation.returnCondition && allocation.toStatus !== AssetStatus.READY) throw new WorkflowError("Return condition is only valid for RETURN or USED outcomes.");
           const group = grouped.get(allocation.toStatus) ?? [];
-          group.push({ ...item, requestedQuantity: allocation.quantity, toStatus: allocation.toStatus });
+          group.push({
+            ...item,
+            requestedQuantity: allocation.quantity,
+            toStatus: allocation.toStatus,
+            returnCondition: allocation.returnCondition,
+            resolutionNote: cleanText(allocation.note),
+            soldPrice: allocation.soldPrice ? new Prisma.Decimal(allocation.soldPrice) : null,
+          });
           grouped.set(allocation.toStatus, group);
         }
       }
 
-      for (const [outcome, groupedItems] of grouped) {
-        const firstResolution = resolutionMap.get(groupedItems[0].id);
-        if (outcome === AssetStatus.SOLD) {
-          await createReturnSaleApprovalTransaction(tx, user, transaction, groupedItems, cleanText(firstResolution?.note), now);
-        } else {
-          await createReturnApprovalTransaction(tx, user, transaction, groupedItems, cleanText(firstResolution?.note), now, outcome);
+      const soldItems = grouped.get(AssetStatus.SOLD) ?? [];
+      const returnItems = Array.from(grouped.entries())
+        .flatMap(([, items]) => items);
+      if (existingBatch) {
+        if (existingBatch.damagePdf || existingBatch.signedPdf) {
+          await tx.returnBatchEvidence.createMany({ data: [{
+            batchId: existingBatch.id, revision: existingBatch.revision,
+            damagePdf: existingBatch.damagePdf, signedPdf: existingBatch.signedPdf,
+            signedFilename: existingBatch.signedFilename, signedById: existingBatch.signedById,
+            signedAt: existingBatch.signedAt,
+          }], skipDuplicates: true });
         }
+        await tx.transactionApproval.updateMany({ where: { transactionId: transaction.id, resolutionBatchId, isCurrent: true }, data: { isCurrent: false } });
+        const sales = await tx.transactionItemOutcome.findMany({ where: { resolutionBatchId, soldTransactionId: { not: null }, approvedAt: null }, select: { soldTransactionId: true } });
+        for (const id of new Set(sales.map((outcome) => outcome.soldTransactionId).filter((id): id is string => Boolean(id)))) {
+          await tx.transaction.update({ where: { id }, data: { workflowStatus: TransactionWorkflowStatus.CANCELLED } });
+          await tx.transactionApproval.updateMany({ where: { transactionId: id, isCurrent: true }, data: { isCurrent: false } });
+        }
+        await tx.transactionItemOutcome.deleteMany({ where: { resolutionBatchId, approvedAt: null } });
+        await tx.returnBatch.update({ where: { id: resolutionBatchId }, data: { revision: { increment: 1 }, state: "SUBMITTED", damagePdf: null, signedPdf: null, signedFilename: null, signedById: null, signedAt: null } });
+      } else {
+        await tx.returnBatch.create({ data: { id: resolutionBatchId, transactionId: transaction.id, requestNo: `FROM ${transaction.transactionNo}` } });
+      }
+      if (returnItems.length > 0) {
+        await createReturnApprovalTransaction(
+          tx,
+          user,
+          transaction,
+          returnItems,
+          cleanText(resolutionMap.get(returnItems[0].id)?.note),
+          now,
+          resolutionBatchId,
+        );
+      }
+      if (soldItems.length > 0) {
+        await createReturnSaleApprovalTransaction(
+          tx,
+          user,
+          transaction,
+          soldItems,
+          cleanText(resolutionMap.get(soldItems[0].id)?.note),
+          now,
+          resolutionBatchId,
+        );
       }
 
       return findTransactionDetail(tx, transaction.id);
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
+}
+
+export async function deletePendingReturnOutcome(
+  user: CurrentUser,
+  input: DeleteReturnOutcomeInput,
+) {
+  return db.$transaction(
+    async (tx) => {
+      const outcome = await tx.transactionItemOutcome.findFirst({
+        where: {
+          id: input.outcomeId,
+          transactionId: input.transactionId,
+        },
+        select: {
+          id: true,
+          transactionItemId: true,
+          approvedAt: true,
+          resolutionBatchId: true,
+          soldTransactionId: true,
+          transactionItem: { select: { assetId: true } },
+          transaction: { select: { requestedById: true } },
+          soldTransaction: { select: { id: true, workflowStatus: true } },
+        },
+      });
+
+      if (!outcome) {
+        throw new WorkflowError("Return outcome not found.", 404, "RETURN_OUTCOME_NOT_FOUND");
+      }
+
+      if (outcome.transaction?.requestedById !== user.id) {
+        throw new WorkflowError("Only the original requester can remove a pending return outcome.", 403, "RETURN_OUTCOME_DELETE_FORBIDDEN");
+      }
+
+      if (outcome.approvedAt) {
+        throw new WorkflowError("Approved return outcomes cannot be removed.", 409, "RETURN_OUTCOME_ALREADY_APPROVED");
+      }
+      if (!outcome.resolutionBatchId) throw new WorkflowError("Legacy outcomes must be assigned to a return batch before editing.", 409, "RETURN_BATCH_REQUIRED");
+      await assertReturnBatchEditable(tx, input.transactionId, outcome.resolutionBatchId);
+
+      if (outcome.soldTransactionId && outcome.soldTransaction &&
+          (outcome.soldTransaction.workflowStatus === TransactionWorkflowStatus.PENDING ||
+           outcome.soldTransaction.workflowStatus === TransactionWorkflowStatus.REJECTED)) {
+        const remainingSoldQuantity = await tx.transactionItemOutcome.aggregate({
+          where: {
+            soldTransactionId: outcome.soldTransactionId,
+            transactionItemId: outcome.transactionItemId,
+            approvedAt: null,
+            id: { not: outcome.id },
+          },
+          _sum: { quantity: true },
+        });
+        const saleItem = await tx.transactionItem.findFirst({
+          where: {
+            transactionId: outcome.soldTransactionId,
+            assetId: outcome.transactionItem?.assetId ?? undefined,
+          },
+          select: { id: true },
+        });
+        if (saleItem) {
+          const quantity = remainingSoldQuantity._sum.quantity ?? 0;
+          if (quantity > 0) {
+            await tx.transactionItem.update({ where: { id: saleItem.id }, data: { requestedQuantity: quantity } });
+          } else {
+            await tx.transactionItem.delete({ where: { id: saleItem.id } });
+          }
+        }
+
+        const remainingSaleItems = await tx.transactionItem.count({
+          where: { transactionId: outcome.soldTransactionId },
+        });
+        if (remainingSaleItems === 0) {
+          await tx.transaction.update({ where: { id: outcome.soldTransactionId }, data: { workflowStatus: TransactionWorkflowStatus.CANCELLED } });
+          await tx.transactionApproval.updateMany({ where: { transactionId: outcome.soldTransactionId, isCurrent: true }, data: { isCurrent: false } });
+        }
+      }
+
+      await tx.transactionItemOutcome.delete({ where: { id: outcome.id } });
+
+      const remainingBatchOutcomes = outcome.resolutionBatchId
+        ? await tx.transactionItemOutcome.count({
+            where: {
+              transactionId: input.transactionId,
+              resolutionBatchId: outcome.resolutionBatchId,
+              approvedAt: null,
+            },
+          })
+        : 0;
+
+      if (!outcome.resolutionBatchId || remainingBatchOutcomes === 0) {
+        await tx.transactionApproval.updateMany({
+          where: {
+            transactionId: input.transactionId,
+            ...(outcome.resolutionBatchId ? { resolutionBatchId: outcome.resolutionBatchId } : {}),
+            status: ApprovalStatus.PENDING,
+            isCurrent: true,
+          },
+          data: { isCurrent: false },
+        });
+        await tx.returnBatch.update({ where: { id: outcome.resolutionBatchId }, data: { state: "CANCELLED" } });
+      } else {
+        const remaining = await tx.transactionItemOutcome.findMany({
+          where: { transactionId: input.transactionId, resolutionBatchId: outcome.resolutionBatchId, approvedAt: null },
+          select: { transactionItem: { select: { asset: { select: { warehouse: { select: { code: true } } } } } } },
+        });
+        if (remaining.some((row) => !row.transactionItem.asset)) {
+          throw new WorkflowError("A remaining return item has no source warehouse.", 409, "TRANSACTION_ASSET_MISSING");
+        }
+        const activeTags = [...new Set(remaining.flatMap((row) => {
+          const code = row.transactionItem.asset!.warehouse.code;
+          return [`RETURN_CHECK:${code}`, `STOREMAN:${code}`];
+        }))];
+        await tx.transactionApproval.updateMany({
+          where: {
+            transactionId: input.transactionId,
+            resolutionBatchId: outcome.resolutionBatchId,
+            isCurrent: true,
+            AND: [
+              { OR: [{ requiredTag: { startsWith: "RETURN_CHECK:" } }, { requiredTag: { startsWith: "STOREMAN:" } }] },
+              { requiredTag: { notIn: activeTags } },
+            ],
+          },
+          data: { isCurrent: false },
+        });
+      }
+
+      const remainingPendingOutcomes = await tx.transactionItemOutcome.count({
+        where: { transactionId: input.transactionId, approvedAt: null },
+      });
+      if (remainingPendingOutcomes === 0) {
+        await tx.transaction.update({
+          where: { id: input.transactionId },
+          data: { workflowStatus: TransactionWorkflowStatus.IN_PROGRESS },
+        });
+      }
+
+      return findTransactionDetail(tx, input.transactionId);
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
+}
+
+export async function cancelReturnBatch(user: CurrentUser, transactionId: string, batchId: string) {
+  return db.$transaction(async (tx) => {
+    const transaction = await findTransactionDetail(tx, transactionId);
+    if (transaction.requestedBy.id !== user.id) throw new WorkflowError("Only the original requester can cancel a return batch.", 403, "RETURN_REQUESTER_ONLY");
+    await assertReturnBatchEditable(tx, transactionId, batchId);
+    if (await tx.transactionItemOutcome.count({ where: { transactionId, resolutionBatchId: batchId, approvedAt: { not: null } } })) throw new WorkflowError("Posted return outcomes cannot be cancelled.", 409, "RETURN_BATCH_ALREADY_POSTED");
+    await tx.returnBatch.update({ where: { id: batchId }, data: { state: "CANCELLED" } });
+    await tx.transactionApproval.updateMany({ where: { transactionId, resolutionBatchId: batchId, isCurrent: true }, data: { isCurrent: false } });
+    const outcomes = await tx.transactionItemOutcome.findMany({ where: { transactionId, resolutionBatchId: batchId, soldTransactionId: { not: null } }, select: { soldTransactionId: true } });
+    for (const saleId of new Set(outcomes.map((outcome) => outcome.soldTransactionId).filter((id): id is string => Boolean(id)))) {
+      await tx.transaction.update({ where: { id: saleId }, data: { workflowStatus: TransactionWorkflowStatus.CANCELLED } });
+      await tx.transactionApproval.updateMany({ where: { transactionId: saleId, isCurrent: true }, data: { isCurrent: false } });
+    }
+    await refreshTransactionResolutionStatus(tx, transactionId, new Date());
+    return findTransactionDetail(tx, transactionId);
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+}
+
+export async function migrateLegacyReturnBatch(
+  transactionId: string,
+  batchId: string,
+  expectedOutcomeIds: string[],
+  returnConditions: Record<string, AssetCondition> = {},
+) {
+  return db.$transaction(async (tx) => {
+    const transaction = await findTransactionDetail(tx, transactionId);
+    if (!isReturnableTransaction(transaction.type) || transaction.sourceTransactionId) throw new WorkflowError("Legacy migration requires an issued source request.", 409, "LEGACY_BATCH_INVALID");
+    const outcomes = await tx.transactionItemOutcome.findMany({ where: { transactionId, resolutionBatchId: batchId } });
+    const expected = uniqueIds(expectedOutcomeIds);
+    if (!expected.length || outcomes.length !== expected.length || outcomes.some((outcome) => !expected.includes(outcome.id) || outcome.approvedAt || outcome.outcomeStatus === AssetStatus.SOLD || outcome.soldTransactionId)) throw new WorkflowError("Legacy outcome IDs must exactly match an entirely unposted non-SOLD batch.", 409, "LEGACY_BATCH_MISMATCH");
+    const existing = await tx.returnBatch.findFirst({ where: { id: batchId, transactionId } });
+    if (existing) return existing;
+    const acted = await tx.transactionApproval.count({ where: { transactionId, resolutionBatchId: batchId, isCurrent: true, status: ApprovalStatus.APPROVED, stepSequence: { gt: 1 } } });
+    if (acted) throw new WorkflowError("This migration cannot replace an already approved legacy phase.", 409, "LEGACY_APPROVAL_ALREADY_ACTED");
+    for (const outcome of outcomes) {
+      const item = transaction.items.find((item) => item.id === outcome.transactionItemId);
+      if (!item || outcome.quantity <= 0) throw new WorkflowError("Legacy outcome has no valid issued item.", 409, "LEGACY_BATCH_INVALID");
+      const condition = outcome.returnCondition ?? returnConditions[outcome.id];
+      if (outcome.outcomeStatus === AssetStatus.READY && isQuantityTransactionItem(item)) {
+        if (!condition || (condition !== AssetCondition.NEW && condition !== AssetCondition.USED)) throw new WorkflowError("An explicit return condition is required for each legacy quantity return.", 409, "LEGACY_CONDITION_REQUIRED");
+        if (condition === AssetCondition.NEW && !item.asset.stockCode) throw new WorkflowError("The original stock code is missing.", 409, "RETURN_STOCK_CODE_REQUIRED");
+        await tx.transactionItemOutcome.update({ where: { id: outcome.id }, data: { returnCondition: condition, ...(condition === AssetCondition.NEW ? { assetId: item.assetId } : {}) } });
+      }
+    }
+    const itemIds = new Set(outcomes.map((outcome) => outcome.transactionItemId));
+    const items = transaction.items.filter((item) => itemIds.has(item.id));
+    const requester = await requireWorkflowUserById(tx, transaction.requestedBy.id);
+    const approvals = await buildReturnApprovalCandidates(tx, transaction, items.map((item) => ({ asset: item.asset as WorkflowAsset, quantity: item.requestedQuantity })));
+    const now = new Date();
+    const batch = await tx.returnBatch.create({ data: { id: batchId, transactionId, requestNo: `FROM ${transaction.transactionNo}` } });
+    await replaceTransactionApprovals(tx, transactionId, approvals, batchId, requester);
+    await tx.transaction.update({ where: { id: transactionId }, data: { workflowStatus: TransactionWorkflowStatus.IN_PROGRESS, completedAt: null, returnedAt: null } });
+    return batch;
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
 
 export async function returnTransactionItems(

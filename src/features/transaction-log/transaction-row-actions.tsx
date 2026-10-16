@@ -8,10 +8,12 @@ import { downloadTransactionPdf } from "@/features/transactions/transaction-pdf-
 type TransactionRowActionsProps = {
   transactionId: string;
   canCancel: boolean;
+  canExport: boolean;
 };
 
 export function TransactionRowActions({
   canCancel,
+  canExport,
   transactionId,
 }: TransactionRowActionsProps) {
   const router = useRouter();
@@ -46,7 +48,7 @@ export function TransactionRowActions({
 
   return (
     <div className="flex flex-wrap gap-2">
-      <button className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-bold text-navy shadow-sm hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60" disabled={isExporting || isCancelling} onClick={handleExport} type="button">
+      <button className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-bold text-navy shadow-sm hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60" disabled={!canExport || isExporting || isCancelling} onClick={handleExport} type="button">
         {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />} Export PDF
       </button>
       {canCancel ? (

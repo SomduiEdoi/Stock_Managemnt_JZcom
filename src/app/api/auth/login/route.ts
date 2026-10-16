@@ -1,8 +1,12 @@
-import { NextResponse } from "next/server";
+import { apiJson, apiErrorResponse } from "@/lib/api";
+import { compare, hash } from "bcryptjs";
+import { randomBytes } from "node:crypto";
+import { checkLoginLimit } from "@/lib/login-security";
+import { readLimitedBody } from "@/lib/upload-limits";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getUserFromSessionToken } from "@/lib/auth";
-import { authenticateWithLdap } from "@/lib/ldap";
+import { authenticateWithLdap, LdapDirectoryError } from "@/lib/ldap";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import {
   SESSION_COOKIE_NAME,
@@ -11,51 +15,63 @@ import {
 } from "@/lib/session";
 
 const loginSchema = z.object({
-  email: z.string().trim().email().max(255),
-  password: z.string().min(1),
+  mode: z.enum(["AD", "LOCAL"]).default("AD"),
+  email: z.string().trim().min(1).max(255),
+  password: z.string().min(1).max(1024),
 });
+const dummyHash = hash(randomBytes(32).toString("hex"), 12);
 
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => null);
+  let body: unknown;
+  try { body = JSON.parse(new TextDecoder().decode(await readLimitedBody(request, 16 * 1024))); }
+  catch (error) {
+    if (error instanceof SyntaxError) return apiJson({ message: "Invalid request body." }, { status: 400 });
+    return apiErrorResponse(error);
+  }
   const parsed = loginSchema.safeParse(body);
 
   if (!parsed.success) {
-    return NextResponse.json(
+    return apiJson(
       { message: "Email and password are required." },
       { status: 400 },
     );
   }
 
   try {
-    const directoryUser = await authenticateWithLdap(
-      parsed.data.email,
-      parsed.data.password,
-    );
+    const { email, password, mode } = parsed.data;
+    if (mode === "AD" && !z.string().email().safeParse(email).success) return apiJson({ message: "Enter a valid AD email." }, { status: 400 });
+    const network = process.env.AUTH_TRUST_PROXY === "true" ? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null : null;
+    const limit = await checkLoginLimit(email, mode, network);
+    if (!limit.allowed) {
+      await db.loginAudit.create({ data: { mode, result: "RATE_LIMITED" } });
+      return apiJson({ message: "Too many login attempts. Please try again later.", retryAfter: limit.retryAfter }, { status: 429, headers: { "Retry-After": String(limit.retryAfter) } });
+    }
+    let user: { id: string } | null = null;
+    if (mode === "LOCAL") {
+      const local = await db.user.findUnique({ where: { localUsername: email.toLowerCase() }, select: { id: true, passwordHash: true, isActive: true, roles: { select: { role: { select: { code: true } } } } } });
+      const valid = Buffer.byteLength(password, "utf8") <= 72 && await compare(password, local?.passwordHash ?? await dummyHash);
+      if (valid && local?.passwordHash && local.isActive && local.roles.some((entry) => entry.role.code === "ADMIN")) user = { id: local.id };
+    } else {
+      let directoryUser;
+      try { directoryUser = await authenticateWithLdap(email, password); }
+      catch (error) {
+        if (!(error instanceof LdapDirectoryError)) throw error;
+        await db.loginAudit.create({ data: { mode, result: "AD_UNAVAILABLE" } });
+        return apiJson({ message: "Active Directory is unavailable. Please try again later.", code: "AD_UNAVAILABLE" }, { status: 503 });
+      }
+      if (directoryUser) user = await db.user.findFirst({ where: { isActive: true, localUsername: null, email: (directoryUser.email ?? email).toLowerCase() }, select: { id: true } });
+    }
 
-    if (!directoryUser) {
-      return NextResponse.json(
-        { message: "Invalid email or password." },
+    if (!user) {
+      await db.loginAudit.create({ data: { mode, result: "DENIED" } });
+      return apiJson(
+        { message: "Invalid credentials or account unavailable." },
         { status: 401 },
       );
     }
 
-    const user = await db.user.findFirst({
-      where: {
-        isActive: true,
-        email: (directoryUser.email ?? parsed.data.email).toLowerCase(),
-      },
-      select: {
-        id: true,
-        isActive: true,
-      },
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { message: "Your email is not registered in Stock Management." },
-        { status: 403 },
-      );
-    }
+    await db.loginAudit.create({ data: { userId: user.id, mode, result: "SUCCESS" } });
+    await db.loginThrottle.deleteMany({ where: { key: limit.accountKey } });
 
     await db.user.update({
       where: { id: user.id },
@@ -64,19 +80,20 @@ export async function POST(request: Request) {
 
     const token = createSessionToken(user.id);
     const currentUser = await getUserFromSessionToken(token);
-    const response = NextResponse.json({ user: currentUser });
+    const response = apiJson({ user: currentUser });
 
     response.cookies.set(SESSION_COOKIE_NAME, token, sessionCookieOptions());
 
     return response;
   } catch (error) {
     if (isDatabaseUnavailableError(error)) {
-      return NextResponse.json(
+      return apiJson(
         { message: "Database is unavailable. Start PostgreSQL and try again." },
         { status: 503 },
       );
     }
 
-    throw error;
+    return apiErrorResponse(error);
   }
 }
+

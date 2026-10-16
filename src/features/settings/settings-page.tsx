@@ -23,8 +23,8 @@ function roleLabel(role: string) {
     return "Administrator";
   }
 
-  if (role === "STOCK_CONTROLLER") {
-    return "Stock Controller";
+  if (role === "STOREMAN") {
+    return "Storeman";
   }
 
   return "User";

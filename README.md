@@ -1,61 +1,58 @@
-# Docs: Warehouse Management
+# Warehouse Management
 
-อัปเดตล่าสุด: 2026-09-04
+อัปเดตฐานอ้างอิง: 2026-10-16
 
-เอกสารชุดนี้อธิบาย requirement, การออกแบบ, กฎธุรกิจ และสถานะ implementation ของ Warehouse Management โดยยึดโค้ดและ Prisma schema ปัจจุบันเป็น baseline
+เริ่มอ่านระบบจากเอกสารหลักตามลำดับด้านล่าง แต่ละไฟล์อธิบายพฤติกรรมที่โค้ดและ Prisma schema กำหนด
 
-## Files
+## เอกสาร
 
-- `prd.md`: ขอบเขตผลิตภัณฑ์, workflow และ acceptance criteria
-- `design.md`: สถาปัตยกรรม, data model, API และการออกแบบเชิงเทคนิค
-- `rule.md`: กฎธุรกิจและข้อกำหนดที่ implementation ต้องรักษา
-- `decision-log.md`: ข้อตกลงสำคัญและเหตุผลของการตัดสินใจ
-- `task.md`: งานที่ทำแล้ว งานบางส่วน และงานที่ยังเหลือ
+1. [PRD](docs/prd.md): วัตถุประสงค์ ความสามารถ และ workflow ตั้งแต่คำขอจนปิดรายการ
+2. [Rules](docs/rule.md): invariants ของสต๊อก สิทธิ์ ราคา และเอกสาร
+3. [Design](docs/design.md): ความสัมพันธ์ข้อมูล แผนผังโค้ด และ API
+4. [Issue / Return Use Cases](docs/issue-return-use-cases.md): กรณีใช้งานและเงื่อนไขแต่ละขั้น
+5. [Emergency Local Login](docs/emergency-local-login.md): ตั้งค่าบัญชี Local Admin และข้อจำกัดด้านความปลอดภัย
 
-## Current System Summary
+เอกสารติดตามงานและหลักฐานแยกจากข้อกำหนดระบบ: [Task Status](docs/task.md), [Decision Log](docs/decision-log.md), [Verification History](docs/workflow-implementation-verification.md) และ [Used Model Mapping](docs/generated-used-model-mapping.md)
 
-- ชื่อระบบคือ Warehouse Management
-- PostgreSQL เป็น source of truth หลังนำเข้าข้อมูลจาก CSV; runtime ไม่กลับไปอ่าน CSV หรือ SharePoint
-- System role มี `ADMIN`, `STOCK_CONTROLLER`, `USER`
-- Target organization model รองรับหลาย Organization Assignments ต่อ User เช่น Manager และ Supervisor เป็นคนเดียวกัน
-- ใช้ `Warehouse` เป็นหน่วยจัดกลุ่มคลังใน code, schema, API และเอกสาร ส่วน `Inventory` ยังใช้เรียกหน้ารายการ asset
-- Warehouse เริ่มต้นคือ Server และ Network และสามารถเพิ่ม Warehouse ใหม่จากข้อมูลในฐานข้อมูล
-- รองรับ asset แบบ `SERIAL` และ `QUANTITY`, request cart, reservation และคำขอหลาย Warehouse
-- Approval chain รองรับ Organization/Project, Stock Controller และ Head Stock Controller ของทุก Warehouse ตามด้วย `BSD_STAFF` และ `BSD_MANAGER`
-- ทุก action ประเภท Borrow, Using, Sold และ Return ต้องผ่าน `BSD_STAFF` และ `BSD_MANAGER`
-- Return เป็น approval transaction แยกก่อนคืน asset เป็น `READY`; Return-to-sold ใช้ SOLD approval transaction
-- Project Management เชื่อม PostgreSQL/Prisma แล้ว
-- Target Project workflow โอน pending approval ไป Lead คนใหม่ทันที และ Project ที่มีหลาย Lead ต้องอนุมัติครบทุกคน
-- ไม่มีสถานะหรือการคำนวณ Overdue; `dueDate` เป็นข้อมูลประกอบเท่านั้น
+## ภาพรวมระบบ
 
-## Remaining Work
+- Next.js 15, React, TypeScript, Tailwind CSS, Prisma และ PostgreSQL
+- PostgreSQL เป็นแหล่งข้อมูล runtime; CSV/SharePoint เป็นข้อมูลนำเข้าหรือ bootstrap ไม่ใช่ Master ที่อ่านสด
+- System roles ในฐานข้อมูลคือ `ADMIN`, `STOREMAN`, `USER`
+- ผู้ใช้มีหลาย Organization Assignments; เลือก Storeman และ Warehouse Manager ในบริบท Warehouse ไม่ใช้ Head/Stock Controller Tag ในฟอร์ม User
+- สินค้าเป็น SERIAL เมื่อ `AssetModel.isSerialized=true` และมี Serial Number; กรณีอื่นทำงานเป็น QUANTITY
+- Quantity จองผ่าน Cart/คำขอที่ยังไม่จ่าย และตัด On-hand เมื่อจ่ายจริง; ห้ามหัก Open Quantity ของที่จ่ายแล้วซ้ำ
+- คำขอเบิกมี Requester Confirmation, Project Lead และ/หรือ Supervisor ตามเงื่อนไขจริง ก่อน Storeman ทุกคลัง; SOLD เพิ่ม BSD Staff
+- Warehouse Manager และ BSD มีงานรับทราบแยกจาก Approval Gate; การขายอนุมัติราคาขั้นสุดท้ายโดย BSD Staff
+- คืนเป็น `ReturnBatch` และ `TransactionItemOutcome`; ส่วนขายจากคืนมี Derived SOLD แยก
+- RETURN/USED/FAIL/LOST ต้องผ่าน Flow คืน; USED เป็นสภาพสินค้า ไม่ใช่ AssetStatus หรือ Product Model ใหม่
+- Request No. ใช้ `REQ-YYYYMMDD-XX`, วันที่ Asia/Bangkok, Running รายเดือนสูงสุด 99 รวมคำขอและรอบคืน
+- Derived SOLD ไม่ออก Running ใหม่ แสดง `From REQ-...`
+- ราคาแบ่งกลุ่มได้ คำนวณ Group Total/Grand Total บน Server ด้วยหน่วยสตางค์และเก็บ Decimal สองตำแหน่ง
+- ไม่คำนวณ Overdue จาก dueDate
 
-- เพิ่ม return outcome `FAIL`, `LOST`, `NEED_CHECK` เข้า return approval flow
-- ปรับเอกสาร PDF ตาม official template เมื่อได้รับจากธุรกิจ
-- เพิ่ม focused tests สำหรับ approval chain, quantity edge cases และ return derived transaction
-- เพิ่ม schema/migration/UI/approval routing สำหรับหลาย Organization Assignments ต่อ User
-- เพิ่ม dynamic Project Lead approval reassignment และ Project Lead change audit
-- ตรวจและนำ migration เปลี่ยน Domain เป็น Warehouse ไปใช้กับฐานข้อมูลจริงอย่างควบคุม
+## Authentication
 
-## Active Directory / LDAP
+- หน้า Login เลือก Active Directory หรือ Local Admin อย่างชัดเจน ไม่มีการ fallback อัตโนมัติ
+- AD ใช้ Email/Password; Add/Edit บัญชี AD ต้อง Verify AD ผ่านก่อนบันทึก ไม่มี Input AD Username
+- บัญชีค้นหา Directory ใช้สิทธิ์อ่านและตั้งค่าใน environment ห้าม commit รหัสผ่าน
+- Production ต้องใช้การเชื่อมต่อ AD ที่เข้ารหัสตามนโยบาย; ค่า LDAP ไม่เข้ารหัสเป็นเพียงข้อยกเว้นสำหรับสภาพแวดล้อมทดสอบที่ตั้งใจอนุญาต
+- Local Admin ต้องมี localUsername, bcrypt hash, Active และ ADMIN role; บัญชีฉุกเฉินชื่อ `admin` ไม่มี default password
+- Login counters อยู่ PostgreSQL; แยก 401, 429 และ 503 พร้อม Audit
+- ดูรายละเอียดใน [Emergency Local Login](docs/emergency-local-login.md) ไม่คัดลอก Secret ลงเอกสาร
 
-ระบบ login ใช้ Email และ password จาก Active Directory โดยไม่เก็บ password ของ AD ใน PostgreSQL ผู้ใช้แต่ละคนต้องถูกเพิ่มใน Stock Management พร้อมยืนยัน Email กับ AD, role และ warehouse permissions ก่อนจึงจะเข้าใช้งานได้ ระบบค้นหาและยืนยันบัญชีจากทั้ง `mail` และ `userPrincipalName`
+## การใช้งานและตรวจสอบ
 
-ค่าที่ต้องตั้งใน `.env` สำหรับ LDAP แบบไม่เข้ารหัส:
-
-```text
-LDAP_URL="ldap://172.16.3.179:389"
-LDAP_DOMAIN="ad2012r2.local"
-LDAP_BASE_DN="DC=ad2012r2,DC=local"
-LDAP_USER_SEARCH_BASE="OU=IT,DC=ad2012r2,DC=local"
-LDAP_CA_CERT_PATH=""
-LDAP_ALLOW_INSECURE="true"
-LDAP_VERIFY_BIND_DN="readonly-account@ad2012r2.local"
-LDAP_VERIFY_BIND_PASSWORD="change-me"
+```powershell
+npm install
+npx prisma generate
+npx prisma migrate status
+npm run dev -- --hostname 127.0.0.1 --port 3000
+npm run typecheck
+npm test
+npm run build
 ```
 
-การตั้งค่านี้ไม่ใช้ CA Certificate และต้องใช้เฉพาะ network ภายในหรือ VPN เพราะ LDAP port 389 ไม่เข้ารหัสข้อมูลระหว่างทาง
+ตรวจและสำรองข้อมูลก่อนใช้ Migration กับฐานข้อมูลที่มีข้อมูลจริง ห้าม reset ฐานข้อมูลเพื่อแก้ Migration โดยไม่อนุมัติ
 
-Admin ต้องกด `Verify AD` ในฟอร์ม Add/Edit User ให้ผ่านก่อนจึงบันทึกได้ หากบัญชีเดิมยังไม่เชื่อมต่อ ระบบจะแสดง `Not Linked` และสามารถกรอก Email ใหม่เพื่อยืนยันจากหน้า UI ได้โดยตรง
-
-การ Verify ต้องใช้บัญชี AD แบบ read-only สำหรับค้นหา directory โดยตั้งค่า `LDAP_VERIFY_BIND_DN` และ `LDAP_VERIFY_BIND_PASSWORD` ใน `.env` ห้ามใช้บัญชี anonymous และห้าม commit password ลง repository
+ผลการทดสอบและขอบเขตที่ตรวจรับบันทึกแยกใน [Task Status](docs/task.md) และ [Verification History](docs/workflow-implementation-verification.md)

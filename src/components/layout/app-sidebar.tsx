@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useDismiss } from "@/hooks/use-dismiss";
 import { usePathname, useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -18,7 +19,6 @@ import {
   X,
 } from "lucide-react";
 import { clsx } from "clsx";
-import { AssetTrackMethod } from "@prisma/client";
 import type { RoleCode } from "@/lib/permissions";
 import { SearchableDropdown } from "@/components/form/searchable-dropdown";
 import type { SidebarWarehouse } from "@/lib/warehouses";
@@ -28,10 +28,12 @@ type StockControllerOption = {
   email: string;
   id: string;
   name: string;
+  position: string | null;
 };
 
 type AppSidebarProps = {
   approvalCount: number;
+  pendingProjectCount: number;
   warehouses: SidebarWarehouse[];
   requestCount: number;
   roles: RoleCode[];
@@ -43,7 +45,6 @@ type WarehouseFormState = {
   headControllerIds: string[];
   warehouseName: string;
   prefix: string;
-  trackMethod: AssetTrackMethod;
 };
 
 type WarehouseDialogState =
@@ -94,7 +95,7 @@ function canShowUsers(roles: RoleCode[]) {
 }
 
 function canShowProjects(roles: RoleCode[]) {
-  return roles.includes("ADMIN") || roles.includes("STOCK_CONTROLLER") || roles.includes("USER");
+  return roles.includes("ADMIN") || roles.includes("STOREMAN") || roles.includes("USER");
 }
 
 function canCreateWarehouse(roles: RoleCode[]) {
@@ -138,12 +139,7 @@ function emptyWarehouseForm(): WarehouseFormState {
     headControllerIds: [],
     warehouseName: "",
     prefix: "",
-    trackMethod: AssetTrackMethod.SERIAL,
   };
-}
-
-function inventoryFamilyLabel(value: AssetTrackMethod) {
-  return value === AssetTrackMethod.QUANTITY ? "Quantity" : "Serial";
 }
 
 function stockControllerOptions(
@@ -151,17 +147,12 @@ function stockControllerOptions(
 ) {
   return stockControllers
     .map((controller) => ({
-      description: controller.email,
+      description: controller.position ?? "",
       label: controller.name,
-      searchText: `${controller.name} ${controller.email}`,
+      searchText: `${controller.name} ${controller.position ?? ""}`,
       value: controller.id,
     }));
 }
-
-const inventoryFamilyOptions = [
-  { label: "Serial", value: AssetTrackMethod.SERIAL },
-  { label: "Quantity", value: AssetTrackMethod.QUANTITY },
-];
 
 function AddWarehouseModal({
   onCreated,
@@ -195,7 +186,6 @@ function AddWarehouseModal({
           headControllerIds: form.headControllerIds,
           warehouseName: form.warehouseName.trim(),
           prefix: form.prefix.trim().toUpperCase(),
-          trackMethod: form.trackMethod,
         }),
       });
 
@@ -254,36 +244,27 @@ function AddWarehouseModal({
             />
           </Field>
 
-          <Field label="Head Stock Controller">
+          <Field label="Warehouse Manager">
             <SearchableDropdown
               multiple
               onChange={(value) => setField("headControllerIds", value)}
               options={stockControllerOptions(stockControllers)}
-              placeholder="Select head stock controller"
-              searchPlaceholder="Search by name or email"
+              placeholder="Select warehouse manager"
+              searchPlaceholder="Search user..."
               value={form.headControllerIds}
             />
           </Field>
 
-          <Field label="Stock Controller" required>
+          <Field label="Storeman" required>
             <SearchableDropdown
               onChange={(value) => setField("controllerId", value)}
               options={stockControllerOptions(stockControllers)}
-              placeholder="Select stock controller"
-              searchPlaceholder="Search by name or email"
+              placeholder="Select storeman"
+              searchPlaceholder="Search user..."
               value={form.controllerId}
             />
           </Field>
 
-          <Field label="Warehouse Family" required>
-            <SearchableDropdown
-              onChange={(value) => setField("trackMethod", value as AssetTrackMethod)}
-              options={inventoryFamilyOptions}
-              placeholder="Select inventory family"
-              searchPlaceholder="Search inventory family"
-              value={form.trackMethod}
-            />
-          </Field>
         </div>
 
         {error ? (
@@ -331,7 +312,6 @@ function EditWarehouseModal({
     headControllerIds: warehouse.headControllerIds ?? (warehouse.headControllerId ? [warehouse.headControllerId] : []),
     warehouseName: warehouse.name,
     prefix: warehouse.prefix,
-    trackMethod: warehouse.inventoryFamily,
   });
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -406,35 +386,27 @@ function EditWarehouseModal({
             />
           </Field>
 
-          <Field label="Head Stock Controller">
+          <Field label="Warehouse Manager">
             <SearchableDropdown
               multiple
               onChange={(value) => setField("headControllerIds", value)}
               options={stockControllerOptions(stockControllers)}
-              placeholder="Select head stock controller"
-              searchPlaceholder="Search by name or email"
+              placeholder="Select warehouse manager"
+              searchPlaceholder="Search user..."
               value={form.headControllerIds}
             />
           </Field>
 
-          <Field label="Stock Controller" required>
+          <Field label="Storeman" required>
             <SearchableDropdown
               onChange={(value) => setField("controllerId", value)}
               options={stockControllerOptions(stockControllers)}
-              placeholder="Select stock controller"
-              searchPlaceholder="Search by name or email"
+              placeholder="Select storeman"
+              searchPlaceholder="Search user..."
               value={form.controllerId}
             />
           </Field>
 
-          <Field label="Warehouse Family">
-            <input
-              className={inputClass(true)}
-              disabled
-              type="text"
-              value={inventoryFamilyLabel(form.trackMethod)}
-            />
-          </Field>
         </div>
 
         {error ? (
@@ -600,6 +572,7 @@ function SidebarLink({
 
 export function AppSidebar({
   approvalCount,
+  pendingProjectCount,
   warehouses,
   requestCount,
   roles,
@@ -609,6 +582,8 @@ export function AppSidebar({
   const [isInventoryOpen, setIsInventoryOpen] = useState(true);
   const [warehouseDialog, setWarehouseDialog] = useState<WarehouseDialogState>(null);
   const [openWarehouseMenu, setOpenWarehouseMenu] = useState<string | null>(null);
+  const warehouseMenuRef = useRef<HTMLDivElement>(null);
+  useDismiss(openWarehouseMenu !== null, () => setOpenWarehouseMenu(null), [warehouseMenuRef]);
   const [warehouseItems, setWarehouseItems] = useState(warehouses);
 
   useEffect(() => {
@@ -678,6 +653,7 @@ export function AppSidebar({
                               : "text-muted-foreground hover:bg-surface hover:text-navy",
                           )}
                           key={warehouse.code}
+                          ref={openWarehouseMenu === warehouse.code ? warehouseMenuRef : undefined}
                         >
                           <Link className="min-w-0 flex-1 px-3 py-2" href={href}>
                             <span className="block truncate">{formatWarehouseName(warehouse.name)}</span>
@@ -776,6 +752,7 @@ export function AppSidebar({
               <SidebarLink active={pathname === "/project"} href="/project">
                 <Layers className="h-4 w-4 shrink-0" />
                 <span>Project</span>
+                {pendingProjectCount > 0 ? <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-status-fail px-1.5 py-0.5 text-[11px] font-bold leading-4 text-white">{pendingProjectCount}</span> : null}
               </SidebarLink>
             ) : null}
 

@@ -8,6 +8,7 @@ import { promisify } from "util";
 import {
   buildTransactionDocumentHtml,
   type PrintableTransaction,
+  type TransactionDocumentFontUrls,
 } from "@/features/transactions/transaction-document";
 
 const execFileAsync = promisify(execFile);
@@ -26,7 +27,29 @@ function findChromeExecutable() {
   return chromeExecutableCandidates.find((candidate) => existsSync(candidate));
 }
 
+function findThaiFontUrls() {
+  const regularPath =
+    process.env.THAI_PDF_FONT_PATH ?? "C:\\Windows\\Fonts\\LeelawUI.ttf";
+  const boldPath =
+    process.env.THAI_PDF_FONT_BOLD_PATH ?? "C:\\Windows\\Fonts\\leelawdb.ttf";
+
+  return {
+    bold: existsSync(boldPath) ? pathToFileURL(boldPath).toString() : undefined,
+    regular: existsSync(regularPath)
+      ? pathToFileURL(regularPath).toString()
+      : undefined,
+  };
+}
+
 export async function renderTransactionPdf(transaction: PrintableTransaction) {
+  return renderDocumentPdf((fontUrls) =>
+    buildTransactionDocumentHtml(transaction, fontUrls),
+  );
+}
+
+export async function renderDocumentPdf(
+  buildHtml: (fontUrls: TransactionDocumentFontUrls) => string,
+): Promise<Buffer> {
   const executablePath = findChromeExecutable();
 
   if (!executablePath) {
@@ -41,7 +64,11 @@ export async function renderTransactionPdf(transaction: PrintableTransaction) {
   const userDataDir = join(workdir, "chrome-profile");
 
   try {
-    await writeFile(htmlPath, buildTransactionDocumentHtml(transaction), "utf8");
+    await writeFile(
+      htmlPath,
+      buildHtml(findThaiFontUrls()),
+      "utf8",
+    );
     await execFileAsync(
       executablePath,
       [
@@ -53,6 +80,7 @@ export async function renderTransactionPdf(transaction: PrintableTransaction) {
         "--disable-sync",
         "--no-first-run",
         "--no-sandbox",
+        "--allow-file-access-from-files",
         "--no-pdf-header-footer",
         "--print-to-pdf-no-header",
         `--user-data-dir=${userDataDir}`,

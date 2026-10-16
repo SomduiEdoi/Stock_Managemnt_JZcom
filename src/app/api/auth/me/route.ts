@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { apiJson } from "@/lib/api";
+import { NextRequest } from "next/server";
 import { getUserFromSessionToken } from "@/lib/auth";
 import { SESSION_COOKIE_NAME } from "@/lib/session";
 
@@ -8,8 +9,9 @@ export async function GET(request: NextRequest) {
   );
 
   if (!user) {
-    return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
+    return apiJson({ message: "Unauthorized." }, { status: 401 });
   }
 
-  return NextResponse.json({ user });
+  return apiJson({ user });
 }
+

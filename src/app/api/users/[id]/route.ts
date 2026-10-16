@@ -1,7 +1,7 @@
 import { OrganizationLevel, OrganizationTag } from "@prisma/client";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
-import { apiErrorResponse, readJsonBody, requireApiUser } from "@/lib/api";
+import { apiErrorResponse, readJsonBody, requireApiUser, apiJson } from "@/lib/api";
 import { deleteUserForAdmin, updateUserForAdmin } from "@/lib/user-management";
 
 type RouteContext = {
@@ -24,7 +24,7 @@ const updateUserSchema = z.object({
     .optional(),
   primaryOrganizationTag: z.nativeEnum(OrganizationTag).nullable().optional(),
   organizationTag: z.nativeEnum(OrganizationTag).nullable().optional(),
-  role: z.enum(["ADMIN", "STOCK_CONTROLLER", "USER"]),
+  role: z.enum(["ADMIN", "STOREMAN", "USER"]),
 });
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
@@ -35,7 +35,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     await updateUserForAdmin(user, id, body);
 
-    return NextResponse.json({ ok: true });
+    return apiJson({ ok: true });
   } catch (error) {
     return apiErrorResponse(error);
   }
@@ -47,8 +47,9 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     const { id } = paramsSchema.parse(await context.params);
     await deleteUserForAdmin(user, id);
 
-    return NextResponse.json({ ok: true });
+    return apiJson({ ok: true });
   } catch (error) {
     return apiErrorResponse(error);
   }
 }
+

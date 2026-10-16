@@ -51,6 +51,7 @@ export type ServerInventoryFilters = {
   sortDirection: InventorySortDirection;
   statuses: AssetStatus[];
   types: string[];
+  favoriteOnly?: boolean;
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -76,6 +77,8 @@ const serverAssetSelect = Prisma.validator<Prisma.AssetSelect>()({
   locationText: true,
   note: true,
   requestLockedById: true,
+  isRecommended: true,
+  recommendedAt: true,
   sourceRecordId: true,
   sourceSystem: true,
   serialNo: true,
@@ -84,7 +87,7 @@ const serverAssetSelect = Prisma.validator<Prisma.AssetSelect>()({
   updatedAt: true,
   assetModel: {
     select: {
-      assetType: { select: { trackMethod: true } },
+      isSerialized: true,
       brand: true,
       category: { select: { name: true } },
       description: true,
@@ -143,22 +146,22 @@ function buildInventoryOrderBy(filters: ServerInventoryFilters): Prisma.AssetOrd
 
   switch (filters.sortBy) {
     case "availability":
-      return [{ assetQuantity: direction }, { updatedAt: "desc" }];
+      return [{ isRecommended: "desc" }, { recommendedAt: "asc" }, { assetQuantity: direction }, { updatedAt: "desc" }];
     case "brand":
-      return [{ assetModel: { brand: direction } }, { updatedAt: "desc" }];
+      return [{ isRecommended: "desc" }, { recommendedAt: "asc" }, { assetModel: { brand: direction } }, { updatedAt: "desc" }];
     case "category":
-      return [{ assetModel: { category: { name: direction } } }, { updatedAt: "desc" }];
+      return [{ isRecommended: "desc" }, { recommendedAt: "asc" }, { assetModel: { category: { name: direction } } }, { updatedAt: "desc" }];
     case "serialNo":
-      return [{ serialNo: direction }, { updatedAt: "desc" }];
+      return [{ isRecommended: "desc" }, { recommendedAt: "asc" }, { serialNo: direction }, { updatedAt: "desc" }];
     case "status":
-      return [{ status: direction }, { updatedAt: "desc" }];
+      return [{ isRecommended: "desc" }, { recommendedAt: "asc" }, { status: direction }, { updatedAt: "desc" }];
     case "stockCode":
-      return [{ stockCode: direction }, { updatedAt: "desc" }];
+      return [{ isRecommended: "desc" }, { recommendedAt: "asc" }, { stockCode: direction }, { updatedAt: "desc" }];
     case "type":
-      return [{ assetModel: { typeName: direction } }, { updatedAt: "desc" }];
+      return [{ isRecommended: "desc" }, { recommendedAt: "asc" }, { assetModel: { typeName: direction } }, { updatedAt: "desc" }];
     case "model":
     default:
-      return [{ assetModel: { name: direction } }, { updatedAt: "desc" }];
+      return [{ isRecommended: "desc" }, { recommendedAt: "asc" }, { assetModel: { name: direction } }, { updatedAt: "desc" }];
   }
 }
 
@@ -243,10 +246,11 @@ export function normalizeServerInventoryFilters(
     sortDirection: parseSortDirection(firstParam(searchParams.dir)),
     statuses,
     types: cleanValues(arrayParam(searchParams.type)),
+    favoriteOnly: firstParam(searchParams.favorite) === "1",
   };
 }
 
-export function buildServerInventoryWhere(filters: ServerInventoryFilters) {
+export function buildServerInventoryWhere(filters: ServerInventoryFilters, userId?: string) {
   const clauses = buildFilterClauses(filters);
 
   return {
@@ -254,6 +258,7 @@ export function buildServerInventoryWhere(filters: ServerInventoryFilters) {
     warehouse: { code: "SERVER" },
     ...(filters.statuses.length > 0 ? { status: { in: filters.statuses } } : {}),
     ...(clauses.length > 0 ? { AND: clauses } : {}),
+    ...(filters.favoriteOnly && userId ? { favorites: { some: { userId } } } : {}),
   } satisfies Prisma.AssetWhereInput;
 }
 
@@ -351,6 +356,7 @@ async function getServerMetrics(baseWhere: Prisma.AssetWhereInput) {
 export async function getServerInventoryForUser(
   user: CurrentUser,
   filters: ServerInventoryFilters,
+  allRows = false,
 ) {
   const canView = canViewWarehouseForUser(user, "SERVER");
   const baseWhere = {
@@ -370,7 +376,7 @@ export async function getServerInventoryForUser(
     };
   }
 
-  const where = buildServerInventoryWhere(filters);
+  const where = buildServerInventoryWhere(filters, user.id);
   const skip = (filters.page - 1) * filters.pageSize;
   const [filterOptions, metrics, rawRows, total] = await Promise.all([
     getServerFilterOptions(),
@@ -378,8 +384,7 @@ export async function getServerInventoryForUser(
     db.asset.findMany({
       orderBy: buildInventoryOrderBy(filters),
       select: serverAssetSelect,
-      skip,
-      take: filters.pageSize,
+      ...(allRows ? {} : { skip, take: filters.pageSize }),
       where,
     }),
     db.asset.count({ where }),

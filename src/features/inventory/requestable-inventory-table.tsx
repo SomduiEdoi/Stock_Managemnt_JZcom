@@ -1,19 +1,22 @@
 "use client";
 
 import { AssetStatus } from "@prisma/client";
-import { CheckCircle2, ChevronDown, Columns3, Loader2, Package, Trash2, X } from "lucide-react";
+import { CheckCircle2, ChevronDown, Columns3, Loader2, Package, Pin, Star, Trash2, X } from "lucide-react";
+import { useDismiss } from "@/hooks/use-dismiss";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import * as XLSX from "xlsx";
 import { createPortal } from "react-dom";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AssetStatusBadge } from "@/components/status/asset-status-badge";
 import { assetStatusHexColors, assetStatusLabels } from "@/lib/status-style";
 import { formatWarehouseHeading } from "@/lib/display-labels";
+import { getEffectiveAssetTrackMethod } from "@/lib/asset-tracking";
 
 export type RequestableInventoryRow = {
   assetNo?: string | null;
   assetModel: {
-    assetType?: { trackMethod: "SERIAL" | "QUANTITY" } | null;
+    isSerialized: boolean;
     brand: string | null;
     category: { name: string } | null;
     description?: string | null;
@@ -24,6 +27,7 @@ export type RequestableInventoryRow = {
   };
   availableQuantity: number;
   id: string;
+  isRecommended: boolean;
   locationText: string | null;
   reservedQuantity: number;
   serialNo: string | null;
@@ -52,7 +56,6 @@ type SortKey =
   | "stockCode"
   | "type";
 
-type InventoryFamily = "SERIAL" | "QUANTITY";
 
 type InventoryColumnKey =
   | "assetNo"
@@ -89,7 +92,7 @@ function normalizeTableColumns(columns: TableColumnKey[]): TableColumnKey[] {
 
 const inventoryColumnLabels = {
   assetNo: "Asset No.",
-  availability: "Available",
+  availability: "Total Qty",
   brand: "Brand",
   category: "Category",
   createdAt: "Created",
@@ -116,6 +119,7 @@ type PendingRequestOption = {
   purpose: string;
   transactionNo: string;
   type: string;
+  workflowStatus: "PENDING" | "REJECTED";
 };
 
 type RequestableInventoryTableProps = {
@@ -123,9 +127,11 @@ type RequestableInventoryTableProps = {
   canRequest: boolean;
   canDelete: boolean;
   canChangeStatus: boolean;
+  canRecommend: boolean;
+  warehouseCode: string;
+  favoriteOnly?: boolean;
   warehouseLabel: string;
   categoryName?: string;
-  inventoryFamily?: InventoryFamily;
   rows: RequestableInventoryRow[];
   sortLinks?: Partial<Record<SortKey, { asc: string; desc: string }>>;
   customFieldDefinitions?: Array<{ key: string; label: string; unit: string | null }>;
@@ -166,19 +172,14 @@ function AvailabilityCell({ asset }: { asset: RequestableInventoryRow }) {
       title={`${asset.availableQuantity} available, ${asset.reservedQuantity} reserved, ${asset.totalQuantity} total`}
     >
       <div className="min-w-0">
-        <p className="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-bold text-navy">
-          {asset.availableQuantity.toLocaleString("en-US")} /{" "}
-          {asset.totalQuantity.toLocaleString("en-US")}
+        <p className="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-extrabold text-navy">
+          {asset.availableQuantity.toLocaleString("en-US")}
         </p>
         {asset.reservedQuantity > 0 ? (
           <p className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-xs font-semibold text-status-request">
-            {asset.reservedQuantity.toLocaleString("en-US")} reserved
+            ({asset.reservedQuantity.toLocaleString("en-US")} reserved)
           </p>
-        ) : (
-          <p className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-xs font-medium text-muted-foreground">
-            Available
-          </p>
-        )}
+        ) : null}
       </div>
     </td>
   );
@@ -235,6 +236,36 @@ function getTableColumnValue(asset: RequestableInventoryRow, columnKey: TableCol
   return columnKey === "action" || columnKey === "status" || columnKey === "availability"
     ? null
     : getInventoryColumnValue(asset, columnKey as InventoryColumnKey);
+}
+
+function getExportColumnLabel(columnKey: TableColumnKey, customFieldDefinitions: RequestableInventoryTableProps["customFieldDefinitions"]) {
+  if (columnKey.startsWith("custom:")) {
+    return customFieldDefinitions?.find((field) => `custom:${field.key}` === columnKey)?.label ?? columnKey.slice(7);
+  }
+
+  return columnKey === "action" ? "Action" : inventoryColumnLabels[columnKey as InventoryColumnKey];
+}
+
+function getExportValue(asset: RequestableInventoryRow, columnKey: TableColumnKey) {
+  if (columnKey === "status") {
+    return assetStatusLabels[getDisplayStatus(asset)];
+  }
+
+  if (columnKey === "availability") {
+    return asset.availableQuantity;
+  }
+
+  return displayValue(getTableColumnValue(asset, columnKey));
+}
+
+function ExcelExportIcon() {
+  return (
+    <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 32 32" fill="none">
+      <path d="M18 6h9a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2h-9V6Z" fill="currentColor" />
+      <path d="M7 5.5 20 3.5v25L7 26.5a2 2 0 0 1-1.7-2V7.5a2 2 0 0 1 1.7-2Z" fill="white" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+      <path d="m9 10 7 12m0-12-7 12" stroke="currentColor" strokeWidth="3" strokeLinecap="square" />
+    </svg>
+  );
 }
 
 function InventoryDataCell({
@@ -299,7 +330,6 @@ function RequestConfirmDialog({
   asset,
   warehouseLabel,
   error,
-  inventoryFamily,
   isSubmitting,
   onClose,
   onConfirm,
@@ -310,7 +340,6 @@ function RequestConfirmDialog({
   asset: RequestableInventoryRow;
   warehouseLabel: string;
   error: string | null;
-  inventoryFamily: InventoryFamily;
   isSubmitting: boolean;
   onClose: () => void;
   onConfirm: (quantity: number, transactionId: string | null) => void;
@@ -320,9 +349,7 @@ function RequestConfirmDialog({
 }) {
   const [transactionId, setTransactionId] = useState("");
   const isReady = asset.status === AssetStatus.READY && asset.availableQuantity > 0;
-  const isQuantityAsset =
-    inventoryFamily === "QUANTITY" ||
-    asset.assetModel.assetType?.trackMethod === "QUANTITY";
+  const isQuantityAsset = getEffectiveAssetTrackMethod(asset) === "QUANTITY";
   const maxQuantity = Math.max(1, asset.availableQuantity);
 
   useEffect(() => {
@@ -355,15 +382,15 @@ function RequestConfirmDialog({
           </button>
         </div>
 
-        <h2 className="mt-5 text-2xl font-bold text-navy">Request this asset?</h2>
+        <h2 className="mt-5 text-2xl font-bold text-navy">Request this item?</h2>
         <p className="mt-2 text-sm font-semibold text-muted-foreground">
           {warehouseLabel} / {asset.assetModel.name}
         </p>
 
         <div className="mt-6 grid gap-3 rounded-md border border-border bg-surface px-4 py-4 text-sm font-semibold text-ink sm:grid-cols-2">
           <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Serial No.</p>
-            <p className="mt-1">{displayValue(asset.serialNo)}</p>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Category / Type</p>
+            <p className="mt-1">{[asset.assetModel.category?.name, asset.assetModel.typeName].filter(Boolean).join(" / ") || "-"}</p>
           </div>
           <div>
             <p className="text-xs uppercase tracking-wide text-muted-foreground">Brand</p>
@@ -418,7 +445,7 @@ function RequestConfirmDialog({
           <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
             Request Destination
           </p>
-          {pendingRequests.length > 1 ? (
+          {pendingRequests.length > 0 ? (
             <select
               aria-label="Existing request"
               className="mt-3 h-11 w-full rounded-md border border-border bg-white px-3 text-sm font-semibold text-navy outline-none ring-brand-accent/20 focus:ring-4"
@@ -427,7 +454,7 @@ function RequestConfirmDialog({
             >
               {pendingRequests.map((request) => (
                 <option key={request.id} value={request.id}>
-                  {request.transactionNo} - {request.purpose} ({request.itemCount} items)
+                  {request.transactionNo} - {request.purpose} ({request.itemCount} items, {request.workflowStatus === "REJECTED" ? "Rejected" : "Pending"})
                 </option>
               ))}
             </select>
@@ -664,6 +691,8 @@ function StatusMenuCell({
   onToggle: () => void;
 }) {
   const options = manualStatusTransitions[asset.status];
+  const menuRef = useRef<HTMLDivElement>(null);
+  useDismiss(isOpen, onToggle, [menuRef]);
   const displayStatus = getDisplayStatus(asset);
 
   if (!canChangeStatus || options.length === 0) {
@@ -671,7 +700,7 @@ function StatusMenuCell({
   }
 
   return (
-    <div className="relative inline-block">
+    <div ref={menuRef} className="relative inline-block">
       <button
         className="inline-flex items-center gap-2 rounded-full focus:outline-none focus:ring-4 focus:ring-brand-accent/20"
         onClick={(event) => {
@@ -712,8 +741,10 @@ function StatusMenuCell({
 export function RequestableInventoryTable({
   canDelete,
   canChangeStatus,
+  canRecommend,
+  warehouseCode,
+  favoriteOnly = false,
   warehouseLabel,
-  inventoryFamily = "SERIAL",
   canRequest,
   rows,
   sortLinks,
@@ -735,13 +766,28 @@ export function RequestableInventoryTable({
   const [statusNote, setStatusNote] = useState("");
   const [isChangingStatus, setIsChangingStatus] = useState(false);
   const [pendingRequests, setPendingRequests] = useState<PendingRequestOption[]>([]);
+  const [isExporting, setIsExporting] = useState(false);
   const [columnMenuOpen, setColumnMenuOpen] = useState(false);
   const columnTriggerRef = useRef<HTMLButtonElement>(null);
   const columnMenuRef = useRef<HTMLDivElement>(null);
+  const sortMenuRef = useRef<HTMLTableCellElement>(null);
+  useDismiss(columnMenuOpen, () => setColumnMenuOpen(false), [columnTriggerRef, columnMenuRef]);
+  useDismiss(openSortKey !== null, () => setOpenSortKey(null), [sortMenuRef]);
   const [columnMenuPosition, setColumnMenuPosition] = useState({ left: 0, top: 0 });
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [selectedColumns, setSelectedColumns] = useState<TableColumnKey[]>([]);
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+  const favoritesOnly = favoriteOnly;
+  const [favoriteBusy, setFavoriteBusy] = useState<string | null>(null);
+  const [recommendationBusy, setRecommendationBusy] = useState<string | null>(null);
   const [resizing, setResizing] = useState<{ key: TableColumnKey; startX: number; startWidth: number } | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/favorites?warehouse=${encodeURIComponent(warehouseCode)}`)
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load favorites")))
+      .then((data: { assetIds?: string[] }) => setFavoriteIds(new Set(data.assetIds ?? [])))
+      .catch(() => setFavoriteIds(new Set()));
+  }, [warehouseCode]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -853,11 +899,81 @@ export function RequestableInventoryTable({
   }, [columnMenuOpen, selectableColumns.length]);
 
   const columns = normalizeTableColumns(selectedColumns.length > 0 ? selectedColumns : defaultColumns);
+  const visibleRows = rows;
+
+  async function toggleFavorite(assetId: string) {
+    setFavoriteBusy(assetId);
+    try {
+      const response = await fetch("/api/favorites", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ assetId }) });
+      if (!response.ok) return;
+      const data = (await response.json()) as { favorite: boolean };
+      setFavoriteIds((current) => {
+        const next = new Set(current);
+        if (data.favorite) next.add(assetId); else next.delete(assetId);
+        return next;
+      });
+    } finally {
+      setFavoriteBusy(null);
+    }
+  }
+
+  async function toggleRecommendation(asset: RequestableInventoryRow) {
+    setRecommendationBusy(asset.id);
+    try {
+      const response = await fetch(`/api/assets/${asset.id}/recommendation`, {
+        body: JSON.stringify({ recommended: !asset.isRecommended }),
+        headers: { "Content-Type": "application/json" },
+        method: "PATCH",
+      });
+
+      if (response.ok) {
+        router.refresh();
+      }
+    } finally {
+      setRecommendationBusy(null);
+    }
+  }
 
   function autoFitColumn(columnKey: TableColumnKey) {
     const label = columnKey.startsWith("custom:") ? customFieldDefinitions.find((field) => `custom:${field.key}` === columnKey)?.label ?? columnKey.slice(7) : columnKey === "action" ? "Action" : inventoryColumnLabels[columnKey as InventoryColumnKey];
     const longest = Math.max(label.length, ...rows.map((asset) => String(getTableColumnValue(asset, columnKey) ?? "-").length));
     setColumnWidths((current) => ({ ...current, [columnKey]: Math.min(480, Math.max(120, longest * 8 + 48)) }));
+  }
+
+  async function exportToExcel() {
+    setIsExporting(true);
+    const params = new URLSearchParams(window.location.search);
+    params.set("warehouse", warehouseCode);
+    const response = await fetch(`/api/inventory/export?${params.toString()}`);
+
+    if (!response.ok) {
+      setIsExporting(false);
+      return;
+    }
+
+    const body = await response.json() as { rows?: RequestableInventoryRow[] };
+    const exportRows = body.rows ?? [];
+    // Export is independent from the user's display-column preferences. Keep the
+    // active row filters/search from the request above, but include every known
+    // inventory field and the category-specific specification fields.
+    const exportColumns = normalizeTableColumns([
+      "status",
+      ...(Object.keys(inventoryColumnLabels) as InventoryColumnKey[]),
+      ...customColumns,
+    ]).filter((columnKey) => !["action", "sourceRecord", "sourceSystem"].includes(columnKey));
+    const data = exportRows.map((asset) => Object.fromEntries(
+      exportColumns.map((columnKey) => [
+        getExportColumnLabel(columnKey, customFieldDefinitions),
+        getExportValue(asset, columnKey),
+      ]),
+    ));
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Inventory");
+    const date = new Date().toISOString().slice(0, 10).replaceAll("-", "");
+    const safeWarehouseName = warehouseLabel.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "") || "Warehouse";
+    XLSX.writeFile(workbook, `${safeWarehouseName}_Inventory_${date}.xlsx`);
+    setIsExporting(false);
   }
 
   const requestableCount = useMemo(
@@ -1012,6 +1128,12 @@ export function RequestableInventoryTable({
           </div>
           <div className="relative flex items-center gap-3">
             {canRequest ? <p className="text-sm font-semibold text-muted-foreground">{requestableCount.toLocaleString("en-US")} requestable</p> : null}
+            <button className={`inline-flex h-10 items-center gap-2 rounded-md border px-3 text-sm font-bold ${favoritesOnly ? "border-brand-accent bg-brand-accent text-white" : "border-navy/30 bg-white text-navy hover:bg-navy/10"}`} onClick={() => { const params = new URLSearchParams(window.location.search); if (favoritesOnly) { params.delete("favorite"); } else { params.set("favorite", "1"); params.delete("category"); params.delete("brand"); params.delete("type"); params.delete("status"); params.delete("q"); } params.delete("page"); router.push(`${window.location.pathname}?${params.toString()}`); }} type="button">
+              <Star className={`h-4 w-4 ${favoritesOnly ? "fill-current" : ""}`} /> Favorite
+            </button>
+            <button className="inline-flex h-10 items-center gap-2 rounded-md border border-navy/30 bg-white px-3 text-sm font-bold text-navy hover:bg-navy/10 disabled:cursor-wait disabled:opacity-60" disabled={isExporting} onClick={exportToExcel} type="button" title="Export filtered inventory rows to Excel">
+              <ExcelExportIcon /> Export
+            </button>
             <button className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-bold text-navy hover:bg-surface" onClick={() => setColumnMenuOpen((open) => !open)} ref={columnTriggerRef} type="button">
               <Columns3 className="h-4 w-4" /> Columns
             </button>
@@ -1046,7 +1168,7 @@ export function RequestableInventoryTable({
             <thead className="bg-surface text-xs uppercase text-muted-foreground">
               <tr>
                 {columns.map((columnKey) => (
-                  <th className={`relative whitespace-nowrap px-5 py-4 font-bold ${columnKey === "status" ? "sticky left-0 z-20 bg-surface" : columnKey === "action" ? "sticky right-0 z-20 bg-surface" : ""}`} key={columnKey}>
+                  <th ref={openSortKey === columnKey ? sortMenuRef : undefined} className={`relative whitespace-nowrap px-5 py-4 font-bold ${columnKey === "status" ? "sticky left-0 z-20 bg-surface" : columnKey === "action" ? "sticky right-0 z-20 bg-surface" : ""}`} key={columnKey}>
                     <div className="flex items-center justify-between gap-2">
                       <span className="truncate">{columnKey.startsWith("custom:") ? customFieldDefinitions.find((field) => `custom:${field.key}` === columnKey)?.label ?? columnKey.slice(7) : columnKey === "action" ? "Action" : inventoryColumnLabels[columnKey as InventoryColumnKey]}</span>
                       {columnKey !== "action" && columnKey !== "status" && sortLinks?.[columnKey as SortKey] ? <button className="shrink-0" onClick={(event) => { event.stopPropagation(); setOpenSortKey((current) => current === columnKey ? null : columnKey as SortKey); }} type="button"><ChevronDown className="h-3.5 w-3.5" /></button> : null}
@@ -1058,7 +1180,7 @@ export function RequestableInventoryTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {rows.map((asset) => (
+              {visibleRows.map((asset) => (
                 <tr
                   className={[
                     "align-middle transition",
@@ -1093,8 +1215,23 @@ export function RequestableInventoryTable({
                     ) : columnKey === "action" ? (
                       <td className="sticky right-0 z-10 bg-white px-5 py-4" key={columnKey}>
                         <div className="flex items-center gap-2">
+                          <button aria-label={favoriteIds.has(asset.id) ? "Remove from favorites" : "Add to favorites"} className="inline-flex h-9 w-9 items-center justify-center rounded-md text-gray-400 hover:bg-amber-50 hover:text-yellow-400 disabled:opacity-50" disabled={favoriteBusy === asset.id} onClick={(event) => { event.stopPropagation(); void toggleFavorite(asset.id); }} title={favoriteIds.has(asset.id) ? "Remove from favorites" : "Favorite"} type="button">
+                            <Star className={`h-5 w-5 ${favoriteIds.has(asset.id) ? "fill-yellow-400 text-yellow-400" : ""}`} />
+                          </button>
+                          {canRecommend ? (
+                            <button
+                              aria-label={asset.isRecommended ? "Remove recommendation" : "Recommend asset"}
+                              className={`inline-flex h-9 w-9 items-center justify-center rounded-md disabled:cursor-wait disabled:opacity-50 ${asset.isRecommended ? "text-brand-accent" : "text-gray-400 hover:text-brand-accent"}`}
+                              disabled={recommendationBusy === asset.id}
+                              onClick={(event) => { event.stopPropagation(); void toggleRecommendation(asset); }}
+                              type="button"
+                              title={asset.isRecommended ? "Remove recommendation" : "Recommend asset"}
+                            >
+                              <Pin className={`h-5 w-5 ${asset.isRecommended ? "fill-current" : ""}`} />
+                            </button>
+                          ) : null}
                           {canRequest ? <button className="inline-flex h-9 items-center justify-center rounded-md bg-brand-accent px-3 text-xs font-bold text-white disabled:cursor-not-allowed disabled:bg-muted-foreground" disabled={asset.status !== AssetStatus.READY || asset.availableQuantity <= 0} onClick={(event) => { event.stopPropagation(); setActiveAsset(asset); setRequestQuantity(1); }} type="button">Request</button> : null}
-                          {canDelete ? <button className="inline-flex h-9 items-center justify-center rounded-md border border-status-fail/30 bg-white px-3 text-xs font-bold text-status-fail hover:bg-status-fail hover:text-white" onClick={(event) => { event.stopPropagation(); setDeleteAsset(asset); setDeleteError(null); }} type="button"><Trash2 className="mr-2 h-4 w-4" />Delete</button> : null}
+                          {canDelete ? <button aria-label="Delete asset" className="inline-flex h-9 w-9 items-center justify-center rounded-md text-status-fail hover:bg-red-50 disabled:opacity-50" onClick={(event) => { event.stopPropagation(); setDeleteAsset(asset); setDeleteError(null); }} title="Delete" type="button"><Trash2 className="h-5 w-5" /></button> : null}
                         </div>
                       </td>
                     ) : (
@@ -1111,7 +1248,7 @@ export function RequestableInventoryTable({
           </table>
         </div>
 
-        {rows.length === 0 ? (
+        {visibleRows.length === 0 ? (
           <div className="border-t border-border px-5 py-10 text-center text-sm font-medium text-muted-foreground">
             No assets found.
           </div>
@@ -1123,7 +1260,6 @@ export function RequestableInventoryTable({
           asset={activeAsset}
           warehouseLabel={warehouseLabel}
           error={error}
-          inventoryFamily={inventoryFamily}
           isSubmitting={isSubmitting}
           onClose={() => {
             setActiveAsset(null);

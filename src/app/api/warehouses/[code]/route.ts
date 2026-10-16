@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
+import { apiJson } from "@/lib/api";
 import { requireCurrentUser } from "@/lib/auth";
 import { deleteWarehouseForUser, updateWarehouseForUser } from "@/lib/warehouses";
 import { PermissionError } from "@/lib/permissions";
@@ -22,15 +22,15 @@ const updateWarehouseSchema = z.object({
 
 function errorResponse(error: unknown) {
   if (error instanceof z.ZodError) {
-    return NextResponse.json({ message: error.issues[0]?.message ?? "Invalid warehouse payload." }, { status: 400 });
+    return apiJson({ message: error.issues[0]?.message ?? "Invalid warehouse payload." }, { status: 400 });
   }
 
   if (error instanceof WorkflowError) {
-    return NextResponse.json({ code: error.code, message: error.message }, { status: error.statusCode });
+    return apiJson({ code: error.code, message: error.message }, { status: error.statusCode });
   }
 
   if (error instanceof PermissionError) {
-    return NextResponse.json({ code: "FORBIDDEN", message: error.message }, { status: error.statusCode });
+    return apiJson({ code: "FORBIDDEN", message: error.message }, { status: error.statusCode });
   }
 
   throw error;
@@ -44,7 +44,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const body = updateWarehouseSchema.parse(payload);
     const warehouse = await updateWarehouseForUser(user, decodeURIComponent(code), body);
 
-    return NextResponse.json({ warehouse });
+    return apiJson({ warehouse });
   } catch (error) {
     return errorResponse(error);
   }
@@ -56,7 +56,7 @@ export async function DELETE(request: Request, context: RouteContext) {
     const { code } = paramsSchema.parse(await context.params);
     const result = await deleteWarehouseForUser(user, decodeURIComponent(code));
 
-    return NextResponse.json(result);
+    return apiJson(result);
   } catch (error) {
     return errorResponse(error);
   }

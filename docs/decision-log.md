@@ -1,6 +1,29 @@
 # Decision Log: Warehouse Management
 
-อัปเดตล่าสุด: 2026-09-04
+ทบทวนสถานะเอกสาร: 2026-10-16
+
+> เอกสารประวัติ: ข้อความแต่ละหัวข้อเป็นการตัดสินใจ ณ วันนั้น ไม่ใช่กติกาปัจจุบันทั้งหมด อ่าน [Rules](rule.md) และ [Design](design.md) สำหรับ implementation ปัจจุบัน เก็บบันทึกเดิมไว้เพื่อ audit ไม่ลบประวัติ
+
+## 2026-10-16: ทบทวนเอกสารตามระบบปัจจุบัน
+
+หัวข้อนี้บันทึกวันที่ตรวจเอกสาร ไม่ใช่การอ้างว่าวันนี้เป็นวันที่ตัดสินใจกฎทั้งหมดด้านล่าง
+
+| หัวข้อเก่า | สถานะปัจจุบันที่ใช้แทน |
+| --- | --- |
+| STOCK_CONTROLLER / Head แยกระดับ | System role STOREMAN; assignment ตาม Warehouse ไม่มี Head gate |
+| ทุก Action ผ่าน BSD_STAFF และ BSD_MANAGER | BSD Staff เป็น gate สำหรับ SOLD; เบิก/คืนทั่วไปใช้ acknowledgement แยก และ Warehouse Manager ไม่ใช่ gate |
+| Return ทุกผลเป็น derived transaction | ReturnBatch + revision/check/evidence; เฉพาะ SOLD เป็น derived sale |
+| Workflow ไม่มี CANCELLED | มี PENDING, REJECTED, CANCELLED, IN_PROGRESS, COMPLETED |
+| ราคาส่งต่อ BSD Manager | BSD Staff กรอก split price groups, draft และอนุมัติ คำนวณ totals ด้วยหน่วยสตางค์ |
+| Tracking ระดับ Warehouse | AssetModel.isSerialized ร่วมกับ Serial จริง ไม่มี Serial ทำงานแบบ Quantity |
+| User assignment เป็นเป้าหมาย | UserOrganizationAssignment ใช้งานแล้ว แต่ legacy fields บน User ยังอยู่ |
+
+เลข REQ ยังคงรูปแบบเดิม แต่ Transaction และ ReturnBatch ใช้ running รายเดือนร่วมกัน Derived sale แสดง From REQ ต้นทาง ไม่ใช้ UUID เป็น Display ID
+การเบิก Project อาจมีทั้ง Lead และ Supervisor ตาม staff tags ส่วนคืน Project ใช้ Lead และ non-project ใช้ Supervisor
+การ auto-approve ห้ามข้าม manual check, evidence, final Storeman หรือ BSD price แม้เป็นผู้ใช้คนเดียวกัน
+Local Admin แยกจาก AD และต้องเป็นบัญชี Active ADMIN มี password hash; ดู [คู่มือ Local](emergency-local-login.md)
+
+## บันทึกเดิม (คงไว้ตามวันที่)
 
 ## 2026-09-02: ใช้ชื่อ Warehouse Management
 

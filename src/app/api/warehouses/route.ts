@@ -1,5 +1,4 @@
-﻿import { AssetTrackMethod } from "@prisma/client";
-import { NextResponse } from "next/server";
+import { apiJson } from "@/lib/api";
 import { z } from "zod";
 import { requireCurrentUser } from "@/lib/auth";
 import { createWarehouseForUser } from "@/lib/warehouses";
@@ -12,7 +11,6 @@ const createWarehouseSchema = z.object({
   headControllerId: z.string().trim().uuid("Head stock controller is required.").nullable().optional(),
   headControllerIds: z.array(z.string().trim().uuid("Head stock controller is required.")).optional(),
   prefix: z.string().trim().min(1, "Prefix is required.").regex(/^[A-Za-z0-9]{2}$/, "Prefix must be exactly 2 English letters or numbers."),
-  trackMethod: z.nativeEnum(AssetTrackMethod),
 });
 
 export async function POST(request: Request) {
@@ -21,22 +19,23 @@ export async function POST(request: Request) {
     const body = createWarehouseSchema.parse(await request.json());
     const warehouse = await createWarehouseForUser(user, body);
 
-    return NextResponse.json({ warehouse });
+    return apiJson({ warehouse });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ message: error.issues[0]?.message ?? "Invalid warehouse payload." }, { status: 400 });
+      return apiJson({ message: error.issues[0]?.message ?? "Invalid warehouse payload." }, { status: 400 });
     }
 
     if (error instanceof WorkflowError) {
-      return NextResponse.json({ code: error.code, message: error.message }, { status: error.statusCode });
+      return apiJson({ code: error.code, message: error.message }, { status: error.statusCode });
     }
 
     if (error instanceof PermissionError) {
-      return NextResponse.json({ code: "FORBIDDEN", message: error.message }, { status: error.statusCode });
+      return apiJson({ code: "FORBIDDEN", message: error.message }, { status: error.statusCode });
     }
 
     throw error;
   }
 }
+
 
 

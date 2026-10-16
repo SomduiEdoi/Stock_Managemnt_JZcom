@@ -51,6 +51,7 @@ export type NetworkInventoryFilters = {
   sortDirection: InventorySortDirection;
   statuses: AssetStatus[];
   types: string[];
+  favoriteOnly?: boolean;
 };
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -72,13 +73,15 @@ const networkAssetSelect = Prisma.validator<Prisma.AssetSelect>()({
   id: true,
   locationText: true,
   requestLockedById: true,
+  isRecommended: true,
+  recommendedAt: true,
   serialNo: true,
   status: true,
   stockCode: true,
   updatedAt: true,
   assetModel: {
     select: {
-      assetType: { select: { trackMethod: true } },
+      isSerialized: true,
       brand: true,
       category: { select: { name: true } },
       name: true,
@@ -133,22 +136,22 @@ function buildInventoryOrderBy(filters: NetworkInventoryFilters): Prisma.AssetOr
 
   switch (filters.sortBy) {
     case "availability":
-      return [{ assetQuantity: direction }, { updatedAt: "desc" }];
+      return [{ isRecommended: "desc" }, { recommendedAt: "asc" }, { assetQuantity: direction }, { updatedAt: "desc" }];
     case "brand":
-      return [{ assetModel: { brand: direction } }, { updatedAt: "desc" }];
+      return [{ isRecommended: "desc" }, { recommendedAt: "asc" }, { assetModel: { brand: direction } }, { updatedAt: "desc" }];
     case "category":
-      return [{ assetModel: { category: { name: direction } } }, { updatedAt: "desc" }];
+      return [{ isRecommended: "desc" }, { recommendedAt: "asc" }, { assetModel: { category: { name: direction } } }, { updatedAt: "desc" }];
     case "serialNo":
-      return [{ serialNo: direction }, { updatedAt: "desc" }];
+      return [{ isRecommended: "desc" }, { recommendedAt: "asc" }, { serialNo: direction }, { updatedAt: "desc" }];
     case "status":
-      return [{ status: direction }, { updatedAt: "desc" }];
+      return [{ isRecommended: "desc" }, { recommendedAt: "asc" }, { status: direction }, { updatedAt: "desc" }];
     case "stockCode":
-      return [{ stockCode: direction }, { updatedAt: "desc" }];
+      return [{ isRecommended: "desc" }, { recommendedAt: "asc" }, { stockCode: direction }, { updatedAt: "desc" }];
     case "type":
-      return [{ assetModel: { typeName: direction } }, { updatedAt: "desc" }];
+      return [{ isRecommended: "desc" }, { recommendedAt: "asc" }, { assetModel: { typeName: direction } }, { updatedAt: "desc" }];
     case "model":
     default:
-      return [{ assetModel: { name: direction } }, { updatedAt: "desc" }];
+      return [{ isRecommended: "desc" }, { recommendedAt: "asc" }, { assetModel: { name: direction } }, { updatedAt: "desc" }];
   }
 }
 
@@ -233,10 +236,11 @@ export function normalizeNetworkInventoryFilters(
     sortDirection: parseSortDirection(firstParam(searchParams.dir)),
     statuses,
     types: cleanValues(arrayParam(searchParams.type)),
+    favoriteOnly: firstParam(searchParams.favorite) === "1",
   };
 }
 
-export function buildNetworkInventoryWhere(filters: NetworkInventoryFilters) {
+export function buildNetworkInventoryWhere(filters: NetworkInventoryFilters, userId?: string) {
   const clauses = buildFilterClauses(filters);
 
   return {
@@ -244,6 +248,7 @@ export function buildNetworkInventoryWhere(filters: NetworkInventoryFilters) {
     warehouse: { code: "NETWORK" },
     ...(filters.statuses.length > 0 ? { status: { in: filters.statuses } } : {}),
     ...(clauses.length > 0 ? { AND: clauses } : {}),
+    ...(filters.favoriteOnly && userId ? { favorites: { some: { userId } } } : {}),
   } satisfies Prisma.AssetWhereInput;
 }
 
@@ -357,6 +362,7 @@ async function getNetworkMetrics(baseWhere: Prisma.AssetWhereInput) {
 export async function getNetworkInventoryForUser(
   user: CurrentUser,
   filters: NetworkInventoryFilters,
+  allRows = false,
 ) {
   const canView = canViewWarehouseForUser(user, "NETWORK");
   const baseWhere = {
@@ -376,7 +382,7 @@ export async function getNetworkInventoryForUser(
     };
   }
 
-  const where = buildNetworkInventoryWhere(filters);
+  const where = buildNetworkInventoryWhere(filters, user.id);
   const skip = (filters.page - 1) * filters.pageSize;
   const [filterOptions, metrics, rawRows, total] = await Promise.all([
     getNetworkFilterOptions(),
@@ -384,8 +390,7 @@ export async function getNetworkInventoryForUser(
     db.asset.findMany({
       orderBy: buildInventoryOrderBy(filters),
       select: networkAssetSelect,
-      skip,
-      take: filters.pageSize,
+      ...(allRows ? {} : { skip, take: filters.pageSize }),
       where,
     }),
     db.asset.count({ where }),

@@ -6,7 +6,7 @@ import type {
 } from "@prisma/client";
 
 export type UserStatusFilter = "ACTIVE" | "ALL" | "BLOCKED";
-export type UserSystemRole = "ADMIN" | "STOCK_CONTROLLER" | "USER";
+export type UserSystemRole = "ADMIN" | "STOREMAN" | "USER";
 
 export type UserManagementFilters = {
   page: number;
@@ -60,7 +60,7 @@ export type WarehouseOption = {
 
 export const userRoleOptions = [
   "ADMIN",
-  "STOCK_CONTROLLER",
+  "STOREMAN",
   "USER",
 ] as const satisfies readonly UserSystemRole[];
 
@@ -98,6 +98,7 @@ export const organizationUnitOptions = [
   { group: "Local / PRT", value: "PRT_STAFF" },
   { group: "Local", value: "LOCAL_SUPERVISOR" },
   { group: "Local", value: "LOCAL_STAFF" },
+  { group: "Warehouse", value: "WAREHOUSE_MANAGER" },
 ] as const satisfies ReadonlyArray<{
   group: string;
   value: OrganizationTag;
@@ -130,6 +131,7 @@ export const organizationTagLabels: Record<OrganizationTag, string> = {
   PRT_STAFF: "PRT Staff (Local)",
   LOCAL_SUPERVISOR: "Local Supervisor",
   LOCAL_STAFF: "Local Staff",
+  WAREHOUSE_MANAGER: "Warehouse Manager",
 };
 
 export function organizationTagLabel(tag: OrganizationTag | string | null) {

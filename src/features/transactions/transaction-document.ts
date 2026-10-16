@@ -1,14 +1,17 @@
+import { formatProjectLabel } from "@/lib/project-label";
+
 export type PrintableAsset = {
+  isSerialized?: boolean | null;
   assetModel?: {
-    assetType?: { trackMethod?: "QUANTITY" | "SERIAL" | string | null } | null;
+    isSerialized?: boolean;
     brand?: string | null;
     category?: { name?: string | null } | null;
+    description?: string | null;
     name?: string | null;
     typeName?: string | null;
   } | null;
   warehouse?: {
     code?: string | null;
-    inventoryFamily?: "QUANTITY" | "SERIAL" | string | null;
     name?: string | null;
   } | null;
   location?: { name?: string | null } | null;
@@ -20,10 +23,13 @@ export type PrintableAsset = {
 export type PrintableTransactionItem = {
   asset?: PrintableAsset | null;
   id?: string;
+  outcomes?: Array<{ resolutionBatchId?: string | null }>;
   requestedQuantity?: number | null;
   resolutionNote?: string | null;
   resolvedStatus?: string | null;
   soldPrice?: { toString(): string } | number | string | null;
+  soldTotal?: { toString(): string } | number | string | null;
+  salePriceGroups?: unknown;
   returnedAt?: Date | string | null;
   note?: string | null;
 };
@@ -33,6 +39,7 @@ export type PrintableTransaction = {
     actedAt?: Date | string | null;
     approverSignatureSnapshot?: string | null;
     requiredTag?: string | null;
+    resolutionBatchId?: string | null;
     status?: string | null;
     stepSequence?: number | null;
     user?: {
@@ -49,7 +56,7 @@ export type PrintableTransaction = {
   internalRequest?: boolean;
   items?: PrintableTransactionItem[];
   note?: string | null;
-  project?: { id?: string | null; name?: string | null; projectId?: string | null } | null;
+  project?: { id?: string | null; name?: string | null; customerName?: string | null; projectId?: string | null } | null;
   projectId?: string | null;
   projectRequest?: boolean;
   purpose?: string | null;
@@ -77,6 +84,7 @@ type DocumentKind = "BORROW" | "RETURN" | "SALE";
 type MoneyValue = { toString(): string } | number | string | null | undefined;
 
 type ExportDocument = {
+  approvals: NonNullable<PrintableTransaction["approvals"]>;
   kind: DocumentKind;
   items: PrintableTransactionItem[];
   referenceNo: string;
@@ -84,10 +92,15 @@ type ExportDocument = {
   transaction: PrintableTransaction;
 };
 
+export type TransactionDocumentFontUrls = {
+  bold?: string;
+  regular?: string;
+};
+
 const ROWS_PER_PAGE = {
-  BORROW: 22,
-  RETURN: 12,
-  SALE: 8,
+  BORROW: 10,
+  RETURN: 10,
+  SALE: 10,
 } as const satisfies Record<DocumentKind, number>;
 
 function escapeHtml(value: string | number | null | undefined) {
@@ -96,26 +109,6 @@ function escapeHtml(value: string | number | null | undefined) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
-}
-
-function formatDateTime(value: Date | string | null | undefined) {
-  if (!value) {
-    return "";
-  }
-
-  const date = value instanceof Date ? value : new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(date);
 }
 
 function formatMoney(value: MoneyValue) {
@@ -180,21 +173,6 @@ function sourceReference(transaction: PrintableTransaction) {
   );
 }
 
-function isQuantityItem(item: PrintableTransactionItem) {
-  const asset = item.asset;
-
-  return (
-    (item.requestedQuantity ?? 1) > 1 ||
-    asset?.assetModel?.assetType?.trackMethod === "QUANTITY" ||
-    asset?.warehouse?.inventoryFamily === "QUANTITY" ||
-    !asset?.serialNo
-  );
-}
-
-function documentUsesQuantity(items: PrintableTransactionItem[]) {
-  return items.some(isQuantityItem);
-}
-
 function modelName(item: PrintableTransactionItem) {
   return item.asset?.assetModel?.name ?? "-";
 }
@@ -207,17 +185,13 @@ function serialNo(item: PrintableTransactionItem) {
   return item.asset?.serialNo ?? "-";
 }
 
-function detailsText(item: PrintableTransactionItem) {
+function descriptionText(item: PrintableTransactionItem) {
   return (
-    item.note ??
+    item.asset?.assetModel?.description ??
     item.asset?.assetModel?.typeName ??
     item.asset?.assetModel?.category?.name ??
     ""
   );
-}
-
-function remarkText(item: PrintableTransactionItem) {
-  return item.resolutionNote ?? item.note ?? "";
 }
 
 function requestFlags(transaction: PrintableTransaction) {
@@ -242,123 +216,141 @@ function requestFlags(transaction: PrintableTransaction) {
 function approvalsFor(
   transaction: PrintableTransaction,
   matcher: (requiredTag: string) => boolean,
+  source = transaction.approvals ?? [],
 ) {
-  return (
-    transaction.approvals?.filter(
+  return source.filter(
       (approval) =>
         approval.status === "APPROVED" && matcher(approval.requiredTag ?? ""),
-    ) ?? []
-  );
+    );
 }
 
 function leadApprovalMatcher(requiredTag: string) {
   return (
     requiredTag === "LEAD_PROJECT" ||
-    (!requiredTag.startsWith("STOCK_CONTROLLER:") &&
-      !requiredTag.startsWith("HEAD_STOCK_CONTROLLER:") &&
-      !requiredTag.startsWith("BSD_"))
+    (!requiredTag.startsWith("STOREMAN:") &&
+      !requiredTag.startsWith("WAREHOUSE_MANAGER:") &&
+      !requiredTag.startsWith("BSD_") &&
+      !requiredTag.startsWith("ACK_"))
   );
 }
 
-function latestApprovalDate(
-  approvals: NonNullable<PrintableTransaction["approvals"]>,
-) {
-  return approvals.at(-1)?.actedAt ?? null;
-}
+function formatSignatureDate(value: Date | string | null | undefined) {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
 
-function approvalNames(
-  approvals: NonNullable<PrintableTransaction["approvals"]>,
-) {
-  return approvals
-    .map((approval) => approval.user?.name)
-    .filter(Boolean)
-    .join(" / ");
-}
-
-function approvalSignatureImages(
-  approvals: NonNullable<PrintableTransaction["approvals"]>,
-) {
-  return approvals
-    .map((approval) => approval.approverSignatureSnapshot ?? approval.user?.signatureDataUrl)
-    .filter(Boolean)
-    .map(
-      (signatureDataUrl) =>
-        '<img alt="Signature" class="signature-image inline-signature-image" src="' +
-        escapeHtml(signatureDataUrl) +
-        '" />',
-    )
-    .join("");
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  }).format(date);
 }
 
 function signature(
   title: string,
   options: {
+    approvalItems?: NonNullable<PrintableTransaction["approvals"]>;
     date?: Date | string | null;
+    dates?: string;
     signatureDataUrl?: string | null;
     signatureHtml?: string;
     userName?: string | null;
   } = {},
 ) {
-  const signatureImage = options.signatureHtml ?? (options.signatureDataUrl
-    ? '<img alt="Signature" class="signature-image" src="' + escapeHtml(options.signatureDataUrl) + '" />'
-    : "");
-  const userName = options.userName ?? "";
+  const items = options.approvalItems?.length
+    ? options.approvalItems.map((approval) => `
+        <div class="signature-item">
+          <div class="signature-line"><span class="signature-images">${approval.approverSignatureSnapshot ?? approval.user?.signatureDataUrl
+            ? '<img alt="Signature" class="signature-image" src="' + escapeHtml(approval.approverSignatureSnapshot ?? approval.user?.signatureDataUrl) + '" />'
+            : ""}</span></div>
+          <div class="signature-user">( ${escapeHtml(approval.user?.name)} )</div>
+          <div class="signature-date">Date : ${escapeHtml(formatSignatureDate(approval.actedAt))}</div>
+        </div>
+      `).join("")
+    : `
+        <div class="signature-item">
+          <div class="signature-line"><span class="signature-images">${options.signatureHtml ?? (options.signatureDataUrl
+            ? '<img alt="Signature" class="signature-image" src="' + escapeHtml(options.signatureDataUrl) + '" />'
+            : "")}</span></div>
+          <div class="signature-user">( ${escapeHtml(options.userName)} )</div>
+          <div class="signature-date">Date : ${escapeHtml(options.dates ?? formatSignatureDate(options.date))}</div>
+        </div>
+      `;
 
   return `
     <div class="signature">
-      <div class="signature-row">
-        <span class="signature-label">${escapeHtml(title)}</span>
-        <span class="signature-line"></span>
-      </div>
-      ${signatureImage}
-      <div class="signature-user">( ${escapeHtml(userName)} )</div>
-      <div class="signature-date">Date : ${escapeHtml(formatDateTime(options.date))}</div>
+      <div class="signature-label">${escapeHtml(title)}</div>
+      <div class="signature-items">${items}</div>
     </div>
   `;
 }
 
-function signatures(transaction: PrintableTransaction) {
+function signatures(document: ExportDocument) {
+  const { transaction, approvals: sourceApprovals } = document;
   const requester = {
     date: transaction.requestDate ?? transaction.createdAt ?? null,
     signatureDataUrl: transaction.requestedBy?.signatureDataUrl ?? null,
   };
-  const lead = approvalsFor(transaction, leadApprovalMatcher);
-  const stock = approvalsFor(transaction, (tag) =>
-    tag.startsWith("STOCK_CONTROLLER:"),
+  const lead = approvalsFor(transaction, leadApprovalMatcher, sourceApprovals);
+  const stock = approvalsFor(
+    transaction,
+    (tag) => tag.startsWith("STOREMAN:"),
+    sourceApprovals,
   );
-  const headStock = approvalsFor(transaction, (tag) =>
-    tag.startsWith("HEAD_STOCK_CONTROLLER:"),
+  const authorized = approvalsFor(
+    transaction,
+    (tag) => tag === "BSD_STAFF",
+    sourceApprovals,
   );
-  const bsd = approvalsFor(transaction, (tag) => tag.startsWith("BSD_"));
+  const signatureClass = transaction.type === "SOLD" || transaction.status === "RETURNED"
+    ? "signatures-four"
+    : "signatures-three";
+  const authorizedSignature = signatureClass === "signatures-four"
+    ? signature("Authorized by :", {
+        approvalItems: authorized,
+      })
+    : "";
 
   return `
-    <section class="signatures signatures-five">
+    <section class="signatures ${signatureClass}">
       ${signature("Requisition by :", {
         ...requester,
+        dates: formatSignatureDate(requester.date),
         userName: transaction.requestedBy?.name,
       })}
       ${signature("Lead Project / Supervisor :", {
-        date: latestApprovalDate(lead),
-        signatureHtml: approvalSignatureImages(lead),
-        userName: approvalNames(lead),
+        approvalItems: lead,
       })}
-      ${signature("Stock Controller :", {
-        date: latestApprovalDate(stock),
-        signatureHtml: approvalSignatureImages(stock),
-        userName: approvalNames(stock),
+      ${signature("Storeman :", {
+        approvalItems: stock,
       })}
-      ${signature("Head Stock Controller :", {
-        date: latestApprovalDate(headStock),
-        signatureHtml: approvalSignatureImages(headStock),
-        userName: approvalNames(headStock),
-      })}
-      ${signature("BSD :", {
-        date: latestApprovalDate(bsd),
-        signatureHtml: approvalSignatureImages(bsd),
-        userName: approvalNames(bsd),
-      })}
+      ${authorizedSignature}
     </section>
   `;
+}
+
+function warehouseManagerLabel(name: string | null | undefined) {
+  const cleanName = name?.trim();
+  if (!cleanName) return "Warehouse Manager";
+  return /warehouse$/i.test(cleanName)
+    ? `${cleanName} Manager`
+    : `${cleanName} Warehouse Manager`;
+}
+
+function directedBy(transaction: PrintableTransaction) {
+  const labels: string[] = [];
+  if (approvalsFor(transaction, (tag) => tag === "ACK_BSD").length > 0) {
+    labels.push("BSD");
+  }
+  if (approvalsFor(transaction, (tag) => tag === "ACK_WAREHOUSE_MANAGER").length > 0) {
+    const warehouseLabels = Array.from(new Set(
+      (transaction.items ?? []).map((item) => warehouseManagerLabel(item.asset?.warehouse?.name)),
+    ));
+    labels.push(...warehouseLabels);
+  }
+  return labels.length > 0
+    ? `<div class="directed-by">Directed by: ${escapeHtml(labels.join(", "))}</div>`
+    : "";
 }
 function titleFor(kind: DocumentKind) {
   if (kind === "RETURN") {
@@ -385,8 +377,9 @@ function sectionTitleFor(kind: DocumentKind) {
 }
 
 function customerName(transaction: PrintableTransaction) {
-  if (transaction.projectRequest) {
-    return transaction.project?.name ?? transaction.purpose ?? "-";
+  if (transaction.projectRequest || transaction.serviceRequest) {
+    const customer = transaction.project?.customerName ?? transaction.purpose ?? "-";
+    return transaction.project?.name ? formatProjectLabel(transaction.project) : customer;
   }
 
   return transaction.purpose ?? "-";
@@ -419,7 +412,7 @@ function header(document: ExportDocument, pageIndex: number, pageTotal: number) 
         <span class="meta-value">${escapeHtml(displayReference)}${escapeHtml(pageSuffix)}</span>
       </div>
       <div class="meta-box">
-        <span class="meta-label">Description :</span>
+        <span class="meta-label">Detail :</span>
         <span class="meta-value">${escapeHtml(document.transaction.note)}</span>
       </div>
       <div class="meta-box flags">${requestFlags(document.transaction)}</div>
@@ -427,94 +420,45 @@ function header(document: ExportDocument, pageIndex: number, pageTotal: number) 
   `;
 }
 
-function tableHeader(kind: DocumentKind, hasQty: boolean) {
+function tableHeader(kind: DocumentKind) {
   if (kind === "SALE") {
-    return hasQty
-      ? ["No.", "Model", "Stock Code No.", "Serial No.", "QTY", "Price", "Total", "Details"]
-      : ["No.", "Model", "Stock Code No.", "Serial No.", "Price", "Details"];
+    return ["No.", "Model", "Stock Code No.", "Serial No.", "QTY", "Price", "Total", "Details"];
   }
 
-  if (kind === "RETURN") {
-    return hasQty
-      ? ["No.", "Model", "Stock Code No.", "Serial No.", "QTY", "Details"]
-      : ["No.", "Model", "Stock Code No.", "Serial No.", "Remark"];
-  }
-
-  return hasQty
-    ? ["No.", "Model", "Stock Code No.", "Serial No.", "QTY", "Details"]
-    : ["No.", "Model", "Stock Code No.", "Serial No.", "Details"];
+  return ["No.", "Model", "Stock Code No.", "Serial No.", "QTY", "Description"];
 }
 
 function rowCells(
   document: ExportDocument,
   item: PrintableTransactionItem,
   rowNumber: number,
-  hasQty: boolean,
 ) {
   const quantity = item.requestedQuantity ?? 1;
   const salePrice = item.soldPrice ?? document.transaction.soldPrice;
   const price = formatMoney(salePrice);
-  const rowTotal = price
-    ? formatMoney(numberValue(salePrice) * quantity)
-    : "";
+  const rowTotal = item.soldTotal != null ? formatMoney(item.soldTotal) : "";
 
   if (document.kind === "SALE") {
-    return hasQty
-      ? [
-          rowNumber,
-          modelName(item),
-          stockCode(item),
-          serialNo(item),
-          quantity,
-          price,
-          rowTotal,
-          detailsText(item),
-        ]
-      : [
-          rowNumber,
-          modelName(item),
-          stockCode(item),
-          serialNo(item),
-          price,
-          detailsText(item),
-        ];
+    return [
+      rowNumber,
+      modelName(item),
+      stockCode(item),
+      serialNo(item),
+      quantity,
+      price,
+      rowTotal,
+      descriptionText(item),
+    ];
   }
 
-  if (document.kind === "RETURN") {
-    return hasQty
-      ? [
-          rowNumber,
-          modelName(item),
-          stockCode(item),
-          serialNo(item),
-          quantity,
-          remarkText(item),
-        ]
-      : [
-          rowNumber,
-          modelName(item),
-          stockCode(item),
-          serialNo(item),
-          remarkText(item),
-        ];
-  }
-
-  return hasQty
-    ? [
-        rowNumber,
-        modelName(item),
-        stockCode(item),
-        serialNo(item),
-        quantity,
-        detailsText(item),
-      ]
-    : [
-        rowNumber,
-        modelName(item),
-        stockCode(item),
-        serialNo(item),
-        detailsText(item),
-      ];
+  return [
+    rowNumber,
+    modelName(item),
+    stockCode(item),
+    serialNo(item),
+    quantity,
+    descriptionText(item),
+  ];
 }
 
 function table(
@@ -522,11 +466,10 @@ function table(
   items: PrintableTransactionItem[],
   rowOffset: number,
 ) {
-  const hasQty = documentUsesQuantity(document.items);
-  const headers = tableHeader(document.kind, hasQty);
+  const headers = tableHeader(document.kind);
   const rows = items
     .map((item, index) => {
-      const cells = rowCells(document, item, rowOffset + index + 1, hasQty);
+      const cells = rowCells(document, item, rowOffset + index + 1);
 
       return `
         <tr>
@@ -546,19 +489,13 @@ function table(
     .join("");
   const total =
     document.kind === "SALE"
-      ? items.reduce(
-          (sum, item) =>
-            sum +
-            numberValue(item.soldPrice ?? document.transaction.soldPrice) *
-              (item.requestedQuantity ?? 1),
-          0,
-        )
+      ? numberValue(document.transaction.soldPrice)
       : 0;
 
   return `
     <section class="items-section">
       <div class="section-title">${escapeHtml(sectionTitleFor(document.kind))}</div>
-      <table class="items-table ${hasQty ? "with-qty" : "without-qty"} ${document.kind.toLowerCase()}">
+      <table class="items-table ${document.kind.toLowerCase()}">
         <thead>
           <tr>${headers.map((headerText) => `<th>${escapeHtml(headerText)}</th>`).join("")}</tr>
         </thead>
@@ -584,19 +521,55 @@ function page(
     <main class="page ${document.kind.toLowerCase()}">
       ${header(document, pageIndex, pageTotal)}
       ${table(document, items, rowOffset)}
-      ${signatures(document.transaction)}
+      ${directedBy(document.transaction)}
+      ${signatures(document)}
       <div class="footer-code">FM-5300(2)-R.5</div>
     </main>
   `;
 }
 
+function approvalsForDocument(
+  transaction: PrintableTransaction,
+  kind: DocumentKind,
+  items: PrintableTransactionItem[],
+) {
+  const approvals = transaction.approvals ?? [];
+
+  if (kind === "BORROW") {
+    return approvals.filter((approval) => !approval.resolutionBatchId);
+  }
+
+  if (kind === "RETURN") {
+    const batchIds = new Set(
+      items.flatMap((item) =>
+        (item.outcomes ?? [])
+          .map((outcome) => outcome.resolutionBatchId)
+          .filter((batchId): batchId is string => Boolean(batchId)),
+      ),
+    );
+
+    if (batchIds.size > 0) {
+      return approvals.filter((approval) =>
+        approval.resolutionBatchId ? batchIds.has(approval.resolutionBatchId) : false,
+      );
+    }
+
+    return approvals.filter((approval) => Boolean(approval.resolutionBatchId));
+  }
+
+  return approvals;
+}
+
 function documentsFor(transaction: PrintableTransaction): ExportDocument[] {
-  const items = transaction.items ?? [];
+  const items = (transaction.items ?? []).flatMap((item) => transaction.type === "SOLD" && Array.isArray(item.salePriceGroups) && item.salePriceGroups.length
+    ? item.salePriceGroups.map((group: { quantity: number; unitPrice: string; total: string }) => ({ ...item, requestedQuantity: group.quantity, soldPrice: group.unitPrice, soldTotal: group.total }))
+    : [item]);
   const referenceNo = transactionNo(transaction);
   const documents: ExportDocument[] = [];
 
   if (transaction.type === "SOLD") {
     documents.push({
+      approvals: approvalsForDocument(transaction, "SALE", items),
       kind: "SALE",
       items,
       referenceNo,
@@ -608,6 +581,7 @@ function documentsFor(transaction: PrintableTransaction): ExportDocument[] {
 
   if (transaction.status === "RETURNED" && transaction.sourceTransactionId) {
     documents.push({
+      approvals: approvalsForDocument(transaction, "RETURN", items),
       kind: "RETURN",
       items,
       referenceNo,
@@ -618,6 +592,7 @@ function documentsFor(transaction: PrintableTransaction): ExportDocument[] {
   }
 
   documents.push({
+    approvals: approvalsForDocument(transaction, "BORROW", items),
     kind: "BORROW",
     items,
     referenceNo,
@@ -634,6 +609,7 @@ function documentsFor(transaction: PrintableTransaction): ExportDocument[] {
 
   if (returnedItems.length > 0) {
     documents.push({
+      approvals: approvalsForDocument(transaction, "RETURN", returnedItems),
       kind: "RETURN",
       items: returnedItems,
       referenceNo,
@@ -644,6 +620,7 @@ function documentsFor(transaction: PrintableTransaction): ExportDocument[] {
 
   if (soldItems.length > 0) {
     documents.push({
+      approvals: approvalsForDocument(transaction, "SALE", soldItems),
       kind: "SALE",
       items: soldItems,
       referenceNo,
@@ -655,15 +632,25 @@ function documentsFor(transaction: PrintableTransaction): ExportDocument[] {
   return documents;
 }
 
-function documentStyles() {
+function documentStyles(fontUrls: TransactionDocumentFontUrls = {}) {
+  const fontFaces = [
+    fontUrls.regular
+      ? `@font-face { font-family: "ThaiPdf"; src: url("${fontUrls.regular}") format("truetype"); font-weight: 400; font-style: normal; font-display: block; }`
+      : "",
+    fontUrls.bold
+      ? `@font-face { font-family: "ThaiPdf"; src: url("${fontUrls.bold}") format("truetype"); font-weight: 700; font-style: normal; font-display: block; }`
+      : "",
+  ].join("\n");
+
   return `
     <style>
+      ${fontFaces}
       @page { margin: 0; size: A4 portrait; }
       * { box-sizing: border-box; }
       html, body { margin: 0; min-height: 100%; background: #fff; }
       body {
         color: #000;
-        font-family: "Browallia New", BrowalliaUPC, Arial, sans-serif;
+        font-family: "ThaiPdf", "Leelawadee UI", "Browallia New", BrowalliaUPC, Arial, sans-serif;
         font-size: 9pt;
         line-height: 1.12;
         -webkit-print-color-adjust: exact;
@@ -682,8 +669,8 @@ function documentStyles() {
       .header {
         align-items: center;
         display: grid;
-        gap: 24pt;
-        grid-template-columns: 1fr 198pt;
+        gap: 12pt;
+        grid-template-columns: minmax(0, 1fr) 190pt;
         height: 64pt;
       }
       .brand {
@@ -706,22 +693,26 @@ function documentStyles() {
       }
       .company-en,
       .company-th {
-        font-family: "Angsana New", AngsanaUPC, "Times New Roman", serif;
+        font-family: "ThaiPdf", "Leelawadee UI", "Angsana New", AngsanaUPC, "Times New Roman", serif;
         font-weight: 700;
         letter-spacing: 0;
         white-space: nowrap;
       }
-      .company-en { font-size: 17pt; }
-      .company-th { font-size: 16pt; margin-top: 2pt; }
+      .company-en { font-size: 14pt; }
+      .company-th { font-size: 13pt; margin-top: 2pt; }
       .form-title {
         align-items: center;
         background: #29558d;
         border-radius: 7pt;
         color: #fff;
         display: flex;
-        font: 700 19pt Calibri, Arial, sans-serif;
+        font: 700 16pt Calibri, Arial, sans-serif;
         height: 38pt;
         justify-content: center;
+        overflow: hidden;
+        padding: 0 8pt;
+        text-align: center;
+        white-space: nowrap;
       }
       .meta-grid {
         display: grid;
@@ -785,7 +776,7 @@ function documentStyles() {
       }
       .items-table {
         border-collapse: collapse;
-        font-family: "Browallia New", BrowalliaUPC, Arial, sans-serif;
+        font-family: "ThaiPdf", "Leelawadee UI", "Browallia New", BrowalliaUPC, Arial, sans-serif;
         font-size: 8.4pt;
         line-height: 1;
         table-layout: fixed;
@@ -815,113 +806,198 @@ function documentStyles() {
         font-weight: 700;
       }
       .total-label { text-align: center; }
-      .items-table.without-qty.borrow th:nth-child(1),
-      .items-table.without-qty.return th:nth-child(1),
-      .items-table.without-qty.borrow td:nth-child(1),
-      .items-table.without-qty.return td:nth-child(1) { width: 34pt; }
-      .items-table.without-qty.borrow th:nth-child(2),
-      .items-table.without-qty.return th:nth-child(2),
-      .items-table.without-qty.borrow td:nth-child(2),
-      .items-table.without-qty.return td:nth-child(2) { width: 90pt; }
-      .items-table.without-qty.borrow th:nth-child(3),
-      .items-table.without-qty.return th:nth-child(3),
-      .items-table.without-qty.borrow td:nth-child(3),
-      .items-table.without-qty.return td:nth-child(3) { width: 125pt; }
-      .items-table.without-qty.borrow th:nth-child(4),
-      .items-table.without-qty.return th:nth-child(4),
-      .items-table.without-qty.borrow td:nth-child(4),
-      .items-table.without-qty.return td:nth-child(4) { width: 105pt; }
-      .items-table.with-qty th:nth-child(1),
-      .items-table.with-qty td:nth-child(1) { width: 28pt; }
-      .items-table.with-qty th:nth-child(2),
-      .items-table.with-qty td:nth-child(2) { width: 82pt; }
-      .items-table.with-qty th:nth-child(3),
-      .items-table.with-qty td:nth-child(3) { width: 105pt; }
-      .items-table.with-qty th:nth-child(4),
-      .items-table.with-qty td:nth-child(4) { width: 96pt; }
-      .items-table.with-qty th:nth-child(5),
-      .items-table.with-qty td:nth-child(5) { width: 34pt; }
-      .items-table.without-qty.sale th:nth-child(1),
-      .items-table.without-qty.sale td:nth-child(1) { width: 28pt; }
-      .items-table.without-qty.sale th:nth-child(2),
-      .items-table.without-qty.sale td:nth-child(2) { width: 86pt; }
-      .items-table.without-qty.sale th:nth-child(3),
-      .items-table.without-qty.sale td:nth-child(3) { width: 96pt; }
-      .items-table.without-qty.sale th:nth-child(4),
-      .items-table.without-qty.sale td:nth-child(4) { width: 96pt; }
-      .items-table.without-qty.sale th:nth-child(5),
-      .items-table.without-qty.sale td:nth-child(5) { width: 70pt; }
-      .items-table.with-qty.sale th:nth-child(6),
-      .items-table.with-qty.sale td:nth-child(6),
-      .items-table.with-qty.sale th:nth-child(7),
-      .items-table.with-qty.sale td:nth-child(7) { width: 54pt; }
+      .items-table.borrow th:nth-child(1),
+      .items-table.return th:nth-child(1),
+      .items-table.borrow td:nth-child(1),
+      .items-table.return td:nth-child(1) { width: 28pt; }
+      .items-table.borrow th:nth-child(2),
+      .items-table.return th:nth-child(2),
+      .items-table.borrow td:nth-child(2),
+      .items-table.return td:nth-child(2) { width: 82pt; }
+      .items-table.borrow th:nth-child(3),
+      .items-table.return th:nth-child(3),
+      .items-table.borrow td:nth-child(3),
+      .items-table.return td:nth-child(3) { width: 105pt; }
+      .items-table.borrow th:nth-child(4),
+      .items-table.return th:nth-child(4),
+      .items-table.borrow td:nth-child(4),
+      .items-table.return td:nth-child(4) { width: 96pt; }
+      .items-table.borrow th:nth-child(5),
+      .items-table.return th:nth-child(5),
+      .items-table.borrow td:nth-child(5),
+      .items-table.return td:nth-child(5) { width: 34pt; }
+      .items-table.sale th:nth-child(1),
+      .items-table.sale td:nth-child(1) { width: 24pt; }
+      .items-table.sale th:nth-child(2),
+      .items-table.sale td:nth-child(2) { width: 72pt; }
+      .items-table.sale th:nth-child(3),
+      .items-table.sale td:nth-child(3) { width: 86pt; }
+      .items-table.sale th:nth-child(4),
+      .items-table.sale td:nth-child(4) { width: 84pt; }
+      .items-table.sale th:nth-child(5),
+      .items-table.sale td:nth-child(5) { width: 30pt; }
+      .items-table.sale th:nth-child(6),
+      .items-table.sale td:nth-child(6),
+      .items-table.sale th:nth-child(7),
+      .items-table.sale td:nth-child(7) { width: 52pt; }
       .signatures {
         bottom: 46pt;
         display: grid;
-        gap: 22pt 54pt;
+        gap: 18pt 12pt;
         grid-template-columns: 1fr 1fr;
         left: 38pt;
         position: absolute;
         right: 38pt;
       }
-      .signatures-five {
-        grid-template-columns: 1fr 1fr 1fr;
+      .signatures-three {
+        grid-template-columns: 22fr 28fr 50fr;
+      }
+      .signatures-four {
+        grid-template-columns: 22fr 28fr 50fr;
+      }
+      .signatures-four .signature:nth-child(4) {
+        grid-column: 3;
+      }
+      .directed-by {
+        font-size: 8pt;
+        left: 38pt;
+        margin-top: 4pt;
+        right: 38pt;
       }
       .signature {
+        min-width: 0;
         min-height: 66pt;
-        padding-top: 28pt;
         position: relative;
       }
-      .signature-row {
-        align-items: flex-end;
+      .signature-items {
+        align-items: flex-start;
         display: flex;
-        gap: 7pt;
+        flex-wrap: wrap;
+        gap: 12pt;
       }
       .signature-label {
-        flex: 0 0 auto;
         font-size: 8.2pt;
+        font-weight: 700;
+        margin-bottom: 4pt;
+      }
+      .signature-item {
+        flex: 1 1 82pt;
+        min-width: 82pt;
+        max-width: 100%;
       }
       .signature-line {
         border-bottom: 1pt solid #777;
-        flex: 1 1 auto;
-        min-width: 76pt;
+        height: 34pt;
+        min-width: 0;
+        position: relative;
+        width: 100%;
+      }
+      .signature-images {
+        align-items: flex-end;
+        bottom: 2pt;
+        display: flex;
+        justify-content: center;
+        left: 0;
+        position: absolute;
+        right: 0;
       }
       .signature-image {
-        bottom: 39pt;
-        height: 32pt;
-        left: 68pt;
+        height: 30pt;
+        max-width: 100%;
         object-fit: contain;
-        position: absolute;
-        width: 104pt;
-      }
-      .inline-signature-image {
-        margin-right: 3pt;
-        position: static;
-        vertical-align: bottom;
+        width: 96pt;
       }
       .signature-user {
         font-size: 8pt;
-        margin-top: 7pt;
+        line-height: 1.15;
+        margin-top: 4pt;
+        min-height: 10pt;
+        overflow-wrap: anywhere;
         text-align: center;
       }
       .signature-date {
         font-size: 8pt;
-        margin-top: 6pt;
-        padding-left: 70pt;
+        margin-top: 4pt;
+        padding-left: 0;
+        text-align: center;
+        white-space: nowrap;
       }
       .footer-code {
         bottom: 11pt;
         font-size: 7.5pt;
-        left: 0;
         position: absolute;
-        right: 0;
-        text-align: center;
+        right: 38pt;
+        text-align: right;
       }
     </style>
   `;
 }
 
-export function buildTransactionDocumentHtml(transaction: PrintableTransaction) {
+export function buildUnifiedRequisitionHtml(documents: PrintableTransaction[], fontUrls: TransactionDocumentFontUrls = {}) {
+  const transaction = documents[0];
+  const issue: ExportDocument = { transaction, kind: "BORROW", items: transaction.items ?? [], approvals: [], referenceNo: transactionNo(transaction), showFromReference: false };
+  const returns = documents.slice(1).flatMap((document) => document.items ?? []);
+  const approvals = documents.flatMap((document) => [
+    ...(document.approvals ?? []),
+    { requiredTag: "REQUESTER", status: "APPROVED", actedAt: document.requestDate ?? document.createdAt, user: document.requestedBy, approverSignatureSnapshot: document.requestedBy?.signatureDataUrl },
+  ]).filter((approval) => approval.status === "APPROVED" && !approval.requiredTag?.startsWith("ACK_"));
+  const unique = (matcher: (tag: string) => boolean) => {
+    const people = new Map<string, (typeof approvals)[number]>();
+    for (const approval of approvals.filter((entry) => matcher(entry.requiredTag ?? ""))) {
+      const key = approval.user?.email || approval.user?.name || "";
+      if (!key) continue;
+      const previous = people.get(key);
+      if (!previous || new Date(approval.actedAt ?? 0).getTime() >= new Date(previous.actedAt ?? 0).getTime()) people.set(key, approval);
+    }
+    return [...people.values()];
+  };
+  const returnHeaders = ["No.", "Model", "Stock Code", "Serial No.", "QTY", "Status", "Remark"];
+  const returnRows = returns.map((item, index) => `<tr>${[index + 1, modelName(item), stockCode(item), serialNo(item), item.requestedQuantity ?? 1, item.resolvedStatus ?? "", item.resolutionNote ?? item.note ?? ""].map((value) => `<td>${escapeHtml(value)}</td>`).join("")}</tr>`).join("");
+  const body = `<main class="page unified">
+    ${header(issue, 0, 1).replace(escapeHtml(titleFor("BORROW")), "ใบยืม - คืน อุปกรณ์")}
+    ${table(issue, issue.items, 0).replace('class="items-table borrow"', 'class="items-table borrow req-table"')}
+    <section class="items-section"><div class="section-title">รายการอุปกรณ์ (คืน) :</div><table class="items-table unified-return ret-table"><thead><tr>${returnHeaders.map((label) => `<th>${label}</th>`).join("")}</tr></thead><tbody>${returnRows}</tbody></table></section>
+    <footer class="unified-footer"><div class="directed-by">Directed by: BSD, Warehouse Manager</div><section class="signatures signatures-three">
+      ${signature("Requisition by :", { approvalItems: unique((tag) => tag === "REQUESTER") })}
+      ${signature("Lead Project / Supervisor :", { approvalItems: unique((tag) => tag !== "REQUESTER" && leadApprovalMatcher(tag)) })}
+      ${signature("Storeman :", { approvalItems: unique((tag) => tag.startsWith("STOREMAN:")) })}
+    </section><div class="footer-code">FM-5300(2)-R.5</div></footer>
+  </main>`;
+  return `<!doctype html><html lang="th"><head><meta charset="utf-8"/>${documentStyles(fontUrls)}<style>
+    @page unified { margin: 24pt 38pt; }
+    .page.unified { page: unified; width: auto; height: auto; min-height: 794pt; overflow: visible; padding: 7pt 0 0; display: flex; flex-direction: column; }
+    .unified .items-section { break-inside: auto; }
+    .unified thead { display: table-header-group; }
+    .unified tr { break-inside: avoid; }
+    .unified .items-table td { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+    .unified-footer { margin-top: auto; padding-top: 12pt; break-inside: avoid; }
+    .unified .signatures { position: static; margin-top: 10pt; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12pt; }
+    .unified .signature-items { flex-wrap: nowrap; gap: 5pt; }
+    .unified .signature-item { flex: 1 1 0; min-width: 0; }
+    .unified .signature-user, .unified .signature-date { white-space: normal; font-size: 7pt; }
+    .unified .footer-code { position: static; margin-top: 8pt; }
+    .unified .req-table, .unified .ret-table { table-layout: fixed; width: 100%; }
+    .unified .req-table th, .unified .req-table td, .unified .ret-table th, .unified .ret-table td { padding: 6px 8px; word-wrap: break-word; overflow-wrap: break-word; white-space: normal; }
+    .unified .req-table th:nth-child(1), .unified .req-table td:nth-child(1) { width: 6%; text-align: center; }
+    .unified .req-table th:nth-child(2), .unified .req-table td:nth-child(2) { width: 22%; text-align: left; }
+    .unified .req-table th:nth-child(3), .unified .req-table td:nth-child(3) { width: 20%; text-align: left; }
+    .unified .req-table th:nth-child(4), .unified .req-table td:nth-child(4) { width: 18%; text-align: center; }
+    .unified .req-table th:nth-child(5), .unified .req-table td:nth-child(5) { width: 6%; text-align: center; }
+    .unified .req-table th:nth-child(6), .unified .req-table td:nth-child(6) { width: 28%; text-align: left; }
+    .unified .ret-table th:nth-child(1), .unified .ret-table td:nth-child(1) { width: 5%; text-align: center; }
+    .unified .ret-table th:nth-child(2), .unified .ret-table td:nth-child(2) { width: 20%; text-align: left; }
+    .unified .ret-table th:nth-child(3), .unified .ret-table td:nth-child(3) { width: 18%; text-align: left; }
+    .unified .ret-table th:nth-child(4), .unified .ret-table td:nth-child(4) { width: 15%; text-align: center; }
+    .unified .ret-table th:nth-child(5), .unified .ret-table td:nth-child(5) { width: 5%; text-align: center; }
+    .unified .ret-table th:nth-child(6), .unified .ret-table td:nth-child(6) { width: 12%; text-align: center; }
+    .unified .ret-table th:nth-child(7), .unified .ret-table td:nth-child(7) { width: 25%; text-align: left; }
+  </style></head><body>${body}</body></html>`;
+}
+
+export function buildTransactionDocumentHtml(
+  transaction: PrintableTransaction,
+  fontUrls: TransactionDocumentFontUrls = {},
+) {
   const documents = documentsFor(transaction);
   const pages = documents
     .flatMap((document) => {
@@ -944,7 +1020,7 @@ export function buildTransactionDocumentHtml(transaction: PrintableTransaction) 
       <head>
         <meta charset="utf-8" />
         <title>${escapeHtml(transactionNo(transaction))}</title>
-        ${documentStyles()}
+        ${documentStyles(fontUrls)}
       </head>
       <body>${pages}</body>
     </html>`;

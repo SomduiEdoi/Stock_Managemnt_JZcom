@@ -16,6 +16,7 @@ export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
+  const [mode, setMode] = useState<"AD" | "LOCAL">("AD");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -26,13 +27,18 @@ export function LoginForm() {
     setError(null);
     setIsSubmitting(true);
 
-    const response = await fetch("/api/auth/login", {
-      body: JSON.stringify({ email, password }),
+    let response: Response;
+    try { response = await fetch("/api/auth/login", {
+      body: JSON.stringify({ email, password, mode }),
       headers: {
         "Content-Type": "application/json",
       },
       method: "POST",
-    });
+    }); } catch {
+      setIsSubmitting(false);
+      setError("Unable to connect. Please try again.");
+      return;
+    }
 
     setIsSubmitting(false);
 
@@ -51,9 +57,16 @@ export function LoginForm() {
 
   return (
     <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
+      <fieldset className="flex gap-5" disabled={isSubmitting}>
+        <legend className="sr-only">Sign-in method</legend>
+        {(["AD", "LOCAL"] as const).map((value) => <label className="flex items-center gap-2 text-sm" key={value}>
+          <input type="radio" name="mode" checked={mode === value} onChange={() => { setMode(value); setEmail(""); setPassword(""); setError(null); }} />
+          {value === "AD" ? "Active Directory" : "Local Admin"}
+        </label>)}
+      </fieldset>
       <label className="flex flex-col gap-2">
         <span className="text-[10px] font-bold uppercase leading-3 text-ink">
-          Email
+          {mode === "AD" ? "Email" : "Username"}
         </span>
         <span className="relative">
           <Mail
@@ -62,11 +75,12 @@ export function LoginForm() {
             size={18}
           />
           <input
-            autoComplete="email"
+            autoComplete="username"
             className="h-10 w-full rounded-[4px] border border-border/25 bg-white pl-9 pr-4 text-sm text-ink outline-none transition placeholder:text-navy/80 focus:border-navy focus:ring-2 focus:ring-navy/15"
             onChange={(event) => setEmail(event.target.value)}
-            placeholder="name@example.com"
-            type="email"
+            placeholder={mode === "AD" ? "name@example.com" : "admin"}
+            required
+            type={mode === "AD" ? "email" : "text"}
             value={email}
           />
         </span>
@@ -89,6 +103,7 @@ export function LoginForm() {
           />
           <input
             autoComplete="current-password"
+            required
             className="h-10 w-full rounded-[4px] border border-border/25 bg-white pl-9 pr-11 text-sm text-ink outline-none transition placeholder:text-navy/80 focus:border-navy focus:ring-2 focus:ring-navy/15"
             onChange={(event) => setPassword(event.target.value)}
             placeholder="Password"

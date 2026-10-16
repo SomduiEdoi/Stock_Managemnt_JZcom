@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
-import { apiErrorResponse, readJsonBody, requireApiUser } from "@/lib/api";
+import { apiErrorResponse, readJsonBody, requireApiUser, apiJson } from "@/lib/api";
 import { setUserBlockedStateForAdmin } from "@/lib/user-management";
 
 type RouteContext = {
@@ -17,8 +17,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const body = statusSchema.parse(await readJsonBody(request));
     await setUserBlockedStateForAdmin(user, id, body.isActive);
 
-    return NextResponse.json({ ok: true });
+    return apiJson({ ok: true });
   } catch (error) {
     return apiErrorResponse(error);
   }
 }
+

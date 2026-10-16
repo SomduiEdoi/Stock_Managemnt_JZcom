@@ -29,7 +29,7 @@ function getConfig(): LdapConfig {
   const baseDn = process.env.LDAP_BASE_DN;
 
   if (!url || !domain || !baseDn) {
-    throw new Error("LDAP_URL, LDAP_DOMAIN, and LDAP_BASE_DN are required.");
+    throw new LdapDirectoryError("Active Directory configuration is unavailable.");
   }
 
   const searchBase = process.env.LDAP_USER_SEARCH_BASE || baseDn;
@@ -37,7 +37,7 @@ function getConfig(): LdapConfig {
   const verifyBindPassword = process.env.LDAP_VERIFY_BIND_PASSWORD;
 
   if (process.env.NODE_ENV === "production" && url.startsWith("ldap://") && process.env.LDAP_ALLOW_INSECURE !== "true") {
-    throw new Error("Production LDAP must use LDAPS or explicitly allow insecure LDAP.");
+    throw new LdapDirectoryError("Active Directory secure connection is not configured.");
   }
 
   return {
@@ -143,7 +143,9 @@ export async function authenticateWithLdap(
     return null;
   }
 
-  const client = createClient(config);
+  let client: ReturnType<typeof createClient>;
+  try { client = createClient(config); }
+  catch { throw new LdapDirectoryError("Active Directory connection is unavailable."); }
 
   try {
     await client.bind(bindUsername(normalizedEmail, config.domain), password);
@@ -162,8 +164,10 @@ export async function authenticateWithLdap(
       name: normalizedUsername,
       username: normalizedUsername,
     };
-  } catch {
-    return null;
+  } catch (error) {
+    const details = error as { code?: number; name?: string };
+    if (details.code === 49 || details.name === "InvalidCredentialsError") return null;
+    throw new LdapDirectoryError("Active Directory is unavailable. Please try again later.");
   } finally {
     await client.unbind().catch(() => undefined);
   }

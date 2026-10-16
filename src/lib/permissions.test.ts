@@ -57,7 +57,7 @@ describe("warehouse permissions", () => {
 
   it("throws for forbidden manage actions", () => {
     const arm: PermissionUser = {
-      roles: ["STOCK_CONTROLLER"],
+      roles: ["STOREMAN"],
       permissions,
     };
 
@@ -68,7 +68,7 @@ describe("warehouse permissions", () => {
 
   it("keeps stock controllers out of request flow while allowing managed-warehouse actions", () => {
     const arm: PermissionUser = {
-      roles: ["STOCK_CONTROLLER"],
+      roles: ["STOREMAN"],
       permissions,
     };
 
@@ -78,6 +78,20 @@ describe("warehouse permissions", () => {
     expect(canChangeAssetStatusForUser(arm, "SERVER")).toBe(true);
     expect(canDeleteAssetsForUser(arm, "NETWORK")).toBe(false);
     expect(canManageWarehouseForUser(arm, "NETWORK")).toBe(false);
+  });
+
+  it("keeps users with warehouse-management access out of request flow", () => {
+    const managedUser: PermissionUser = {
+      roles: ["USER"],
+      permissions: [
+        { warehouseCode: "SERVER", canView: true, canManage: true },
+        { warehouseCode: "NETWORK", canView: true, canManage: false },
+      ],
+    };
+
+    expect(canRequestWarehouseForUser(managedUser, "SERVER")).toBe(false);
+    expect(canRequestWarehouseForUser(managedUser, "NETWORK")).toBe(false);
+    expect(canRequestAssetsForUser(managedUser)).toBe(false);
   });
 
   it("keeps admin out of request flow", () => {

@@ -1,6 +1,7 @@
 ﻿"use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal, flushSync } from "react-dom";
 import { Check, ChevronDown, X } from "lucide-react";
 import { clsx } from "clsx";
 
@@ -19,8 +20,10 @@ type BaseProps = {
   emptyText?: string;
   name?: string;
   options: SearchableDropdownOption[];
+  portal?: boolean;
   placeholder?: string;
   searchPlaceholder?: string;
+  showDescription?: boolean;
 };
 
 type SingleProps = BaseProps & {
@@ -53,14 +56,19 @@ export function SearchableDropdown(props: SearchableDropdownProps) {
     emptyText = "No results found.",
     name,
     options,
+    portal = false,
     placeholder = "Select option",
     searchPlaceholder,
+    showDescription = true,
   } = props;
   const id = useId();
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0, width: 0 });
 
   const selectedValues = props.multiple ? props.value : props.value ? [props.value] : [];
   const selectedOptions = selectedValues
@@ -75,8 +83,9 @@ export function SearchableDropdown(props: SearchableDropdownProps) {
   }, [options, query]);
 
   useEffect(() => {
-    function handlePointerDown(event: MouseEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target as Node;
+      if (!rootRef.current?.contains(target) && !menuRef.current?.contains(target)) {
         setIsOpen(false);
         setQuery("");
       }
@@ -90,13 +99,46 @@ export function SearchableDropdown(props: SearchableDropdownProps) {
       }
     }
 
-    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
+
+  useLayoutEffect(() => {
+    if (!portal || !isOpen || !triggerRef.current || !menuRef.current) return;
+
+    function updateMenuPosition() {
+      const triggerRect = triggerRef.current?.getBoundingClientRect();
+      const menu = menuRef.current;
+      if (!triggerRect || !menu) return;
+
+      const viewportPadding = 8;
+      const gap = 4;
+      const menuHeight = menu.getBoundingClientRect().height;
+      const menuWidth = triggerRect.width;
+      const maxLeft = Math.max(viewportPadding, window.innerWidth - menuWidth - viewportPadding);
+      const left = Math.min(Math.max(viewportPadding, triggerRect.left), maxLeft);
+      const belowTop = triggerRect.bottom + gap;
+      const aboveTop = triggerRect.top - menuHeight - gap;
+      const canOpenBelow = belowTop + menuHeight <= window.innerHeight - viewportPadding;
+      const preferredTop = canOpenBelow ? belowTop : aboveTop;
+      const maxTop = Math.max(viewportPadding, window.innerHeight - menuHeight - viewportPadding);
+      const top = Math.min(Math.max(viewportPadding, preferredTop), maxTop);
+
+      setMenuPosition({ left, top, width: menuWidth });
+    }
+
+    updateMenuPosition();
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+    return () => {
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+    };
+  }, [filteredOptions, isOpen, portal]);
 
   function openDropdown() {
     if (disabled) return;
@@ -110,23 +152,32 @@ export function SearchableDropdown(props: SearchableDropdownProps) {
 
     if (props.multiple) {
       const hasValue = props.value.includes(option.value);
-      props.onChange(hasValue ? props.value.filter((value) => value !== option.value) : [...props.value, option.value]);
+      flushSync(() => props.onChange(hasValue ? props.value.filter((value) => value !== option.value) : [...props.value, option.value]));
+      submitFilter();
       setQuery("");
       setIsOpen(true);
       return;
     }
 
-    props.onChange(option.value);
+    flushSync(() => props.onChange(option.value));
+    submitFilter();
     setQuery("");
     setIsOpen(false);
   }
 
   function removeValue(value: string) {
     if (!props.multiple) {
-      props.onChange("");
+      flushSync(() => props.onChange(""));
+      submitFilter();
       return;
     }
-    props.onChange(props.value.filter((selected) => selected !== value));
+    flushSync(() => props.onChange(props.value.filter((selected) => selected !== value)));
+    submitFilter();
+  }
+
+  function submitFilter() {
+    const form = rootRef.current?.closest<HTMLFormElement>("form[data-instant-filters]");
+    if (name) form?.requestSubmit();
   }
 
   return (
@@ -145,6 +196,7 @@ export function SearchableDropdown(props: SearchableDropdownProps) {
           disabled && "cursor-not-allowed bg-surface text-muted-foreground",
         )}
         onClick={openDropdown}
+        ref={triggerRef}
         role="combobox"
       >
         {props.multiple && selectedOptions.length > 0 ? (
@@ -182,6 +234,13 @@ export function SearchableDropdown(props: SearchableDropdownProps) {
               setIsOpen(true);
             }}
             onFocus={openDropdown}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                const option = filteredOptions.find((item) => !item.disabled);
+                if (isOpen && option) chooseOption(option);
+              }
+            }}
             placeholder={isOpen ? searchPlaceholder ?? placeholder : placeholder}
             value={isOpen ? query : props.multiple ? "" : singleDisplayValue}
           />
@@ -203,12 +262,22 @@ export function SearchableDropdown(props: SearchableDropdownProps) {
         </div>
       </div>
 
-      {isOpen && !disabled ? (
-        <div
-          className="absolute left-0 right-0 top-[calc(100%+4px)] z-[90] max-h-60 overflow-y-auto rounded-md border border-border bg-white p-1 shadow-xl"
-          id={id}
-          role="listbox"
-        >
+      {isOpen && !disabled ? (() => {
+        const menu = (
+          <div
+            className={clsx(
+              "max-h-60 overflow-y-auto rounded-md border border-border bg-white p-1 shadow-xl",
+              portal ? "fixed z-[1000]" : "absolute left-0 right-0 top-[calc(100%+4px)] z-[90]",
+            )}
+            id={id}
+            ref={menuRef}
+            role="listbox"
+            style={portal ? {
+              left: menuPosition.left,
+              top: menuPosition.top,
+              width: menuPosition.width || undefined,
+            } : undefined}
+          >
           {filteredOptions.map((option) => {
             const isSelected = selectedValues.includes(option.value);
             return (
@@ -228,7 +297,7 @@ export function SearchableDropdown(props: SearchableDropdownProps) {
               >
                 <span className="min-w-0">
                   <span className="block truncate font-semibold">{option.label}</span>
-                  {option.description ? (
+                  {showDescription && option.description ? (
                     <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                       {option.description}
                     </span>
@@ -241,8 +310,11 @@ export function SearchableDropdown(props: SearchableDropdownProps) {
           {filteredOptions.length === 0 ? (
             <p className="px-3 py-3 text-sm font-semibold text-muted-foreground">{emptyText}</p>
           ) : null}
-        </div>
-      ) : null}
+          </div>
+        );
+
+        return portal ? createPortal(menu, document.body) : menu;
+      })() : null}
     </div>
   );
 }

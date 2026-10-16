@@ -1,10 +1,11 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SearchCombobox } from "@/components/form/search-combobox";
 import { SearchableDropdown } from "@/components/form/searchable-dropdown";
 import type { AssetListFilters } from "@/lib/assets";
+import { InstantFilterForm } from "@/components/form/instant-filter-form";
 
 export function ProblemFiltersClient({
   categoryOptions,
@@ -25,6 +26,12 @@ export function ProblemFiltersClient({
   const [brand, setBrand] = useState(filters.brand);
   const [category, setCategory] = useState(filters.category);
   const [type, setType] = useState(filters.type);
+  useEffect(() => {
+    setStatus(filters.status);
+    setBrand(filters.brand);
+    setCategory(filters.category);
+    setType(filters.type);
+  }, [filters.status, filters.brand, filters.category, filters.type]);
   const searchSuggestions = [
     ...brandOptions.map((value) => ({ category: "BRAND", label: value, value })),
     ...categoryOptions.map((value) => ({ category: "CATEGORY", label: value, value })),
@@ -33,9 +40,9 @@ export function ProblemFiltersClient({
   ];
 
   return (
-    <form
+    <InstantFilterForm
       action="/dashboard/assets"
-      className="grid gap-3 overflow-visible rounded-md border border-border bg-white p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_150px_180px_180px_180px_auto_auto]"
+      className="grid gap-3 overflow-visible rounded-md border border-border bg-white p-4 shadow-sm lg:grid-cols-[minmax(0,1fr)_150px_180px_180px_180px_auto]"
       method="get"
     >
       <input name="page" type="hidden" value="1" />
@@ -97,19 +104,12 @@ export function ProblemFiltersClient({
         value={type}
       />
 
-      <button
-        className="h-11 rounded-md bg-navy px-4 text-sm font-bold text-white transition hover:bg-black"
-        type="submit"
-      >
-        Apply
-      </button>
-
       <Link
         className="flex h-11 items-center justify-center rounded-md border border-border bg-white px-4 text-sm font-bold text-navy transition hover:bg-surface"
         href="/dashboard/assets"
       >
         Reset
       </Link>
-    </form>
+    </InstantFilterForm>
   );
 }

@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
-import { apiErrorResponse, requireApiUser } from "@/lib/api";
+import { apiErrorResponse, requireApiUser, apiJson } from "@/lib/api";
 import { cancelTransactionRequest } from "@/lib/workflow";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -11,8 +11,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const user = await requireApiUser(request);
     const { id } = paramsSchema.parse(await context.params);
     const transaction = await cancelTransactionRequest(user, id);
-    return NextResponse.json({ transaction });
+    return apiJson({ transaction });
   } catch (error) {
     return apiErrorResponse(error);
   }
 }
+

@@ -2,7 +2,6 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import {
   AssetActionType,
-  AssetTrackMethod,
   AssetStatus,
   MigrationRowStatus,
   MigrationStatus,
@@ -39,8 +38,7 @@ type MappedRow = {
   categoryName: string | null;
   description: string | null;
   imageRef: string | null;
-  legacyFg: number | null;
-  legacyQty: number | null;
+  quantity: number;
   locationText: string | null;
   modelName: string;
   note: string | null;
@@ -48,7 +46,7 @@ type MappedRow = {
   serialNo: string | null;
   status: AssetStatus;
   stockCode: string | null;
-  trackMethod: AssetTrackMethod;
+  isSerialized: boolean;
   typeCode: string | null;
   typeName: string | null;
 };
@@ -389,8 +387,8 @@ function mapRow(warehouseCode: WarehouseCode, row: CsvRecord): MappedRow {
       categoryName,
       description: clean(row.Description) ?? clean(row.Comment),
       imageRef: clean(row.Image),
-      legacyFg: parseInteger(row.FG),
-      legacyQty: quantity,
+      quantity,
+      isSerialized: false,
       locationText: clean(row.Location),
       modelName: clean(row.Model) ?? clean(row.Description) ?? "Unknown Model",
       note: combineNote(row),
@@ -398,7 +396,6 @@ function mapRow(warehouseCode: WarehouseCode, row: CsvRecord): MappedRow {
       serialNo: null,
       status: quantity > 0 ? AssetStatus.READY : AssetStatus.NEED_CHECK,
       stockCode: null,
-      trackMethod: AssetTrackMethod.QUANTITY,
       typeCode: typeCodeFor(warehouseCode, typeName),
       typeName,
     };
@@ -406,9 +403,6 @@ function mapRow(warehouseCode: WarehouseCode, row: CsvRecord): MappedRow {
 
   const serialNo = clean(row["Serial No."]);
 
-  if (!serialNo) {
-    throw new Error("Serial No. is required.");
-  }
 
   const typeName = clean(row.Types);
   const categoryName = clean(row.Category);
@@ -419,8 +413,8 @@ function mapRow(warehouseCode: WarehouseCode, row: CsvRecord): MappedRow {
     categoryName,
     description: clean(row.Description) ?? clean(row.Comment),
     imageRef: clean(row.Image),
-    legacyFg: parseInteger(row.FG),
-    legacyQty: parseInteger(row.QTY),
+    quantity: parseInteger(row.QTY) ?? 1,
+    isSerialized: true,
     locationText: clean(row.Location),
     modelName: clean(row.Model) ?? clean(row.Description) ?? "Unknown Model",
     note: combineNote(row),
@@ -428,7 +422,6 @@ function mapRow(warehouseCode: WarehouseCode, row: CsvRecord): MappedRow {
     serialNo,
     status: mapStatus(row.Status),
     stockCode: null,
-    trackMethod: AssetTrackMethod.SERIAL,
     typeCode: typeCodeFor(warehouseCode, typeName),
     typeName,
   };
@@ -471,7 +464,6 @@ async function findOrCreateAssetType(
   categoryId: string | null,
   name: string | null,
   code: string | null,
-  trackMethod: AssetTrackMethod,
 ) {
   if (!categoryId || !name) {
     return null;
@@ -480,12 +472,7 @@ async function findOrCreateAssetType(
   return tx.assetType.upsert({
     where: { categoryId_name: { categoryId, name } },
     update: { code, isActive: true },
-    create: {
-      categoryId,
-      code,
-      name,
-      trackMethod,
-    },
+    create: { categoryId, code, name },
   });
 }
 
@@ -511,7 +498,7 @@ async function findOrCreateModel(
   if (existing) {
     return tx.assetModel.update({
       where: { id: existing.id },
-      data: { description: mapped.description, isActive: true },
+      data: { description: mapped.description, isActive: true, isSerialized: mapped.isSerialized },
     });
   }
 
@@ -524,6 +511,7 @@ async function findOrCreateModel(
       warehouseId,
       name: mapped.modelName,
       partNo: mapped.partNo,
+      isSerialized: mapped.isSerialized,
       typeName: mapped.typeName,
     },
   });
@@ -534,11 +522,7 @@ function toJsonObject(value: Record<string, unknown>) {
 }
 
 function toAssetQuantity(mapped: MappedRow) {
-  if (mapped.trackMethod === AssetTrackMethod.QUANTITY) {
-    return mapped.legacyQty ?? 0;
-  }
-
-  return mapped.legacyQty && mapped.legacyQty > 0 ? mapped.legacyQty : 1;
+  return mapped.isSerialized && mapped.serialNo ? 1 : mapped.quantity;
 }
 
 function toAssetData(
@@ -555,8 +539,6 @@ function toAssetData(
     assetQuantity: toAssetQuantity(mapped),
     warehouseId,
     imageRef: mapped.imageRef,
-    legacyFg: mapped.legacyFg,
-    legacyQty: mapped.legacyQty,
     locationId,
     locationText: mapped.locationText,
     migrationBatchId: batchId,
@@ -605,7 +587,6 @@ async function upsertAssetFromRow(
     category?.id ?? null,
     mapped.typeName,
     mapped.typeCode,
-    mapped.trackMethod,
   );
   const location = await findOrCreateLocation(tx, mapped.locationText);
   const model = await findOrCreateModel(

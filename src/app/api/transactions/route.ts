@@ -1,11 +1,10 @@
 import { TransactionType } from "@prisma/client";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 import {
   apiErrorResponse,
   readJsonBody,
-  requireApiUser,
-} from "@/lib/api";
+  requireApiUser, apiJson } from "@/lib/api";
 import { submitTransaction } from "@/lib/workflow";
 
 const optionalDateSchema = z
@@ -56,8 +55,9 @@ export async function POST(request: NextRequest) {
       requestDate: new Date(),
     });
 
-    return NextResponse.json({ transaction }, { status: 201 });
+    return apiJson({ transaction }, { status: 201 });
   } catch (error) {
     return apiErrorResponse(error);
   }
 }
+

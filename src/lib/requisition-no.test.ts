@@ -42,7 +42,7 @@ describe("monthly requisition number", () => {
   });
 
   it("resets the sequence when the month changes", async () => {
-    expect(monthlyRequisitionPrefix(new Date("2026-07-31T23:59:00.000Z"))).toBe(
+    expect(monthlyRequisitionPrefix(new Date("2026-07-31T16:59:00.000Z"))).toBe(
       "REQ-202607",
     );
     expect(monthlyRequisitionPrefix(new Date("2026-08-01T00:00:00.000Z"))).toBe(
@@ -62,5 +62,15 @@ describe("monthly requisition number", () => {
     await expect(
       createMonthlyRequisitionNo(tx, new Date("2026-07-20T09:30:00.000Z")),
     ).rejects.toBeInstanceOf(MonthlyRequisitionLimitError);
+  });
+
+  it("shares the sequence with return batches", async () => {
+    const { tx } = mockCounter(14);
+    await expect(createMonthlyRequisitionNo({ ...tx, returnBatch: { count: async () => 3 } }, new Date("2026-07-20T09:30:00Z"))).resolves.toBe("REQ-20260720-18");
+  });
+
+  it("uses Bangkok date across the UTC month boundary", async () => {
+    const { tx } = mockCounter(0);
+    await expect(createMonthlyRequisitionNo(tx, new Date("2026-07-31T17:00:00Z"))).resolves.toBe("REQ-20260801-01");
   });
 });

@@ -1,6 +1,7 @@
+import { AssetTrackMethod } from "@/lib/asset-tracking";
 import {
   AssetActionType,
-  AssetTrackMethod,
+  AssetCondition,
   AssetStatus,
   Prisma,
 } from "@prisma/client";
@@ -20,6 +21,7 @@ const assetEditSelect = Prisma.validator<Prisma.AssetSelect>()({
   assetQuantity: true,
   assetModel: {
     select: {
+      isSerialized: true,
       brand: true,
       category: {
         select: {
@@ -45,7 +47,7 @@ const assetEditSelect = Prisma.validator<Prisma.AssetSelect>()({
         },
       },
       description: true,
-      warehouse: { select: { code: true, id: true, inventoryFamily: true, name: true } },
+      warehouse: { select: { code: true, id: true, name: true } },
       id: true,
       modelNo: true,
       name: true,
@@ -53,12 +55,10 @@ const assetEditSelect = Prisma.validator<Prisma.AssetSelect>()({
       typeName: true,
     },
   },
-  warehouse: { select: { code: true, id: true, inventoryFamily: true, name: true } },
+  warehouse: { select: { code: true, id: true, name: true } },
   id: true,
   imageRef: true,
   isActive: true,
-  legacyFg: true,
-  legacyQty: true,
   location: { select: { code: true, id: true, name: true } },
   locationText: true,
   note: true,
@@ -107,10 +107,21 @@ export type AssetEditOptions = {
     name: string;
   }>;
   partNos: string[];
-  warehouses: Array<{ code: string; inventoryFamily: AssetTrackMethod; name: string }>;
+  warehouses: Array<{ code: string; name: string }>;
   locations: Array<{ code: string | null; name: string }>;
+  models: Array<{
+    brand: string | null;
+    categoryName: string | null;
+    description: string | null;
+    modelNo: string | null;
+    name: string;
+    partNo: string | null;
+    isSerialized: boolean;
+    typeName: string | null;
+    warehouseCode: string;
+  }>;
   statuses: AssetStatus[];
-  types: Array<{ categoryName: string; code: string | null; warehouseCode: string; name: string; trackMethod: AssetTrackMethod }>;
+  types: Array<{ categoryName: string; code: string | null; warehouseCode: string; name: string }>;
 };
 
 export type AssetEditResult =
@@ -141,8 +152,6 @@ export type UpdateAssetInput = {
   warehouseCode: string;
   imageRef?: string | null;
   isActive?: boolean;
-  legacyFg?: number | null;
-  legacyQty?: number | null;
   locationCode?: string | null;
   locationName?: string | null;
   locationText?: string | null;
@@ -150,6 +159,7 @@ export type UpdateAssetInput = {
   modelNo?: string | null;
   note?: string | null;
   partNo?: string | null;
+  modelTrackMethod?: AssetTrackMethod;
   serialNo?: string | null;
   sourceRecordId?: string | null;
   sourceSystem?: string | null;
@@ -231,9 +241,9 @@ function optionalPatternText(
 }
 
 
-function requirePositiveAssetQuantity(value: number | null | undefined) {
-  if (!Number.isInteger(value) || (value ?? 0) <= 0) {
-    throw new WorkflowError("Quantity must be greater than 0.");
+function requireNonnegativeAssetQuantity(value: number | null | undefined) {
+  if (!Number.isInteger(value) || value == null || value < 0) {
+    throw new WorkflowError("Quantity must be a whole number greater than or equal to 0.");
   }
 
   return value as number;
@@ -415,7 +425,7 @@ async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus
   const [warehouses, categories, locations, types, assetModels] = await Promise.all([
     db.assetWarehouse.findMany({
       orderBy: { name: "asc" },
-      select: { code: true, inventoryFamily: true, name: true },
+      select: { code: true, name: true },
       where: warehouseWhere,
     }),
     db.assetCategory.findMany({
@@ -462,7 +472,6 @@ async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus
         },
         code: true,
         name: true,
-        trackMethod: true,
       },
       where: {
         category: { warehouse: warehouseWhere },
@@ -470,7 +479,17 @@ async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus
       },
     }),
     db.assetModel.findMany({
-      select: { brand: true, partNo: true },
+      select: {
+        brand: true,
+        category: { select: { name: true } },
+        description: true,
+        modelNo: true,
+        name: true,
+        partNo: true,
+        isSerialized: true,
+        typeName: true,
+        warehouse: { select: { code: true } },
+      },
       where: { isActive: true, warehouse: warehouseWhere },
     }),
   ]);
@@ -485,7 +504,6 @@ async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus
             code: type.code,
             warehouseCode: type.category.warehouse.code,
             name: type.name,
-            trackMethod: type.trackMethod,
           },
         ]),
     ).values(),
@@ -513,6 +531,17 @@ async function getAssetEditOptions(user: CurrentUser, currentStatus: AssetStatus
     partNos: [...new Set(assetModels.map((model) => model.partNo).filter((partNo): partNo is string => Boolean(partNo)))].sort((left, right) => left.localeCompare(right)),
     warehouses,
     locations,
+    models: assetModels.map((model) => ({
+      brand: model.brand,
+      categoryName: model.category?.name ?? null,
+      description: model.description,
+      modelNo: model.modelNo,
+      name: model.name,
+      partNo: model.partNo,
+      isSerialized: model.isSerialized,
+      typeName: model.typeName,
+      warehouseCode: model.warehouse.code,
+    })),
     statuses: editableStatuses(currentStatus),
     types: uniqueTypes,
   };
@@ -537,7 +566,7 @@ export async function getAssetEditForUser(
 
   return {
     asset,
-    canChangeWarehouse: hasRole(user, "ADMIN"),
+    canChangeWarehouse: false,
     kind: "ok",
     options: await getAssetEditOptions(user, asset.status),
   };
@@ -654,14 +683,12 @@ async function resolveAssetType(
     create: {
       categoryId,
       name: typeName,
-      trackMethod: AssetTrackMethod.SERIAL,
     },
     select: {
       category: { select: { code: true, name: true } },
       code: true,
       id: true,
       name: true,
-      trackMethod: true,
     },
   });
 }
@@ -678,6 +705,7 @@ async function resolveAssetModel(
     modelNo: string | null;
     partNo: string | null;
     typeName: string | null;
+    trackMethod: AssetTrackMethod;
   },
 ) {
   const existing = await tx.assetModel.findFirst({
@@ -711,6 +739,7 @@ async function resolveAssetModel(
       name: input.modelName,
       partNo: input.partNo,
       typeName: input.typeName,
+      isSerialized: input.trackMethod === AssetTrackMethod.SERIAL,
     },
   });
 }
@@ -809,12 +838,9 @@ export async function updateAssetForUser(
 
       assertCanManageWarehouse(user, asset.warehouse.code);
 
-      if (
-        input.warehouseCode !== asset.warehouse.code &&
-        !canManageWarehouseForUser(user, input.warehouseCode)
-      ) {
+      if (input.warehouseCode !== asset.warehouse.code) {
         throw new WorkflowError(
-          `Cannot move asset to ${input.warehouseCode}.`,
+          "Asset warehouse cannot be changed through this endpoint.",
           403,
           "CANNOT_CHANGE_WAREHOUSE",
         );
@@ -847,7 +873,7 @@ export async function updateAssetForUser(
       }
 
       const targetWarehouse = await tx.assetWarehouse.findFirst({
-        select: { code: true, id: true, inventoryFamily: true, name: true },
+        select: { code: true, id: true, name: true },
         where: { code: input.warehouseCode, isActive: true },
       });
 
@@ -866,9 +892,22 @@ export async function updateAssetForUser(
         throw new WorkflowError("Type is required.");
       }
 
-      const serialNo = validateSerialNo(input.serialNo, targetWarehouse.inventoryFamily);
-      const nextQuantity = targetWarehouse.inventoryFamily === AssetTrackMethod.QUANTITY
-        ? requirePositiveAssetQuantity(input.quantity)
+      const assetModel = await resolveAssetModel(tx, {
+        assetTypeId: assetType.id,
+        brand,
+        categoryId: category?.id ?? null,
+        description,
+        warehouseId: targetWarehouse.id,
+        modelName,
+        modelNo,
+        partNo,
+        typeName,
+        trackMethod: input.modelTrackMethod ?? AssetTrackMethod.SERIAL,
+      });
+      const serialNo = validateSerialNo(input.serialNo, assetModel.isSerialized ? AssetTrackMethod.SERIAL : AssetTrackMethod.QUANTITY);
+      const trackMethod = assetModel.isSerialized && serialNo ? AssetTrackMethod.SERIAL : AssetTrackMethod.QUANTITY;
+      const nextQuantity = trackMethod === AssetTrackMethod.QUANTITY
+        ? requireNonnegativeAssetQuantity(input.quantity)
         : 1;
 
       if (serialNo) {
@@ -893,18 +932,6 @@ export async function updateAssetForUser(
         locationCode: null,
         locationName: locationText,
       });
-      const assetModel = await resolveAssetModel(tx, {
-        assetTypeId: assetType.id,
-        brand,
-        categoryId: category?.id ?? null,
-        description,
-        warehouseId: targetWarehouse.id,
-        modelName,
-        modelNo,
-        partNo,
-        typeName,
-      });
-
       const updatedAsset = await tx.asset.update({
         data: {
           assetModelId: assetModel.id,
@@ -913,8 +940,6 @@ export async function updateAssetForUser(
           warehouseId: targetWarehouse.id,
           imageRef,
           isActive: input.isActive ?? true,
-          legacyFg: null,
-          legacyQty: null,
           locationId: location?.id ?? null,
           locationText,
           note,
@@ -924,6 +949,7 @@ export async function updateAssetForUser(
           sourceRecordId,
           sourceSystem,
           specifications,
+          condition: Object.entries(specifications).some(([key, value]) => key.toLowerCase() === "used" && String(value).trim().toUpperCase() === "USED") ? AssetCondition.USED : AssetCondition.NEW,
           status: input.status,
           updatedById: user.id,
         },
@@ -947,7 +973,7 @@ export async function updateAssetForUser(
       }
 
       if (
-        targetWarehouse.inventoryFamily === AssetTrackMethod.QUANTITY &&
+        trackMethod === AssetTrackMethod.QUANTITY &&
         nextQuantity !== asset.assetQuantity
       ) {
         if (!note) {
@@ -1081,12 +1107,11 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
     );
   }
 
-  assertCanManageWarehouse(user, input.warehouseCode);
-
   return db.$transaction(
     async (tx) => {
+      assertCanManageWarehouse(user, input.warehouseCode);
       const targetWarehouse = await tx.assetWarehouse.findFirst({
-        select: { code: true, id: true, inventoryFamily: true, name: true },
+        select: { code: true, id: true, name: true },
         where: { code: input.warehouseCode, isActive: true },
       });
 
@@ -1105,9 +1130,22 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
         throw new WorkflowError("Type is required.");
       }
 
-      const serialNo = validateSerialNo(input.serialNo, targetWarehouse.inventoryFamily);
-      const nextQuantity = targetWarehouse.inventoryFamily === AssetTrackMethod.QUANTITY
-        ? requirePositiveAssetQuantity(input.quantity)
+      const assetModel = await resolveAssetModel(tx, {
+        assetTypeId: assetType.id,
+        brand,
+        categoryId: category?.id ?? null,
+        description,
+        warehouseId: targetWarehouse.id,
+        modelName,
+        modelNo,
+        partNo,
+        typeName,
+        trackMethod: input.modelTrackMethod ?? AssetTrackMethod.SERIAL,
+      });
+      const serialNo = validateSerialNo(input.serialNo, assetModel.isSerialized ? AssetTrackMethod.SERIAL : AssetTrackMethod.QUANTITY);
+      const trackMethod = assetModel.isSerialized && serialNo ? AssetTrackMethod.SERIAL : AssetTrackMethod.QUANTITY;
+      const nextQuantity = trackMethod === AssetTrackMethod.QUANTITY
+        ? requireNonnegativeAssetQuantity(input.quantity)
         : 1;
 
       if (serialNo) {
@@ -1130,18 +1168,6 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
         locationCode: null,
         locationName: locationText,
       });
-      const assetModel = await resolveAssetModel(tx, {
-        assetTypeId: assetType.id,
-        brand,
-        categoryId: category?.id ?? null,
-        description,
-        warehouseId: targetWarehouse.id,
-        modelName,
-        modelNo,
-        partNo,
-        typeName,
-      });
-
       const createdAsset = await tx.asset.create({
         data: {
           assetModelId: assetModel.id,
@@ -1151,8 +1177,6 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
           warehouseId: targetWarehouse.id,
           imageRef,
           isActive: input.isActive ?? true,
-          legacyFg: null,
-          legacyQty: null,
           locationId: location?.id ?? null,
           locationText,
           note,
@@ -1160,6 +1184,7 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
           sourceRecordId,
           sourceSystem,
           specifications,
+          condition: Object.entries(specifications).some(([key, value]) => key.toLowerCase() === "used" && String(value).trim().toUpperCase() === "USED") ? AssetCondition.USED : AssetCondition.NEW,
           status: input.status,
           stockCode,
           updatedById: user.id,

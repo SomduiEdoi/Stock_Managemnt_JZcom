@@ -97,7 +97,7 @@ describe("return and history action rules", () => {
     expect(isTransactionItemResolutionStatus(AssetStatus.SOLD)).toBe(true);
     expect(isTransactionItemResolutionStatus(AssetStatus.LOST)).toBe(true);
     expect(isTransactionItemResolutionStatus(AssetStatus.FAIL)).toBe(true);
-    expect(isTransactionItemResolutionStatus(AssetStatus.NEED_CHECK)).toBe(true);
+    expect(isTransactionItemResolutionStatus(AssetStatus.NEED_CHECK)).toBe(false);
     expect(isTransactionItemResolutionStatus(AssetStatus.REQUEST)).toBe(false);
     expect(isTransactionItemResolutionStatus(AssetStatus.BORROW)).toBe(false);
   });

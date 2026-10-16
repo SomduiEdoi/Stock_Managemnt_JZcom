@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import {
+  apiJson,
   apiErrorResponse,
   requireApiUser,
 } from "@/lib/api";
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest) {
       where: { id: user.id },
     });
 
-    return NextResponse.json({ signature: updatedUser });
+    return apiJson({ signature: updatedUser });
   } catch (error) {
     return apiErrorResponse(error);
   }

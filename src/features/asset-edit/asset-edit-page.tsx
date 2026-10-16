@@ -25,6 +25,7 @@ export function AssetEditPage({
 }
 
 type AssetCreatePageProps = {
+  template?: AssetEditRecord;
   canChangeWarehouse: boolean;
   initialWarehouseCode: string;
   lockWarehouse?: boolean;
@@ -32,6 +33,7 @@ type AssetCreatePageProps = {
 };
 
 export function AssetCreatePage({
+  template,
   canChangeWarehouse,
   initialWarehouseCode,
   lockWarehouse,
@@ -43,6 +45,7 @@ export function AssetCreatePage({
       initialWarehouseCode={initialWarehouseCode}
       lockWarehouse={lockWarehouse}
       mode="create"
+      template={template}
       options={options}
     />
   );

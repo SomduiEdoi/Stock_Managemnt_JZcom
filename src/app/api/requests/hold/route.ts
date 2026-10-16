@@ -1,10 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 import {
   apiErrorResponse,
   readJsonBody,
-  requireApiUser,
-} from "@/lib/api";
+  requireApiUser, apiJson } from "@/lib/api";
 import { holdAssetsForRequest } from "@/lib/workflow";
 
 const holdRequestSchema = z.object({
@@ -30,8 +29,9 @@ export async function POST(request: NextRequest) {
     const input = holdRequestSchema.parse(await readJsonBody(request));
     const assets = await holdAssetsForRequest(user, input);
 
-    return NextResponse.json({ assets });
+    return apiJson({ assets });
   } catch (error) {
     return apiErrorResponse(error);
   }
 }
+

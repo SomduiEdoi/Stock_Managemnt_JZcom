@@ -1,5 +1,5 @@
-﻿import { ProjectStatus } from "@prisma/client";
-import { NextResponse } from "next/server";
+import { apiJson } from "@/lib/api";
+import { ProjectStatus } from "@prisma/client";
 import { z } from "zod";
 import { requireCurrentUser } from "@/lib/auth";
 import { createProjectForAdmin } from "@/lib/project-management";
@@ -11,21 +11,22 @@ const projectSchema = z.object({
   leadUserIds: z.array(z.string().trim().uuid()).default([]),
   memberUserIds: z.array(z.string().trim().uuid()).default([]),
   name: z.string().trim().min(1, "Project name is required."),
+  customerName: z.string().trim().min(1, "Customer name is required."),
   projectId: z.string().trim().min(1, "Project ID is required."),
   status: z.nativeEnum(ProjectStatus).optional(),
 });
 
 function errorResponse(error: unknown) {
   if (error instanceof z.ZodError) {
-    return NextResponse.json({ message: error.issues[0]?.message ?? "Invalid project payload." }, { status: 400 });
+    return apiJson({ message: error.issues[0]?.message ?? "Invalid project payload." }, { status: 400 });
   }
 
   if (error instanceof WorkflowError) {
-    return NextResponse.json({ code: error.code, message: error.message }, { status: error.statusCode });
+    return apiJson({ code: error.code, message: error.message }, { status: error.statusCode });
   }
 
   if (error instanceof PermissionError) {
-    return NextResponse.json({ code: "FORBIDDEN", message: error.message }, { status: error.statusCode });
+    return apiJson({ code: "FORBIDDEN", message: error.message }, { status: error.statusCode });
   }
 
   throw error;
@@ -37,8 +38,9 @@ export async function POST(request: Request) {
     const body = projectSchema.parse(await request.json());
     const project = await createProjectForAdmin(user, body);
 
-    return NextResponse.json({ project });
+    return apiJson({ project });
   } catch (error) {
     return errorResponse(error);
   }
 }
+

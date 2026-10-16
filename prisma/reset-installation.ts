@@ -55,7 +55,6 @@ async function main() {
         code: "INSTALLATION",
         name: "Installation",
         prefix: "IN",
-        inventoryFamily: "QUANTITY",
         headStockControllerId: suriya.id,
       },
     });

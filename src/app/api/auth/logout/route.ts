@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server";
+import { apiJson } from "@/lib/api";
 import {
   SESSION_COOKIE_NAME,
   expiredSessionCookieOptions,
 } from "@/lib/session";
 
 export async function POST() {
-  const response = NextResponse.json({ ok: true });
+  const response = apiJson({ ok: true });
 
   response.cookies.set(
     SESSION_COOKIE_NAME,
@@ -15,3 +15,4 @@ export async function POST() {
 
   return response;
 }
+

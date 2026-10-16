@@ -1,7 +1,7 @@
 import { OrganizationLevel, OrganizationTag } from "@prisma/client";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
-import { apiErrorResponse, readJsonBody, requireApiUser } from "@/lib/api";
+import { apiErrorResponse, readJsonBody, requireApiUser, apiJson } from "@/lib/api";
 import { createUserForAdmin } from "@/lib/user-management";
 
 const createUserSchema = z.object({
@@ -18,7 +18,7 @@ const createUserSchema = z.object({
     .optional(),
   primaryOrganizationTag: z.nativeEnum(OrganizationTag).nullable().optional(),
   organizationTag: z.nativeEnum(OrganizationTag).nullable().optional(),
-  role: z.enum(["ADMIN", "STOCK_CONTROLLER", "USER"]),
+  role: z.enum(["ADMIN", "STOREMAN", "USER"]),
 });
 
 export async function POST(request: NextRequest) {
@@ -27,8 +27,9 @@ export async function POST(request: NextRequest) {
     const body = createUserSchema.parse(await readJsonBody(request));
     const createdUser = await createUserForAdmin(user, body);
 
-    return NextResponse.json({ user: createdUser }, { status: 201 });
+    return apiJson({ user: createdUser }, { status: 201 });
   } catch (error) {
     return apiErrorResponse(error);
   }
 }
+

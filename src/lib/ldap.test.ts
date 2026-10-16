@@ -107,10 +107,15 @@ describe("authenticateWithLdap", () => {
   });
 
   it("returns null when AD rejects the credentials and still closes the client", async () => {
-    bind.mockRejectedValue(new Error("invalid credentials"));
+    bind.mockRejectedValue(Object.assign(new Error("invalid credentials"), { code: 49 }));
 
     await expect(authenticateWithLdap("it01", "wrong")).resolves.toBeNull();
     expect(search).not.toHaveBeenCalled();
+    expect(unbind).toHaveBeenCalledOnce();
+  });
+  it("reports directory outages separately from invalid credentials", async () => {
+    bind.mockRejectedValue(Object.assign(new Error("private network details"), { code: "ECONNREFUSED" }));
+    await expect(authenticateWithLdap("it01", "secret")).rejects.toThrow("Active Directory is unavailable");
     expect(unbind).toHaveBeenCalledOnce();
   });
 });

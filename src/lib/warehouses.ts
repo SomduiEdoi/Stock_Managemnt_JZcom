@@ -1,4 +1,3 @@
-import { AssetTrackMethod } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { hasRole } from "@/lib/permissions";
@@ -10,7 +9,6 @@ export type SidebarWarehouse = {
   controllerId: string | null;
   headControllerId: string | null;
   headControllerIds: string[];
-  inventoryFamily: AssetTrackMethod;
   name: string;
   prefix: string;
 };
@@ -64,7 +62,6 @@ const sidebarWarehouseSelect = {
   _count: { select: { assets: { where: { isActive: true } } } },
   code: true,
   headStockControllerId: true,
-  inventoryFamily: true,
   name: true,
   permissions: {
     orderBy: { createdAt: "asc" as const },
@@ -75,6 +72,10 @@ const sidebarWarehouseSelect = {
     },
     where: { OR: [{ canManage: true }, { canView: true }] },
   },
+  managerAssignments: {
+    orderBy: { createdAt: "asc" as const },
+    select: { userId: true },
+  },
   prefix: true,
 };
 
@@ -82,13 +83,13 @@ type SidebarWarehouseRecord = {
   _count: { assets: number };
   code: string;
   headStockControllerId: string | null;
-  inventoryFamily: AssetTrackMethod;
   name: string;
   permissions: Array<{
     canManage: boolean;
     canView: boolean;
     userId: string;
   }>;
+  managerAssignments: Array<{ userId: string }>;
   prefix: string;
 };
 
@@ -145,7 +146,12 @@ async function findStockControllerOrThrow(
     where: {
       id: userId,
       isActive: true,
-      roles: { some: { role: { code: "STOCK_CONTROLLER" } } },
+      OR: [
+        { roles: { some: { role: { code: "STOREMAN" } } } },
+        { headControlledWarehouses: { some: { isActive: true } } },
+        { organizationTag: "WAREHOUSE_MANAGER" },
+        { organizationAssignments: { some: { isActive: true, organizationTag: "WAREHOUSE_MANAGER" } } },
+      ],
     },
   });
 
@@ -154,6 +160,31 @@ async function findStockControllerOrThrow(
   }
 
   return controller;
+}
+
+async function findWarehouseManagerOrThrow(
+  tx: WarehouseTx,
+  userId: string,
+  label: string,
+) {
+  const manager = await tx.user.findFirst({
+    select: { id: true },
+    where: {
+      id: userId,
+      isActive: true,
+      OR: [
+        { organizationTag: "WAREHOUSE_MANAGER" },
+        { organizationAssignments: { some: { isActive: true, organizationTag: "WAREHOUSE_MANAGER" } } },
+        { headControlledWarehouses: { some: { isActive: true } } },
+      ],
+    },
+  });
+
+  if (!manager) {
+    throw new WorkflowError(`${label} must have the Warehouse Manager tag.`);
+  }
+
+  return manager;
 }
 
 async function assertStockControllerManageSlot(
@@ -206,9 +237,7 @@ async function upsertWarehousePermission(
 }
 
 function toSidebarWarehouse(warehouse: SidebarWarehouseRecord): SidebarWarehouse {
-  const headControllerIds = warehouse.headStockControllerId
-    ? [warehouse.headStockControllerId]
-    : [];
+  const headControllerIds = warehouse.managerAssignments.map((assignment) => assignment.userId);
 
   const controllerId = warehouse.permissions.find((permission) => permission.canManage)?.userId ?? null;
 
@@ -218,7 +247,6 @@ function toSidebarWarehouse(warehouse: SidebarWarehouseRecord): SidebarWarehouse
     controllerId,
     headControllerId: headControllerIds[0] ?? null,
     headControllerIds,
-    inventoryFamily: warehouse.inventoryFamily,
     name: warehouse.name,
     prefix: warehouse.prefix,
   };
@@ -237,10 +265,15 @@ export async function getSidebarWarehousesForUser() {
 export async function getStockControllersForWarehouseForm() {
   const users = await db.user.findMany({
     orderBy: { name: "asc" },
-    select: { email: true, id: true, name: true },
+    select: { email: true, id: true, name: true, position: true },
     where: {
       isActive: true,
-      roles: { some: { role: { code: "STOCK_CONTROLLER" } } },
+      OR: [
+        { roles: { some: { role: { code: "STOREMAN" } } } },
+        { organizationTag: "WAREHOUSE_MANAGER" },
+        { organizationAssignments: { some: { isActive: true, organizationTag: "WAREHOUSE_MANAGER" } } },
+        { headControlledWarehouses: { some: { isActive: true } } },
+      ],
     },
   });
 
@@ -253,7 +286,6 @@ export type CreateWarehouseInput = {
   headControllerId?: string | null;
   headControllerIds?: string[];
   prefix: string;
-  trackMethod: AssetTrackMethod;
 };
 
 export type UpdateWarehouseInput = {
@@ -290,7 +322,7 @@ export async function createWarehouseForUser(user: CurrentUser, input: CreateWar
     const headControllerIds = uniqueControllerIds([...(input.headControllerIds ?? []), input.headControllerId]);
     const headControllers = await Promise.all(
       headControllerIds.map((id) =>
-        findStockControllerOrThrow(tx, id, "Head stock controller"),
+        findWarehouseManagerOrThrow(tx, id, "Warehouse Manager"),
       ),
     );
     const managerIds = uniqueControllerIds([controller.id]);
@@ -308,7 +340,6 @@ export async function createWarehouseForUser(user: CurrentUser, input: CreateWar
       data: {
         code,
         headStockControllerId: headControllers[0]?.id ?? null,
-        inventoryFamily: input.trackMethod,
         name,
         prefix,
       },
@@ -316,10 +347,17 @@ export async function createWarehouseForUser(user: CurrentUser, input: CreateWar
         code: true,
         headStockControllerId: true,
         id: true,
-        inventoryFamily: true,
         name: true,
         prefix: true,
       },
+    });
+
+    await tx.warehouseManagerAssignment.createMany({
+      data: headControllers.map((manager) => ({
+        userId: manager.id,
+        warehouseId: warehouse.id,
+      })),
+      skipDuplicates: true,
     });
 
     const nonAdminUsers = await tx.user.findMany({
@@ -347,7 +385,12 @@ export async function createWarehouseForUser(user: CurrentUser, input: CreateWar
     ]);
     await upsertWarehousePermission(tx, warehouse.id, controller.id, true);
     for (const headController of headControllers) {
-      await upsertWarehousePermission(tx, warehouse.id, headController.id, false);
+      await upsertWarehousePermission(
+        tx,
+        warehouse.id,
+        headController.id,
+        headController.id === controller.id,
+      );
     }
 
     return {
@@ -356,7 +399,6 @@ export async function createWarehouseForUser(user: CurrentUser, input: CreateWar
       controllerId: controller.id,
       headControllerId: headControllers[0]?.id ?? null,
       headControllerIds: headControllers.map((entry) => entry.id),
-      inventoryFamily: warehouse.inventoryFamily,
       name: warehouse.name,
       prefix: warehouse.prefix,
     };
@@ -397,7 +439,7 @@ export async function updateWarehouseForUser(
     const headControllerIds = uniqueControllerIds([...(input.headControllerIds ?? []), input.headControllerId]);
     const headControllers = await Promise.all(
       headControllerIds.map((id) =>
-        findStockControllerOrThrow(tx, id, "Head stock controller"),
+        findWarehouseManagerOrThrow(tx, id, "Warehouse Manager"),
       ),
     );
     const managerIds = uniqueControllerIds([controller.id]);
@@ -422,6 +464,15 @@ export async function updateWarehouseForUser(
       where: { id: warehouse.id },
     });
 
+    await tx.warehouseManagerAssignment.deleteMany({ where: { warehouseId: warehouse.id } });
+    await tx.warehouseManagerAssignment.createMany({
+      data: headControllers.map((manager) => ({
+        userId: manager.id,
+        warehouseId: warehouse.id,
+      })),
+      skipDuplicates: true,
+    });
+
     await tx.userWarehousePermission.updateMany({
       data: { canManage: false, canView: true },
       where: { warehouseId: warehouse.id },
@@ -431,7 +482,12 @@ export async function updateWarehouseForUser(
     ]);
     await upsertWarehousePermission(tx, warehouse.id, controller.id, true);
     for (const headController of headControllers) {
-      await upsertWarehousePermission(tx, warehouse.id, headController.id, false);
+      await upsertWarehousePermission(
+        tx,
+        warehouse.id,
+        headController.id,
+        headController.id === controller.id,
+      );
     }
 
     const updated = await tx.assetWarehouse.findUniqueOrThrow({

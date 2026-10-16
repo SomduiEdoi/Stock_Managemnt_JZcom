@@ -9,7 +9,7 @@ datasource db {
 
 enum RoleCode {
   ADMIN
-  STOCK_CONTROLLER
+  STOREMAN
   USER
 }
 
@@ -47,6 +47,7 @@ enum OrganizationTag {
   PRT_STAFF
   LOCAL_SUPERVISOR
   LOCAL_STAFF
+  WAREHOUSE_MANAGER
 }
 
 enum ProjectTag {
@@ -56,7 +57,19 @@ enum ProjectTag {
 
 enum ProjectStatus {
   ACTIVE
+  PENDING_APPROVAL
   CLOSED
+}
+
+enum ProjectApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ProjectApprovalAction {
+  CREATE
+  EDIT
 }
 
 enum ProjectMemberTag {
@@ -64,9 +77,9 @@ enum ProjectMemberTag {
   TEAM_MEMBER
 }
 
-enum AssetTrackMethod {
-  SERIAL
-  QUANTITY
+enum AssetCondition {
+  NEW
+  USED
 }
 
 enum AssetStatus {
@@ -144,42 +157,49 @@ enum MigrationRowStatus {
 }
 
 model User {
-  id                       String                       @id @default(uuid()) @db.Uuid
-  name                     String
-  email                    String?                      @unique
-  passwordHash             String?                      @map("password_hash")
-  azureAdObjectId          String?                      @unique @map("azure_ad_object_id")
-  position                 String?
-  organizationLevel        OrganizationLevel?           @map("organization_level")
-  organizationTag          OrganizationTag?             @map("organization_tag")
-  projectTag               ProjectTag?                  @map("project_tag")
-  signatureDataUrl         String?                      @map("signature_data_url")
-  signatureUploadedAt      DateTime?                    @map("signature_uploaded_at")
-  signatureUploadedById    String?                      @map("signature_uploaded_by") @db.Uuid
-  lastLoginAt              DateTime?                    @map("last_login_at")
-  isActive                 Boolean                      @default(true) @map("is_active")
-  createdAt                DateTime                     @default(now()) @map("created_at")
-  updatedAt                DateTime                     @updatedAt @map("updated_at")
-  roles                    UserRole[]
-  organizationAssignments  UserOrganizationAssignment[]
-  signatureUploadedBy      User?                        @relation("UserSignatureUploadedBy", fields: [signatureUploadedById], references: [id], onDelete: SetNull)
-  uploadedSignatures       User[]                       @relation("UserSignatureUploadedBy")
-  warehousePermissions     UserWarehousePermission[]
-  requestLockedAssets      Asset[]                      @relation("AssetRequestLockedBy")
-  createdAssets            Asset[]                      @relation("AssetCreatedBy")
-  updatedAssets            Asset[]                      @relation("AssetUpdatedBy")
-  statusHistories          AssetStatusHistory[]
-  requestedTransactions    Transaction[]                @relation("TransactionRequestedBy")
-  createdTransactions      Transaction[]                @relation("TransactionCreatedBy")
-  returnedTransactionItems TransactionItem[]            @relation("TransactionItemReturnedBy")
-  assetReservations        AssetReservation[]
-  migrationBatches         MigrationBatch[]
-  approvals                TransactionApproval[]
-  ledProjects              Project[]                    @relation("ProjectLeadUser")
-  projectMemberships       ProjectMember[]
-  projectLeadChanges       ProjectLeadChange[]
-  headControlledWarehouses AssetWarehouse[]             @relation("AssetWarehouseHeadStockController")
+  id                          String                       @id @default(uuid()) @db.Uuid
+  name                        String
+  email                       String?                      @unique
+  passwordHash                String?                      @map("password_hash")
+  localUsername               String?                      @unique @map("local_username")
+  azureAdObjectId             String?                      @unique @map("azure_ad_object_id")
+  position                    String?
+  organizationLevel           OrganizationLevel?           @map("organization_level")
+  organizationTag             OrganizationTag?             @map("organization_tag")
+  projectTag                  ProjectTag?                  @map("project_tag")
+  signatureDataUrl            String?                      @map("signature_data_url")
+  signatureUploadedAt         DateTime?                    @map("signature_uploaded_at")
+  signatureUploadedById       String?                      @map("signature_uploaded_by") @db.Uuid
+  lastLoginAt                 DateTime?                    @map("last_login_at")
+  isActive                    Boolean                      @default(true) @map("is_active")
+  createdAt                   DateTime                     @default(now()) @map("created_at")
+  updatedAt                   DateTime                     @updatedAt @map("updated_at")
+  roles                       UserRole[]
+  organizationAssignments     UserOrganizationAssignment[]
+  signatureUploadedBy         User?                        @relation("UserSignatureUploadedBy", fields: [signatureUploadedById], references: [id], onDelete: SetNull)
+  uploadedSignatures          User[]                       @relation("UserSignatureUploadedBy")
+  warehousePermissions        UserWarehousePermission[]
+  requestLockedAssets         Asset[]                      @relation("AssetRequestLockedBy")
+  createdAssets               Asset[]                      @relation("AssetCreatedBy")
+  updatedAssets               Asset[]                      @relation("AssetUpdatedBy")
+  statusHistories             AssetStatusHistory[]
+  requestedTransactions       Transaction[]                @relation("TransactionRequestedBy")
+  createdTransactions         Transaction[]                @relation("TransactionCreatedBy")
+  returnedTransactionItems    TransactionItem[]            @relation("TransactionItemReturnedBy")
+  dispatchedTransactionItems  TransactionItem[]            @relation("TransactionItemDispatchedBy")
+  approvedOutcomes            TransactionItemOutcome[]     @relation("TransactionOutcomeApprovedBy")
+  assetReservations           AssetReservation[]
+  migrationBatches            MigrationBatch[]
+  approvals                   TransactionApproval[]
+  ledProjects                 Project[]                    @relation("ProjectLeadUser")
+  projectMemberships          ProjectMember[]
+  projectLeadChanges          ProjectLeadChange[]
+  projectApprovals            ProjectApproval[]            @relation("ProjectApprovalApprover")
+  headControlledWarehouses    AssetWarehouse[]             @relation("AssetWarehouseHeadStockController")
+  warehouseManagerAssignments WarehouseManagerAssignment[]
+  favorites                   UserFavorite[]
 
+  @@index([signatureUploadedById])
   @@map("users")
 }
 
@@ -191,13 +211,30 @@ model UserOrganizationAssignment {
   isPrimary         Boolean           @default(false) @map("is_primary")
   isActive          Boolean           @default(true) @map("is_active")
   createdAt         DateTime          @default(now()) @map("created_at")
-  updatedAt         DateTime          @updatedAt @map("updated_at")
+  updatedAt         DateTime          @default(now()) @updatedAt @map("updated_at")
   user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, organizationTag])
   @@index([organizationTag, isActive])
   @@index([userId, isPrimary])
   @@map("user_organization_assignments")
+}
+
+model LoginThrottle {
+  key       String   @id
+  attempts  Int
+  resetAt   DateTime @map("reset_at")
+  @@map("login_throttles")
+}
+
+model LoginAudit {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  mode      String
+  result    String
+  createdAt DateTime @default(now()) @map("created_at")
+  @@index([createdAt])
+  @@map("login_audits")
 }
 
 model Role {
@@ -224,17 +261,17 @@ model UserRole {
 }
 
 model AssetWarehouse {
-  id                    String                    @id @default(uuid()) @db.Uuid
-  code                  String                    @unique
-  prefix                String                    @unique @map("warehouse_prefix")
+  id                    String                       @id(map: "asset_domains_pkey") @default(uuid()) @db.Uuid
+  code                  String                       @unique
+  prefix                String                       @unique @default("") @map("warehouse_prefix")
   name                  String
-  inventoryFamily       AssetTrackMethod          @default(SERIAL) @map("inventory_family")
   description           String?
-  isActive              Boolean                   @default(true) @map("is_active")
-  createdAt             DateTime                  @default(now()) @map("created_at")
-  updatedAt             DateTime                  @updatedAt @map("updated_at")
-  headStockControllerId String?                   @map("head_stock_controller_id") @db.Uuid
-  headStockController   User?                     @relation("AssetWarehouseHeadStockController", fields: [headStockControllerId], references: [id], onDelete: SetNull)
+  isActive              Boolean                      @default(true) @map("is_active")
+  createdAt             DateTime                     @default(now()) @map("created_at")
+  updatedAt             DateTime                     @updatedAt @map("updated_at")
+  headStockControllerId String?                      @map("head_stock_controller_id") @db.Uuid
+  headStockController   User?                        @relation("AssetWarehouseHeadStockController", fields: [headStockControllerId], references: [id], onDelete: SetNull, map: "asset_domains_head_stock_controller_id_fkey")
+  managerAssignments    WarehouseManagerAssignment[]
   permissions           UserWarehousePermission[]
   categories            AssetCategory[]
   models                AssetModel[]
@@ -244,16 +281,31 @@ model AssetWarehouse {
   @@map("asset_warehouses")
 }
 
-model UserWarehousePermission {
+model WarehouseManagerAssignment {
   id          String         @id @default(uuid()) @db.Uuid
+  userId      String         @map("user_id") @db.Uuid
+  warehouseId String         @map("warehouse_id") @db.Uuid
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  warehouse   AssetWarehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, warehouseId])
+  @@index([warehouseId])
+  @@index([userId])
+  @@map("warehouse_manager_assignments")
+}
+
+model UserWarehousePermission {
+  id          String         @id(map: "user_domain_permissions_pkey") @default(uuid()) @db.Uuid
   userId      String         @map("user_id") @db.Uuid
   warehouseId String         @map("warehouse_id") @db.Uuid
   canView     Boolean        @default(true) @map("can_view")
   canManage   Boolean        @default(false) @map("can_manage")
   createdAt   DateTime       @default(now()) @map("created_at")
   updatedAt   DateTime       @updatedAt @map("updated_at")
-  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  warehouse   AssetWarehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade, map: "user_domain_permissions_user_id_fkey")
+  warehouse   AssetWarehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade, map: "user_domain_permissions_domain_id_fkey")
 
   @@unique([userId, warehouseId])
   @@index([warehouseId])
@@ -269,7 +321,7 @@ model AssetCategory {
   isActive     Boolean                    @default(true) @map("is_active")
   createdAt    DateTime                   @default(now()) @map("created_at")
   updatedAt    DateTime                   @updatedAt @map("updated_at")
-  warehouse    AssetWarehouse             @relation(fields: [warehouseId], references: [id])
+  warehouse    AssetWarehouse             @relation(fields: [warehouseId], references: [id], map: "asset_categories_domain_id_fkey")
   models       AssetModel[]
   types        AssetType[]
   customFields AssetCategoryCustomField[]
@@ -285,7 +337,6 @@ model AssetType {
   categoryId   String                     @map("category_id") @db.Uuid
   name         String
   code         String?                    @map("type_code")
-  trackMethod  AssetTrackMethod           @default(SERIAL) @map("track_method")
   description  String?
   isActive     Boolean                    @default(true) @map("is_active")
   createdAt    DateTime                   @default(now()) @map("created_at")
@@ -301,7 +352,7 @@ model AssetType {
 }
 
 model AssetCategoryCustomField {
-  id           String                  @id @default(uuid()) @db.Uuid
+  id           String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   categoryId   String                  @map("category_id") @db.Uuid
   assetTypeId  String?                 @map("asset_type_id") @db.Uuid
   key          String
@@ -316,7 +367,7 @@ model AssetCategoryCustomField {
   sortOrder    Int                     @default(0) @map("sort_order")
   isActive     Boolean                 @default(true) @map("is_active")
   createdAt    DateTime                @default(now()) @map("created_at")
-  updatedAt    DateTime                @updatedAt @map("updated_at")
+  updatedAt    DateTime                @default(now()) @updatedAt @map("updated_at")
   category     AssetCategory           @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   assetType    AssetType?              @relation(fields: [assetTypeId], references: [id], onDelete: SetNull)
   values       AssetCustomFieldValue[]
@@ -328,7 +379,7 @@ model AssetCategoryCustomField {
 }
 
 model AssetCustomFieldValue {
-  id           String                   @id @default(uuid()) @db.Uuid
+  id           String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   assetId      String                   @map("asset_id") @db.Uuid
   fieldId      String                   @map("field_id") @db.Uuid
   valueText    String?                  @map("value_text")
@@ -336,7 +387,7 @@ model AssetCustomFieldValue {
   valueBoolean Boolean?                 @map("value_boolean")
   valueJson    Json?                    @map("value_json")
   createdAt    DateTime                 @default(now()) @map("created_at")
-  updatedAt    DateTime                 @updatedAt @map("updated_at")
+  updatedAt    DateTime                 @default(now()) @updatedAt @map("updated_at")
   asset        Asset                    @relation(fields: [assetId], references: [id], onDelete: Cascade)
   field        AssetCategoryCustomField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
 
@@ -346,23 +397,25 @@ model AssetCustomFieldValue {
 }
 
 model AssetModel {
-  id          String         @id @default(uuid()) @db.Uuid
-  warehouseId String         @map("warehouse_id") @db.Uuid
-  categoryId  String?        @map("category_id") @db.Uuid
-  assetTypeId String?        @map("asset_type_id") @db.Uuid
-  name        String
-  brand       String?
-  modelNo     String?        @map("model_no")
-  partNo      String?        @map("part_no")
-  typeName    String?        @map("type_name")
-  description String?
-  isActive    Boolean        @default(true) @map("is_active")
-  createdAt   DateTime       @default(now()) @map("created_at")
-  updatedAt   DateTime       @updatedAt @map("updated_at")
-  warehouse   AssetWarehouse @relation(fields: [warehouseId], references: [id])
-  category    AssetCategory? @relation(fields: [categoryId], references: [id])
-  assetType   AssetType?     @relation(fields: [assetTypeId], references: [id])
-  assets      Asset[]
+  id               String            @id @default(uuid()) @db.Uuid
+  warehouseId      String            @map("warehouse_id") @db.Uuid
+  categoryId       String?           @map("category_id") @db.Uuid
+  assetTypeId      String?           @map("asset_type_id") @db.Uuid
+  name             String
+  brand            String?
+  modelNo          String?           @map("model_no")
+  partNo           String?           @map("part_no")
+  typeName         String?           @map("type_name")
+  isSerialized     Boolean           @default(true) @map("is_serialized")
+  description      String?
+  isActive         Boolean           @default(true) @map("is_active")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  warehouse        AssetWarehouse    @relation(fields: [warehouseId], references: [id], map: "asset_models_domain_id_fkey")
+  category         AssetCategory?    @relation(fields: [categoryId], references: [id])
+  assetType        AssetType?        @relation(fields: [assetTypeId], references: [id])
+  assets           Asset[]
+  transactionItems TransactionItem[]
 
   @@index([warehouseId])
   @@index([categoryId])
@@ -374,7 +427,8 @@ model AssetModel {
 model Project {
   id           String              @id @default(uuid()) @db.Uuid
   name         String
-  projectId    String?             @unique @map("project_id")
+  customerName String              @default("Unknown Customer") @map("customer_name")
+  projectId    String              @unique @map("project_id")
   status       ProjectStatus       @default(ACTIVE)
   description  String?
   leadUserId   String?             @map("lead_user_id") @db.Uuid
@@ -383,11 +437,33 @@ model Project {
   leadUser     User?               @relation("ProjectLeadUser", fields: [leadUserId], references: [id], onDelete: SetNull)
   members      ProjectMember[]
   leadChanges  ProjectLeadChange[]
+  approvals    ProjectApproval[]
   transactions Transaction[]
 
   @@index([status])
   @@index([leadUserId])
   @@map("projects")
+}
+
+model ProjectApproval {
+  id         String                @id @default(uuid()) @db.Uuid
+  projectId  String                @map("project_id") @db.Uuid
+  approverId String                @map("approver_id") @db.Uuid
+  status     ProjectApprovalStatus @default(PENDING)
+  action     ProjectApprovalAction @default(EDIT)
+  payload    Json                  @default("{}")
+  previous   Json?
+  comment    String?
+  actedAt    DateTime?             @map("acted_at")
+  createdAt  DateTime              @default(now()) @map("created_at")
+  updatedAt  DateTime              @updatedAt @map("updated_at")
+  project    Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  approver   User                  @relation("ProjectApprovalApprover", fields: [approverId], references: [id], onDelete: NoAction)
+
+  // A project lead may approve multiple change cycles for the same project.
+  @@index([projectId, approverId, status])
+  @@index([approverId, status])
+  @@map("project_approvals")
 }
 
 model ProjectMember {
@@ -434,43 +510,46 @@ model Location {
 }
 
 model Asset {
-  id                String                  @id @default(uuid()) @db.Uuid
-  assetModelId      String                  @map("asset_model_id") @db.Uuid
-  warehouseId       String                  @map("warehouse_id") @db.Uuid
-  locationId        String?                 @map("location_id") @db.Uuid
-  serialNo          String?                 @unique @map("serial_no")
-  assetNo           String?                 @map("asset_no")
-  stockCode         String?                 @map("stock_code")
+  id                String                   @id @default(uuid()) @db.Uuid
+  assetModelId      String                   @map("asset_model_id") @db.Uuid
+  warehouseId       String                   @map("warehouse_id") @db.Uuid
+  locationId        String?                  @map("location_id") @db.Uuid
+  serialNo          String?                  @unique @map("serial_no")
+  condition         AssetCondition           @default(NEW)
+  assetNo           String?                  @map("asset_no")
+  stockCode         String?                  @map("stock_code")
   status            AssetStatus
   note              String?
-  specifications    Json                    @default("{}")
-  imageRef          String?                 @map("image_ref")
-  assetQuantity     Int                     @default(1) @map("asset_quantity")
-  legacyQty         Int?                    @map("legacy_qty")
-  legacyFg          Int?                    @map("legacy_fg")
-  locationText      String?                 @map("location_text")
-  sourceSystem      String?                 @map("source_system")
-  sourceRecordId    String?                 @map("source_record_id")
-  migrationBatchId  String?                 @map("migration_batch_id") @db.Uuid
-  requestLockedById String?                 @map("request_locked_by") @db.Uuid
-  requestLockedAt   DateTime?               @map("request_locked_at")
-  isActive          Boolean                 @default(true) @map("is_active")
-  createdById       String?                 @map("created_by") @db.Uuid
-  updatedById       String?                 @map("updated_by") @db.Uuid
-  createdAt         DateTime                @default(now()) @map("created_at")
-  updatedAt         DateTime                @updatedAt @map("updated_at")
-  assetModel        AssetModel              @relation(fields: [assetModelId], references: [id])
-  warehouse         AssetWarehouse          @relation(fields: [warehouseId], references: [id])
-  location          Location?               @relation(fields: [locationId], references: [id])
-  migrationBatch    MigrationBatch?         @relation(fields: [migrationBatchId], references: [id])
-  requestLockedBy   User?                   @relation("AssetRequestLockedBy", fields: [requestLockedById], references: [id], onDelete: SetNull)
-  createdBy         User?                   @relation("AssetCreatedBy", fields: [createdById], references: [id])
-  updatedBy         User?                   @relation("AssetUpdatedBy", fields: [updatedById], references: [id])
+  specifications    Json                     @default("{}")
+  imageRef          String?                  @map("image_ref")
+  assetQuantity     Int                      @default(1) @map("asset_quantity")
+  locationText      String?                  @map("location_text")
+  sourceSystem      String?                  @map("source_system")
+  sourceRecordId    String?                  @map("source_record_id")
+  migrationBatchId  String?                  @map("migration_batch_id") @db.Uuid
+  requestLockedById String?                  @map("request_locked_by") @db.Uuid
+  requestLockedAt   DateTime?                @map("request_locked_at")
+  isRecommended     Boolean                  @default(false) @map("is_recommended")
+  recommendedAt     DateTime?                @map("recommended_at")
+  isActive          Boolean                  @default(true) @map("is_active")
+  createdById       String?                  @map("created_by") @db.Uuid
+  updatedById       String?                  @map("updated_by") @db.Uuid
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  updatedAt         DateTime                 @updatedAt @map("updated_at")
+  assetModel        AssetModel               @relation(fields: [assetModelId], references: [id])
+  warehouse         AssetWarehouse           @relation(fields: [warehouseId], references: [id], map: "assets_domain_id_fkey")
+  location          Location?                @relation(fields: [locationId], references: [id])
+  migrationBatch    MigrationBatch?          @relation(fields: [migrationBatchId], references: [id])
+  requestLockedBy   User?                    @relation("AssetRequestLockedBy", fields: [requestLockedById], references: [id], onDelete: SetNull)
+  createdBy         User?                    @relation("AssetCreatedBy", fields: [createdById], references: [id])
+  updatedBy         User?                    @relation("AssetUpdatedBy", fields: [updatedById], references: [id])
   statusHistories   AssetStatusHistory[]
   transactionItems  TransactionItem[]
   migrationRows     MigrationRow[]
   reservations      AssetReservation[]
   customFieldValues AssetCustomFieldValue[]
+  favorites         UserFavorite[]
+  outcomeRecords    TransactionItemOutcome[] @relation("TransactionOutcomeAsset")
 
   @@index([warehouseId])
   @@index([status])
@@ -479,11 +558,14 @@ model Asset {
   @@index([sourceRecordId])
   @@index([stockCode])
   @@index([requestLockedById])
+  @@index([warehouseId, isRecommended, recommendedAt])
+  @@index([assetModelId, warehouseId, condition])
+  @@index([specifications], map: "assets_specifications_gin_idx", type: Gin)
   @@map("assets")
 }
 
 model AssetReservation {
-  id        String   @id @default(uuid()) @db.Uuid
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   assetId   String   @map("asset_id") @db.Uuid
   userId    String   @map("user_id") @db.Uuid
   quantity  Int      @default(1)
@@ -499,6 +581,20 @@ model AssetReservation {
   @@map("asset_reservations")
 }
 
+model UserFavorite {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  assetId   String   @map("asset_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, assetId])
+  @@index([userId])
+  @@index([assetId])
+  @@map("user_favorites")
+}
+
 model AssetStatusHistory {
   id               String          @id @default(uuid()) @db.Uuid
   assetId          String          @map("asset_id") @db.Uuid
@@ -509,6 +605,11 @@ model AssetStatusHistory {
   note             String?
   previousQuantity Int?            @map("previous_quantity")
   newQuantity      Int?            @map("new_quantity")
+  quantityBefore   Int?            @map("quantity_before")
+  quantityAfter    Int?            @map("quantity_after")
+  quantityChanged  Int?            @map("quantity_changed")
+  condition        AssetCondition  @default(NEW) @map("condition")
+  stockCode        String?         @map("stock_code")
   changedById      String          @map("changed_by") @db.Uuid
   changedAt        DateTime        @default(now()) @map("changed_at")
   asset            Asset           @relation(fields: [assetId], references: [id], onDelete: Cascade)
@@ -520,6 +621,7 @@ model AssetStatusHistory {
   @@index([toStatus])
   @@index([changedAt])
   @@index([changedById])
+  @@index([condition, changedAt])
   @@map("asset_status_histories")
 }
 
@@ -551,9 +653,12 @@ model Transaction {
   sourceTransaction   Transaction?              @relation("TransactionSource", fields: [sourceTransactionId], references: [id], onDelete: SetNull)
   project             Project?                  @relation(fields: [projectId], references: [id], onDelete: SetNull)
   derivedTransactions Transaction[]             @relation("TransactionSource")
+  outcomeSales        TransactionItemOutcome[]  @relation("TransactionOutcomeSale")
   items               TransactionItem[]
+  outcomeRecords      TransactionItemOutcome[]
   statusHistories     AssetStatusHistory[]
   approvals           TransactionApproval[]
+  returnBatches       ReturnBatch[]
 
   @@index([type])
   @@index([status])
@@ -568,35 +673,127 @@ model Transaction {
 }
 
 model TransactionItem {
-  id                String       @id @default(uuid()) @db.Uuid
-  transactionId     String       @map("transaction_id") @db.Uuid
-  assetId           String       @map("asset_id") @db.Uuid
-  fromStatus        AssetStatus? @map("from_status")
-  toStatus          AssetStatus  @map("to_status")
-  requestedQuantity Int          @default(1) @map("requested_quantity")
+  id                String                   @id @default(uuid()) @db.Uuid
+  transactionId     String                   @map("transaction_id") @db.Uuid
+  assetId           String?                  @map("asset_id") @db.Uuid
+  assetModelId      String?                  @map("asset_model_id") @db.Uuid
+  fromStatus        AssetStatus?             @map("from_status")
+  toStatus          AssetStatus              @map("to_status")
+  requestedQuantity Int                      @default(1) @map("requested_quantity")
   note              String?
-  resolvedStatus    AssetStatus? @map("resolved_status")
-  resolutionNote    String?      @map("resolution_note")
-  soldPrice         Decimal?     @map("sold_price") @db.Decimal(12, 2)
-  returnedAt        DateTime?    @map("returned_at")
-  returnedById      String?      @map("returned_by") @db.Uuid
-  createdAt         DateTime     @default(now()) @map("created_at")
-  updatedAt         DateTime     @updatedAt @map("updated_at")
-  transaction       Transaction  @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  asset             Asset        @relation(fields: [assetId], references: [id], onDelete: Restrict)
-  returnedBy        User?        @relation("TransactionItemReturnedBy", fields: [returnedById], references: [id], onDelete: SetNull)
+  resolvedStatus    AssetStatus?             @map("resolved_status")
+  resolutionNote    String?                  @map("resolution_note")
+  soldPrice         Decimal?                 @map("sold_price") @db.Decimal(12, 2)
+  soldTotal         Decimal?                 @map("sold_total") @db.Decimal(12, 2)
+  salePriceGroups   Json?                    @map("sale_price_groups")
+  returnedAt        DateTime?                @map("returned_at")
+  returnedById      String?                  @map("returned_by") @db.Uuid
+  dispatchedAt      DateTime?                @map("dispatched_at")
+  dispatchedById    String?                  @map("dispatched_by") @db.Uuid
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  updatedAt         DateTime                 @updatedAt @map("updated_at")
+  transaction       Transaction              @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  asset             Asset?                   @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  assetModel        AssetModel?              @relation(fields: [assetModelId], references: [id], onDelete: Restrict)
+  returnedBy        User?                    @relation("TransactionItemReturnedBy", fields: [returnedById], references: [id], onDelete: SetNull)
+  dispatchedBy      User?                    @relation("TransactionItemDispatchedBy", fields: [dispatchedById], references: [id], onDelete: SetNull)
+  outcomes          TransactionItemOutcome[]
 
   @@unique([transactionId, assetId])
   @@index([assetId])
+  @@index([assetModelId])
   @@index([transactionId])
   @@index([returnedById])
   @@index([resolvedStatus])
+  @@index([dispatchedById])
   @@map("transaction_items")
+}
+
+model TransactionItemOutcome {
+  id                String          @id @default(uuid()) @db.Uuid
+  transactionItemId String          @map("transaction_item_id") @db.Uuid
+  assetId           String?         @map("asset_id") @db.Uuid
+  outcomeStatus     AssetStatus     @map("outcome_status")
+  returnCondition   AssetCondition? @map("return_condition")
+  quantity          Int             @default(1)
+  note              String?
+  soldPrice         Decimal?        @map("sold_price") @db.Decimal(12, 2)
+  soldTotal         Decimal?        @map("sold_total") @db.Decimal(12, 2)
+  soldTransactionId String?         @map("sold_transaction_id") @db.Uuid
+  resolutionBatchId String?         @map("resolution_batch_id") @db.Uuid
+  approvedAt        DateTime?       @map("approved_at")
+  approvedById      String?         @map("approved_by") @db.Uuid
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+  transactionItem   TransactionItem @relation(fields: [transactionItemId], references: [id], onDelete: Cascade)
+  asset             Asset?          @relation("TransactionOutcomeAsset", fields: [assetId], references: [id], onDelete: Restrict)
+  soldTransaction   Transaction?    @relation("TransactionOutcomeSale", fields: [soldTransactionId], references: [id], onDelete: SetNull)
+  approvedBy        User?           @relation("TransactionOutcomeApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  transaction       Transaction?    @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  transactionId     String?         @map("transaction_id") @db.Uuid
+  checks            ReturnOutcomeCheck[]
+
+  @@index([transactionItemId])
+  @@index([assetId])
+  @@index([soldTransactionId])
+  @@index([resolutionBatchId])
+  @@index([transactionId])
+  @@index([outcomeStatus])
+  @@map("transaction_item_outcomes")
+}
+
+model ReturnBatch {
+  id                 String   @id @db.Uuid
+  transactionId      String   @map("transaction_id") @db.Uuid
+  requestNo          String   @map("request_no")
+  revision           Int      @default(1)
+  state              String   @default("SUBMITTED")
+  damagePdf          Bytes?   @map("damage_pdf")
+  signedPdf          Bytes?   @map("signed_pdf")
+  signedFilename     String?  @map("signed_filename")
+  signedById         String?  @map("signed_by_id") @db.Uuid
+  signedAt           DateTime? @map("signed_at")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  transaction        Transaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  evidence           ReturnBatchEvidence[]
+
+  @@index([transactionId])
+  @@map("return_batches")
+}
+
+model ReturnBatchEvidence {
+  id             String @id @default(uuid()) @db.Uuid
+  batchId        String @map("batch_id") @db.Uuid
+  revision       Int
+  damagePdf      Bytes? @map("damage_pdf")
+  signedPdf      Bytes? @map("signed_pdf")
+  signedFilename String? @map("signed_filename")
+  signedById     String? @map("signed_by_id") @db.Uuid
+  signedAt       DateTime? @map("signed_at")
+  archivedAt     DateTime @default(now()) @map("archived_at")
+  batch          ReturnBatch @relation(fields: [batchId], references: [id], onDelete: Restrict)
+
+  @@unique([batchId, revision])
+  @@map("return_batch_evidence")
+}
+
+model ReturnOutcomeCheck {
+  id          String @id @default(uuid()) @db.Uuid
+  outcomeId   String @map("outcome_id") @db.Uuid
+  userId      String @map("user_id") @db.Uuid
+  checkedAt   DateTime @default(now()) @map("checked_at")
+  note        String? @db.Text
+  outcome     TransactionItemOutcome @relation(fields: [outcomeId], references: [id], onDelete: Cascade)
+
+  @@unique([outcomeId, userId])
+  @@map("return_outcome_checks")
 }
 
 model TransactionApproval {
   id                        String         @id @default(uuid()) @db.Uuid
   transactionId             String         @map("transaction_id") @db.Uuid
+  resolutionBatchId         String?        @map("resolution_batch_id") @db.Uuid
   userId                    String?        @map("user_id") @db.Uuid
   stepSequence              Int            @map("approval_step_sequence")
   requiredTag               String         @map("approval_required_tag")
@@ -606,6 +803,7 @@ model TransactionApproval {
   actedAt                   DateTime?      @map("approval_acted_at")
   comment                   String?        @map("approval_comment")
   status                    ApprovalStatus @default(PENDING) @map("approval_status")
+  isCurrent                 Boolean        @default(true) @map("is_current")
   createdAt                 DateTime       @default(now()) @map("created_at")
   updatedAt                 DateTime       @updatedAt @map("updated_at")
   transaction               Transaction    @relation(fields: [transactionId], references: [id], onDelete: Cascade)
@@ -615,6 +813,7 @@ model TransactionApproval {
   @@index([userId])
   @@index([status])
   @@index([stepSequence])
+  @@index([resolutionBatchId])
   @@map("transaction_approvals")
 }
 

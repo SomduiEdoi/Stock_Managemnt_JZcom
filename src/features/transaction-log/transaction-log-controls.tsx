@@ -1,9 +1,65 @@
 ﻿"use client";
 
-import { useMemo, useState } from "react";
+import { formatProjectLabel } from "@/lib/project-label";
+import { useEffect, useMemo, useState } from "react";
 import { SearchCombobox } from "@/components/form/search-combobox";
+import { InstantFilterForm } from "@/components/form/instant-filter-form";
 import { SearchableDropdown } from "@/components/form/searchable-dropdown";
-import type { TransactionLogFilters, TransactionLogRow } from "@/lib/transaction-log";
+import type {
+  TransactionLogFilters,
+  TransactionLogRow,
+} from "@/lib/transaction-log";
+
+export function buildTransactionLogSearchSuggestions(
+  rows: TransactionLogRow[],
+) {
+  return rows.flatMap((row) => [
+    {
+      category: "REQ",
+      label: row.transactionNo ?? row.id,
+      value: row.transactionNo ?? row.id,
+    },
+    ...[row.project ?? row.sourceTransaction?.project].flatMap((project) =>
+      project ? [
+        { category: "PROJECT", label: formatProjectLabel(project), value: project.name, searchText: `${project.projectId} ${project.customerName}` },
+        { category: "CUSTOMER", label: project.customerName, value: project.customerName },
+      ] : [],
+    ),
+    ...[row.serviceRequest ? row.purpose : row.sourceTransaction?.serviceRequest ? row.sourceTransaction.purpose : null].flatMap((customer) =>
+      customer ? [{ category: "CUSTOMER", label: customer, value: customer }] : [],
+    ),
+    ...(row.requestedBy?.name
+      ? [
+          {
+            category: "BORROWER",
+            label: row.requestedBy.name,
+            searchText: row.requestedBy.email ?? "",
+            value: row.requestedBy.name,
+          },
+        ]
+      : []),
+    ...row.items
+      .filter((item) => item.returnedBy?.name)
+      .map((item) => ({
+        category: "RETURNER",
+        label: item.returnedBy?.name ?? "",
+        searchText: item.returnedBy?.email ?? "",
+        value: item.returnedBy?.name ?? "",
+      })),
+    ...row.items.flatMap((item) =>
+      item.asset
+        ? [
+            {
+              category: "ASSET",
+              label: item.asset.assetModel.name,
+              searchText: `${item.asset.serialNo ?? ""} ${item.asset.stockCode ?? ""}`,
+              value: item.asset.assetModel.name,
+            },
+          ]
+        : [],
+    ),
+  ]);
+}
 
 export function TransactionLogControls({
   filters,
@@ -17,27 +73,14 @@ export function TransactionLogControls({
   statusLabels: Record<string, string>;
 }) {
   const [status, setStatus] = useState(filters.status);
-  const searchSuggestions = useMemo(() => rows.flatMap((row) => [
-    { category: "REQ", label: row.transactionNo ?? row.id, value: row.transactionNo ?? row.id },
-    ...(row.requestedBy?.name ? [{ category: "BORROWER", label: row.requestedBy.name, searchText: row.requestedBy.email ?? "", value: row.requestedBy.name }] : []),
-    ...row.items
-      .filter((item) => item.returnedBy?.name)
-      .map((item) => ({
-        category: "RETURNER",
-        label: item.returnedBy?.name ?? "",
-        searchText: item.returnedBy?.email ?? "",
-        value: item.returnedBy?.name ?? "",
-      })),
-    ...row.items.map((item) => ({
-      category: "ASSET",
-      label: item.asset.assetModel.name,
-      searchText: `${item.asset.serialNo ?? ""} ${item.asset.stockCode ?? ""}`,
-      value: item.asset.assetModel.name,
-    })),
-  ]), [rows]);
+  useEffect(() => { setStatus(filters.status); }, [filters.status]);
+  const searchSuggestions = useMemo(
+    () => buildTransactionLogSearchSuggestions(rows),
+    [rows],
+  );
 
   return (
-    <form
+    <InstantFilterForm
       action="/logs"
       className="rounded-md border border-border bg-white p-4 shadow-sm"
       method="get"
@@ -52,10 +95,12 @@ export function TransactionLogControls({
             { label: "Borrower", value: "BORROWER" },
             { label: "Returner", value: "RETURNER" },
             { label: "Asset", value: "ASSET" },
+            { label: "Project", value: "PROJECT" },
+            { label: "Customer", value: "CUSTOMER" },
           ]}
           defaultValue={filters.search}
           name="q"
-          placeholder="Search transaction, requester, project, warehouse, model, serial no."
+          placeholder="Search transaction, requester, project, customer, warehouse, model, serial no."
           suggestions={searchSuggestions}
         />
 
@@ -75,7 +120,12 @@ export function TransactionLogControls({
           value={status}
         />
 
-        <select className="h-11 rounded-md border border-border bg-white px-3 text-sm" defaultValue={filters.type} name="type">
+        <select
+          className="h-11 rounded-md border border-border bg-white px-3 text-sm"
+          defaultValue={filters.type}
+          key={filters.type}
+          name="type"
+        >
           <option value="ALL">All transaction types</option>
           <option value="BORROW">Borrow</option>
           <option value="USING">Using</option>
@@ -87,6 +137,6 @@ export function TransactionLogControls({
           Search
         </button>
       </div>
-    </form>
+    </InstantFilterForm>
   );
 }

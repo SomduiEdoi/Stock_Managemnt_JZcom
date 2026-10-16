@@ -1,10 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 import {
   apiErrorResponse,
   readJsonBody,
-  requireApiUser,
-} from "@/lib/api";
+  requireApiUser, apiJson } from "@/lib/api";
 import { returnTransactionItems } from "@/lib/workflow";
 
 type RouteContext = {
@@ -30,8 +29,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
       transactionId: id,
     });
 
-    return NextResponse.json({ transaction });
+    return apiJson({ transaction });
   } catch (error) {
     return apiErrorResponse(error);
   }
 }
+

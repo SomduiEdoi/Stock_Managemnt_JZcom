@@ -1,23 +1,17 @@
 "use client";
 
+import { formatProjectLabel } from "@/lib/project-label";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   AlertCircle,
   ArrowRight,
-  CheckCircle2,
   ShoppingBasket,
-  FileDown,
   Loader2,
   Package,
   Trash2,
-  X,
 } from "lucide-react";
-import {
-  type PrintableTransaction,
-} from "@/features/transactions/transaction-document";
 import { SearchableDropdown } from "@/components/form/searchable-dropdown";
-import { downloadTransactionPdf } from "@/features/transactions/transaction-pdf-download";
 import { formatWarehouseName } from "@/lib/display-labels";
 import { organizationTagLabel } from "@/lib/user-management-shared";
 
@@ -25,10 +19,11 @@ type TransactionTypeCode = "BORROW" | "USING" | "SOLD";
 
 export type RequestCartAssetClient = {
   assetModel: {
-    assetType?: { trackMethod: "SERIAL" | "QUANTITY" } | null;
     brand: string | null;
     category: { name: string } | null;
+    description: string | null;
     name: string;
+    partNo: string | null;
     typeName: string | null;
   };
   availableQuantity: number;
@@ -46,6 +41,7 @@ export type RequestCartAssetClient = {
 };
 
 export type RequestCartProjectClient = {
+  customerName: string;
   id: string;
   name: string;
   projectId: string | null;
@@ -75,15 +71,46 @@ function assetLocation(asset: RequestCartAssetClient) {
   return asset.location?.name ?? asset.locationText ?? "-";
 }
 
+type RequestCartGroup = {
+  key: string;
+  assets: RequestCartAssetClient[];
+  representative: RequestCartAssetClient;
+  quantity: number;
+};
+
+function groupRequestAssets(assets: RequestCartAssetClient[]): RequestCartGroup[] {
+  const groups = new Map<string, RequestCartGroup>();
+  for (const asset of assets) {
+    const key = JSON.stringify([
+      asset.warehouse.code,
+      asset.assetModel.category?.name ?? "",
+      asset.assetModel.typeName ?? "",
+      asset.assetModel.name,
+      asset.assetModel.partNo ?? "",
+      asset.assetModel.description ?? "",
+      asset.assetModel.brand ?? "",
+    ]);
+    const group = groups.get(key);
+    if (group) {
+      group.assets.push(asset);
+      group.quantity += asset.requestedQuantity;
+    } else {
+      groups.set(key, { key, assets: [asset], representative: asset, quantity: asset.requestedQuantity });
+    }
+  }
+  return [...groups.values()];
+}
+
 function RequestItemCard({
-  asset,
+  group,
   isRemoving,
   onRemove,
 }: {
-  asset: RequestCartAssetClient;
+  group: RequestCartGroup;
   isRemoving: boolean;
-  onRemove: (assetId: string) => void;
+  onRemove: (assetIds: string[]) => void;
 }) {
+  const asset = group.representative;
   return (
     <article className="grid gap-4 rounded-md border border-border bg-white p-4 shadow-sm md:grid-cols-[56px_1fr_auto]">
       <span className="flex h-14 w-14 items-center justify-center rounded-md bg-navy text-white">
@@ -97,20 +124,21 @@ function RequestItemCard({
           </span>
         </div>
         <p className="mt-2 text-sm font-medium text-muted-foreground">
-          {asset.assetModel.brand ?? "-"} / SN {asset.serialNo ?? "-"}
+          {[asset.assetModel.category?.name, asset.assetModel.typeName, asset.assetModel.brand, asset.assetModel.partNo]
+            .filter(Boolean).join(" / ") || "-"}
         </p>
         <p className="mt-1 text-xs font-semibold text-muted-foreground">
           Location: {assetLocation(asset)}
         </p>
         <p className="mt-1 text-xs font-semibold text-muted-foreground">
-          Qty: {asset.requestedQuantity.toLocaleString("en-US")}
+          Qty: {group.quantity.toLocaleString("en-US")}
         </p>
       </div>
       <button
-        aria-label={`Remove ${asset.serialNo ?? asset.assetModel.name}`}
+        aria-label={`Remove ${asset.assetModel.name}`}
         className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-status-fail hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50"
         disabled={isRemoving}
-        onClick={() => onRemove(asset.id)}
+        onClick={() => onRemove(group.assets.map((item) => item.id))}
         type="button"
       >
         {isRemoving ? (
@@ -129,7 +157,7 @@ function EmptyRequestList() {
       <ShoppingBasket className="mx-auto h-10 w-10 text-muted-foreground" />
       <h3 className="mt-4 text-lg font-bold text-navy">Request list is empty</h3>
       <p className="mt-2 text-sm font-medium text-muted-foreground">
-        Select ready assets from inventory before submitting a request.
+        Select items and quantities from inventory before submitting a request.
       </p>
     </div>
   );
@@ -145,16 +173,17 @@ function RequestList({
   assets: RequestCartAssetClient[];
   isClearing: boolean;
   onClearAll: () => void;
-  onRemove: (assetId: string) => void;
+  onRemove: (assetIds: string[]) => void;
   removingAssetId: string | null;
 }) {
+  const groups = groupRequestAssets(assets);
   return (
     <section className="rounded-md border border-border bg-white p-4 shadow-sm">
       <div className="mb-4 flex items-center justify-between gap-4 border-b border-border pb-3">
         <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-          Request List ({assets.length})
+          Request List ({groups.length})
         </p>
-        {assets.length > 0 ? (
+        {groups.length > 0 ? (
           <button
             className="text-sm font-bold text-brand-accent hover:text-navy disabled:opacity-50"
             disabled={isClearing}
@@ -166,14 +195,14 @@ function RequestList({
         ) : null}
       </div>
       <div className="flex flex-col gap-3">
-        {assets.length === 0 ? (
+        {groups.length === 0 ? (
           <EmptyRequestList />
         ) : (
-          assets.map((asset) => (
+          groups.map((group) => (
             <RequestItemCard
-              asset={asset}
-              isRemoving={removingAssetId === asset.id || isClearing}
-              key={asset.id}
+              group={group}
+              isRemoving={group.assets.some((asset) => removingAssetId === asset.id) || isClearing}
+              key={group.key}
               onRemove={onRemove}
             />
           ))
@@ -218,7 +247,6 @@ function TransactionForm({
   onServiceRequestChange,
   onSubmit,
   onTypeChange,
-  onSoldPriceChange,
   projectId,
   projectRequest,
   projects,
@@ -226,7 +254,6 @@ function TransactionForm({
   requestContextAssignmentId,
   requestContextOptions,
   serviceRequest,
-  soldPrice,
   type,
 }: {
   assetCount: number;
@@ -253,15 +280,12 @@ function TransactionForm({
     value: string;
   }>;
   serviceRequest: boolean;
-  soldPrice: string;
-  onSoldPriceChange: (value: string) => void;
   type: TransactionTypeCode;
 }) {
   const showReferenceName = type !== "USING";
   const projectOptions = projects.map((project) => ({
-    description: project.projectId ?? undefined,
-    label: project.name,
-    searchText: [project.name, project.projectId].filter(Boolean).join(" "),
+    label: formatProjectLabel(project),
+    searchText: [project.name, project.projectId, project.customerName].filter(Boolean).join(" "),
     value: project.id,
   }));
 
@@ -349,19 +373,13 @@ function TransactionForm({
                 Project <RequiredMark />
               </span>
               <SearchableDropdown
-                emptyText="No active projects found."
+                emptyText="No participating projects found."
                 onChange={onProjectChange}
                 options={projectOptions}
                 placeholder="Select project"
                 searchPlaceholder="Search project"
                 value={projectId}
               />
-            </label>
-          ) : null}
-          {type === "SOLD" ? (
-            <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-              <span>Price <RequiredMark /></span>
-              <input className="h-11 rounded-md border border-border bg-white px-3 text-sm font-semibold normal-case tracking-normal text-ink outline-none ring-brand-accent/20 focus:ring-4" inputMode="decimal" onChange={(event) => onSoldPriceChange(event.target.value)} placeholder="Enter price before approval" value={soldPrice} />
             </label>
           ) : null}
           <label className="flex flex-col gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
@@ -416,88 +434,9 @@ function RequiredMark() {
   return <span className="text-status-fail">*</span>;
 }
 
-function SubmitDialog({
-  onClose,
-  transaction,
-}: {
-  onClose: () => void;
-  transaction: PrintableTransaction;
-}) {
-  const router = useRouter();
-  const [isExporting, setIsExporting] = useState(false);
-
-  async function handleExport() {
-    if (!transaction.id) {
-      return;
-    }
-
-    setIsExporting(true);
-
-    try {
-      await downloadTransactionPdf(transaction.id);
-    } finally {
-      setIsExporting(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <section className="w-full max-w-md rounded-md border border-border bg-white p-6 shadow-xl">
-        <div className="flex items-start justify-between gap-4">
-          <span className="flex h-11 w-11 items-center justify-center rounded-md bg-status-ready/15 text-status-ready">
-            <CheckCircle2 className="h-6 w-6" />
-          </span>
-          <button
-            aria-label="Close"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-surface hover:text-navy"
-            onClick={onClose}
-            type="button"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <h2 className="mt-5 text-2xl font-bold text-navy">Request Submitted</h2>
-        <p className="mt-2 text-sm font-semibold text-muted-foreground">
-          {transaction.transactionNo ?? transaction.id}
-        </p>
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <button
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-navy px-4 text-sm font-bold text-white hover:bg-black"
-            disabled={isExporting || !transaction.id}
-            onClick={handleExport}
-            type="button"
-          >
-            {isExporting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <FileDown className="h-4 w-4" />
-            )}
-            Export PDF
-          </button>
-          <button
-            className="inline-flex h-11 items-center justify-center rounded-md border border-border bg-white px-4 text-sm font-bold text-navy hover:bg-surface"
-            onClick={onClose}
-            type="button"
-          >
-            Not Now
-          </button>
-        </div>
-        <button
-          className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-md border border-border bg-white px-4 text-sm font-bold text-navy hover:bg-surface"
-          onClick={() => router.push("/logs")}
-          type="button"
-        >
-          View Transaction Log
-        </button>
-      </section>
-    </div>
-  );
-}
-
 async function readApiMessage(response: Response) {
   const data = (await response.json().catch(() => ({}))) as {
     message?: string;
-    transaction?: PrintableTransaction;
   };
 
   if (!response.ok) {
@@ -515,7 +454,6 @@ export function RequestCartClient({
   const [assets, setAssets] = useState(initialAssets);
   const [error, setError] = useState<string | null>(null);
   const [type, setType] = useState<TransactionTypeCode>("BORROW");
-  const [soldPrice, setSoldPrice] = useState("");
   const internalRequest = type === "USING";
   const [isClearing, setIsClearing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -531,7 +469,7 @@ export function RequestCartClient({
     primaryAssignment?.id ?? "",
   );
   const [serviceRequest, setServiceRequest] = useState(false);
-  const [submitted, setSubmitted] = useState<PrintableTransaction | null>(null);
+  const router = useRouter();
   const requestContextOptions = organizationAssignments.map((assignment) => ({
     description: assignment.isPrimary ? "Primary" : undefined,
     label: `${assignment.organizationLevel} / ${organizationTagLabel(assignment.organizationTag)}`,
@@ -587,12 +525,12 @@ export function RequestCartClient({
     setAssets((current) => current.filter((asset) => !assetIds.includes(asset.id)));
   }
 
-  async function handleRemove(assetId: string) {
+  async function handleRemove(assetIds: string[]) {
     setError(null);
-    setRemovingAssetId(assetId);
+    setRemovingAssetId(assetIds[0] ?? null);
 
     try {
-      await releaseAssets([assetId]);
+      await releaseAssets(assetIds);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to remove asset.");
     } finally {
@@ -639,25 +577,11 @@ export function RequestCartClient({
     if (type !== "USING" && !serviceRequest && !projectRequest) {
       missingFields.push("Service / Project");
     }
-    if (type === "SOLD" && !soldPrice.trim()) missingFields.push("Price");
-
-
     if (missingFields.length > 0) {
       return `Please complete: ${missingFields.join(", ")}.`;
     }
 
     return null;
-  }
-
-  async function fetchPrintableTransaction(transaction: PrintableTransaction) {
-    if (!transaction.id) {
-      return transaction;
-    }
-
-    const response = await fetch(`/api/transactions/${transaction.id}`);
-    const data = await readApiMessage(response);
-
-    return data.transaction ?? transaction;
   }
 
   async function handleSubmit() {
@@ -685,16 +609,15 @@ export function RequestCartClient({
           purpose: type === "USING" ? "Internal use" : projectRequest ? projects.find((project) => project.id === projectId)?.name ?? "Project" : referenceName,
           requestContextAssignmentId: requestContextAssignmentId || null,
           serviceRequest: type === "USING" ? false : serviceRequest,
-          soldPrice: type === "SOLD" ? soldPrice.trim() : null,
+          soldPrice: null,
           type,
         }),
         headers: { "Content-Type": "application/json" },
         method: "POST",
       });
-      const data = await readApiMessage(response);
-      const transaction = await fetchPrintableTransaction(data.transaction ?? {});
+      await readApiMessage(response);
       setAssets([]);
-      setSubmitted(transaction);
+      router.push("/logs");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to submit request.");
     } finally {
@@ -713,7 +636,7 @@ export function RequestCartClient({
           removingAssetId={removingAssetId}
         />
         <TransactionForm
-          assetCount={assets.length}
+          assetCount={assets.reduce((sum, asset) => sum + asset.requestedQuantity, 0)}
           error={error}
           isSubmitting={isSubmitting}
           note={note}
@@ -723,7 +646,6 @@ export function RequestCartClient({
           onRequestContextChange={setRequestContextAssignmentId}
           onReferenceChange={setReferenceName}
           onServiceRequestChange={handleServiceRequestChange}
-          onSoldPriceChange={setSoldPrice}
           onSubmit={handleSubmit}
           onTypeChange={handleTypeChange}
           projectId={projectId}
@@ -733,16 +655,9 @@ export function RequestCartClient({
           requestContextAssignmentId={requestContextAssignmentId}
           requestContextOptions={requestContextOptions}
           serviceRequest={serviceRequest}
-          soldPrice={soldPrice}
           type={type}
         />
       </div>
-      {submitted ? (
-        <SubmitDialog
-          onClose={() => setSubmitted(null)}
-          transaction={submitted}
-        />
-      ) : null}
     </div>
   );
 }

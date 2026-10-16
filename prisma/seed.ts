@@ -1,6 +1,5 @@
 import bcrypt from "bcryptjs";
 import {
-  AssetTrackMethod,
   type OrganizationLevel,
   type OrganizationTag,
   PrismaClient,
@@ -49,8 +48,8 @@ const seedUsers: SeedUser[] = [
   {
     name: "Joy",
     email: "joy@example.com",
-    position: "Sale Stock Controller",
-    roleCode: "STOCK_CONTROLLER",
+    position: "Sale Storeman",
+    roleCode: "STOREMAN",
     organizationLevel: "STAFF",
     organizationTag: "BSD_STAFF",
     permissions: [
@@ -62,10 +61,10 @@ const seedUsers: SeedUser[] = [
     ],
   },
   {
-    name: "Server Stock Controller",
+    name: "Server Storeman",
     email: "server@example.com",
-    position: "Server Stock Controller",
-    roleCode: "STOCK_CONTROLLER",
+    position: "Server Storeman",
+    roleCode: "STOREMAN",
     organizationLevel: "STAFF",
     organizationTag: "S1_STAFF",
     permissions: [
@@ -76,10 +75,10 @@ const seedUsers: SeedUser[] = [
     ],
   },
   {
-    name: "Network Stock Controller",
+    name: "Network Storeman",
     email: "network@example.com",
-    position: "Network Stock Controller",
-    roleCode: "STOCK_CONTROLLER",
+    position: "Network Storeman",
+    roleCode: "STOREMAN",
     organizationLevel: "STAFF",
     organizationTag: "N1_STAFF",
     permissions: [
@@ -90,10 +89,10 @@ const seedUsers: SeedUser[] = [
     ],
   },
   {
-    name: "Server Head Stock Controller",
+    name: "Server Warehouse Manager",
     email: "server-head@example.com",
-    position: "Server Head Stock Controller",
-    roleCode: "STOCK_CONTROLLER",
+    position: "Server Warehouse Manager",
+    roleCode: "STOREMAN",
     organizationLevel: "MANAGER",
     organizationTag: "SCN_MANAGER",
     permissions: [
@@ -104,10 +103,10 @@ const seedUsers: SeedUser[] = [
     ],
   },
   {
-    name: "Network Head Stock Controller",
+    name: "Network Warehouse Manager",
     email: "network-head@example.com",
-    position: "Network Head Stock Controller",
-    roleCode: "STOCK_CONTROLLER",
+    position: "Network Warehouse Manager",
+    roleCode: "STOREMAN",
     organizationLevel: "MANAGER",
     organizationTag: "SCN_MANAGER",
     permissions: [
@@ -224,7 +223,7 @@ const organizationChartUsers: SeedUser[] = [
     name: "Suriya K.",
     email: "suriya@example.com",
     position: "Delivery & Client Asst.Manager",
-    roleCode: "USER",
+    roleCode: "STOREMAN",
     organizationLevel: "MANAGER",
     organizationTag: "DL_MANAGER",
     permissions: allViewerPermissions,
@@ -389,8 +388,8 @@ async function upsertRoles() {
       description: "Can manage all warehouses, users, imports, and settings.",
     },
     {
-      code: "STOCK_CONTROLLER",
-      name: "Stock Controller",
+      code: "STOREMAN",
+      name: "Storeman",
       description: "Can manage assigned inventory warehouses and view other allowed warehouses.",
     },
     {
@@ -422,14 +421,12 @@ async function upsertWarehouses() {
         name: "Server",
         prefix: "SV",
         description: "Server hardware, parts, and accessories.",
-        inventoryFamily: AssetTrackMethod.SERIAL,
       },
       create: {
         code: "SERVER",
         name: "Server",
         prefix: "SV",
         description: "Server hardware, parts, and accessories.",
-        inventoryFamily: AssetTrackMethod.SERIAL,
       },
     }),
     prisma.assetWarehouse.upsert({
@@ -438,14 +435,12 @@ async function upsertWarehouses() {
         name: "Network",
         prefix: "NW",
         description: "Network hardware, modules, cables, and accessories.",
-        inventoryFamily: AssetTrackMethod.SERIAL,
       },
       create: {
         code: "NETWORK",
         name: "Network",
         prefix: "NW",
         description: "Network hardware, modules, cables, and accessories.",
-        inventoryFamily: AssetTrackMethod.SERIAL,
       },
     }),
     prisma.assetWarehouse.upsert({
@@ -453,14 +448,12 @@ async function upsertWarehouses() {
       update: {
         name: "BSD",
         description: "Business Support Dept. hardware stock.",
-        inventoryFamily: AssetTrackMethod.QUANTITY,
       },
       create: {
         code: "BSD",
         name: "BSD",
         prefix: "BS",
         description: "Business Support Dept. hardware stock.",
-        inventoryFamily: AssetTrackMethod.QUANTITY,
       },
     }),
     prisma.assetWarehouse.upsert({
@@ -468,14 +461,12 @@ async function upsertWarehouses() {
       update: {
         name: "DL",
         description: "Delivery and Client warehouse stock.",
-        inventoryFamily: AssetTrackMethod.QUANTITY,
       },
       create: {
         code: "DL",
         name: "DL",
         prefix: "DL",
         description: "Delivery and Client warehouse stock.",
-        inventoryFamily: AssetTrackMethod.QUANTITY,
       },
     }),
     prisma.assetWarehouse.upsert({
@@ -484,14 +475,12 @@ async function upsertWarehouses() {
         name: "Sale Stock",
         prefix: "SS",
         description: "Sale stock warehouse for BSD hardware.",
-        inventoryFamily: AssetTrackMethod.QUANTITY,
       },
       create: {
         code: "SALE_STOCK",
         name: "Sale Stock",
         prefix: "SS",
         description: "Sale stock warehouse for BSD hardware.",
-        inventoryFamily: AssetTrackMethod.QUANTITY,
       },
     }),
   ]);
@@ -543,13 +532,12 @@ async function upsertSaleStockTaxonomy(warehouseId: string) {
 
     await prisma.assetType.upsert({
       where: { categoryId_name: { categoryId, name: item.type } },
-      update: { code: item.typeCode, isActive: true, trackMethod: AssetTrackMethod.QUANTITY },
+      update: { code: item.typeCode, isActive: true },
       create: {
         categoryId,
         code: item.typeCode,
         isActive: true,
         name: item.type,
-        trackMethod: AssetTrackMethod.QUANTITY,
       },
     });
   }
@@ -600,13 +588,12 @@ async function upsertBsdTaxonomy(warehouseId: string) {
 
     await prisma.assetType.upsert({
       where: { categoryId_name: { categoryId, name: item.type } },
-      update: { isActive: true, trackMethod: AssetTrackMethod.QUANTITY },
+      update: { isActive: true },
       create: {
         categoryId,
         code: item.code,
         isActive: true,
         name: item.type,
-        trackMethod: AssetTrackMethod.QUANTITY,
       },
     });
   }
@@ -654,13 +641,12 @@ async function upsertDlTaxonomy(warehouseId: string) {
 
     await prisma.assetType.upsert({
       where: { categoryId_name: { categoryId, name: item.type } },
-      update: { isActive: true, trackMethod: AssetTrackMethod.QUANTITY },
+      update: { isActive: true },
       create: {
         categoryId,
         code: item.code,
         isActive: true,
         name: item.type,
-        trackMethod: AssetTrackMethod.QUANTITY,
       },
     });
   }

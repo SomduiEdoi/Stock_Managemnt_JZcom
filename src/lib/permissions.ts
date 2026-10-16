@@ -67,6 +67,8 @@ export function canRequestWarehouseForUser(
 ) {
   return (
     hasAnyRole(user, requestRoleCodes) &&
+    !hasRole(user, "STOREMAN") &&
+    !user.permissions.some((permission) => permission.canManage) &&
     canViewWarehouseForUser(user, warehouseCode)
   );
 }

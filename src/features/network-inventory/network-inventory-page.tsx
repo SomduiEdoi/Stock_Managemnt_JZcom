@@ -251,6 +251,10 @@ export default async function NetworkInventoryPage({
   const selectedCategory = filters.categories.length === 1
     ? result.filterOptions.categoryGroups.find((category) => category.name === filters.categories[0])
     : undefined;
+  const exportCustomFields = selectedCategory
+    ? selectedCategory.customFields
+    : result.filterOptions.categoryGroups.flatMap((category) => category.customFields)
+      .filter((field, index, fields) => fields.findIndex((candidate) => candidate.key === field.key) === index);
 
   return (
     <div className="flex flex-col gap-6">
@@ -288,12 +292,14 @@ export default async function NetworkInventoryPage({
       <RequestableInventoryTable
         activeSort={{ by: filters.sortBy, direction: filters.sortDirection }}
         canChangeStatus={canChangeAssetStatusForUser(user, "NETWORK")}
+        canRecommend={canChangeAssetStatusForUser(user, "NETWORK")}
         canDelete={canDeleteAssetsForUser(user, "NETWORK")}
         canRequest={canRequestWarehouseForUser(user, "NETWORK")}
+        warehouseCode="NETWORK"
+        favoriteOnly={filters.favoriteOnly}
         warehouseLabel="Network"
         categoryName={selectedCategory?.name}
-        customFieldDefinitions={selectedCategory?.customFields.map((field) => ({ key: field.key, label: field.label, unit: field.unit })) ?? []}
-        inventoryFamily="SERIAL"
+        customFieldDefinitions={exportCustomFields.map((field) => ({ key: field.key, label: field.label, unit: field.unit }))}
         rows={result.rows}
         sortLinks={buildNetworkSortLinks(filters)}
       />

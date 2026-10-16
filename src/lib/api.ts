@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
+import { Prisma } from "@prisma/client";
 import { getUserFromSessionToken } from "@/lib/auth";
 import { PermissionError } from "@/lib/permissions";
 import { SESSION_COOKIE_NAME } from "@/lib/session";
@@ -21,23 +22,32 @@ export async function readJsonBody(request: NextRequest) {
   return request.json().catch(() => ({}));
 }
 
+export function apiJson<T>(body: T, init?: ResponseInit) {
+  const response = NextResponse.json(body, init);
+  response.headers.set("Content-Type", "application/json; charset=utf-8");
+  return response;
+}
+
 export function apiErrorResponse(error: unknown) {
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+    return apiJson({ code: "CONCURRENT_UPDATE", message: "This request changed while you were submitting. Refresh and try again." }, { status: 409 });
+  }
   if (error instanceof ZodError) {
-    return NextResponse.json(
+    return apiJson(
       { issues: error.flatten(), message: "Invalid request body." },
       { status: 400 },
     );
   }
 
   if (error instanceof PermissionError) {
-    return NextResponse.json(
+    return apiJson(
       { message: error.message },
       { status: error.statusCode },
     );
   }
 
   if (error instanceof WorkflowError) {
-    return NextResponse.json(
+    return apiJson(
       { code: error.code, message: error.message },
       { status: error.statusCode },
     );
@@ -45,7 +55,7 @@ export function apiErrorResponse(error: unknown) {
 
   console.error(error);
 
-  return NextResponse.json(
+  return apiJson(
     { message: "Internal server error." },
     { status: 500 },
   );

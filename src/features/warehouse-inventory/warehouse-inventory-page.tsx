@@ -208,13 +208,16 @@ export async function WarehouseInventoryPage({ warehouseCode, searchParams }: Wa
 
   const warehouseName = result.warehouse.name || result.warehouse.code;
   const href = baseHref(result.warehouse.code);
-  const inventoryFamily = result.warehouse.inventoryFamily;
   const addAssetHref = canManageWarehouseForUser(user, result.warehouse.code)
     ? `/dashboard/assets/new?warehouse=${encodeURIComponent(result.warehouse.code)}`
     : null;
   const selectedCategory = filters.categories.length === 1
     ? result.filterOptions.categoryGroups.find((category) => category.name === filters.categories[0])
     : undefined;
+  const exportCustomFields = selectedCategory
+    ? selectedCategory.customFields
+    : result.filterOptions.categoryGroups.flatMap((category) => category.customFields)
+      .filter((field, index, fields) => fields.findIndex((candidate) => candidate.key === field.key) === index);
 
   return (
     <div className="flex flex-col gap-6">
@@ -253,12 +256,14 @@ export async function WarehouseInventoryPage({ warehouseCode, searchParams }: Wa
       <RequestableInventoryTable
         activeSort={{ by: filters.sortBy, direction: filters.sortDirection }}
         canChangeStatus={canChangeAssetStatusForUser(user, result.warehouse.code)}
+        canRecommend={canChangeAssetStatusForUser(user, result.warehouse.code)}
         canDelete={canDeleteAssetsForUser(user, result.warehouse.code)}
         canRequest={canRequestWarehouseForUser(user, result.warehouse.code)}
+        warehouseCode={result.warehouse.code}
+        favoriteOnly={filters.favoriteOnly}
         warehouseLabel={warehouseName}
         categoryName={selectedCategory?.name}
-        customFieldDefinitions={selectedCategory?.customFields.map((field) => ({ key: field.key, label: field.label, unit: field.unit })) ?? []}
-        inventoryFamily={inventoryFamily}
+        customFieldDefinitions={exportCustomFields.map((field) => ({ key: field.key, label: field.label, unit: field.unit }))}
         rows={result.rows}
         sortLinks={buildSortLinks(result.warehouse.code, filters)}
       />

@@ -1,11 +1,11 @@
-﻿import { AssetStatus } from "@prisma/client";
-import { NextRequest, NextResponse } from "next/server";
+import { AssetStatus } from "@prisma/client";
+import { AssetTrackMethod } from "@/lib/asset-tracking";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 import {
   apiErrorResponse,
   readJsonBody,
-  requireApiUser,
-} from "@/lib/api";
+  requireApiUser, apiJson } from "@/lib/api";
 import { createAssetForUser } from "@/lib/asset-edit";
 
 const nullableString = (max: number) =>
@@ -20,12 +20,11 @@ const createAssetSchema = z.object({
   warehouseCode: z.string().trim().min(1).max(32),
   imageRef: z.string().trim().max(2_000_000).optional().nullable(),
   isActive: z.boolean().optional(),
-  legacyFg: z.number().int().nullable().optional(),
-  legacyQty: z.number().int().nullable().optional(),
   locationCode: nullableString(255),
   locationName: z.string().trim().min(1).max(255),
   locationText: z.string().trim().min(1).max(255),
   modelName: z.string().trim().min(1).max(255),
+  modelTrackMethod: z.nativeEnum(AssetTrackMethod).optional(),
   modelNo: nullableString(255),
   note: z.string().trim().max(2000).optional().nullable(),
   partNo: nullableString(255),
@@ -33,7 +32,7 @@ const createAssetSchema = z.object({
   sourceRecordId: nullableString(255),
   sourceSystem: nullableString(255),
   status: z.nativeEnum(AssetStatus),
-  quantity: z.coerce.number().int().positive().optional().nullable(),
+  quantity: z.coerce.number().int().nonnegative().optional().nullable(),
   typeName: z.string().trim().min(1).max(255),
 });
 
@@ -43,11 +42,12 @@ export async function POST(request: NextRequest) {
     const body = createAssetSchema.parse(await readJsonBody(request));
     const asset = await createAssetForUser(user, body);
 
-    return NextResponse.json({ asset }, { status: 201 });
+    return apiJson({ asset }, { status: 201 });
   } catch (error) {
     return apiErrorResponse(error);
   }
 }
+
 
 
 

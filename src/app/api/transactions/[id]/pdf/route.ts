@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { apiErrorResponse, requireApiUser } from "@/lib/api";
-import { getTransactionExportForUser } from "@/lib/transaction-export";
-import { renderTransactionPdf } from "@/lib/transaction-pdf";
+import { getTransactionExportForUser, renderTransactionExportPdf } from "@/lib/transaction-export";
 import { WorkflowError } from "@/lib/workflow";
 
 export const runtime = "nodejs";
@@ -27,7 +26,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       throw new WorkflowError("Transaction not found.", 404);
     }
 
-    const pdf = await renderTransactionPdf(transaction);
+    const pdf = await renderTransactionExportPdf(transaction);
     const referenceNo = transaction.transactionNo ?? transaction.id;
 
     return new NextResponse(

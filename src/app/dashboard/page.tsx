@@ -364,7 +364,7 @@ export default async function DashboardPage({
   const recentTab = normalizeDashboardRecentTab(params.recent);
   const overview = await getDashboardOverviewForUser(user, recentTab);
   const canSeeProblemItems =
-    user.roles.includes("ADMIN") || user.roles.includes("STOCK_CONTROLLER");
+    user.roles.includes("ADMIN") || user.roles.includes("STOREMAN");
   const readyPercent =
     overview.metrics.totalAssets > 0
       ? Math.round(

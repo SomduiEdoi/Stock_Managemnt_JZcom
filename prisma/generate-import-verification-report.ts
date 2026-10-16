@@ -27,12 +27,12 @@ async function main() {
       serialNo: true,
       stockCode: true,
       status: true,
-      warehouse: { select: { code: true, name: true, inventoryFamily: true, prefix: true } },
+      warehouse: { select: { code: true, name: true, prefix: true } },
       assetModel: {
         select: {
           name: true,
           category: { select: { name: true, code: true } },
-          assetType: { select: { name: true, code: true, trackMethod: true } },
+          assetType: { select: { name: true, code: true } },
         },
       },
     },
@@ -54,7 +54,7 @@ async function main() {
 
   const byWarehouse = warehouses.map((warehouse) => {
     const rows = assets.filter((asset) => asset.warehouse.code === warehouse.code);
-    return [warehouse.code, warehouse.name, warehouse.inventoryFamily, rows.length];
+    return [warehouse.code, warehouse.name, rows.length];
   });
   const byCategoryType = new Map<string, number>();
   for (const asset of assets) {
@@ -103,7 +103,7 @@ ${table(["Metric", "Count"], [
 
 ## Rows per Warehouse
 
-${table(["Warehouse Code", "Warehouse", "Family", "Active Assets"], byWarehouse)}
+${table(["Warehouse Code", "Warehouse", "Active Assets"], byWarehouse)}
 
 ## Rows per Warehouse / Category / Type
 

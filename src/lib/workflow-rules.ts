@@ -70,7 +70,6 @@ export const transactionItemResolutionStatuses = [
   AssetStatus.SOLD,
   AssetStatus.FAIL,
   AssetStatus.LOST,
-  AssetStatus.NEED_CHECK,
 ] as const satisfies readonly AssetStatus[];
 
 export function isTransactionItemResolutionStatus(status: AssetStatus) {

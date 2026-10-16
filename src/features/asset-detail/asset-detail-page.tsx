@@ -18,6 +18,10 @@ import {
 } from "lucide-react";
 import type { AssetDetailRecord } from "@/lib/asset-detail";
 import { AssetStatusBadge } from "@/components/status/asset-status-badge";
+import { getEffectiveAssetTrackMethod } from "@/lib/asset-tracking";
+import { formatProjectLabel } from "@/lib/project-label";
+import { formatTransactionReference } from "@/lib/transaction-reference";
+import { readableNote } from "@/lib/readable-note";
 
 const actionLabels = {
   CREATE: "Create",
@@ -227,7 +231,7 @@ function AssetDetails({ asset }: { asset: AssetDetailRecord }) {
             Remark
           </h3>
           <p className="mt-2 whitespace-pre-wrap text-sm font-medium leading-6 text-ink">
-            {asset.note || "-"}
+            {readableNote(asset.note)}
           </p>
         </div>
       </div>
@@ -236,7 +240,7 @@ function AssetDetails({ asset }: { asset: AssetDetailRecord }) {
 }
 
 function SummaryTiles({ asset }: { asset: AssetDetailRecord }) {
-  const isQuantityAsset = asset.warehouse.inventoryFamily === "QUANTITY";
+  const isQuantityAsset = getEffectiveAssetTrackMethod(asset) === "QUANTITY";
   const availabilityValue = `${asset.availableQuantity.toLocaleString("en-US")} / ${asset.totalQuantity.toLocaleString("en-US")}`;
   const availabilityTitle = asset.reservedQuantity > 0
     ? `${availabilityValue} (${asset.reservedQuantity.toLocaleString("en-US")} reserved)`
@@ -290,7 +294,7 @@ function HistoryTable({ asset }: { asset: AssetDetailRecord }) {
               <th className="px-5 py-4 font-bold">Date</th>
               <th className="px-5 py-4 font-bold">Status Change</th>
               <th className="px-5 py-4 font-bold">Action</th>
-              <th className="px-5 py-4 font-bold">Transaction</th>
+              <th className="px-5 py-4 font-bold">Customer / Project</th>
               <th className="px-5 py-4 font-bold">Note</th>
             </tr>
           </thead>
@@ -312,12 +316,20 @@ function HistoryRow({
   history: AssetDetailRecord["statusHistories"][number];
 }) {
   const transaction = history.transaction;
-  const transactionText = transaction ? transaction.type : "-";
+  const project = transaction?.project ?? transaction?.sourceTransaction?.project;
+  const transactionText = project ? formatProjectLabel(project)
+    : transaction?.serviceRequest ? transaction.purpose
+    : transaction?.sourceTransaction?.serviceRequest ? transaction.sourceTransaction.purpose : "-";
+  const reference = transaction ? formatTransactionReference(transaction) : "-";
 
   return (
     <tr className="align-top">
       <td className="px-5 py-4 font-bold text-navy">
-        {transaction?.transactionNo ?? "-"}
+        {transaction && reference !== "-" ? (
+          <Link className="hover:text-brand-accent hover:underline" href={`/logs/${transaction.sourceTransactionId && !transaction.transactionNo ? transaction.sourceTransactionId : transaction.id}/return`}>
+            {reference}
+          </Link>
+        ) : "-"}
       </td>
       <td className="px-5 py-4 text-ink">
         {personName(transaction?.requestedBy)}
@@ -334,7 +346,7 @@ function HistoryRow({
       </td>
       <td className="px-5 py-4 text-muted-foreground">{transactionText}</td>
       <td className="max-w-[280px] px-5 py-4 text-muted-foreground">
-        {history.note ?? transaction?.purpose ?? "-"}
+        {readableNote(history.note ?? transaction?.purpose)}
       </td>
     </tr>
   );

@@ -1,248 +1,158 @@
-# PRD: Warehouse Management
+# PRD: Warehouse Management System
 
-อัปเดตล่าสุด: 2026-09-04
+ข้อกำหนดผลิตภัณฑ์นี้อธิบายระบบที่กำหนดโดย `prisma/schema.prisma` และโค้ดใน `src/` อ่านโครงสร้างข้อมูลและตำแหน่งโค้ดใน [Design](design.md) และ invariants ใน [Rules](rule.md)
 
-## 1. Product Summary
+## 1. ขอบเขต
 
-Warehouse Management เป็นระบบจัดการ asset และ Warehouse ภายในองค์กร ตั้งแต่การนำข้อมูลเข้าฐานข้อมูล, Inventory, Request Cart, Borrow/Using/Sold, Return, Approval, Project, Transaction History, Asset Status History และ PDF
+Warehouse Management System (WMS) จัดการสินค้าหลายคลัง ตั้งแต่ทะเบียนรุ่นและยอดพร้อมเบิก การจองและคำขอ การอนุมัติ การจ่าย การคืนบางส่วน การขาย เอกสาร และประวัติการเคลื่อนไหว PostgreSQL เป็นแหล่งข้อมูล runtime ที่ Next.js เข้าถึงผ่าน Prisma
 
-## 2. Source of Truth
+**Hybrid Inventory Model:** `AssetModel.isSerialized` ระบุว่ารุ่นรองรับ Serial แต่ Asset เป็น `SERIAL` เฉพาะเมื่อ `isSerialized = true` และมี `serialNo` จริง หากไม่มี Serial ให้ใช้ `QUANTITY` และนับด้วย `assetQuantity` แม้รุ่นกำหนด `isSerialized = true` การติดตามแบบ Serial มีจำนวนหนึ่งต่อ Asset; Quantity Pool เก็บจำนวนในแถวสต๊อก
 
-- CSV เป็น master data
-- เมื่อ migrate สำเร็จ ข้อมูลถาวรทั้งหมดอยู่ใน PostgreSQL
-- Runtime ต้องติดต่อ PostgreSQL โดยตรง
-- Transaction, approval, reservation, quantity movement และ status history ต้องตรวจสอบย้อนหลังได้
-- Business workflow ห้ามลบ asset; ให้เปลี่ยนสถานะและบันทึกประวัติ
+**สภาพสินค้า:** `Asset.condition` เป็น `NEW` หรือ `USED` แยกจาก `Asset.status` ซึ่งบอกสถานะการใช้งาน สินค้า Quantity ที่คืนเป็น USED เข้าคลังในสถานะ `READY` และ condition `USED`
 
-## 3. Roles and Context
+## 2. ผู้ใช้และบริบท
 
-System role มีสามแบบ:
-
-| Role | Scope |
+| บทบาท/บริบท | สิทธิ์และหน้าที่ |
 | --- | --- |
-| `ADMIN` | จัดการระบบ, User, Warehouse, master data, Project และ override |
-| `STOCK_CONTROLLER` | ดูแล asset/category/type/status ตาม Warehouse permission |
-| `USER` | ดู Inventory/Log, ส่งคำขอ และ approve ตาม context |
+| ADMIN | จัดการผู้ใช้ คลัง Master Data และ Project ตาม Server permission; ไม่ได้เป็นผู้ขอเดิมโดยอัตโนมัติ |
+| STOREMAN | จัดการ/ตรวจ/อนุมัติในคลังที่ได้รับมอบหมายตาม canManage |
+| USER | ดูและส่งคำขอตามสิทธิ์ อนุมัติได้เมื่อมี assignment ที่ตรง |
+| Organization Assignment | หลายตำแหน่งต่อ User โดยระบุ Active/Primary และระดับองค์กร |
+| Project Member | LEAD_PROJECT / TEAM_MEMBER เป็นบริบทของ Project |
+| Warehouse Manager | กำหนดรายคลัง มีงานรับทราบ ไม่ใช่ Final Approval Gate |
 
-Stock Controller tag:
+บัญชี AD ต้อง Verify Email ก่อน Save; Local Admin ฉุกเฉินตั้งรหัสผ่านนอกฟอร์ม AD
 
-- `STOCK_CONTROLLER`
-- `HEAD_STOCK_CONTROLLER`
+## 3. สินค้าและคลัง
 
-Organization assignment ประกอบด้วย:
+- Warehouse/Category/Type/Custom Fields อ่านจากฐานข้อมูล รองรับ Dynamic Warehouse ไม่จำกัด Server/Network
+- โหมดติดตามสินค้าคำนวณจาก `AssetModel.isSerialized` และ Serial Number ของ Asset
+- SERIAL = Model Serialized และมี Serial; ติดตามรายชิ้นจำนวน 1
+- QUANTITY = Model ไม่ Serialized หรือ Asset ไม่มี Serial; จำนวนเต็มบวกในคำขอ ใช้ assetQuantity เป็น On-hand
+- NEW/USED เป็น AssetCondition; USED รับกลับเป็น READY และอยู่ใน Quantity bucket ตาม condition
+- AssetStatus: READY, REQUEST, BORROW, USING, SOLD, FAIL, LOST, NEED_CHECK
+- ห้ามลบ Asset ผ่าน business workflow; Administrative deletion ใช้ guard/soft delete ตาม implementation
+- Prefix คลังไม่แก้หลังสร้าง; การลบคลังต้องตรวจ dependency และ active assets
+- Stock Code ที่สร้างใหม่ใช้ Warehouse/Category/Type prefixes และ sequence; Stock Code ที่มี Transaction อ้างอยู่ต้องรักษาความสัมพันธ์
+- Brand/Part No./Location ใน Add Asset รองรับเลือกค่าที่มีและสร้างค่าใหม่ตามรูปแบบข้อมูลของแต่ละ field
 
-- `organizationLevel`: `EXECUTIVE`, `MANAGER`, `SUPERVISOR`, `STAFF`
-- `organizationTag`: หน่วยงานและตำแหน่งภายในสายงาน
-- `isPrimary`: ตำแหน่งหลักสำหรับแสดงใน Profile และ User Management
-- `isActive`: ระบุว่า assignment นั้นยังมีผลหรือไม่
+## 4. คำขอและยอดสต๊อก
 
-User หนึ่งคนมี Organization Assignment ได้หลายรายการ เช่น คนเดียวเป็นทั้ง `DL_MANAGER` และ `DL_SUPERVISOR` โดยแต่ละ assignment มี level ของตนเอง
-
-Organization tag ตามโครงสร้างองค์กร:
-
-- Executive: `EXECUTIVE`, `CONSULTANT`
-- Solution Consult: `SC_MANAGER`, `S1_SUPERVISOR`, `S1_STAFF`, `N1_SUPERVISOR`, `N1_STAFF`, `C1_SUPERVISOR`, `C1_STAFF`
-- Customer Service: `CS_MANAGER`, `CMS_SUPERVISOR`, `CMS_STAFF`, `SD_SUPERVISOR`, `SD_STAFF`, `PRT_SUPERVISOR`, `PRT_STAFF`, `LOCAL_SUPERVISOR`, `LOCAL_STAFF`
-- Delivery & Client: `DL_MANAGER`, `DL_SUPERVISOR`, `DL_STAFF`,
-- Business Support Department: `BSD_MANAGER`, `BSD_SUPERVISOR`, `BSD_STAFF`
-
-Project tag:
-
-- `LEAD_PROJECT`
-- `TEAM_MEMBER`
-
-Project tag และ Stock Controller tag แยกจาก Organization Assignment; User คนเดียวจึงมีหลายตำแหน่งองค์กรและเป็น Lead Project, Team Member หรือ Stock Controller ได้ตามบริบท
-
-## 4. Warehouse, Category and Type
-
-- Warehouse มี code, name, immutable prefix, tracking family และผู้รับผิดชอบ
-- Admin สร้าง แก้ไข และปิด Warehouse ได้
-- Admin และ Stock Controller จัดการ Category/Type ตาม permission
-- Category รองรับ custom fields ชนิด Text, Number, Dropdown และ Boolean
-- Warehouse ต้องไม่ถูกลบถ้ายังมี active asset
-- Logic กลางต้อง data-driven และไม่จำกัดเฉพาะ Server/Network
-
-## 5. Asset
-
-### SERIAL
-
-- Track รายตัว มี serial number และ quantity เท่ากับ 1
-- Request แล้ว lock เป็น `REQUEST`
-- คนอื่นยังเห็น asset แต่ request ซ้ำไม่ได้
-
-### QUANTITY
-
-- Track เป็นจำนวน ไม่บังคับ serial number
-- Request ต้องระบุ `requestedQuantity`
-- ระบบแสดง total, reserved และ available
-- ห้าม request เกินจำนวนที่พร้อมใช้
-
-Asset status:
-
-| Status | Meaning |
-| --- | --- |
-| `READY` | พร้อมให้ request |
-| `REQUEST` | ถูก lock หรือ reserve เต็ม |
-| `BORROW` | ถูกยืมชั่วคราว |
-| `USING` | ถูกใช้ภายในองค์กร |
-| `SOLD` | จำหน่ายแล้วและเป็น terminal status |
-| `FAIL` | เสียหาย |
-| `LOST` | สูญหาย |
-| `NEED_CHECK` | รอตรวจสอบ |
-
-ทุก status change ต้องมี Asset Status History พร้อมผู้ดำเนินการ เวลา เหตุผล และ Transaction ที่เกี่ยวข้องเมื่อมี
-
-## 6. Transaction Status
-
-Transaction แยก Business Status ออกจาก Workflow Status
-
-| Transaction Type | Business Status |
-| --- | --- |
-| `BORROW` | `BORROWED`, `RETURNED` |
-| `USING` | `USING`, `RETURNED` |
-| `SOLD` | `COMPLETED` |
-
-Workflow Status:
-
-- `PENDING`: รออนุมัติ
-- `IN_PROGRESS`: อนุมัติครบและรายการยังมีผล
-- `REJECTED`: ถูกปฏิเสธ
-- `COMPLETED`: รายการจบแล้ว
-
-## 7. Request No. and Stock Code
-
-Request No.:
-
-```text
-REQ-YYYYMMDD-XX
+```mermaid
+flowchart LR
+  Cart[เลือกสินค้าและจองจำนวน] --> Request[Submit REQ]
+  Request --> Confirm[Requester confirmation]
+  Confirm --> Context[Lead และ/หรือ Supervisor ตามบริบท]
+  Context --> Storeman[Storeman ทุกคลัง]
+  Storeman --> Post[ตรวจยอดซ้ำและ Atomic Stock Post]
+  Post --> Holding[ถือครองแบบ BORROW/USING หรือขาย SOLD]
 ```
 
-- `XX` เป็น sequence สองหลัก เริ่มที่ `01` และ reset รายเดือน
-- รองรับสูงสุด 99 รายการต่อเดือน
+- USING เป็น Internal; BORROW/SOLD เลือก Service หรือ Project อย่างใดอย่างหนึ่ง
+- Cart จอง Serial ด้วย lock และ Quantity ด้วย AssetReservation
+- ก่อนจ่าย: Available หัก draft reservations และคำขอเปิดที่ยังไม่ dispatched
+- จ่าย Quantity แล้ว: ลด On-hand และบันทึก dispatchedAt; ไม่หักจำนวนที่จ่ายแล้วซ้ำจาก On-hand
+- ทุกคลังที่เป็น Gate ต้องผ่านก่อน Post แบบ atomic ไม่จ่ายแยกเพียงเพราะคลังหนึ่งอนุมัติแล้ว
+- SERIAL จัดสรรตามสิทธิ์ก่อนจ่าย; หลังจ่ายไม่เปลี่ยน Serial ใน Flow คืน
 
-Stock Code:
+## 5. Approval Gates
 
-```text
-XX-YY-ZZZ0000
+Requester Confirmation เป็น sequence 1; ขั้นอนุมัติเริ่ม sequence 2
+
+- คำขอ Project เพิ่ม Lead ที่มีสิทธิ์ของ Project ขณะนั้น
+- คำขอเบิกอาจเพิ่ม Supervisor ต่อจาก Lead เมื่อ requester มี staff-tag ที่เข้ากฎ แม้เป็น Project; ไม่เขียนเหมารวมว่า Lead หรือ Supervisor เท่านั้น
+- Storeman ทุกคน/ทุกคลังที่ถูกกำหนดต้องผ่านตาม all-required
+- SOLD เพิ่ม BSD_STAFF หลัง Storeman เพื่อราคาและอนุมัติขาย
+- Warehouse Manager และ BSD มีงานรับทราบแยก (`ACK_WAREHOUSE_MANAGER`, `ACK_BSD`) ไม่เป็น Approval Gate สำหรับการจ่าย
+- ACK_BSD และ ACK_WAREHOUSE_MANAGER เป็นงานรับทราบแยก ไม่ขวาง Post/Completion
+- Approval ตรวจ assigned user, current step, Warehouse permission และ signature; เก็บ snapshots/history
+- ไม่ขยาย auto-approve ไปข้าม manual check, document, Final Storeman หรือ price gate
+
+| Transaction / Flow | Requester | Lead Project | Supervisor | Storeman | BSD Staff |
+| --- | --- | --- | --- | --- | --- |
+| BORROW / USING | Submit และยืนยันขั้นแรก | อนุมัติคำขอ Project | อนุมัติเมื่อ staff-tag เข้ากฎ | ทุกคนในทุกคลังที่เกี่ยวข้อง; ครบแล้วจึง Post | รับทราบแยกจาก gate |
+| SOLD จากคลัง | Submit และยืนยันขั้นแรก | อนุมัติคำขอ Project | อนุมัติเมื่อ staff-tag เข้ากฎ | ทุกคนในทุกคลังที่เกี่ยวข้อง | กำหนดราคาและอนุมัติขาย |
+| ReturnBatch ของ Project | ผู้ขอต้นทางสร้างรอบคืน | อนุมัติรอบคืน | ไม่มี Supervisor gate | ตรวจ Outcome รายคลังและ Final Approval | รับทราบแยกจาก gate |
+| ReturnBatch ที่ไม่ใช่ Project | ผู้ขอต้นทางสร้างรอบคืน | ไม่มี Lead gate | อนุมัติตาม Organization Assignment | ตรวจ Outcome รายคลังและ Final Approval | รับทราบแยกจาก gate |
+| Derived SOLD จากคืน | ระบุ SOLD ใน Outcome | ผ่านขั้นของรอบคืน | ผ่านขั้นของรอบคืน | ผ่านขั้นของรอบคืน | กำหนดราคาและอนุมัติรายการขาย |
+
+Approval ของ Storeman ดำเนินการแยกตามคลัง แต่ Post รายการทั้งหมดพร้อมกันใน Prisma transaction หลังผู้อนุมัติที่จำเป็นครบทุกคน การอนุมัติคลังเดียวไม่ตัดหรือรับสต๊อกบางส่วน
+
+## 6. Reject / Edit / Cancel
+
+- Reject ต้องมีเหตุผล เก็บประวัติและคืน reservation/lock ตามประเภท
+- PENDING แก้ได้โดย requester ก่อนมี Approval สำเร็จ sequence มากกว่า 1
+- REJECTED แก้และส่งใหม่เลขเดิมได้ แม้มี Approval รอบเก่า; rebuild current approvals โดยไม่ลบ audit เดิม
+- เพิ่มสินค้าเข้า rejected request เดิมได้ตาม availability/authorization
+- Cancel มี backend/UI แล้ว รักษาเลขและประวัติ ไม่คืนเลขให้คำขออื่น
+- การแก้หรือยกเลิกรอบคืนและ Derived SOLD ต้องตรวจ revision, approval และ posting ของรอบนั้น
+
+## 7. Return Batch และ Derived SOLD
+
+```mermaid
+flowchart LR
+  Holding[ของที่จ่ายแล้ว] --> Batch[ReturnBatch + Split Outcomes]
+  Batch --> Context[Lead หรือ Supervisor]
+  Context --> Check[Storeman ตรวจ Outcome รายคลัง]
+  Check --> Evidence{มี FAIL / LOST / USED?}
+  Evidence -- มี --> Signed[Generate Report และ Upload Wet Signature]
+  Evidence -- ไม่มี --> Final[Final Storeman ทุกคลัง]
+  Signed --> Final
+  Final --> Stock[Post RETURN / USED / FAIL / LOST]
+  Final --> Sale[Derived SOLD รอ BSD Staff]
 ```
 
-- `XX`: Warehouse prefix 2 ตัว
-- `YY`: Category 2 ตัว
-- `ZZZ`: Type code 3 ตัว
-- `0000`: running sequence
+- เฉพาะ requester เดิมเริ่มคืน Borrow/Using ที่เปิดอยู่ได้
+- รอบคืนใช้ ReturnBatch พร้อม requestNo/revision/state และ Outcome แยกจำนวน
+- UI: RETURN, SOLD, FAIL, LOST; QUANTITY เพิ่ม USED ได้ ส่วน Serialized ห้าม USED
+- `NEED_CHECK` เป็น AssetStatus ของ Inventory ไม่ใช่ตัวเลือกในรอบคืน
+- คืน Project ใช้ Lead; กรณีไม่ใช่ Project ใช้ Supervisor ตามเงื่อนไขใน `buildReturnApprovalCandidates`
+- ต่อด้วย RETURN_CHECK ของแต่ละคลัง, เอกสารเมื่อมี FAIL/LOST/USED, แล้ว Final Storeman ทุกคลัง
+- รอบที่มีเพียง RETURN/SOLD ไม่บังคับ Condition Report เพียงเพราะเป็น SOLD
+- RETURN/USED รับเข้าคลังเมื่อ Final Gate ครบ; FAIL/LOST ไม่เพิ่ม Ready stock
+- Quantity รับตามสินค้ารุ่น/คลัง/Stock Code ที่ผ่าน validation; ใช้ condition bucket เดิมถ้ามี ไม่ออก Stock Code ใหม่เอง
+- Non-SOLD Post พร้อมกัน; SOLD รอ BSD ใน Derived Transaction แยก ไม่ตัด On-hand ต้นทางซ้ำ
+- Derived SOLD ถูกสร้างและเชื่อม Outcome ตอน Submit ReturnBatch; การอนุมัติขายรอ Return Gate ที่จำเป็นผ่านก่อน
+- Source ปิดเมื่อทุกจำนวน resolve สำเร็จ ไม่ใช่แค่ Submit Outcome ครบ
 
-## 8. Request Cart
+| ผลคืน | Serial | Quantity Pool |
+| --- | --- | --- |
+| RETURN | Asset รายชิ้นกลับเป็น READY | เพิ่ม on-hand ใน bucket NEW ที่ผ่านการตรวจ Stock Code |
+| USED | ไม่รองรับ | เพิ่ม on-hand ใน bucket USED ที่ผ่านการตรวจ Stock Code |
+| FAIL / LOST | บันทึกผลและปิดการถือครอง | บันทึกผลและไม่เพิ่ม READY on-hand |
+| SOLD | Derived Sale รอ BSD | Derived Sale รอ BSD; ไม่หัก on-hand ที่จ่ายแล้วซ้ำ |
 
-1. User เลือก asset จาก Inventory
-2. Serial asset ถูก lock; Quantity asset ถูก reserve ตามจำนวน
-3. Cart รวมหลาย item และหลาย Warehouse ได้
-4. User เลือก `BORROW`, `USING` หรือ `SOLD` และระบุ purpose
-5. Project request ต้องเลือก Project ที่เกี่ยวข้อง
-6. Submit สร้าง Transaction, Items, Request No. และ Approval Steps
-7. Asset/reservation ถูกล็อกระหว่าง `PENDING`
+การขายตรงจากคลังเป็น Transaction `SOLD` ที่ผ่าน Requester, Lead/Supervisor ตามบริบท, Storeman ทุกคลัง และ BSD Staff ซึ่งกรอกราคาและอนุมัติก่อน Post การขายจากสินค้าที่เบิกแล้วเริ่มจาก Outcome `SOLD` ในรอบคืน และใช้ Derived SOLD ที่เชื่อมคำขอต้นทางและ Outcome
 
-## 9. Approval Workflow
+## 8. เลขคำขอ สถานะ และราคา
 
-ลำดับ approval:
+- REQ-YYYYMMDD-XX: วันที่ Asia/Bangkok, sequence รายเดือนรวม Transaction และ ReturnBatch สูงสุด 99
+- รอบคืนใหม่มี REQ ใหม่; revision/resubmit เดิมคงเลข; Derived SOLD แสดง From เลขต้นทางและไม่มี running ใหม่
+- TransactionWorkflowStatus: PENDING, REJECTED, CANCELLED, IN_PROGRESS, COMPLETED
+- Business status: BORROWED, RETURNED, USING, COMPLETED; USED ไม่ใช่ Business/Workflow status
+- ReturnBatch.state เป็น String ไม่ใช่ Enum Workflow เดียวกับ Transaction; ดูค่าที่ใช้งานใน Design
+- BSD Staff กรอกราคาต่อกลุ่ม รองรับ Split Price, ลบกลุ่มและ Save Draft
+- Group Total = quantity × unit price; Grand Total = ผลรวมกลุ่ม คำนวณ Server ด้วยหน่วยสตางค์ เก็บ Decimal(12,2)
+- Draft อาจมีราคาที่ยังไม่ครบ แต่ Approve ต้องครบและจำนวนรวมตรง; ไม่เชื่อยอดรวมที่ Client ส่งมา
 
-1. Organization: Staff ไป Supervisor หรือ Supervisor ไป Manager
-2. Project: Team Member ไป Lead Project เมื่อเป็น Project request
-3. Stock Controller ของทุก Warehouse
-4. Head Stock Controller ของทุก Warehouse
-5. `BSD_STAFF`
-6. `BSD_MANAGER`
+## 9. หน้าจอและเอกสาร
 
-ข้อกำหนด:
+| เอกสาร | เงื่อนไขและข้อมูล |
+| --- | --- |
+| ใบยืม - คืน อุปกรณ์ (Unified Form) | แสดงคำขอ BORROW/USING และรอบคืน พร้อมรายการ จำนวนและลายเซ็นตามขั้นที่เกี่ยวข้อง |
+| ใบขาย | แสดงรายการ SOLD จำนวน ราคาต่อหน่วย และยอดรวม; Derived Sale แสดงการอ้างอิง Source REQ ในชุดเอกสารต้นทาง |
+| Condition Report | ReturnBatch ที่มี FAIL, LOST หรือ USED ต้องตรวจ Outcome ครบและ Upload PDF ลงนามแบบ wet signature ก่อน Final Storeman Approval |
 
-- หลาย Warehouse ใน sequence เดียวกัน approve แบบ parallel แต่ต้องครบทุก Warehouse
-- Approver ทำงานได้เฉพาะ current sequence และต้องมีลายเซ็น
-- Borrow, Using, Sold และ Return ต้องผ่านทั้ง BSD Staff และ BSD Manager
-- BSD Staff เป็นผู้กรอกราคา SOLD
-- Reject ต้องมีเหตุผล
-- Requester แก้คำขอ PENDING/REJECTED ได้เมื่อยังไม่มี approval สำเร็จ
-- การหา approver ต้องตรวจ Organization Assignment ที่ active ทั้งหมดของ User
-- ถ้าผู้อนุมัติสอง sequence ที่ติดกันเป็น User คนเดียวกัน ให้กดอนุมัติครั้งเดียว แล้วระบบ auto-approve sequence ถัดไปของบุคคลนั้น พร้อมเก็บ Approval History แยกตาม required tag และระบุว่าเป็น auto-approved
-- Project Approval ใช้ Lead Project ปัจจุบันแบบ dynamic ไม่ล็อกผู้อนุมัติจากวันที่ Submit
-- ถ้า Project มี Lead หลายคน Lead ที่ active ทุกคนต้องอนุมัติครบใน sequence เดียวกันก่อน workflow ไปต่อ
+- รูปแบบ Project รวม: Customer-Projectname (ID); ตาราง Project Management คอลัมน์ Project Name แสดงชื่ออย่างเดียว
+- Asset History มี Request link และ Customer / Project; การแสดง Note/Remark ใช้รูปแบบอ่านง่ายในหน้าที่เชื่อม `readableNote`
+- Remark USED อ้าง Source Request โดยไม่ทับหมายเหตุเดิม; ไม่สร้างข้อมูลต้นทางขึ้นเองเมื่อไม่มีหลักฐาน
+- Search: เลือก suggestion/Enter ค้นหา, X ล้าง q แต่คง filters, Dropdown auto-apply, Parent Checkbox เลือก/ปลดลูก
+- Side Sheet เปิดต่อให้เลือก ไม่มี Apply; Click Outside/Escape ปิดเมนูที่เชื่อม behavior ส่วนกลาง
+- มี Transaction PDF, Condition Report, Signed PDF และ Excel export
+- Signed PDF ผู้ Login ทุกคนเปิดดูได้; Check/Generate/Upload/Approve ยังต้องผ่านสิทธิ์
+- Signed PDF สูงสุด 10 MiB; จำกัด multipart body ก่อน parse และตรวจ file.size ก่อนอ่าน ArrayBuffer
+- เก็บเอกสารหลักฐานตาม revision ของ ReturnBatch
 
-เมื่อ approval ครบ:
+## 10. Authentication
 
-- Borrow: asset `BORROW`, transaction `BORROWED/IN_PROGRESS`
-- Using: asset `USING`, transaction `USING/IN_PROGRESS`
-- Sold: asset `SOLD`, transaction `COMPLETED/COMPLETED`
-
-## 10. Return and Close
-
-- Return ใช้กับ Borrow/Using ที่ `IN_PROGRESS`
-- Requester เดิมเท่านั้นที่คืนได้ทั้ง transaction หรือราย item
-- Return-to-ready สร้าง Derived Return Transaction ที่ `PENDING`
-- Return-to-sold สร้าง Derived Sold Transaction ที่ `PENDING`
-- Derived transaction ผ่าน approval chain เต็ม รวมทุก Warehouse, BSD Staff และ BSD Manager
-- Asset เปลี่ยนเป็น `READY` หรือ `SOLD` หลัง approval ครบเท่านั้น
-- Source Transaction อยู่ `IN_PROGRESS` จน item resolve ครบ แล้วเป็น `COMPLETED`
-- ระบบป้องกันการสร้าง derived request ซ้ำให้ item ที่กำลังรออนุมัติ
-
-Return UI/API รองรับ `READY`, `SOLD`, `FAIL`, `LOST`, `NEED_CHECK` ผ่าน derived approval transaction และ Quantity สามารถแบ่งจำนวนเป็นหลาย outcome ได้
-
-## 11. Project
-
-- Project เก็บใน PostgreSQL ผ่าน Prisma
-- มี Project ID, name, status, Lead Project และ Team Members
-- Admin สร้าง Project ได้
-- Admin หรือ Lead Project ที่เกี่ยวข้องจัดการสมาชิกและสถานะได้
-- Transaction อ้างอิง Project จริงเพื่อใช้แสดงผลและหา approver
-- เมื่อเปลี่ยน Lead Project ระบบต้อง sync Project Approval ของทุก transaction ใน Project ที่ยัง `PENDING`
-- Pending approval ของ Lead เดิมที่ยังไม่อนุมัติต้องถูกยกเลิกหรือแทนที่ และสร้าง pending approval ให้ Lead ใหม่ทันที
-- Lead เดิมต้องหมดสิทธิ์อนุมัติรายการที่ถูกโอนทันที ส่วน Lead ใหม่ต้องเห็นรายการใน Approval Queue
-- ถ้ามี Lead หลายคน ระบบต้องสร้าง approval ให้ทุกคนและรอครบทุกคน ไม่ใช้กฎอนุมัติเพียงคนใดคนหนึ่ง
-- Approval ที่สำเร็จแล้วและ signature snapshot ต้องคงเป็นประวัติของผู้อนุมัติเดิม
-- ถ้า Project approval sequence จบและ workflow ไปขั้นถัดไปแล้ว การเปลี่ยน Lead ต้องไม่ย้อนกลับมาเปิด sequence เดิม
-- ถ้า sequence ยังไม่จบและเพิ่ม Lead ใหม่ Lead ใหม่ต้องอนุมัติก่อน sequence จึงถือว่าครบ
-- ระบบต้องบันทึกประวัติการเปลี่ยน Lead ว่าเปลี่ยนจากใครเป็นใคร เมื่อใด และใครเป็นผู้ดำเนินการ
-
-## 12. Pages and Visibility
-
-- Dashboard: ภาพรวม asset, transaction และ activity ตาม permission
-- Profile/Settings: ข้อมูลผู้ใช้และอัปโหลดลายเซ็น
-- User Management: role, Organization Assignments, stock controller tag และ Warehouse permission
-- Inventory: Server, Network และ dynamic Warehouse; search, sort, Brand/Category/Type/Status filter
-- Asset Detail: รายละเอียด, availability, custom fields, transaction link และ status history
-- Request: cart, quantity, type, purpose และ Project
-- Transaction Log: ทุกคนเห็น queue, pending approval, in-progress, rejected และ completed ของทุกคนทุก Project โดยใช้ filter/search แยก
-- Approval Queue: แสดงรายการที่ current user มีสิทธิ์อนุมัติ
-- Project: จัดการ Project, Lead และ Team Member
-
-## 13. PDF
-
-Implemented:
-
-- Transaction PDF แสดง Request No., item list, approval/signature snapshot และข้อมูล Return/Sold
-
-Pending:
-
-- ปรับใบยืม/คืนตาม official template เมื่อได้รับจากธุรกิจ
-
-## 14. Current Implementation Status
-
-Implemented or mostly implemented:
-
-- PostgreSQL source of truth และ CSV import structure
-- Warehouse terminology ใน runtime/schema/API
-- User, Warehouse permission, Category/Type และ Project Management
-- Serial/Quantity Inventory, Brand filter และ dynamic Warehouse
-- Request Cart, reservation, multi-item และ multi-Warehouse
-- Request No. แบบรายเดือน
-- Approval, signature, reject และ edit pending/rejected request
-- Stock Controller/Head Stock Controller ทุก Warehouse และ BSD ทั้งสองขั้น
-- Derived Return-to-ready/Return-to-sold approval
-- Transaction Log, Return Date, Approval Queue และ Transaction PDF
-- ลบ Overdue และ legacy Transaction/Workflow status จาก runtime
-
-Partial or pending:
-
-- Deploy และตรวจข้อมูลจริงของ Warehouse/status cleanup migration
-- Return outcome Fail/Lost/Need Check ผ่าน derived approval transaction; ยังต้องทำ focused/E2E tests
-- Official transaction document template
-- Cancel Request UX/API
-- Focused regression tests สำหรับ approval, quantity และ derived return
-- Organization Assignment แบบหลายตำแหน่ง รวม migration, User Management และ approval routing; ยังต้องเพิ่ม regression tests
+AD และ Local Admin เป็นคนละโหมด ไม่มี fallback อัตโนมัติ; ดู [Emergency Local Login](emergency-local-login.md)

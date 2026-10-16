@@ -1,11 +1,11 @@
-﻿import { AssetStatus } from "@prisma/client";
-import { NextRequest, NextResponse } from "next/server";
+import { AssetStatus } from "@prisma/client";
+import { AssetTrackMethod } from "@/lib/asset-tracking";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 import {
   apiErrorResponse,
   readJsonBody,
-  requireApiUser,
-} from "@/lib/api";
+  requireApiUser, apiJson } from "@/lib/api";
 import { deleteAssetForUser, updateAssetForUser } from "@/lib/asset-edit";
 
 type RouteContext = {
@@ -24,12 +24,11 @@ const updateAssetSchema = z.object({
   warehouseCode: z.string().trim().min(1).max(32),
   imageRef: z.string().trim().max(2_000_000).optional().nullable(),
   isActive: z.boolean().optional(),
-  legacyFg: z.number().int().nullable().optional(),
-  legacyQty: z.number().int().nullable().optional(),
   locationCode: nullableString(255),
   locationName: nullableString(255),
   locationText: nullableString(255),
   modelName: z.string().trim().min(1).max(255),
+  modelTrackMethod: z.nativeEnum(AssetTrackMethod).optional(),
   modelNo: nullableString(255),
   note: z.string().trim().max(2000).optional().nullable(),
   partNo: nullableString(255),
@@ -37,7 +36,7 @@ const updateAssetSchema = z.object({
   sourceRecordId: nullableString(255),
   sourceSystem: nullableString(255),
   status: z.nativeEnum(AssetStatus),
-  quantity: z.coerce.number().int().positive().optional().nullable(),
+  quantity: z.coerce.number().int().nonnegative().optional().nullable(),
   typeName: nullableString(255),
 });
 
@@ -50,7 +49,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const body = updateAssetSchema.parse(await readJsonBody(request));
     const asset = await updateAssetForUser(user, id, body);
 
-    return NextResponse.json({ asset });
+    return apiJson({ asset });
   } catch (error) {
     return apiErrorResponse(error);
   }
@@ -62,11 +61,12 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     const { id } = paramsSchema.parse(await context.params);
     const asset = await deleteAssetForUser(user, id);
 
-    return NextResponse.json({ asset });
+    return apiJson({ asset });
   } catch (error) {
     return apiErrorResponse(error);
   }
 }
+
 
 
 

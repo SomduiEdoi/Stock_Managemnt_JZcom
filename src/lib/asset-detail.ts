@@ -2,6 +2,7 @@
 import { getAvailabilityByAssetId } from "@/lib/asset-availability";
 import type { CurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { appendUsedReturnRemarks } from "@/lib/used-return-remark";
 import {
   canManageWarehouseForUser,
   canViewWarehouseForUser,
@@ -9,15 +10,22 @@ import {
 
 const assetDetailSelect = Prisma.validator<Prisma.AssetSelect>()({
   assetNo: true,
+  condition: true,
+  outcomeRecords: {
+    where: { approvedAt: { not: null }, returnCondition: "USED", outcomeStatus: "READY" },
+    orderBy: { approvedAt: "asc" },
+    select: {
+      id: true, quantity: true,
+      transactionItem: { select: { transaction: { select: { transactionNo: true, documentRef: true } } } },
+    },
+  },
   assetQuantity: true,
   createdAt: true,
   createdBy: { select: { email: true, name: true } },
-  warehouse: { select: { code: true, inventoryFamily: true, name: true } },
+  warehouse: { select: { code: true, name: true } },
   id: true,
   imageRef: true,
   isActive: true,
-  legacyFg: true,
-  legacyQty: true,
   location: { select: { code: true, name: true } },
   locationText: true,
   migrationBatch: { select: { fileName: true, sourceSystem: true } },
@@ -33,7 +41,7 @@ const assetDetailSelect = Prisma.validator<Prisma.AssetSelect>()({
   updatedBy: { select: { email: true, name: true } },
   assetModel: {
     select: {
-      assetType: { select: { trackMethod: true } },
+      isSerialized: true,
       brand: true,
       category: {
         select: {
@@ -77,6 +85,14 @@ const assetDetailSelect = Prisma.validator<Prisma.AssetSelect>()({
       toStatus: true,
       transaction: {
         select: {
+          id: true,
+          project: { select: { name: true, customerName: true, projectId: true } },
+          sourceTransactionId: true,
+          sourceTransaction: { select: {
+            id: true, transactionNo: true, documentRef: true, purpose: true, serviceRequest: true,
+            project: { select: { name: true, customerName: true, projectId: true } },
+          } },
+          serviceRequest: true,
           createdBy: { select: { email: true, name: true } },
           documentRef: true,
           dueDate: true,
@@ -157,6 +173,10 @@ export async function getAssetDetailForUser(
   return {
     asset: {
       ...asset,
+      note: asset.condition === "USED" ? appendUsedReturnRemarks(asset.note, asset.outcomeRecords.map((outcome) => ({
+        id: outcome.id, quantity: outcome.quantity,
+        requestNo: outcome.transactionItem.transaction.transactionNo ?? outcome.transactionItem.transaction.documentRef,
+      }))) : asset.note,
       availableQuantity: availability?.availableQuantity ?? 0,
       reservedQuantity: availability?.reservedQuantity ?? 0,
       totalQuantity: availability?.totalQuantity ?? asset.assetQuantity,

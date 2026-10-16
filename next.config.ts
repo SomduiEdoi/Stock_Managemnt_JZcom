@@ -2,5 +2,6 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {};
 
-export default nextConfig;
+nextConfig.serverExternalPackages = ["@prisma/client", "@prisma/engines"];
 
+export default nextConfig;

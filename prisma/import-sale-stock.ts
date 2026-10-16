@@ -3,7 +3,6 @@ import path from "node:path";
 import {
   AssetActionType,
   AssetStatus,
-  AssetTrackMethod,
   MigrationRowStatus,
   MigrationStatus,
   Prisma,
@@ -13,10 +12,9 @@ import {
 const prisma = new PrismaClient();
 const workbookPath =
   process.env.SALE_STOCK_XLSX ??
-  path.resolve(process.cwd(), "..", "data", "Stock Hardware BSD (update 3_09_26).xlsx");
+  path.resolve(process.cwd(), "..", "data", "BSD_Sale_Stock_29_09_26.xlsx");
 const sourceSystem = "Excel";
 const saleStockWarehouseCode = "SALE_STOCK";
-const deprecatedBsdWarehouseCode = "BSD";
 
 const sourceSheets = [
   "Power",
@@ -81,7 +79,7 @@ const standardColumns = new Set([
 ]);
 
 const specificationColumnsBySheet = new Map<string, string[]>([
-  ["Accessories", ["Specification"]],
+  ["Accessories", ["Specification", "Specific 2", "Used"]],
 ]);
 
 type ExcelRow = {
@@ -147,6 +145,7 @@ function parseQuantity(value: unknown) {
 function readWorkbookRows() {
   const pythonCode = `
 import json, sys, openpyxl
+sys.stdout.reconfigure(encoding="utf-8")
 path = sys.argv[1]
 sheets = ${JSON.stringify(sourceSheets)}
 wb = openpyxl.load_workbook(path, data_only=True)
@@ -179,6 +178,11 @@ for sheet_name in sheets:
 print(json.dumps(rows, ensure_ascii=False, default=str))
 `;
   const result = spawnSync("python", ["-c", pythonCode, workbookPath], {
+    env: {
+      ...process.env,
+      PYTHONIOENCODING: "utf-8",
+      PYTHONUTF8: "1",
+    },
     encoding: "utf8",
     maxBuffer: 10 * 1024 * 1024,
   });
@@ -298,81 +302,25 @@ function mapRows(rows: ExcelRow[], warehousePrefix: string) {
   });
 }
 
-async function deleteDeprecatedBsdStock(tx: Prisma.TransactionClient) {
-  const bsdWarehouse = await tx.assetWarehouse.findUnique({
-    select: { id: true },
-    where: { code: deprecatedBsdWarehouseCode },
+async function validateMasterData(warehouseId: string, rows: MappedSaleRow[]) {
+  const categories = await prisma.assetCategory.findMany({
+    where: { warehouseId },
+    select: { name: true, code: true, types: { select: { name: true, code: true } } },
   });
+  const categoryByName = new Map(categories.map((category) => [normalizeKey(category.name), category]));
+  const missing: string[] = [];
 
-  if (!bsdWarehouse) {
-    return { assets: 0, warehouseDeleted: false };
-  }
-
-  const bsdAssetIds = (
-    await tx.asset.findMany({
-      select: { id: true },
-      where: { warehouseId: bsdWarehouse.id },
-    })
-  ).map((asset) => asset.id);
-  const transactionItemCount = await tx.transactionItem.count({
-    where: { assetId: { in: bsdAssetIds } },
-  });
-
-  if (transactionItemCount > 0) {
-    const transactionIds = [
-      ...new Set(
-        (
-          await tx.transactionItem.findMany({
-            select: { transactionId: true },
-            where: { assetId: { in: bsdAssetIds } },
-          })
-        ).map((item) => item.transactionId),
-      ),
-    ];
-    await tx.transactionItem.deleteMany({
-      where: { assetId: { in: bsdAssetIds } },
-    });
-
-    const emptyTransactions = [];
-    for (const transactionId of transactionIds) {
-      const remainingItems = await tx.transactionItem.count({
-        where: { transactionId },
-      });
-
-      if (remainingItems === 0) {
-        emptyTransactions.push(transactionId);
-      }
-    }
-
-    if (emptyTransactions.length > 0) {
-      await tx.transactionApproval.deleteMany({
-        where: { transactionId: { in: emptyTransactions } },
-      });
-      await tx.assetStatusHistory.deleteMany({
-        where: { transactionId: { in: emptyTransactions } },
-      });
-      await tx.transaction.deleteMany({
-        where: { id: { in: emptyTransactions } },
-      });
+  for (const row of rows) {
+    const category = categoryByName.get(normalizeKey(row.categoryName));
+    const type = category?.types.find((item) => normalizeKey(item.name) === normalizeKey(row.typeName));
+    if (!category || category.code !== row.categoryCode || !type || type.code !== row.typeCode) {
+      missing.push(`${row.categoryName} / ${row.typeName} (${row.categoryCode}/${row.typeCode})`);
     }
   }
 
-  await tx.assetReservation.deleteMany({ where: { assetId: { in: bsdAssetIds } } });
-  await tx.assetCustomFieldValue.deleteMany({ where: { assetId: { in: bsdAssetIds } } });
-  await tx.assetStatusHistory.deleteMany({ where: { assetId: { in: bsdAssetIds } } });
-  await tx.migrationRow.deleteMany({ where: { assetId: { in: bsdAssetIds } } });
-  const deletedAssets = await tx.asset.deleteMany({ where: { id: { in: bsdAssetIds } } });
-
-  await tx.assetCategoryCustomField.deleteMany({
-    where: { category: { warehouseId: bsdWarehouse.id } },
-  });
-  await tx.assetModel.deleteMany({ where: { warehouseId: bsdWarehouse.id } });
-  await tx.assetType.deleteMany({ where: { category: { warehouseId: bsdWarehouse.id } } });
-  await tx.assetCategory.deleteMany({ where: { warehouseId: bsdWarehouse.id } });
-  await tx.userWarehousePermission.deleteMany({ where: { warehouseId: bsdWarehouse.id } });
-  await tx.assetWarehouse.delete({ where: { id: bsdWarehouse.id } });
-
-  return { assets: deletedAssets.count, warehouseDeleted: true };
+  if (missing.length > 0) {
+    throw new Error(`Excel mappings do not match existing Sale Stock master data: ${Array.from(new Set(missing)).join(", ")}`);
+  }
 }
 
 async function clearWarehouseAssets(tx: Prisma.TransactionClient, warehouseId: string) {
@@ -393,6 +341,18 @@ async function clearWarehouseAssets(tx: Prisma.TransactionClient, warehouseId: s
     );
   }
 
+  const modelIds = (
+    await tx.assetModel.findMany({ select: { id: true }, where: { warehouseId } })
+  ).map((model) => model.id);
+  const modelTransactionItemCount = await tx.transactionItem.count({
+    where: { assetModelId: { in: modelIds } },
+  });
+  if (modelTransactionItemCount > 0) {
+    throw new Error(
+      `Cannot replace Sale Stock because ${modelTransactionItemCount} transaction item(s) still reference its models.`,
+    );
+  }
+
   await tx.assetReservation.deleteMany({ where: { assetId: { in: assetIds } } });
   await tx.assetCustomFieldValue.deleteMany({ where: { assetId: { in: assetIds } } });
   await tx.assetStatusHistory.deleteMany({ where: { assetId: { in: assetIds } } });
@@ -400,11 +360,6 @@ async function clearWarehouseAssets(tx: Prisma.TransactionClient, warehouseId: s
   const deletedAssets = await tx.asset.deleteMany({ where: { id: { in: assetIds } } });
 
   await tx.assetModel.deleteMany({ where: { warehouseId } });
-  await tx.assetCategoryCustomField.deleteMany({
-    where: { category: { warehouseId } },
-  });
-  await tx.assetType.deleteMany({ where: { category: { warehouseId } } });
-  await tx.assetCategory.deleteMany({ where: { warehouseId } });
 
   return deletedAssets.count;
 }
@@ -414,13 +369,11 @@ async function ensureSaleStockMaster(tx: Prisma.TransactionClient) {
     create: {
       code: saleStockWarehouseCode,
       description: "Sale stock warehouse for BSD hardware.",
-      inventoryFamily: AssetTrackMethod.QUANTITY,
       name: "Sale Stock",
       prefix: "SS",
     },
     update: {
       description: "Sale stock warehouse for BSD hardware.",
-      inventoryFamily: AssetTrackMethod.QUANTITY,
       isActive: true,
       name: "Sale Stock",
     },
@@ -450,7 +403,7 @@ async function ensureSaleStockMaster(tx: Prisma.TransactionClient) {
         { name: { contains: "Joy", mode: "insensitive" } },
       ],
       isActive: true,
-      roles: { some: { role: { code: "STOCK_CONTROLLER" } } },
+      roles: { some: { role: { code: "STOREMAN" } } },
     },
   });
 
@@ -566,12 +519,10 @@ async function importSaleStockRows(
           code: row.typeCode,
           isActive: true,
           name: row.typeName,
-          trackMethod: AssetTrackMethod.QUANTITY,
         },
         update: {
           code: row.typeCode,
           isActive: true,
-          trackMethod: AssetTrackMethod.QUANTITY,
         },
         where: { categoryId_name: { categoryId, name: row.typeName } },
       });
@@ -594,6 +545,7 @@ async function importSaleStockRows(
         categoryId,
         description: row.description,
         isActive: true,
+        isSerialized: false,
         name: row.modelName,
         partNo: row.partNo,
         typeName: row.typeName,
@@ -607,8 +559,6 @@ async function importSaleStockRows(
         assetQuantity: row.quantity,
         createdById: userId,
         isActive: true,
-        legacyFg: null,
-        legacyQty: row.quantity,
         locationId: location?.id ?? null,
         locationText: row.locationText,
         migrationBatchId: batchId,
@@ -685,6 +635,13 @@ async function importSaleStockRows(
 }
 
 async function main() {
+  const apply = process.argv.includes("--apply");
+  const replaceSaleStock = process.argv.includes("--replace-sale-stock");
+
+  if (apply && !replaceSaleStock) {
+    throw new Error("Applying this import requires --replace-sale-stock.");
+  }
+
   const admin = await prisma.user.findFirst({
     where: { roles: { some: { role: { code: "ADMIN" } } }, isActive: true },
   });
@@ -693,13 +650,66 @@ async function main() {
     throw new Error("Missing active admin user.");
   }
 
+  const saleStock = await prisma.assetWarehouse.findUnique({
+    where: { code: saleStockWarehouseCode },
+    select: { id: true, prefix: true },
+  });
+  if (!saleStock) {
+    throw new Error("SALE_STOCK warehouse does not exist. Refusing to create or modify warehouse settings.");
+  }
+  const saleStockWarehouseId = saleStock.id;
+
   const excelRows = readWorkbookRows();
-  const mappedRows = mapRows(excelRows, "SS");
+  const mappedRows = mapRows(excelRows, saleStock.prefix);
+  await validateMasterData(saleStock.id, mappedRows);
+
+  if (mappedRows.length !== 71) {
+    throw new Error(`Expected 71 source rows, found ${mappedRows.length}. Refusing to continue.`);
+  }
+  const duplicateStockCodes = mappedRows.length - new Set(mappedRows.map((row) => row.stockCode)).size;
+  if (duplicateStockCodes > 0) {
+    throw new Error(`Found ${duplicateStockCodes} duplicate stock code(s). Refusing to continue.`);
+  }
+
+  const preview = {
+    file: path.basename(workbookPath),
+    mode: apply ? "REPLACE SALE_STOCK" : "DRY RUN",
+    total: mappedRows.length,
+    ready: mappedRows.filter((row) => row.status === AssetStatus.READY).length,
+    needCheck: mappedRows.filter((row) => row.status === AssetStatus.NEED_CHECK).length,
+    totalQuantity: mappedRows.reduce((sum, row) => sum + row.quantity, 0),
+    categories: Object.fromEntries(
+      Array.from(new Set(mappedRows.map((row) => row.categoryName))).map((category) => [
+        category,
+        mappedRows.filter((row) => row.categoryName === category).length,
+      ]),
+    ),
+    stockCodeExamples: mappedRows.slice(0, 5).map((row) => row.stockCode),
+    specificLabels: Object.fromEntries(
+      Array.from(new Set(mappedRows.map((row) => row.categoryName))).map((category) => [
+        category,
+        Array.from(new Set(mappedRows.filter((row) => row.categoryName === category).flatMap((row) => Object.keys(row.specifications)))),
+      ]),
+    ),
+  };
+  if (!apply) {
+    console.info("Sale Stock import preview (no database changes made).");
+    console.info(JSON.stringify(preview, null, 2));
+    return;
+  }
 
   const result = await prisma.$transaction(
     async (tx) => {
-      const deletedBsd = await deleteDeprecatedBsdStock(tx);
-      const saleStock = await ensureSaleStockMaster(tx);
+      const saleStock = await tx.assetWarehouse.findUnique({
+        where: { code: saleStockWarehouseCode },
+        select: { id: true },
+      });
+      if (!saleStock) {
+        throw new Error("SALE_STOCK warehouse does not exist. Refusing to create or modify warehouse settings.");
+      }
+      if (saleStock.id !== saleStockWarehouseId) {
+        throw new Error("SALE_STOCK warehouse changed during import preflight. Refusing to continue.");
+      }
 
       const clearedSaleStockAssets = await clearWarehouseAssets(tx, saleStock.id);
 
@@ -726,7 +736,6 @@ async function main() {
       });
 
       return {
-        deletedBsd,
         clearedSaleStockAssets,
         imported: mappedRows.length,
         needCheck: mappedRows.filter((row) => row.status === AssetStatus.NEED_CHECK).length,
@@ -737,6 +746,7 @@ async function main() {
   );
 
   console.info("Sale Stock import complete.");
+  console.info(JSON.stringify(preview, null, 2));
   console.info(JSON.stringify(result, null, 2));
 }
 

@@ -1,8 +1,8 @@
-﻿import { ProjectStatus } from "@prisma/client";
-import { NextResponse } from "next/server";
+import { apiJson } from "@/lib/api";
+import { ProjectStatus } from "@prisma/client";
 import { z } from "zod";
 import { requireCurrentUser } from "@/lib/auth";
-import { deleteProjectForAdmin, updateProjectForAdmin } from "@/lib/project-management";
+import { deleteProjectForAdmin, getProjectDetail, updateProjectForAdmin } from "@/lib/project-management";
 import { PermissionError } from "@/lib/permissions";
 import { WorkflowError } from "@/lib/workflow";
 
@@ -19,21 +19,22 @@ const projectSchema = z.object({
   leadUserIds: z.array(z.string().trim().uuid()).default([]),
   memberUserIds: z.array(z.string().trim().uuid()).default([]),
   name: z.string().trim().optional(),
+  customerName: z.string().trim().min(1, "Customer name is required."),
   projectId: z.string().trim().optional(),
   status: z.nativeEnum(ProjectStatus),
 });
 
 function errorResponse(error: unknown) {
   if (error instanceof z.ZodError) {
-    return NextResponse.json({ message: error.issues[0]?.message ?? "Invalid project payload." }, { status: 400 });
+    return apiJson({ message: error.issues[0]?.message ?? "Invalid project payload." }, { status: 400 });
   }
 
   if (error instanceof WorkflowError) {
-    return NextResponse.json({ code: error.code, message: error.message }, { status: error.statusCode });
+    return apiJson({ code: error.code, message: error.message }, { status: error.statusCode });
   }
 
   if (error instanceof PermissionError) {
-    return NextResponse.json({ code: "FORBIDDEN", message: error.message }, { status: error.statusCode });
+    return apiJson({ code: "FORBIDDEN", message: error.message }, { status: error.statusCode });
   }
 
   throw error;
@@ -46,7 +47,19 @@ export async function PATCH(request: Request, context: RouteContext) {
     const body = projectSchema.parse(await request.json());
     const project = await updateProjectForAdmin(user, id, body);
 
-    return NextResponse.json({ project });
+    return apiJson({ project });
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+export async function GET(_request: Request, context: RouteContext) {
+  try {
+    const user = await requireCurrentUser("/project");
+    const { id } = paramsSchema.parse(await context.params);
+    const detail = await getProjectDetail(user, id);
+
+    return apiJson({ transactions: detail.transactions });
   } catch (error) {
     return errorResponse(error);
   }
@@ -58,8 +71,9 @@ export async function DELETE(_request: Request, context: RouteContext) {
     const { id } = paramsSchema.parse(await context.params);
     const project = await deleteProjectForAdmin(user, id);
 
-    return NextResponse.json({ project });
+    return apiJson({ project });
   } catch (error) {
     return errorResponse(error);
   }
 }
+

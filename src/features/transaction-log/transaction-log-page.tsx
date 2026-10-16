@@ -1,10 +1,7 @@
 import type { ComponentType, ReactNode } from "react";
+import { formatProjectLabel } from "@/lib/project-label";
 import Link from "next/link";
-import {
-  BadgeCheck,
-  Clock3,
-  FileText,
-} from "lucide-react";
+import { BadgeCheck, Clock3, FileText } from "lucide-react";
 import { AssetStatus, TransactionWorkflowStatus } from "@prisma/client";
 import type { CurrentUser } from "@/lib/auth";
 import { requireCurrentUser } from "@/lib/auth";
@@ -18,13 +15,28 @@ import {
   transactionLogStatusChoices,
   type TransactionApprovalQueueRow,
 } from "@/lib/transaction-log";
-import { getRequestQueueForLog, type RequestCartAsset } from "@/lib/request-cart";
+import {
+  getRequestQueueForLog,
+  type RequestCartAsset,
+} from "@/lib/request-cart";
 import { assetStatusHexColors } from "@/lib/status-style";
+import { hasRole } from "@/lib/permissions";
 import { isDatabaseUnavailableError } from "@/lib/prisma-errors";
 import { InventoryDataUnavailable } from "@/components/inventory/inventory-data-unavailable";
 import { TransactionLogControls } from "@/features/transaction-log/transaction-log-controls";
 import { TransactionRowActions } from "@/features/transaction-log/transaction-row-actions";
 import { TablePagination } from "@/components/table/table-pagination";
+import { db } from "@/lib/db";
+
+export type LogOutcomeQuantity = {
+  transactionItemId: string;
+  quantity: number;
+  approvedAt: Date | null;
+};
+
+type TransactionLogDisplayRow = TransactionLogRow & {
+  quantityOutcomes?: LogOutcomeQuantity[];
+};
 
 type TransactionLogPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -59,14 +71,23 @@ function normalizeTab(value: string | string[] | undefined): TransactionLogTab {
   return first === "approve" ? "approve" : "log";
 }
 
-function TabNav({ activeTab, approvalCount }: { activeTab: TransactionLogTab; approvalCount: number }) {
+function TabNav({
+  activeTab,
+  approvalCount,
+}: {
+  activeTab: TransactionLogTab;
+  approvalCount: number;
+}) {
   const tabs = [
     { href: "/logs", label: "Log", value: "log" },
     { href: "/logs?tab=approve", label: "Approve", value: "approve" },
   ] as const;
 
   return (
-    <nav aria-label="Transaction log tabs" className="inline-flex rounded-sm bg-surface p-1">
+    <nav
+      aria-label="Transaction log tabs"
+      className="inline-flex rounded-sm bg-surface p-1"
+    >
       {tabs.map((tab) => (
         <Link
           className={[
@@ -209,7 +230,13 @@ function SummaryCards({
   );
 }
 
-function Controls({ filters, rows }: { filters: TransactionLogFilters; rows: TransactionLogRow[] }) {
+function Controls({
+  filters,
+  rows,
+}: {
+  filters: TransactionLogFilters;
+  rows: TransactionLogRow[];
+}) {
   return (
     <TransactionLogControls
       filters={filters}
@@ -266,20 +293,63 @@ function formatRequestTime(value: string | null) {
   }).format(new Date(value));
 }
 
-function formatReturnDate(row: TransactionLogRow) {
+export function formatReturnDate(row: TransactionLogDisplayRow) {
   const itemDates = row.items
     .map((item) => item.returnedAt)
     .filter((value): value is Date => Boolean(value));
   const latestItemReturn = itemDates.sort(
     (left, right) => right.getTime() - left.getTime(),
   )[0];
+  const allItemsResolved = hasFullyPostedItems(row);
+  const postedDates = (row.quantityOutcomes ?? []).flatMap((outcome) =>
+    outcome.approvedAt ? [outcome.approvedAt] : [],
+  );
+  const latestPosted = postedDates.sort(
+    (left, right) => right.getTime() - left.getTime(),
+  )[0];
+  const hasResolvedOutcome =
+    Boolean(latestPosted) ||
+    row.outcomeRecords.some((outcome) => Boolean(outcome.approvedAt));
 
-  return row.returnedAt || latestItemReturn
-    ? formatDate(row.returnedAt ?? latestItemReturn)
-    : "-";
+  if (
+    row.type !== "SOLD" &&
+    !allItemsResolved &&
+    (row.returnedAt ||
+      latestItemReturn ||
+      hasResolvedOutcome ||
+      row.workflowStatus === TransactionWorkflowStatus.IN_PROGRESS ||
+      row.workflowStatus === TransactionWorkflowStatus.COMPLETED)
+  ) {
+    return "Continues";
+  }
+
+  const completedDate = latestPosted ?? row.returnedAt ?? latestItemReturn;
+  return completedDate ? formatDate(completedDate) : "-";
 }
 
-function personName(person: { email: string | null; name: string } | null | undefined) {
+export function hasFullyPostedItems(row: TransactionLogDisplayRow) {
+  return (
+    row.items.length > 0 &&
+    row.items.every((item) => {
+      const outcomes = (row.quantityOutcomes ?? []).filter(
+        (outcome) => outcome.transactionItemId === item.id,
+      );
+      if (outcomes.length > 0) {
+        const posted = outcomes.reduce(
+          (sum, outcome) => sum + (outcome.approvedAt ? outcome.quantity : 0),
+          0,
+        );
+        return posted >= item.requestedQuantity;
+      }
+      // Legacy records have no structured outcomes; their final return timestamp remains valid.
+      return Boolean(item.returnedAt);
+    })
+  );
+}
+
+function personName(
+  person: { email: string | null; name: string } | null | undefined,
+) {
   if (!person) {
     return "-";
   }
@@ -287,11 +357,7 @@ function personName(person: { email: string | null; name: string } | null | unde
   return person.name || person.email || "-";
 }
 
-function RequestQueueTable({
-  assets,
-}: {
-  assets: RequestCartAsset[];
-}) {
+function RequestQueueTable({ assets }: { assets: RequestCartAsset[] }) {
   if (assets.length === 0) {
     return null;
   }
@@ -333,7 +399,9 @@ function RequestQueueTable({
                   {personName(asset.requestLockedBy)}
                 </td>
                 <td className="px-5 py-4 font-medium text-ink">
-                  {formatRequestTime(asset.requestLockedAt?.toISOString() ?? null)}
+                  {formatRequestTime(
+                    asset.requestLockedAt?.toISOString() ?? null,
+                  )}
                 </td>
                 <td className="px-5 py-4 font-semibold text-ink">
                   {asset.requestedQuantity.toLocaleString("en-US")}
@@ -352,15 +420,28 @@ function RequestQueueTable({
   );
 }
 
-type LogDisplayStatus = "PENDING" | "BORROW" | "USING" | "SOLD" | "RETURN" | "REJECTED" | "SOLD_FROM_RETURN";
+type LogDisplayType = "BORROW" | "USING" | "SOLD" | "SOLD_FROM_RETURN";
+type LogDisplayStatus =
+  | "PENDING"
+  | "BORROW"
+  | "USING"
+  | "SOLD"
+  | "COMPLETED"
+  | "REJECTED";
+
+const logTypeLabels = {
+  BORROW: "Borrow",
+  USING: "Using",
+  SOLD: "Sold",
+  SOLD_FROM_RETURN: "Sold from Return",
+} as const satisfies Record<LogDisplayType, string>;
 
 const logStatusLabels = {
   PENDING: "Pending",
   BORROW: "Borrow",
   USING: "Using",
   SOLD: "Sold",
-  SOLD_FROM_RETURN: "Sold from Return",
-  RETURN: "Return",
+  COMPLETED: "Completed",
   REJECTED: "Rejected",
 } as const satisfies Record<LogDisplayStatus, string>;
 
@@ -369,8 +450,7 @@ const logStatusColors = {
   BORROW: assetStatusHexColors[AssetStatus.BORROW],
   USING: assetStatusHexColors[AssetStatus.USING],
   SOLD: assetStatusHexColors[AssetStatus.SOLD],
-  SOLD_FROM_RETURN: assetStatusHexColors[AssetStatus.SOLD],
-  RETURN: assetStatusHexColors[AssetStatus.READY],
+  COMPLETED: "#16A34A",
   REJECTED: assetStatusHexColors[AssetStatus.FAIL],
 } as const satisfies Record<LogDisplayStatus, string>;
 
@@ -382,7 +462,23 @@ function getTransactionDisplayNo(row: TransactionLogRow) {
   return row.transactionNo ?? row.id;
 }
 
-function getLogDisplayStatus(row: TransactionLogRow): LogDisplayStatus {
+function getLogDisplayType(row: TransactionLogRow): LogDisplayType {
+  return row.type === "SOLD" && row.sourceTransactionId
+    ? "SOLD_FROM_RETURN"
+    : row.type;
+}
+
+export function getLogRequestCategory(row: TransactionLogRow): string | null {
+  const request = row.sourceTransaction ?? row;
+  if (request.projectRequest || request.project) return "Project";
+  if (request.serviceRequest) return "Service";
+  if (request.internalRequest) return "Internal";
+  return null;
+}
+
+export function getLogDisplayStatus(
+  row: TransactionLogDisplayRow,
+): LogDisplayStatus {
   if (row.workflowStatus === TransactionWorkflowStatus.REJECTED) {
     return "REJECTED";
   }
@@ -391,18 +487,28 @@ function getLogDisplayStatus(row: TransactionLogRow): LogDisplayStatus {
     return "PENDING";
   }
 
-  if (row.type === "SOLD" && row.sourceTransactionId) {
-    return "SOLD_FROM_RETURN";
-  }
+  const allItemsReturned = hasFullyPostedItems(row);
 
-  const allItemsReturned =
-    row.items.length > 0 && row.items.every((item) => Boolean(item.returnedAt));
-
-  if (row.returnedAt || allItemsReturned) {
-    return "RETURN";
+  // The workflow badge describes completion, while TYPE preserves the original
+  // request purpose (Borrow, Using, Sold, or Sold from Return).
+  if (
+    row.workflowStatus === TransactionWorkflowStatus.COMPLETED &&
+    (row.type === "SOLD" || allItemsReturned)
+  ) {
+    return "COMPLETED";
   }
 
   return row.type as LogDisplayStatus;
+}
+
+function ReturnDateLabel({ row }: { row: TransactionLogDisplayRow }) {
+  const label = formatReturnDate(row);
+
+  return label === "Continues" ? (
+    <span className="inline-flex min-w-[96px] items-center justify-center whitespace-nowrap rounded-full bg-[#8c898c] px-4 py-1.5 text-xs font-bold text-white">
+      {label}
+    </span>
+  ) : label;
 }
 
 function LogStatusBadge({ status }: { status: LogDisplayStatus }) {
@@ -416,20 +522,36 @@ function LogStatusBadge({ status }: { status: LogDisplayStatus }) {
   );
 }
 
-function approvalAssetSummary(row: TransactionApprovalQueueRow) {
+export function approvalAssetSummary(row: TransactionApprovalQueueRow) {
   const firstItem = row.transaction.items[0];
 
   if (!firstItem) {
     return "-";
   }
 
-  const model = firstItem.asset.assetModel.name;
-  const serial = firstItem.asset.serialNo ?? firstItem.asset.stockCode ?? "-";
-  const suffix = row.transaction.items.length > 1
-    ? " +" + (row.transaction.items.length - 1) + " more"
-    : "";
+  const model = firstItem.asset?.assetModel.name ?? "Unallocated item";
+  const serial = firstItem.asset?.serialNo ?? firstItem.asset?.stockCode ?? "-";
+  const suffix =
+    row.transaction.items.length > 1
+      ? " +" + (row.transaction.items.length - 1) + " more"
+      : "";
 
   return model + " (" + serial + ")" + suffix;
+}
+
+function approvalStepLabel(row: TransactionApprovalQueueRow) {
+  if (row.user?.name) return row.user.name;
+
+  if (row.requiredTag === "LEAD_PROJECT" && row.transaction.project) {
+    const names = [
+      ...(row.transaction.project.leadUser
+        ? [row.transaction.project.leadUser.name]
+        : []),
+      ...row.transaction.project.members.map((member) => member.user.name),
+    ];
+    if (names.length > 0) return names.join(", ");
+  }
+  return "Unassigned";
 }
 
 function ApproveTable({ rows }: { rows: TransactionApprovalQueueRow[] }) {
@@ -452,9 +574,15 @@ function ApproveTable({ rows }: { rows: TransactionApprovalQueueRow[] }) {
           </thead>
           <tbody className="divide-y divide-border">
             {rows.map((row) => (
-              <tr className="align-middle transition hover:bg-surface/60" key={row.id}>
+              <tr
+                className="align-middle transition hover:bg-surface/60"
+                key={row.id}
+              >
                 <td className="px-5 py-4 font-bold text-navy">
-                  {row.transaction.transactionNo ?? row.transaction.id}
+                  {row.returnRound?.requestNo ?? (row.transaction.sourceTransactionId
+                    ? `From ${row.transaction.sourceTransaction?.transactionNo ?? row.transaction.sourceTransactionId}`
+                    : row.transaction.transactionNo ?? row.transaction.id)}
+                  {row.returnRound ? <p className="mt-1 text-xs font-medium text-muted-foreground">From {row.transaction.transactionNo ?? row.transaction.id}</p> : null}
                 </td>
                 <td className="px-5 py-4 font-semibold text-ink">
                   {personName(row.transaction.requestedBy)}
@@ -466,20 +594,22 @@ function ApproveTable({ rows }: { rows: TransactionApprovalQueueRow[] }) {
                   {approvalAssetSummary(row)}
                 </td>
                 <td className="px-5 py-4 font-medium text-ink">
-                  {formatDate(row.transaction.requestDate)}
+                  {formatDate(row.returnRound?.createdAt ?? row.transaction.requestDate)}
                 </td>
                 <td className="px-5 py-4 font-semibold text-ink">
-                  Step {row.stepSequence}
+                  {row.requiredTag === "BSD_STAFF" && row.transaction.type === "SOLD"
+                    ? "Sale pricing"
+                    : row.requiredTag.startsWith("ACK_") ? "Acknowledgement" : `Step ${row.stepSequence}`}
                   <p className="mt-1 text-xs font-medium text-muted-foreground">
-                    {row.requiredTag}
+                    {approvalStepLabel(row)}
                   </p>
                 </td>
                 <td className="px-5 py-4">
                   <Link
                     className="inline-flex h-9 items-center justify-center rounded-md bg-navy px-3 text-sm font-bold text-white hover:bg-black"
-                    href={`/logs/${row.transaction.id}/return`}
+                    href={`/logs/${row.transaction.id}/return${row.requiredTag === "BSD_STAFF" && row.transaction.type === "SOLD" ? "#sale-pricing" : ""}`}
                   >
-                    View Detail
+                    {row.requiredTag === "BSD_STAFF" && row.transaction.type === "SOLD" ? "Enter prices" : "View Detail"}
                   </Link>
                 </td>
               </tr>
@@ -498,15 +628,20 @@ function ApproveTable({ rows }: { rows: TransactionApprovalQueueRow[] }) {
 }
 
 function transactionQuantity(row: TransactionLogRow) {
-  return row.items.reduce((sum, item) => sum + (item.requestedQuantity ?? 1), 0);
+  return row.items.reduce(
+    (sum, item) => sum + (item.requestedQuantity ?? 1),
+    0,
+  );
 }
 
 function TransactionTable({
+  canExportAnytime,
   currentUserId,
   rows,
 }: {
+  canExportAnytime: boolean;
   currentUserId: string;
-  rows: TransactionLogRow[];
+  rows: TransactionLogDisplayRow[];
 }) {
   return (
     <section className="overflow-hidden rounded-md border border-border bg-white shadow-sm">
@@ -519,6 +654,8 @@ function TransactionTable({
             <tr>
               <th className="px-5 py-4 font-bold">Transaction ID</th>
               <th className="px-5 py-4 font-bold">Borrower</th>
+              <th className="px-5 py-4 font-bold">Project / Customer</th>
+              <th className="px-5 py-4 font-bold">Type</th>
               <th className="px-5 py-4 font-bold">Request Date</th>
               <th className="px-5 py-4 font-bold">Return Date</th>
               <th className="px-5 py-4 font-bold">Status</th>
@@ -535,13 +672,31 @@ function TransactionTable({
                   <TransactionLink transactionId={row.id}>
                     {getTransactionDisplayNo(row)}
                     <p className="mt-1 text-xs font-medium text-muted-foreground">
-                      {row.items.length.toLocaleString("en-US")} lines / {transactionQuantity(row).toLocaleString("en-US")} qty
+                      {row.items.length.toLocaleString("en-US")} lines /{" "}
+                      {transactionQuantity(row).toLocaleString("en-US")} qty
                     </p>
                   </TransactionLink>
                 </td>
                 <td className="px-5 py-4">
                   <TransactionLink transactionId={row.id}>
                     <BorrowerCell row={row} />
+                  </TransactionLink>
+                </td>
+                <td className="px-5 py-4 font-semibold text-ink">
+                  <TransactionLink transactionId={row.id}>
+                    {(row.project ?? row.sourceTransaction?.project) ? (
+                      <>
+                        <p>{formatProjectLabel(row.project ?? row.sourceTransaction?.project)}</p>
+                      </>
+                    ) : (row.serviceRequest ? row.purpose : row.sourceTransaction?.serviceRequest ? row.sourceTransaction.purpose : null) || "-"}
+                  </TransactionLink>
+                </td>
+                <td className="px-5 py-4 font-semibold text-ink">
+                  <TransactionLink transactionId={row.id}>
+                    {logTypeLabels[getLogDisplayType(row)]}
+                    {getLogDisplayType(row) !== "SOLD_FROM_RETURN" && getLogRequestCategory(row)
+                      ? ` / ${getLogRequestCategory(row)}`
+                      : ""}
                   </TransactionLink>
                 </td>
 
@@ -552,7 +707,7 @@ function TransactionTable({
                 </td>
                 <td className="px-5 py-4 font-medium text-ink">
                   <TransactionLink transactionId={row.id}>
-                    {formatReturnDate(row)}
+                    <ReturnDateLabel row={row} />
                   </TransactionLink>
                 </td>
                 <td className="px-5 py-4">
@@ -562,9 +717,20 @@ function TransactionTable({
                 </td>
                 <td className="px-5 py-4">
                   <TransactionRowActions
+                    canExport={
+                      canExportAnytime ||
+                      row.workflowStatus !== TransactionWorkflowStatus.PENDING
+                    }
                     canCancel={
                       row.requestedBy.id === currentUserId &&
-                      (row.workflowStatus === TransactionWorkflowStatus.PENDING || row.workflowStatus === TransactionWorkflowStatus.REJECTED)
+                      !row.sourceTransactionId &&
+                      !row.outcomeRecords.some(
+                        (outcome) => !outcome.approvedAt,
+                      ) &&
+                      (row.workflowStatus ===
+                        TransactionWorkflowStatus.PENDING ||
+                        row.workflowStatus ===
+                          TransactionWorkflowStatus.REJECTED)
                     }
                     transactionId={row.id}
                   />
@@ -598,7 +764,9 @@ function Pagination({
   return (
     <TablePagination
       currentPage={page}
-      hrefForPage={(nextPage) => buildTransactionLogHref(filters, { page: nextPage })}
+      hrefForPage={(nextPage) =>
+        buildTransactionLogHref(filters, { page: nextPage })
+      }
       summary={`Showing ${formatNumber(Math.min(total, page * filters.pageSize))} of ${formatNumber(total)} entries`}
       totalPages={totalPages}
     />
@@ -619,6 +787,7 @@ function NoLogAccess() {
 export function TransactionLogPage({
   activeTab,
   approvalRows,
+  canExportAnytime,
   currentUserId,
   filters,
   requestQueueAssets,
@@ -629,6 +798,7 @@ export function TransactionLogPage({
 }: {
   activeTab: TransactionLogTab;
   approvalRows: TransactionApprovalQueueRow[];
+  canExportAnytime: boolean;
   currentUserId: string;
   filters: TransactionLogFilters;
   metrics: {
@@ -637,7 +807,7 @@ export function TransactionLogPage({
     inProgress: number;
   };
   requestQueueAssets: RequestCartAsset[];
-  rows: TransactionLogRow[];
+  rows: TransactionLogDisplayRow[];
   total: number;
   totalPages: number;
 }) {
@@ -653,8 +823,17 @@ export function TransactionLogPage({
             <RequestQueueTable assets={requestQueueAssets} />
           ) : null}
           <Controls filters={filters} rows={rows} />
-          <TransactionTable currentUserId={currentUserId} rows={rows} />
-          <Pagination filters={filters} page={filters.page} total={total} totalPages={totalPages} />
+          <TransactionTable
+            canExportAnytime={canExportAnytime}
+            currentUserId={currentUserId}
+            rows={rows}
+          />
+          <Pagination
+            filters={filters}
+            page={filters.page}
+            total={total}
+            totalPages={totalPages}
+          />
         </>
       )}
     </div>
@@ -675,6 +854,9 @@ export default async function TransactionLogPageRoute({
   let requestQueueAssets: RequestCartAsset[] = [];
   let approvalRows: TransactionApprovalQueueRow[] = [];
   let user: CurrentUser | null = null;
+  let quantityOutcomes: Array<
+    LogOutcomeQuantity & { transactionItem: { transactionId: string } }
+  > = [];
 
   try {
     user = await requireCurrentUser("/logs");
@@ -684,6 +866,21 @@ export default async function TransactionLogPageRoute({
       getPendingApprovalsForUser(user),
     ]);
     result = logResult;
+    if (result.canView && result.rows.length > 0) {
+      quantityOutcomes = await db.transactionItemOutcome.findMany({
+        where: {
+          transactionItem: {
+            transactionId: { in: result.rows.map((row) => row.id) },
+          },
+        },
+        select: {
+          transactionItemId: true,
+          quantity: true,
+          approvedAt: true,
+          transactionItem: { select: { transactionId: true } },
+        },
+      });
+    }
     requestQueueAssets = queueResult.assets as RequestCartAsset[];
     approvalRows = approvalsResult;
   } catch (error) {
@@ -711,16 +908,23 @@ export default async function TransactionLogPageRoute({
     <TransactionLogPage
       activeTab={activeTab}
       approvalRows={approvalRows}
+      canExportAnytime={
+        hasRole(user, "ADMIN") ||
+        hasRole(user, "STOREMAN") ||
+        user.permissions.some((permission) => permission.canManage)
+      }
       currentUserId={user.id}
       filters={filters}
       metrics={result.metrics}
       requestQueueAssets={requestQueueAssets}
-      rows={result.rows}
+      rows={result.rows.map((row) => ({
+        ...row,
+        quantityOutcomes: quantityOutcomes.filter(
+          (outcome) => outcome.transactionItem.transactionId === row.id,
+        ),
+      }))}
       total={result.total}
       totalPages={result.totalPages}
     />
   );
 }
-
-
-

@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
-import { apiErrorResponse, readJsonBody, requireApiUser } from "@/lib/api";
+import { apiErrorResponse, readJsonBody, requireApiUser, apiJson } from "@/lib/api";
 import { addItemsToPendingTransaction } from "@/lib/workflow";
 
 type RouteContext = {
@@ -27,8 +27,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const input = addItemsSchema.parse(await readJsonBody(request));
     const transaction = await addItemsToPendingTransaction(user, id, input);
 
-    return NextResponse.json({ transaction });
+    return apiJson({ transaction });
   } catch (error) {
     return apiErrorResponse(error);
   }
 }
+

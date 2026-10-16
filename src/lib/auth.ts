@@ -93,6 +93,17 @@ function toCurrentUser(
     (assignment) => assignment.isPrimary,
   ) ?? user.organizationAssignments[0];
 
+  const roleCodes = user.roles.map(({ role }) => role.code as RoleCode);
+  const hasManagedWarehouse = user.warehousePermissions.some(
+    (permission) => permission.canManage,
+  );
+  const effectiveRoles =
+    !roleCodes.includes("ADMIN") &&
+    !roleCodes.includes("STOREMAN") &&
+    hasManagedWarehouse
+      ? [...roleCodes, "STOREMAN" as const]
+      : roleCodes;
+
   return {
     azureAdObjectId: user.azureAdObjectId,
     id: user.id,
@@ -109,7 +120,7 @@ function toCurrentUser(
     signatureUploadedBy: user.signatureUploadedBy
       ? { ...user.signatureUploadedBy, email: user.signatureUploadedBy.email ?? "" }
       : null,
-    roles: user.roles.map(({ role }) => role.code as RoleCode),
+    roles: effectiveRoles,
     permissions: user.warehousePermissions.map((permission) => ({
       canManage: permission.canManage,
       canView: permission.canView,

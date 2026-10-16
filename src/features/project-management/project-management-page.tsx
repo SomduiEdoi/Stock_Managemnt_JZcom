@@ -1,5 +1,6 @@
 "use client";
 
+import { formatProjectLabel } from "@/lib/project-label";
 import { createPortal } from "react-dom";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -8,6 +9,8 @@ import {
   Layers,
   MoreVertical,
   CirclePlus,
+  FileDown,
+  Loader2,
   SquarePen,
   Trash2,
   UserCheck,
@@ -16,14 +19,15 @@ import {
 import { SearchCombobox } from "@/components/form/search-combobox";
 import { SearchableDropdown } from "@/components/form/searchable-dropdown";
 import { TablePagination } from "@/components/table/table-pagination";
-import type { ProjectRow, ProjectUserOption } from "@/lib/project-management";
+import type { ProjectRow, ProjectTransactionHistoryRow, ProjectUserOption } from "@/lib/project-management";
 
-type ProjectStatus = "ACTIVE" | "CLOSED";
+type ProjectStatus = "ACTIVE" | "PENDING_APPROVAL" | "CLOSED";
 
 type ProjectFormState = {
   leadUserIds: string[];
   memberUserIds: string[];
   name: string;
+  customerName: string;
   projectId: string;
   status: ProjectStatus;
 };
@@ -31,6 +35,7 @@ type ProjectFormState = {
 type DialogState =
   | { type: "ADD" }
   | { project: ProjectRow; type: "DELETE" }
+  | { project: ProjectRow; type: "DETAIL" }
   | { project: ProjectRow; type: "EDIT" }
   | null;
 
@@ -39,6 +44,7 @@ function emptyForm(): ProjectFormState {
     leadUserIds: [],
     memberUserIds: [],
     name: "",
+    customerName: "",
     projectId: "",
     status: "ACTIVE",
   };
@@ -49,6 +55,7 @@ function toForm(project: ProjectRow): ProjectFormState {
     leadUserIds: project.leads.map((lead) => lead.id),
     memberUserIds: project.members.map((member) => member.id),
     name: project.name,
+    customerName: project.customerName,
     projectId: project.projectId ?? "",
     status: project.status,
   };
@@ -111,27 +118,30 @@ function MetricCard({
 
 function StatusBadge({ status }: { status: ProjectStatus }) {
   const isActive = status === "ACTIVE";
+  const isPending = status === "PENDING_APPROVAL";
 
   return (
     <span className="inline-flex items-center gap-2 text-sm font-semibold text-ink">
-      <span className={isActive ? "h-2 w-2 rounded-full bg-status-ready" : "h-2 w-2 rounded-full bg-muted-foreground"} />
-      {isActive ? "Active" : "Closed"}
+      <span className={isActive ? "h-2 w-2 rounded-full bg-status-ready" : isPending ? "h-2 w-2 rounded-full bg-status-request" : "h-2 w-2 rounded-full bg-muted-foreground"} />
+      {isActive ? "Active" : isPending ? "Pending Approval" : "Closed"}
     </span>
   );
 }
 
 function ModalShell({
   children,
+  maxWidth = "max-w-2xl",
   onClose,
   title,
 }: {
   children: React.ReactNode;
+  maxWidth?: string;
   onClose: () => void;
   title: string;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
-      <div className="w-full max-w-2xl overflow-visible rounded-md border border-border bg-white shadow-xl">
+      <div className={`w-full ${maxWidth} overflow-visible rounded-md border border-border bg-white shadow-xl`}>
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <h2 className="text-xl font-bold text-navy">{title}</h2>
           <button
@@ -173,13 +183,13 @@ function SearchableUserSelect({
         onChange={onChange}
         options={options.map((option) => ({
           disabled: disabledIds.includes(option.id),
-          description: option.email,
+          description: option.position ?? "",
           label: option.name,
-          searchText: optionLabel(option),
+          searchText: `${option.name} ${option.position ?? ""}`,
           value: option.id,
         }))}
-        placeholder="Search user by name or email"
-        searchPlaceholder="Search user by name or email"
+        placeholder="Select user"
+        searchPlaceholder="Search user..."
         value={value}
       />
     </Field>
@@ -273,6 +283,7 @@ function ProjectFormModal({
     const missingFields = [];
     if (!form.name.trim()) missingFields.push("Project Name");
     if (!form.projectId.trim()) missingFields.push("Project ID");
+    if (!form.customerName.trim()) missingFields.push("Customer Name");
     if (form.leadUserIds.length === 0) missingFields.push("Lead Project");
 
     if (missingFields.length > 0) {
@@ -289,6 +300,7 @@ function ProjectFormModal({
           leadUserIds: form.leadUserIds,
           memberUserIds: form.memberUserIds,
           name: form.name.trim(),
+          customerName: form.customerName.trim(),
           projectId: form.projectId.trim().toUpperCase(),
           status: form.status,
         }),
@@ -339,6 +351,25 @@ function ProjectFormModal({
           />
         </Field>
 
+        <Field label="Customer Name" required>
+          <input className={inputClass()} onChange={(event) => setField("customerName", event.target.value)} type="text" value={form.customerName} />
+        </Field>
+
+        {mode === "EDIT" ? (
+          <Field label="Project Status" required>
+            <SearchableDropdown
+              onChange={(value) => setField("status", value as ProjectStatus)}
+              options={[
+                { label: "Active", value: "ACTIVE" },
+                { label: "Closed", value: "CLOSED" },
+              ]}
+              placeholder="Select project status"
+              searchPlaceholder="Search status"
+              value={form.status}
+            />
+          </Field>
+        ) : null}
+
         <UserMultiPicker
           disabledIds={form.memberUserIds}
           label="Lead Project"
@@ -355,23 +386,6 @@ function ProjectFormModal({
           options={userOptions}
           selectedIds={form.memberUserIds}
         />
-
-        {mode === "EDIT" ? (
-          <div className="md:col-span-2">
-            <Field label="Project Status" required>
-              <SearchableDropdown
-                onChange={(value) => setField("status", value as ProjectStatus)}
-                options={[
-                  { label: "Active", value: "ACTIVE" },
-                  { label: "Closed", value: "CLOSED" },
-                ]}
-                placeholder="Select project status"
-                searchPlaceholder="Search status"
-                value={form.status}
-              />
-            </Field>
-          </div>
-        ) : null}
       </div>
 
       {error ? (
@@ -439,7 +453,7 @@ function DeleteProjectModal({
       <div className="space-y-3 text-sm font-medium leading-6 text-ink">
         <p>Are you sure you want to delete this project?</p>
         <p>
-          Project Name: <span className="font-bold text-navy">{project.name}</span>
+          Project: <span className="font-bold text-navy">{formatProjectLabel(project)}</span>
         </p>
         <p>
           Project ID: <span className="font-bold text-navy">{project.projectId ?? "-"}</span>
@@ -469,6 +483,172 @@ function DeleteProjectModal({
       </div>
     </ModalShell>
   );
+}
+
+const transactionTypeLabels = {
+  BORROW: "Borrow",
+  SOLD: "Sold",
+  USING: "Using",
+} as const;
+
+function transactionStatusLabel(status: ProjectTransactionHistoryRow["status"]) {
+  return status
+    .toLowerCase()
+    .replace(/(^|_)([a-z])/g, (_match, separator: string, character: string) =>
+      `${separator ? " " : ""}${character.toUpperCase()}`,
+    );
+}
+
+function ProjectTransactionHistory({
+  error,
+  isLoading,
+  onExport,
+  exportingId,
+  rows,
+}: {
+  error: string;
+  exportingId: string | null;
+  isLoading: boolean;
+  onExport: (transactionId: string) => void;
+  rows: ProjectTransactionHistoryRow[];
+}) {
+  const router = useRouter();
+
+  return (
+    <section className="mt-6 overflow-hidden rounded-md border border-border bg-surface/40">
+      <div className="border-b border-border bg-white px-4 py-4">
+        <h3 className="text-lg font-bold text-navy">Transaction History</h3>
+        <p className="mt-1 text-sm font-medium text-muted-foreground">
+          Requests linked to this project.
+        </p>
+      </div>
+      {error ? <p className="border-b border-border bg-status-fail/10 px-4 py-3 text-sm font-semibold text-status-fail">{error}</p> : null}
+      <div className="max-h-72 overflow-auto">
+        <table className="min-w-full border-collapse text-left text-sm">
+          <thead className="sticky top-0 bg-surface text-xs uppercase text-muted-foreground">
+            <tr>
+              <th className="px-4 py-3 font-bold">Transaction ID</th>
+              <th className="px-4 py-3 font-bold">Borrower</th>
+              <th className="px-4 py-3 font-bold">Type</th>
+              <th className="px-4 py-3 font-bold">Request Date</th>
+              <th className="px-4 py-3 font-bold">Status</th>
+              <th className="px-4 py-3 text-right font-bold">Action</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border bg-white">
+            {isLoading ? (
+              <tr>
+                <td className="px-4 py-8 text-center text-sm font-medium text-muted-foreground" colSpan={6}>Loading transactions...</td>
+              </tr>
+            ) : rows.length === 0 ? (
+              <tr>
+                <td className="px-4 py-8 text-center text-sm font-medium text-muted-foreground" colSpan={6}>No transactions found.</td>
+              </tr>
+            ) : rows.map((transaction) => (
+              <tr
+                className="cursor-pointer transition hover:bg-brand-accent/5"
+                key={transaction.id}
+                onClick={() => router.push(`/logs/${transaction.id}`)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") router.push(`/logs/${transaction.id}`);
+                }}
+                tabIndex={0}
+              >
+                <td className="px-4 py-3 font-bold text-navy">{transaction.transactionReference}</td>
+                <td className="px-4 py-3 font-semibold text-ink">{transaction.requestedBy}</td>
+                <td className="px-4 py-3 font-semibold text-ink">{transactionTypeLabels[transaction.type]}</td>
+                <td className="px-4 py-3 font-medium text-ink">{new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(new Date(transaction.requestDate))}</td>
+                <td className="px-4 py-3">
+                  <span className="inline-flex rounded-full bg-surface px-2.5 py-1 text-xs font-bold text-navy">{transactionStatusLabel(transaction.status)}</span>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <button
+                    className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-white px-3 text-xs font-bold text-navy hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={exportingId === transaction.id}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onExport(transaction.id);
+                    }}
+                    type="button"
+                  >
+                    {exportingId === transaction.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+                    Export PDF
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function ProjectDetailModal({ project, onClose, onChanged }: { project: ProjectRow; onClose: () => void; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [historyError, setHistoryError] = useState("");
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [transactions, setTransactions] = useState<ProjectTransactionHistoryRow[]>([]);
+  const [exportingId, setExportingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setIsLoadingHistory(true);
+    setHistoryError("");
+    fetch(`/api/projects/${project.id}`)
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({})) as { message?: string; transactions?: ProjectTransactionHistoryRow[] };
+        if (!response.ok) throw new Error(data.message ?? "Unable to load project transactions.");
+        if (active) setTransactions(data.transactions ?? []);
+      })
+      .catch((caught) => {
+        if (active) setHistoryError(caught instanceof Error ? caught.message : "Unable to load project transactions.");
+      })
+      .finally(() => {
+        if (active) setIsLoadingHistory(false);
+      });
+    return () => { active = false; };
+  }, [project.id]);
+
+  async function respond(action: "approve" | "reject") {
+    setBusy(true); setError("");
+    try {
+      const response = await fetch(`/api/projects/${project.id}/${action}`, { method: "POST" });
+      if (!response.ok) { const data = await response.json().catch(() => ({})) as { message?: string }; throw new Error(data.message ?? "Unable to update project."); }
+      onChanged(); onClose();
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Unable to update project."); }
+    finally { setBusy(false); }
+  }
+
+  async function exportTransaction(transactionId: string) {
+    setExportingId(transactionId);
+    setHistoryError("");
+    try {
+      const { downloadTransactionPdf } = await import("@/features/transactions/transaction-pdf-download");
+      await downloadTransactionPdf(transactionId);
+    } catch (caught) {
+      setHistoryError(caught instanceof Error ? caught.message : "Unable to export transaction PDF.");
+    } finally {
+      setExportingId(null);
+    }
+  }
+
+  return <ModalShell maxWidth="max-w-4xl" onClose={onClose} title="Project Details">
+    <div className="grid gap-4 md:grid-cols-2">
+      <Field label="Project"><div className={`${inputClass()} flex items-center bg-surface`}>{formatProjectLabel(project)}</div></Field>
+      <Field label="Project ID"><div className={`${inputClass()} flex items-center bg-surface`}>{project.projectId ?? "-"}</div></Field>
+      <Field label="Customer Name"><div className={`${inputClass()} flex items-center bg-surface`}>{project.customerName}</div></Field>
+      <Field label="Project Status"><div className="flex h-11 items-center rounded-md border border-border bg-surface px-3"><StatusBadge status={project.status} /></div></Field>
+      <Field label="Lead Project"><div className="flex min-h-11 flex-wrap items-center gap-2 rounded-md border border-border bg-surface p-2">{project.leads.map((lead) => <span className="rounded-full bg-white px-3 py-1 text-sm font-bold text-navy" key={lead.id}>{lead.name}</span>)}</div></Field>
+      <Field label="Team Member"><div className="flex min-h-11 flex-wrap items-center gap-2 rounded-md border border-border bg-surface p-2">{project.members.length ? project.members.map((member) => <span className="rounded-full bg-white px-3 py-1 text-sm font-bold text-navy" key={member.id}>{member.name}</span>) : <span className="text-sm text-muted-foreground">-</span>}</div></Field>
+    </div>
+    <ProjectTransactionHistory error={historyError} exportingId={exportingId} isLoading={isLoadingHistory} onExport={exportTransaction} rows={transactions} />
+    {error ? <p className="mt-4 rounded-md bg-status-fail/10 p-3 text-sm font-semibold text-status-fail">{error}</p> : null}
+    <div className="mt-5 flex justify-end gap-3">
+      {project.canApprove ? <><button className="h-11 rounded-md border border-status-fail px-4 text-sm font-bold text-status-fail" disabled={busy} onClick={() => respond("reject")} type="button">Reject</button><button className="h-11 rounded-md bg-status-ready px-4 text-sm font-bold text-white" disabled={busy} onClick={() => respond("approve")} type="button">Confirm</button></> : <button className="h-11 rounded-md border border-border px-4 text-sm font-bold text-navy" onClick={onClose} type="button">Close</button>}
+    </div>
+  </ModalShell>;
 }
 
 function ProjectActionMenu({
@@ -553,7 +733,7 @@ function ProjectActionMenu({
         aria-expanded={open}
         aria-label="Open project actions"
         className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-white text-navy hover:bg-surface"
-        onClick={() => setOpen((current) => !current)}
+        onClick={(event) => { event.stopPropagation(); setOpen((current) => !current); }}
         ref={triggerRef}
         type="button"
       >
@@ -605,7 +785,7 @@ export function ProjectManagementPage({
   const [query, setQuery] = useState("");
 
   const searchSuggestions = useMemo(() => projects.flatMap((project) => [
-    { category: "PROJECT", label: project.name, searchText: `${project.projectId ?? ""} ${project.leads.map((lead) => lead.name).join(" ")}`, value: project.name },
+    { category: "PROJECT", label: formatProjectLabel(project), searchText: `${project.projectId ?? ""} ${project.customerName} ${project.leads.map((lead) => lead.name).join(" ")}`, value: project.name },
     ...(project.projectId ? [{ category: "ID", label: project.projectId, searchText: project.name, value: project.projectId }] : []),
     ...(project.leads.map((lead) => ({ category: "LEAD", label: lead.name, searchText: `${lead.email} ${project.name}`, value: lead.name }))),
     ...project.members.map((member) => ({ category: "MEMBER", label: member.name, searchText: `${member.email} ${project.name}`, value: member.name })),
@@ -621,6 +801,7 @@ export function ProjectManagementPage({
     return projects.filter((project) =>
       [
         project.name,
+        project.customerName,
         project.projectId ?? "",
         project.leads.map((lead) => lead.name).join(" "),
         project.leads.map((lead) => lead.email).join(" "),
@@ -678,6 +859,7 @@ export function ProjectManagementPage({
           categories={[
             { label: "All", value: "ALL" },
             { label: "Project", value: "PROJECT" },
+            { label: "Customer", value: "CUSTOMER" },
             { label: "ID", value: "ID" },
             { label: "Lead", value: "LEAD" },
             { label: "Member", value: "MEMBER" },
@@ -706,6 +888,7 @@ export function ProjectManagementPage({
             <thead className="bg-surface text-xs uppercase text-muted-foreground">
               <tr>
                 <th className="w-[24%] px-5 py-4 font-bold">Project Name</th>
+                <th className="w-[18%] px-5 py-4 font-bold">Customer</th>
                 <th className="w-[16%] px-5 py-4 font-bold">Project ID</th>
                 <th className="w-[18%] px-5 py-4 font-bold">Lead Project</th>
                 <th className="w-[24%] px-5 py-4 font-bold">Team Member</th>
@@ -715,8 +898,9 @@ export function ProjectManagementPage({
             </thead>
             <tbody className="divide-y divide-border">
               {filteredProjects.map((project) => (
-                <tr className="align-middle" key={project.id}>
-                  <td className="truncate px-5 py-4 font-bold text-navy" title={project.name}>{project.name}</td>
+              <tr className="cursor-pointer align-middle transition hover:bg-gray-50" key={project.id} onClick={() => setDialog({ project, type: "DETAIL" })}>
+                  <td className="truncate px-5 py-4 font-bold text-navy" title={project.name}><button className="text-left hover:text-brand-accent" onClick={() => setDialog({ project, type: "DETAIL" })} type="button">{project.name}</button></td>
+                  <td className="truncate px-5 py-4 font-semibold text-ink" title={project.customerName}>{project.customerName}</td>
                   <td className="truncate px-5 py-4 font-semibold text-ink" title={project.projectId ?? "-"}>{project.projectId ?? "-"}</td>
                   <td className="truncate px-5 py-4 text-ink" title={project.leads.map(optionLabel).join(", ") || "-"}>
                     {project.leads.length > 0 ? project.leads.map((lead) => lead.name).join(", ") : "-"}
@@ -730,7 +914,22 @@ export function ProjectManagementPage({
                     <StatusBadge status={project.status} />
                   </td>
                   <td className="px-5 py-4">
-                    {project.canManage ? (
+                    {project.canApprove ? (
+                      <button
+                        className="h-9 rounded-md bg-status-ready px-3 text-xs font-bold text-white hover:opacity-90"
+                        onClick={async (event) => {
+                          event.stopPropagation();
+                          const response = await fetch(`/api/projects/${project.id}/approve`, { method: "POST" });
+                          if (response.ok) {
+                            setProjects((current) => current.map((item) => item.id === project.id ? { ...item, canApprove: false, status: "ACTIVE" } : item));
+                            router.refresh();
+                          }
+                        }}
+                        type="button"
+                      >
+                        Confirm
+                      </button>
+                    ) : project.canManage ? (
                       <ProjectActionMenu
                         onDelete={() => setDialog({ project, type: "DELETE" })}
                         onEdit={() => setDialog({ project, type: "EDIT" })}
@@ -792,6 +991,7 @@ export function ProjectManagementPage({
           project={dialog.project}
         />
       ) : null}
+      {dialog?.type === "DETAIL" ? <ProjectDetailModal onChanged={() => { setProjects((current) => current.map((item) => item.id === dialog.project.id ? { ...item, canApprove: false, status: "ACTIVE" } : item)); router.refresh(); }} onClose={() => setDialog(null)} project={dialog.project} /> : null}
     </div>
   );
 }

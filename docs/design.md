@@ -1,232 +1,206 @@
-# Design: Warehouse Management
+# Design: Warehouse Management System
 
-อัปเดตล่าสุด: 2026-09-04
+สถาปัตยกรรมและความสัมพันธ์ข้อมูลในเอกสารนี้อ้างอิง `prisma/schema.prisma`, API routes และ server-side services ใน `src/` กฎธุรกิจอยู่ใน [PRD](prd.md) และ [Rules](rule.md)
 
 ## 1. Architecture
 
-- Full-stack: Next.js และ TypeScript
-- Database: PostgreSQL
-- ORM: Prisma
-- UI: React และ Tailwind CSS
-- Authentication: login/session แบบปัจจุบัน
-- CSV: ใช้เป็น master data; runtime ใช้ PostgreSQL
+Next.js 15 / React / TypeScript / Tailwind CSS, PostgreSQL และ Prisma
+Server Components อ่านข้อมูลจาก PostgreSQL ผ่าน lib; Client Components เรียก API สำหรับ mutation และใช้ Router สำหรับ filter navigation
+CSV/SharePoint เป็น import input เท่านั้น
+Authentication ใช้ signed HttpOnly session cookie, AD หรือ Local Admin; ดู [Emergency Local Login](emergency-local-login.md)
 
-## 2. Core Data Model
-
-| Concept | Prisma Model | Database Table |
-| --- | --- | --- |
-| User/Role | `User`, `Role`, `UserRole` | `users`, `roles`, `user_roles` |
-| Organization Assignment | target: `UserOrganizationAssignment` | target: `user_organization_assignments` |
-| Warehouse | `AssetWarehouse` | `asset_warehouses` |
-| Warehouse Permission | `UserWarehousePermission` | `user_warehouse_permissions` |
-| Category/Type/Model | `AssetCategory`, `AssetType`, `AssetModel` | asset master tables |
-| Custom Field | `AssetCategoryCustomField`, `AssetCustomFieldValue` | custom field tables |
-| Asset | `Asset` | `assets` |
-| Reservation | `AssetReservation` | `asset_reservations` |
-| Project | `Project`, `ProjectMember` | `projects`, `project_members` |
-| Transaction | `Transaction`, `TransactionItem` | `transactions`, `transaction_items` |
-| Approval | `TransactionApproval` | `transaction_approvals` |
-| Status History | `AssetStatusHistory` | `asset_status_histories` |
-| CSV Migration | `MigrationBatch`, `MigrationRow` | migration audit tables |
-
-Transaction มี self-relation ผ่าน `sourceTransactionId` เพื่อเชื่อม Source Transaction กับ Derived Return/Sold Transaction
-
-ปัจจุบัน `User` ยังเก็บ `organizationLevel` และ `organizationTag` เป็นค่าเดียว ส่วน target model ต้องย้ายไปใช้ `UserOrganizationAssignment[]` เพื่อรองรับหลายตำแหน่งต่อ User
-
-Target model:
-
-```prisma
-model UserOrganizationAssignment {
-  id              String            @id @default(uuid()) @db.Uuid
-  userId          String            @map("user_id") @db.Uuid
-  organizationTag OrganizationTag   @map("organization_tag")
-  level           OrganizationLevel @map("organization_level")
-  isPrimary       Boolean           @default(false) @map("is_primary")
-  isActive        Boolean           @default(true) @map("is_active")
-  createdAt       DateTime          @default(now()) @map("created_at")
-  updatedAt       DateTime          @updatedAt @map("updated_at")
-  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, organizationTag])
-  @@index([organizationTag, isActive])
-  @@map("user_organization_assignments")
-}
+```mermaid
+flowchart LR
+  Browser --> Page[Next.js Server Component]
+  Page --> Read[src/features และ src/lib read services]
+  Read --> Prisma[Prisma Client]
+  Browser --> Route[API Route mutation]
+  Route --> Auth[Session และ Scope Validation]
+  Auth --> Service[src/lib workflow / return / asset services]
+  Service --> Tx[Prisma transaction]
+  Prisma --> DB[(PostgreSQL)]
+  Tx --> DB
 ```
 
-Database ต้องบังคับให้ User มี primary assignment ที่ active ได้ไม่เกินหนึ่งรายการ และ migration ต้องย้ายค่าเดิมจาก `users.organization_level`/`users.organization_tag` ไปเป็น assignment แรก
+หน้าอ่านข้อมูลผ่าน Server Component และ server-side service ได้โดยตรง ส่วนคำสั่งเปลี่ยนข้อมูลเข้าผ่าน API Route ซึ่งตรวจตัวตน สิทธิ์และ Warehouse scope บนเซิร์ฟเวอร์ก่อน mutation
 
-## 3. Warehouse Design
+## 2. โมเดลหลัก
 
-- Warehouse มี `code`, `name`, `prefix`, `inventoryFamily`, Head Stock Controller และ active state
-- Server/Network มี dedicated page ได้ แต่ dynamic route คือ `/dashboard/inventory/[warehouseCode]`
-- Sidebar, permission, category/type และ inventory query อ่าน Warehouse จาก PostgreSQL
-- Stock Controller permission แยก `canView` และ `canManage`
-- Warehouse ที่ยังมี active asset ห้ามลบ
-- Migration `20260902090000_warehouse_and_transaction_status_cleanup` เปลี่ยน table/column/index เดิมจาก Domain เป็น Warehouse
+| กลุ่ม | Prisma Models |
+| --- | --- |
+| Users/Auth | User, Role, UserRole, UserOrganizationAssignment, LoginThrottle, LoginAudit |
+| Warehouses/Permission | AssetWarehouse, WarehouseManagerAssignment, UserWarehousePermission |
+| Product Master | AssetCategory, AssetType, AssetModel, Location |
+| Custom Fields | AssetCategoryCustomField, AssetCustomFieldValue |
+| Stock | Asset, AssetReservation, AssetStatusHistory, UserFavorite |
+| Project | Project, ProjectMember, ProjectApproval, ProjectLeadChange |
+| Request/Approval | Transaction, TransactionItem, TransactionApproval |
+| Return | ReturnBatch, TransactionItemOutcome, ReturnOutcomeCheck, ReturnBatchEvidence |
+| Import Audit | MigrationBatch, MigrationRow |
 
-## 4. Asset and Inventory Design
-
-### SERIAL
-
-- ใช้ serial number, quantity เท่ากับ 1
-- Draft request เปลี่ยน status เป็น `REQUEST` และบันทึก lock owner/time
-- Approval ครบจึงเปลี่ยนเป็น `BORROW`, `USING` หรือ `SOLD`
-
-### QUANTITY
-
-- ใช้ `assetQuantity` และไม่บังคับ serial number
-- Draft cart ใช้ `AssetReservation.quantity`
-- Submit ย้ายจำนวนไป `TransactionItem.requestedQuantity`
-- Availability หัก draft reservation และ open `PENDING`/`IN_PROGRESS` transaction items
-
-Inventory รองรับ search, pagination, sort และ filter Brand, Category, Type, Status รวมถึง custom field ที่กำหนดให้ searchable/filterable
-
-## 5. Transaction State Design
-
-| Type | Business Status หลังอนุมัติ | สถานะเมื่อคืน |
-| --- | --- | --- |
-| `BORROW` | `BORROWED` | `RETURNED` |
-| `USING` | `USING` | `RETURNED` |
-| `SOLD` | `COMPLETED` | ไม่คืน |
-
-Workflow:
-
-- `PENDING`: รอ approval
-- `IN_PROGRESS`: approval ครบและ Borrow/Using ยังไม่คืนครบ
-- `REJECTED`: ถูกปฏิเสธ
-- `COMPLETED`: Sold สำเร็จหรือ Borrow/Using คืนครบ
-
-## 6. Submit and Approval Design
-
-1. ตรวจ Project, hold/reservation, quantity และ item availability
-2. สร้าง `REQ-YYYYMMDD-XX` โดย sequence เริ่มที่ `01` และ reset รายเดือน, Transaction และ Transaction Items
-3. สร้าง approval candidates ตามบริบท
-4. เก็บ transaction เป็น `PENDING` และคง lock/reservation
-
-Approval sequence:
-
-1. Organization approver: Staff ไป Supervisor หรือ Supervisor ไป Manager
-2. Project approver: Team Member ไป Lead Project เมื่อเป็น Project request
-3. `STOCK_CONTROLLER:<WAREHOUSE_CODE>` ของทุก Warehouse
-4. `HEAD_STOCK_CONTROLLER:<WAREHOUSE_CODE>` ของทุก Warehouse
-5. `BSD_STAFF`
-6. `BSD_MANAGER`
-
-Approval ใน sequence เดียวกันทำแบบ parallel และต้องผ่านครบก่อนเลื่อนไป sequence ถัดไป ผู้อนุมัติต้องมี signature; ระบบเก็บชื่อ, tag และ signature snapshot
-
-Target organization routing ต้องค้นจาก Organization Assignments ที่ active ทั้งหมด ไม่อ่าน tag เดียวจาก User หาก requester มีหลาย assignment ต้องใช้ primary assignment เป็นค่าเริ่มต้นและให้เลือก request context เมื่อมีมากกว่าหนึ่งสายงานที่ใช้งานได้
-
-หาก assigned approver ของ sequence ปัจจุบันและ sequence ถัดไปเป็น User คนเดียวกัน ระบบให้กดครั้งเดียว แล้ว auto-approve step ถัดไปที่เป็นบุคคลเดียวกัน โดยสร้าง `TransactionApproval` แยกทุก required tag และบันทึกแหล่งที่มาว่า manual หรือ auto-approved เพื่อรักษา audit trail
-
-Project approval ใช้ dynamic assignee:
-
-- เมื่อแก้ Lead Project ให้ transaction ของ Project ที่ยัง `PENDING` sync pending Project Approval ภายใน database transaction เดียวกับการแก้ Project
-- ยกเลิก pending assignment ของ Lead ที่ถูกถอดและสร้าง assignment ให้ Lead ปัจจุบันทันที
-- Approval Queue และ authorization ต้อง query assignment ล่าสุด เพื่อให้ Lead เดิมหมดสิทธิ์ทันที
-- Lead Project ทุกคนอยู่ใน approval sequence เดียวกันและใช้เงื่อนไข all-required
-- Approval ที่สำเร็จแล้วเก็บ snapshot เดิมและไม่ถูกลบ
-- ถ้า sequence ยังไม่ครบ การเพิ่ม Lead ใหม่จะเพิ่ม pending approval ที่ต้องผ่าน
-- ถ้า Project sequence เสร็จและ workflow เลื่อนไปแล้ว ห้าม reopen จากการเปลี่ยน Lead
-- มี Project Lead Change History หรือ audit event เก็บ old/new lead, actor และ timestamp
-
-เมื่ออนุมัติครบ:
-
-- Borrow -> business `BORROWED`, workflow `IN_PROGRESS`, asset `BORROW`
-- Using -> business `USING`, workflow `IN_PROGRESS`, asset `USING`
-- Sold -> business/workflow `COMPLETED`, asset `SOLD`
-
-SOLD บังคับราคาเมื่อ current step เป็น `BSD_STAFF`
-
-## 7. Reject and Edit Design
-
-- Reject ต้องมี comment
-- Normal request ที่ reject จะ release Serial lock หรือ Quantity reservation
-- Derived Return/Sold ที่ reject บันทึกผลการปฏิเสธโดยไม่ release Source Transaction
-- Requester แก้ `PENDING` หรือ `REJECTED` ได้เมื่อยังไม่มี approval สำเร็จ
-- การแก้ item/quantity จะตรวจ availability ใหม่และ rebuild approval steps
-
-## 8. Return Design
-
-- Return ใช้ได้กับ Borrow/Using ที่เป็น `IN_PROGRESS`
-- Requester เดิมเท่านั้นที่เลือก item ที่ยังไม่ถูก resolve ได้
-- `READY` สร้าง Derived Return Transaction: business `RETURNED`, workflow `PENDING`
-- `SOLD` สร้าง Derived Sold Transaction: business `COMPLETED`, workflow `PENDING`
-- Derived transaction ใช้ approval chain เต็ม รวม controller ทุก Warehouse, BSD Staff และ BSD Manager
-- เมื่อ Return ได้รับอนุมัติ ระบบคืน asset/quantity เป็น `READY`, บันทึก returned fields/history และ refresh Source Transaction
-- เมื่อ Sold ได้รับอนุมัติ ระบบเปลี่ยน asset/quantity เป็น `SOLD`
-- Source Transaction เป็น `COMPLETED` เมื่อทุก item resolve ครบ
-- UI/API รองรับ outcome `FAIL`, `LOST`, `NEED_CHECK` ผ่าน derived approval transaction และรองรับ Quantity split
-
-## 9. API Surface
-
-```text
-POST   /api/auth/login
-POST   /api/auth/logout
-GET    /api/auth/me
-
-GET/POST             /api/warehouses
-GET/PATCH/DELETE     /api/warehouses/:code
-GET/PATCH            /api/warehouses/:code/categories
-
-POST                 /api/assets
-GET/PATCH/DELETE     /api/assets/:id
-PATCH                /api/assets/:id/status
-
-POST                 /api/requests/hold
-POST                 /api/requests/release
-
-POST                 /api/transactions
-GET/PATCH             /api/transactions/:id
-POST                 /api/transactions/:id/approve
-POST                 /api/transactions/:id/reject
-POST                 /api/transactions/:id/return
-POST                 /api/transactions/:id/items/:itemId/return
-GET                  /api/transactions/:id/pdf
-
-GET/POST             /api/projects
-PATCH/DELETE         /api/projects/:id
-
-GET/POST             /api/users
-PATCH/DELETE         /api/users/:id
-PATCH                /api/users/:id/status
-PATCH                /api/users/:id/assignment
+```mermaid
+flowchart LR
+  W[AssetWarehouse] --> M[AssetModel]
+  M --> A[Asset]
+  A --> I[TransactionItem]
+  T[Transaction] --> I
+  T --> B[ReturnBatch]
+  I --> O[TransactionItemOutcome]
+  B --> O
+  O --> S[Derived SOLD Transaction]
 ```
 
-Pending:
+| Entity | ความรับผิดชอบ | ความสัมพันธ์หลัก |
+| --- | --- | --- |
+| `AssetModel` | ตัวตนรุ่นสินค้า ชื่อ ยี่ห้อ ประเภท และ `isSerialized` | อยู่ใน Warehouse; มี Asset หลายรายการ |
+| `Asset` | ตัวสินค้า Serial หรือแถว Quantity Pool พร้อม Stock Code, condition, status และ on-hand | อ้าง AssetModel และ Warehouse |
+| `Transaction` | คำขอ BORROW/USING/SOLD, ผู้ขอ, Project และสถานะงาน | มี Items, Approvals และ ReturnBatches |
+| `TransactionItem` | Asset ที่ขอและ `requestedQuantity`; `dispatchedAt` ระบุการจ่าย | อ้าง Transaction และ Asset/Model |
+| `TransactionItemOutcome` | จำนวนและผลที่ปิดการถือครองในแต่ละรอบคืน | อ้าง TransactionItem และ ReturnBatch; SOLD เชื่อม Derived Sale |
 
-- `POST /api/transactions/:id/cancel`
+`Asset -> Transaction` เชื่อมผ่าน `TransactionItem` ไม่ใช่ foreign key ตรงจาก Asset; `ReturnBatch` กำหนดรอบและ revision ส่วน `ReturnOutcomeCheck` กับ `ReturnBatchEvidence` เก็บผลตรวจและหลักฐานของรอบ
 
-## 10. UI Status
+## 3. Stock และ Identity
 
-Implemented or mostly implemented:
+AssetModel บอกชนิดสินค้า ส่วน Asset บอก Serial/Condition/Warehouse/Stock Code/On-hand
+Tracking จริงใช้ getEffectiveAssetTrackMethod: Model Serialized และมี Serial เป็น SERIAL; กรณีอื่น QUANTITY
+โหมด SERIAL ใช้เมื่อ `AssetModel.isSerialized` และ Asset มี `serialNo`; กรณีอื่นเป็น QUANTITY ตาม [asset-tracking.ts](../src/lib/asset-tracking.ts)
+Quantity stock มี NEW/USED condition buckets; RETURN/USED ใช้ Stock Code ที่ตรวจสอบกับ model/warehouse
+การจับคู่ข้อมูลนำเข้ากับรุ่นและสภาพสินค้าต้องอ้างหลักฐานและสิทธิ์ที่กำหนด ไม่เทียบชื่อคล้ายแล้วโยกยอดอัตโนมัติ
 
-- Dashboard, Profile/Signature และ User Management
-- Server, Network และ Dynamic Warehouse Inventory
-- Asset create/edit/detail, custom fields และ status history
-- Request Cart, Transaction Log, Approval Queue และ Return page
-- Project Management ที่ใช้ PostgreSQL
-- Transaction PDF
+Availability:
+- Serial: READY, ไม่มี open transaction และตรวจ lock ตาม flow
+- Quantity: assetQuantity ลบ draft reservation และ open transaction quantity ที่ยังไม่ dispatched
+- จ่าย Quantity ลด stock จริงและมี dispatchedAt; return เพิ่มเมื่อ Final Gate ครบ
+- ใช้ serializable transaction, row/advisory locks และ guarded updates ในจุดสำคัญ; conflict แจ้ง CONCURRENT_UPDATE/409 ให้ refresh/retry ไม่อ้างว่ามี retry อัตโนมัติทุก endpoint
 
-Partial:
+ให้ `issued` เป็นจำนวนที่จ่าย, `resolved` เป็นจำนวน Outcome ที่ Post แล้ว และ `pending` เป็น Outcome ในรอบคืนที่ยังมีผล:
 
-- Organization Assignment แบบหลายตำแหน่งมีใน Prisma/API/UI แล้ว และรองรับ Primary Assignment
-- Return outcome Fail/Lost/Need Check อยู่ใน Return workflow แล้ว แต่ยังต้องเพิ่ม integration/E2E tests
-- PDF เอกสารทางการยังรอ template
+| ค่าที่คำนวณ | นิยาม |
+| --- | --- |
+| `IN_USE` | `issued - resolved` |
+| `Open Quantity` | `requestedQuantity - resolved - pending` สำหรับรายการที่จ่ายแล้ว |
+| `Reserved` | `AssetReservation` ที่ยังมีผล + open TransactionItem ที่ `dispatchedAt = null` |
+| `Available` | `max(0, assetQuantity - Reserved)` สำหรับ Quantity Pool |
 
-## 11. Verification Strategy
+การจ่าย Quantity ลด `assetQuantity` และตั้ง `dispatchedAt` ในการ Post เดียวกัน รายการที่จ่ายแล้วจึงไม่อยู่ใน Reserved อีก ดู [asset-availability.ts](../src/lib/asset-availability.ts) และ [workflow.ts](../src/lib/workflow.ts)
 
-- Prisma format/generate/validate และ migration review
-- Typecheck, lint และ unit tests
-- Approval routing tests สำหรับ assigned controller, multi-Warehouse, BSD sequence
-- Organization assignment tests สำหรับหลายตำแหน่ง, primary assignment และ approver คนเดียวกันหลาย sequence
-- Project lead reassignment tests สำหรับ pending transfer, all-leads-required, partial approval และ completed sequence
-- Quantity tests สำหรับ over-request, edit/reject release และ partial return
-- Derived Return/Sold tests รวม duplicate prevention และ Source Transaction completion
-- Regression search ต้องไม่พบ Overdue หรือ runtime Domain naming
+## 4. Requests / Approval / Acknowledgment
 
-## 12. UI Palette
+buildApprovalCandidates ใน workflow.ts:
+1. Requester confirmation sequence 1 สร้างตอนบันทึก
+2. Project request เพิ่ม LEAD_PROJECT
+3. เพิ่ม Supervisor เมื่อ requester staff-tags เข้ากฎ; จึงอาจมีทั้ง Lead และ Supervisor ในคำขอเบิก
+4. STOREMAN:<warehouse> ทุกคน/คลังใน sequence เดียว ต้องผ่านครบ
+5. SOLD เท่านั้นเพิ่ม BSD_STAFF
 
-- Brand accent: `#FE7743`
-- Surface: `#EFEEEA`
-- Primary navy: `#273F4F`
-- High-contrast text: `#000000`
+Acknowledgments ใช้ ACK_BSD / ACK_WAREHOUSE_MANAGER, sequence 999 และแยกออกจาก gate/completion
+Approval เก็บ assigned user, current cycle/revision และ snapshots; Project Lead reassignment รักษาประวัติที่อนุมัติแล้ว
+
+## 5. Return Architecture
+
+ReturnBatch เป็นรอบคืน ไม่ใช่ Derived Return Transaction ใหม่สำหรับทุก READY outcome
+ReturnBatch มี requestNo, revision, state, damagePdf และ signedPdf; ReturnBatchEvidence เก็บหลักฐาน revision เก่า
+TransactionItemOutcome อ้าง item/batch/asset ที่ลงสต๊อกจริง พร้อม outcomeStatus, returnCondition, quantity และ approvedAt
+ReturnOutcomeCheck เก็บการตรวจราย outcome/user
+
+Routing คืน:
+- Project -> Lead; non-project -> Supervisor ตาม buildReturnApprovalCandidates
+- RETURN_CHECK:<warehouse> -> เอกสารเมื่อมี FAIL/LOST/USED -> STOREMAN:<warehouse>
+- READY/USED/FAIL/LOST Post แบบ atomic หลัง final gates ครบ
+- SOLD อยู่ใน Derived Transaction อ้าง sourceTransactionId และ outcome soldTransactionId รอ BSD_STAFF
+- Derived SOLD ถูกสร้างและเชื่อม Outcome ตอน Submit ReturnBatch; การ Post ขายรอ Approval ของรอบคืนและ BSD Staff
+- Source completion คำนวณจำนวนที่ resolve แล้ว ไม่ใช่เพียงมี pending outcomes ครบ
+- ห้าม auto-approve ข้าม manual check/evidence/final storeman/price
+- หลักฐานอยู่ PostgreSQL Bytes; PDF render ใช้ Chrome/Edge headless และ Thai font ตาม environment
+
+ReturnBatch.state เป็น String และมีค่าที่ใช้ใน runtime เช่น SUBMITTED, REJECTED, CANCELLED, COMPLETED; ไม่สร้าง Workflow enum จากคำอธิบาย phase ในเอกสาร
+UI RETURN -> outcomeStatus READY; USED -> READY + returnCondition USED; NEED_CHECK เป็น AssetStatus แต่ไม่ใช่ตัวเลือกในรอบคืน
+
+## 6. Numbers / Status / Pricing
+
+REQ-YYYYMMDD-XX ใช้วันที่ Asia/Bangkok, advisory lock, นับ Transaction + ReturnBatch รายเดือนสูงสุด 99
+Derived SOLD transactionNo ว่างได้และแสดง From Source REQ; id/UUID ใช้ relation/URL ไม่ใช่ Display Request No.
+Business status: BORROWED, RETURNED, USING, COMPLETED
+Workflow status: PENDING, REJECTED, CANCELLED, IN_PROGRESS, COMPLETED
+
+salePriceGroups เก็บ quantity/unitPrice/total ต่อกลุ่ม; soldPrice/soldTotal เก็บ Decimal(12,2) ตามระดับ Transaction/Item
+Server normalize unit price, คูณ/รวมด้วย BigInt หน่วยสตางค์ และไม่เชื่อ totals ที่ส่งจาก Client
+Client Group Total/Grand Total เป็น read-only derived values; Save Draft อนุญาตยังไม่ครบราคา แต่ Approve ต้องครบ
+
+## 7. Frontend Primitives
+
+- SearchCombobox: selection/Enter submit search; Clear q โดยคง hidden filters
+- InstantFilterForm: GET query navigation ผ่าน Router, เปลี่ยน filter แล้ว auto-apply และ reset page
+- SearchableDropdown: auto-submit เฉพาะ form ที่ประกาศ instant filters ไม่ส่งฟอร์ม Add/Edit ทันทีเมื่อเลือกค่า
+- useDismiss: จัด Outside Pointer/Escape สำหรับ Columns, Side Sheet และเมนูที่เชื่อม hook; Portal มี refs แยก
+- Side Sheet คงเปิดเมื่อ checkbox เปลี่ยน ไม่มี Apply; parent checkbox คุม child ทั้งกลุ่ม
+- project-label / transaction-reference / readable-note / used-return-remark รวมรูปแบบที่นำไปใช้แล้ว; ยังมีบางหน้ารอเก็บ formatting ต่อ
+- Project Name ในตาราง Project แสดงชื่ออย่างเดียว จุดรวม Project อื่นใช้ Customer-Projectname (ID)
+- UI สีแบรนด์ #FE7743 / #EFEEEA / #273F4F / #000000; ห้ามเปลี่ยน Status palette เพราะการปรับเอกสาร
+
+## 8. API
+
+รายการ Methods ด้านล่างอ้าง export จริงของ route.ts ไม่อนุมาน GET จากชื่อ Resource
+
+
+| Route | Methods |
+| --- | --- |
+| /api/assets | POST |
+| /api/assets/[id]/recommendation | PATCH |
+| /api/assets/[id] | PATCH, DELETE |
+| /api/assets/[id]/status | PATCH |
+| /api/auth/login | POST |
+| /api/auth/logout | POST |
+| /api/auth/me | GET |
+| /api/favorites | GET, POST |
+| /api/inventory/export | GET |
+| /api/projects | POST |
+| /api/projects/[id]/approve | POST |
+| /api/projects/[id]/reject | POST |
+| /api/projects/[id] | PATCH, GET, DELETE |
+| /api/requests/hold | POST |
+| /api/requests/release | POST |
+| /api/settings/signature | POST |
+| /api/transactions/pending | GET |
+| /api/transactions | POST |
+| /api/transactions/[id]/approve | POST |
+| /api/transactions/[id]/cancel | POST |
+| /api/transactions/[id]/items | POST |
+| /api/transactions/[id]/items/[itemId]/return | POST |
+| /api/transactions/[id]/items/[itemId]/swap | GET, POST |
+| /api/transactions/[id]/pdf | GET |
+| /api/transactions/[id]/reject | POST |
+| /api/transactions/[id]/return | POST, DELETE |
+| /api/transactions/[id]/return-batches/[batchId]/cancel | POST |
+| /api/transactions/[id]/return-batches/[batchId]/check | GET, POST, PATCH |
+| /api/transactions/[id]/return-batches/[batchId]/document | GET |
+| /api/transactions/[id]/return-batches/[batchId]/signed-document | GET, POST |
+| /api/transactions/[id] | GET, PATCH |
+| /api/transactions/[id]/sale-price-draft | POST |
+| /api/users | POST |
+| /api/users/verify-ad | POST |
+| /api/users/[id]/assignment | PATCH |
+| /api/users/[id] | PATCH, DELETE |
+| /api/users/[id]/status | PATCH |
+| /api/warehouses | POST |
+| /api/warehouses/[code]/categories | PUT |
+| /api/warehouses/[code] | PATCH, DELETE |
+
+## 9. File Structure และเส้นทางอ่านโค้ด
+
+| ตำแหน่ง | หน้าที่ |
+| --- | --- |
+| [`src/app`](../src/app) | URL, Server Components และ API Routes |
+| [`src/features`](../src/features) | หน้าและ UI ตามงาน เช่น Inventory, Request Cart, Transaction Log และ Return |
+| [`src/lib/workflow.ts`](../src/lib/workflow.ts) | สร้างคำขอ Approval และ Stock Post ภายใน Prisma transaction |
+| [`src/lib/asset-availability.ts`](../src/lib/asset-availability.ts) | Reservation และ Available |
+| [`src/lib/return-batch-service.ts`](../src/lib/return-batch-service.ts) | ตรวจ Outcome และจัดการข้อมูล/เอกสารรอบคืน |
+| [`src/lib/sale-price-groups.ts`](../src/lib/sale-price-groups.ts) | Validate และคำนวณราคาเป็นหน่วยสตางค์ |
+| [`src/lib/auth.ts`](../src/lib/auth.ts) / [`src/lib/permissions.ts`](../src/lib/permissions.ts) | Session และสิทธิ์ตาม Role/Warehouse |
+| [`src/lib/transaction-export.ts`](../src/lib/transaction-export.ts) / [`src/lib/transaction-pdf.ts`](../src/lib/transaction-pdf.ts) | ชุดเอกสารและการเรนเดอร์ PDF |
+| [`prisma/schema.prisma`](../prisma/schema.prisma) / [`prisma/migrations`](../prisma/migrations) | โมเดลข้อมูลและ SQL migrations |
+
+เส้นทางอ่านตัวอย่าง: Browser -> `src/app/dashboard/...` -> `src/features/...` -> `src/lib/warehouse-inventory.ts` -> Prisma
+
+เส้นทางเขียนตัวอย่าง: Browser -> `src/app/api/transactions/[id]/approve/route.ts` -> `src/lib/workflow.ts` -> Prisma transaction -> PostgreSQL

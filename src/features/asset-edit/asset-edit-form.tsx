@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { AssetStatus } from "@prisma/client";
+import { AssetTrackMethod, getEffectiveAssetTrackMethod } from "@/lib/asset-tracking";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -32,6 +33,7 @@ type AssetEditFormProps = {
     }
   | {
       asset?: never;
+      template?: AssetEditRecord;
       mode: "create";
     }
 );
@@ -45,6 +47,8 @@ type AssetEditFormState = {
   imageRef: string;
   location: string;
   modelName: string;
+  modelNo: string;
+  modelTrackMethod: AssetTrackMethod | null;
   note: string;
   partNo: string;
   quantity: string;
@@ -117,7 +121,7 @@ function validatePattern(
 
 function validateAssetForm(
   form: AssetEditFormState,
-  trackMethod: "SERIAL" | "QUANTITY",
+  trackMethod: AssetTrackMethod,
   customFields: AssetEditOptions["categories"][number]["customFields"],
 ) {
   const fieldErrors: AssetEditFieldErrors = {};
@@ -155,7 +159,9 @@ function validateAssetForm(
   if (trackMethod === "SERIAL") {
     const serialNo = form.serialNo.trim();
 
-    if (serialNo && !isAscii(serialNo)) {
+    if (!serialNo) {
+      fieldErrors.serialNo = "Serial no. is required for this model.";
+    } else if (!isAscii(serialNo)) {
       fieldErrors.serialNo = "Serial no. must not contain Thai characters. English only.";
     } else if (serialNo && !/^[A-Za-z0-9-]+$/.test(serialNo)) {
       fieldErrors.serialNo = "Serial no. allows letters, numbers, and - only. No spaces or other symbols.";
@@ -165,8 +171,8 @@ function validateAssetForm(
 
     if (!form.quantity.trim()) {
       fieldErrors.quantity = "Quantity is required.";
-    } else if (!Number.isInteger(quantity) || quantity <= 0) {
-      fieldErrors.quantity = "Quantity must be greater than 0.";
+    } else if (!Number.isInteger(Number(form.quantity)) || quantity < 0) {
+      fieldErrors.quantity = "Quantity must be a whole number greater than or equal to 0.";
     }
 
     if (form.serialNo.trim()) {
@@ -208,6 +214,8 @@ function toFormState(asset: AssetEditRecord): AssetEditFormState {
     imageRef: asset.imageRef ?? "",
     location: asset.location?.name ?? asset.locationText ?? "",
     modelName: asset.assetModel.name,
+    modelNo: asset.assetModel.modelNo ?? "",
+    modelTrackMethod: asset.assetModel.isSerialized ? AssetTrackMethod.SERIAL : AssetTrackMethod.QUANTITY,
     note: asset.note ?? "",
     partNo: asset.assetModel.partNo ?? "",
     quantity: String(asset.assetQuantity ?? 1),
@@ -227,6 +235,8 @@ function createFormState(initialWarehouseCode: string): AssetEditFormState {
     imageRef: "",
     location: "",
     modelName: "",
+    modelNo: "",
+    modelTrackMethod: null,
     note: "",
     partNo: "",
     quantity: "1",
@@ -238,17 +248,19 @@ function createFormState(initialWarehouseCode: string): AssetEditFormState {
 
 function Field({
   children,
+  className,
   error,
   required,
   label,
 }: {
   children: React.ReactNode;
+  className?: string;
   error?: string;
   required?: boolean;
   label: string;
 }) {
   return (
-    <label className="flex flex-col gap-2">
+    <label className={["flex flex-col gap-2", className].filter(Boolean).join(" ")}>
       <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
         {label}
         {required ? <span className="ml-1 text-status-fail">*</span> : null}
@@ -305,7 +317,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
   const [form, setForm] = useState<AssetEditFormState>(() =>
     mode === "edit"
       ? toFormState(props.asset)
-      : createFormState(initialWarehouseCode ?? "SERVER"),
+      : props.template ? { ...toFormState(props.template), quantity: "", serialNo: "", status: AssetStatus.READY, customFields: { ...toFormState(props.template).customFields, ...Object.fromEntries((options.categories.find((category) => category.name === props.template?.assetModel.category?.name)?.customFields ?? []).filter((field) => field.key.toLowerCase() === "used").map((field) => [field.key, "USED"])) } } : createFormState(initialWarehouseCode ?? "SERVER"),
   );
   const [isSaving, setIsSaving] = useState(false);
 
@@ -313,7 +325,22 @@ export function AssetEditForm(props: AssetEditFormProps) {
     key: Key,
     value: AssetEditFormState[Key],
   ) {
-    setForm((current) => ({ ...current, [key]: value }));
+    const modelIdentityField = ["warehouseCode", "categoryName", "typeName", "brand", "modelName", "modelNo", "partNo", "description"].includes(key);
+    setForm((current) => ({
+      ...current,
+      [key]: value,
+      ...(modelIdentityField ? { modelTrackMethod: null } : {}),
+    }));
+  }
+
+  function setAssetTrackingMethod(nextTrackMethod: AssetTrackMethod) {
+    setForm((current) => ({
+      ...current,
+      quantity: current.quantity || "1",
+      serialNo: nextTrackMethod === AssetTrackMethod.QUANTITY ? "" : current.serialNo,
+      modelTrackMethod: nextTrackMethod,
+    }));
+    setFieldErrors((current) => ({ ...current, quantity: undefined, serialNo: undefined }));
   }
 
   async function handleImageUpload(event: React.ChangeEvent<HTMLInputElement>) {
@@ -377,6 +404,8 @@ export function AssetEditForm(props: AssetEditFormProps) {
           locationName: form.location,
           locationText: form.location,
           modelName: form.modelName,
+          modelNo: mode === "create" ? selectedAssetModel?.modelNo ?? null : form.modelNo,
+          modelTrackMethod,
           note: form.note,
           partNo: form.partNo,
           quantity: isQuantityAsset ? Number.parseInt(form.quantity, 10) : null,
@@ -432,7 +461,22 @@ export function AssetEditForm(props: AssetEditFormProps) {
     if (!form.categoryName) return true;
     return type.categoryName === form.categoryName;
   });
-  const trackMethod = selectedWarehouse?.inventoryFamily ?? "SERIAL";
+  const selectedAssetModel = options.models.find((model) =>
+    model.warehouseCode === form.warehouseCode &&
+    model.categoryName === (form.categoryName || null) &&
+    model.typeName === (form.typeName || null) &&
+    model.brand === (form.brand || null) &&
+    (mode === "create" || model.modelNo === (form.modelNo || null)) &&
+    model.partNo === (form.partNo || null) &&
+    model.name === form.modelName
+  );
+  const modelTrackMethod = selectedAssetModel
+    ? selectedAssetModel.isSerialized ? AssetTrackMethod.SERIAL : AssetTrackMethod.QUANTITY
+    : form.modelTrackMethod ?? AssetTrackMethod.SERIAL;
+  const trackMethod = getEffectiveAssetTrackMethod({
+    assetModel: { isSerialized: modelTrackMethod === AssetTrackMethod.SERIAL },
+    serialNo: form.serialNo,
+  });
   const isQuantityAsset = trackMethod === "QUANTITY";
   const saveUrl = mode === "edit" && asset ? `/api/assets/${asset.id}` : "/api/assets";
   const cancelHref =
@@ -558,11 +602,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
         <section className="rounded-md border border-border bg-white p-5 shadow-sm">
           <h2 className="text-xl font-bold text-navy">Asset Details</h2>
           <div className="mt-5 grid gap-4 md:grid-cols-2">
-            <Field
-              error={fieldErrors.modelName}
-              label="Asset Name/Model"
-              required
-            >
+            <Field className="md:col-span-2" error={fieldErrors.modelName} label="Asset Name/Model" required>
               <Input
                 required
                 aria-invalid={Boolean(fieldErrors.modelName)}
@@ -571,43 +611,6 @@ export function AssetEditForm(props: AssetEditFormProps) {
                 value={form.modelName}
               />
             </Field>
-            <Field
-              error={isQuantityAsset ? fieldErrors.quantity : fieldErrors.serialNo}
-              label={isQuantityAsset ? "Quantity" : "Serial Number"}
-            >
-              <Input
-                aria-invalid={Boolean(isQuantityAsset ? fieldErrors.quantity : fieldErrors.serialNo)}
-                min={isQuantityAsset ? 1 : undefined}
-                onChange={(event) =>
-                  isQuantityAsset
-                    ? setField("quantity", event.target.value)
-                    : setField("serialNo", event.target.value)
-                }
-                placeholder={isQuantityAsset ? "Enter quantity" : "SN-XXXX-XXXX"}
-                required={isQuantityAsset}
-                type={isQuantityAsset ? "number" : "text"}
-                value={isQuantityAsset ? form.quantity : form.serialNo}
-              />
-            </Field>
-            <Field error={fieldErrors.warehouseCode} label="Warehouse" required>
-              {lockWarehouse || !canChangeWarehouse ? (
-                <p className="flex h-11 items-center text-sm font-semibold text-ink">
-                  {formatWarehouseName(selectedWarehouse?.name ?? form.warehouseCode)}
-                </p>
-              ) : (
-                <SearchableDropdown
-                  onChange={(value) => setField("warehouseCode", value)}
-                  options={options.warehouses.map((warehouse) => ({
-                    label: warehouse.name,
-                    searchText: `${warehouse.name} ${warehouse.code}`,
-                    value: warehouse.code,
-                  }))}
-                  placeholder="Select warehouse"
-                  searchPlaceholder="Search warehouse"
-                  value={form.warehouseCode}
-                />
-              )}
-            </Field>
             <Field error={fieldErrors.categoryName} label="Category" required>
               <SearchableDropdown
                 onChange={(categoryName) => {
@@ -615,6 +618,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
                     ...current,
                     categoryName,
                     customFields: {},
+                    modelTrackMethod: null,
                     typeName: options.types.some(
                       (type) =>
                         type.warehouseCode === current.warehouseCode &&
@@ -635,22 +639,6 @@ export function AssetEditForm(props: AssetEditFormProps) {
                 value={form.categoryName}
               />
             </Field>
-            <Field
-              error={fieldErrors.brand}
-              label="Brand"
-              required
-            >
-              <CreatableDropdown
-                required
-                ariaLabel="Brand"
-                error={Boolean(fieldErrors.brand)}
-                onChange={(value) => setField("brand", value)}
-                options={options.brands.map((brand) => ({ label: brand, value: brand }))}
-                placeholder="Select or enter brand"
-                searchPlaceholder="Search brand"
-                value={form.brand}
-              />
-            </Field>
             <Field error={fieldErrors.typeName} label="Type" required>
               <SearchableDropdown
                 onChange={(nextTypeName) => {
@@ -658,7 +646,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
                   setForm((current) => ({
                     ...current,
                     categoryName: nextType?.categoryName ?? current.categoryName,
-                    serialNo: isQuantityAsset ? "" : current.serialNo,
+                    modelTrackMethod: null,
                     typeName: nextTypeName,
                   }));
                 }}
@@ -673,19 +661,94 @@ export function AssetEditForm(props: AssetEditFormProps) {
                 value={form.typeName}
               />
             </Field>
-            <Field
-              error={fieldErrors.partNo}
-              label="Part No."
-            >
+            <Field error={fieldErrors.brand} label="Brand" required>
               <CreatableDropdown
-                ariaLabel="Part No."
-                error={Boolean(fieldErrors.partNo)}
-                onChange={(value) => setField("partNo", value)}
-                options={options.partNos.map((partNo) => ({ label: partNo, value: partNo }))}
-                placeholder="Select or enter part no."
-                searchPlaceholder="Search part no."
-                value={form.partNo}
+                required
+                ariaLabel="Brand"
+                error={Boolean(fieldErrors.brand)}
+                onChange={(value) => setField("brand", value)}
+                options={options.brands.map((brand) => ({ label: brand, value: brand }))}
+                placeholder="Select or enter brand"
+                searchPlaceholder="Search brand"
+                value={form.brand}
               />
+            </Field>
+            <div className={mode === "edit" ? "grid gap-4 sm:grid-cols-2" : ""}>
+              <Field error={fieldErrors.partNo} label="Part No.">
+                <CreatableDropdown
+                  ariaLabel="Part No."
+                  error={Boolean(fieldErrors.partNo)}
+                  onChange={(value) => setField("partNo", value)}
+                  options={options.partNos.map((partNo) => ({ label: partNo, value: partNo }))}
+                  placeholder="Select or enter part no."
+                  searchPlaceholder="Search part no."
+                  value={form.partNo}
+                />
+              </Field>
+              {mode === "edit" ? (
+                <Field label="Model No.">
+                  <Input
+                    onChange={(event) => setField("modelNo", event.target.value)}
+                    value={form.modelNo}
+                  />
+                </Field>
+              ) : null}
+            </div>
+            <Field label="Tracking Method" required>
+              <SearchableDropdown
+                disabled={Boolean(selectedAssetModel)}
+                onChange={(value) => setAssetTrackingMethod(value as AssetTrackMethod)}
+                options={[
+                  { label: "Serialized", value: AssetTrackMethod.SERIAL },
+                  { label: "Quantity Pool", value: AssetTrackMethod.QUANTITY },
+                ]}
+                placeholder="Select tracking method"
+                searchPlaceholder="Search tracking method"
+                value={modelTrackMethod}
+              />
+            </Field>
+            {modelTrackMethod === AssetTrackMethod.SERIAL ? (
+              <Field error={fieldErrors.serialNo} label="Serial Number">
+                <Input
+                  aria-invalid={Boolean(fieldErrors.serialNo)}
+                  onChange={(event) => setField("serialNo", event.target.value)}
+                  placeholder="SN-XXXX-XXXX"
+                  type="text"
+                  value={form.serialNo}
+                />
+              </Field>
+            ) : null}
+            {isQuantityAsset ? (
+              <Field error={fieldErrors.quantity} label="Quantity" required>
+                <Input
+                  aria-invalid={Boolean(fieldErrors.quantity)}
+                  min={0}
+                  onChange={(event) => setField("quantity", event.target.value)}
+                  placeholder="Enter quantity"
+                  required
+                  type="number"
+                  value={form.quantity}
+                />
+              </Field>
+            ) : null}
+            <Field className="md:col-span-2" error={fieldErrors.warehouseCode} label="Warehouse" required>
+              {mode === "create" || lockWarehouse || !canChangeWarehouse ? (
+                <p className="flex h-11 items-center rounded-md border border-border bg-surface px-3 text-sm font-semibold text-ink">
+                  {formatWarehouseName(selectedWarehouse?.name ?? form.warehouseCode)}
+                </p>
+              ) : (
+                <SearchableDropdown
+                  onChange={(value) => setField("warehouseCode", value)}
+                  options={options.warehouses.map((warehouse) => ({
+                    label: warehouse.name,
+                    searchText: `${warehouse.name} ${warehouse.code}`,
+                    value: warehouse.code,
+                  }))}
+                  placeholder="Select warehouse"
+                  searchPlaceholder="Search warehouse"
+                  value={form.warehouseCode}
+                />
+              )}
             </Field>
 
             {categoryCustomFields.map((field) => {

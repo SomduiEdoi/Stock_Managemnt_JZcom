@@ -1,11 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
-  Filter,
   Loader2,
   Mail,
   ShieldCheck,
@@ -27,6 +26,7 @@ import {
   userRoleOptions,
 } from "@/lib/user-management-shared";
 import { SearchCombobox } from "@/components/form/search-combobox";
+import { InstantFilterForm } from "@/components/form/instant-filter-form";
 import { SearchableDropdown } from "@/components/form/searchable-dropdown";
 import { UserActionMenu } from "@/features/user-management/user-action-menu";
 import { TablePagination } from "@/components/table/table-pagination";
@@ -61,7 +61,7 @@ type DialogMode =
 
 const roleLabels: Record<UserSystemRole, string> = {
   ADMIN: "Admin",
-  STOCK_CONTROLLER: "Stock Controller",
+  STOREMAN: "Storeman",
   USER: "User",
 };
 
@@ -131,7 +131,7 @@ function roleTone(role: UserSystemRole) {
     return "bg-navy text-white";
   }
 
-  if (role === "STOCK_CONTROLLER") {
+  if (role === "STOREMAN") {
     return "bg-brand-accent/15 text-brand-accent";
   }
 
@@ -143,7 +143,7 @@ function tagPills(user: UserManagementRow) {
     return [];
   }
 
-  if (user.systemRole === "STOCK_CONTROLLER") {
+  if (user.systemRole === "STOREMAN") {
     return user.warehousePermissions
       .filter((permission) => permission.canManage)
       .map((permission) => permission.warehouse.name);
@@ -1140,6 +1140,10 @@ export function UserManagementPage({
   const [notice, setNotice] = useState("");
   const [roleFilter, setRoleFilter] = useState(filters.role);
   const [statusFilter, setStatusFilter] = useState(filters.status);
+  useEffect(() => {
+    setRoleFilter(filters.role);
+    setStatusFilter(filters.status);
+  }, [filters.role, filters.status]);
 
   const searchSuggestions = useMemo(() => users.flatMap((user) => {
     const email = user.email ?? "Not Linked";
@@ -1186,9 +1190,9 @@ export function UserManagementPage({
         />
       </section>
 
-      <form
+      <InstantFilterForm
         action="/user"
-        className="grid gap-3 rounded-md border border-border bg-white p-4 shadow-sm lg:grid-cols-[1fr_190px_170px_auto_auto]"
+        className="grid gap-3 rounded-md border border-border bg-white p-4 shadow-sm lg:grid-cols-[1fr_190px_170px_auto]"
         method="get"
       >
         <SearchCombobox
@@ -1228,14 +1232,6 @@ export function UserManagementPage({
         />
 
         <button
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-border bg-white px-4 text-sm font-bold text-navy shadow-sm hover:bg-surface"
-          type="submit"
-        >
-          <Filter className="h-4 w-4" />
-          Filter
-        </button>
-
-        <button
           className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-navy px-4 text-sm font-bold text-white shadow-sm hover:bg-navy/90"
           onClick={(event) => {
             event.preventDefault();
@@ -1246,7 +1242,7 @@ export function UserManagementPage({
           <UserPlus className="h-4 w-4" />
           Add User
         </button>
-      </form>
+      </InstantFilterForm>
 
       {notice ? (
         <div className="rounded-md border border-status-ready/20 bg-status-ready/10 px-4 py-3 text-sm font-semibold text-status-ready">

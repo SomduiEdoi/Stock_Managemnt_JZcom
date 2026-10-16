@@ -1,11 +1,10 @@
 import { AssetStatus } from "@prisma/client";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 import {
   apiErrorResponse,
   readJsonBody,
-  requireApiUser,
-} from "@/lib/api";
+  requireApiUser, apiJson } from "@/lib/api";
 import { changeAssetStatus } from "@/lib/workflow";
 
 type RouteContext = {
@@ -29,8 +28,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       toStatus: body.status,
     });
 
-    return NextResponse.json({ asset });
+    return apiJson({ asset });
   } catch (error) {
     return apiErrorResponse(error);
   }
 }
+

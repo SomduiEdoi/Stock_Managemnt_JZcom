@@ -148,9 +148,9 @@ function inferSystemRole(user: UserRecord): UserSystemRole {
   }
 
   if (
-    roleCodes.includes("STOCK_CONTROLLER") ||    user.warehousePermissions.some((permission) => permission.canManage)
+    roleCodes.includes("STOREMAN") ||    user.warehousePermissions.some((permission) => permission.canManage)
   ) {
-    return "STOCK_CONTROLLER";
+    return "STOREMAN";
   }
 
   return "USER";
@@ -231,7 +231,7 @@ async function loadAllUsers() {
 async function getUserMetrics(allUsers: UserManagementRow[]): Promise<UserManagementMetrics> {
   return {
     active: allUsers.filter((user) => user.isActive).length,
-    owners: allUsers.filter((user) => user.systemRole === "STOCK_CONTROLLER")
+    owners: allUsers.filter((user) => user.systemRole === "STOREMAN")
       .length,
     staff: allUsers.filter((user) => user.systemRole === "USER").length,
     total: allUsers.length,
@@ -438,8 +438,8 @@ function normalizeRoleCode(systemRole: UserSystemRole): RoleCode {
     return "ADMIN";
   }
 
-  if (systemRole === "STOCK_CONTROLLER") {
-    return "STOCK_CONTROLLER";
+  if (systemRole === "STOREMAN") {
+    return "STOREMAN";
   }
 
   return "USER";

@@ -2,7 +2,7 @@
   AssetCreateForbidden,
   AssetCreatePage,
 } from "@/features/assets/asset-edit-page";
-import { getAssetCreateForUser } from "@/lib/asset-edit";
+import { getAssetCreateForUser, getAssetEditForUser } from "@/lib/asset-edit";
 import { requireCurrentUser } from "@/lib/auth";
 
 type AssetCreateRouteProps = {
@@ -18,7 +18,11 @@ export default async function AssetCreateRoute({
   const lockWarehouse = Boolean(warehouse);
 
   const user = await requireCurrentUser("/dashboard/assets/new");
-  const result = await getAssetCreateForUser(user, warehouse);
+  const sourceId = typeof params.sourceAssetId === "string" ? params.sourceAssetId : undefined;
+  const source = sourceId ? await getAssetEditForUser(user, sourceId) : null;
+  if (source && source.kind !== "ok") return <AssetCreateForbidden />;
+  const template = source?.kind === "ok" ? source.asset : undefined;
+  const result = await getAssetCreateForUser(user, template?.warehouse.code ?? warehouse);
 
   if (result.kind === "forbidden") {
     return <AssetCreateForbidden />;
@@ -30,6 +34,7 @@ export default async function AssetCreateRoute({
       initialWarehouseCode={result.initialWarehouseCode}
       lockWarehouse={lockWarehouse}
       options={result.options}
+      template={template}
     />
   );
 }

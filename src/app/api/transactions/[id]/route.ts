@@ -1,7 +1,7 @@
 import { TransactionType } from "@prisma/client";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
-import { apiErrorResponse, readJsonBody, requireApiUser } from "@/lib/api";
+import { apiErrorResponse, readJsonBody, requireApiUser, apiJson } from "@/lib/api";
 import { getTransactionExportForUser } from "@/lib/transaction-export";
 import { updatePendingTransactionRequest, WorkflowError } from "@/lib/workflow";
 
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       throw new WorkflowError("Transaction not found.", 404);
     }
 
-    return NextResponse.json({ transaction });
+    return apiJson({ transaction });
   } catch (error) {
     return apiErrorResponse(error);
   }
@@ -52,8 +52,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const input = patchSchema.parse(await readJsonBody(request));
     const transaction = await updatePendingTransactionRequest(user, id, input);
 
-    return NextResponse.json({ transaction });
+    return apiJson({ transaction });
   } catch (error) {
     return apiErrorResponse(error);
   }
 }
+
