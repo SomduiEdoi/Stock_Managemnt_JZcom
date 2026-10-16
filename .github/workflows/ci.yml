@@ -74,3 +74,5 @@ jobs:
         run: npm test -- --no-file-parallelism --reporter=default --reporter=json --outputFile=.artifacts/vitest.json
       - name: Reject skipped or missing integration suites
         run: node scripts/check-ci-results.cjs
+      - name: Production build
+        run: npm run build

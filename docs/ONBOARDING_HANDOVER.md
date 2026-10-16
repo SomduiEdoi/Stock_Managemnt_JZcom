@@ -234,7 +234,15 @@ Logical dump กู้ได้ตามจุด snapshot ของ Backup ไ�
 
 ผลตรวจของงาน Type Safety นี้: 433 tests ผ่าน ไม่มี Skip บน PostgreSQL ชั่วคราว รวม Auth/Concurrency/Scope/PDF; Typecheck และ ESLint ผ่าน ไม่มี Warning ตรวจลิงก์ภายในครบแล้ว การทดสอบนี้ไม่ใช่การ Deploy/Backup/Restore ของฐานจริง
 
-- CI ที่ Required Check ต้องผ่านและไม่มี Integration ถูก Skip; Merge ผ่าน PR เท่านั้น ไม่ Bypass Admin protection
+- CI ที่ Required Check ต้องผ่านทั้ง Migration, Typecheck, Lint, 433 Tests ของ Baseline นี้โดยไม่มี Integration ถูก Skip และ Production Build (`npm run build`) หลัง Tests; จำนวน Tests เปลี่ยนได้เมื่อเพิ่ม/แก้ Tests ไม่ใช่การล็อกจำนวนไว้ใน CI; Merge ผ่าน PR เท่านั้น ไม่ Bypass Admin protection
 - Lint warnings เดิมทั้ง 4 จุดและ unused helpers ถูกลบไปแล้ว ไม่ปิด Rule เพื่อซ่อน Warning
 - สาธิต Local Admin/AD ตามสิทธิ์, Request/Reject/Edit, Partial Return, checks/evidence, sale pricing และ Source completion
 - Backup/Restore drill, PITR, RPO/RTO, Cloud/LDAPS/proxy และ UAT ทุกบทบาทยังต้องรับรองตามแผนจริง เอกสารหรือ Unit Tests ไม่ใช่หลักฐานว่า Production Recovery ผ่านแล้ว
+
+## 9. Pre-Production Launch Checklist (สำหรับทีมรับช่วงต่อก่อนขึ้นใช้งานจริง)
+
+- [ ] **Dependency Security Update:** อัปเดต Patch แพ็กเกจ Next.js เพื่อแก้ช่องโหว่ RCE และอัปเดต/เปลี่ยนแหล่งแพ็กเกจ `xlsx` เป็นรุ่นที่แก้ช่องโหว่แล้ว ตรวจ advisory ของ dependencies ที่เหลือและรัน CI ครบอีกครั้ง; งาน Handover นี้ยังไม่ได้อัปเดต dependencies
+- [ ] **Environment & Security Drill:** ทดสอบ Backup/Restore Data ลงฐานแยกตาม Runbook ส่วน 7 ตรวจ Stock Invariants/PDF/Signatures และทดสอบ LDAPS/HTTPS บน Server จริง พร้อมบันทึกหลักฐานและผู้รับรอง
+- [ ] **End-to-End UAT:** ทดสอบ Workflow การเบิก/คืน/ขายจริงร่วมกับผู้ใช้ทุก Role รวม Reject/Edit/Resubmit, Partial Return, Outcome Split และ Sale Pricing พร้อมบันทึกผลตรวจรับ
+
+Checklist นี้เป็นเงื่อนไขก่อนเปิด Production ไม่ใช่สิ่งที่ผ่านแล้วจาก Unit/Integration Tests หรือ CI; การส่งต่อ Source Code เพื่อพัฒนาต่อทำได้โดยระบุงานค้างเหล่านี้ให้ชัดเจน
