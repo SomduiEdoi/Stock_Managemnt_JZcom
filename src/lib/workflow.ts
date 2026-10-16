@@ -3809,64 +3809,6 @@ export async function releaseAssetsFromRequest(
   );
 }
 
-async function assertNoPendingResolutionApproval(
-  tx: Prisma.TransactionClient,
-  sourceTransactionId: string,
-  items: TransactionDetail["items"],
-) {
-  const pendingOutcome = await tx.transactionItemOutcome.findFirst({
-    select: {
-      transactionItem: {
-        select: {
-          asset: {
-            select: {
-              assetModel: { select: { name: true } },
-              serialNo: true,
-              stockCode: true,
-            },
-          },
-        },
-      },
-    },
-    where: { approvedAt: null, transactionItem: { transactionId: sourceTransactionId, assetId: { in: items.map((item) => item.assetId) } } },
-  });
-  if (pendingOutcome) {
-    const asset = pendingOutcome.transactionItem.asset;
-    if (!asset) throw new WorkflowError("Pending return asset is missing.", 409, "RETURN_ASSET_MISSING");
-    throw new WorkflowError(`Return approval for ${asset.serialNo ?? asset.stockCode ?? asset.assetModel.name} is already pending.`, 409, "RETURN_APPROVAL_ALREADY_PENDING");
-  }
-
-  const pendingItem = await tx.transactionItem.findFirst({
-    select: {
-      asset: {
-        select: {
-          assetModel: { select: { name: true } },
-          serialNo: true,
-          stockCode: true,
-        },
-      },
-      transaction: { select: { transactionNo: true } },
-    },
-    where: {
-      assetId: { in: items.map((item) => item.assetId) },
-      transaction: {
-        sourceTransactionId,
-        workflowStatus: TransactionWorkflowStatus.PENDING,
-      },
-    },
-  });
-
-  if (!pendingItem) {
-    return;
-  }
-  if (!pendingItem.asset) throw new WorkflowError("Pending return asset is missing.", 409, "RETURN_ASSET_MISSING");
-
-  throw new WorkflowError(
-    `Return approval for ${pendingItem.asset.serialNo ?? pendingItem.asset.stockCode ?? pendingItem.asset.assetModel.name} is already pending in ${pendingItem.transaction.transactionNo ?? "another transaction"}.`,
-    409,
-    "RETURN_APPROVAL_ALREADY_PENDING",
-  );
-}
 
 async function createReturnApprovalTransaction(
   tx: Prisma.TransactionClient,
@@ -3929,102 +3871,6 @@ async function createReturnApprovalTransaction(
   return sourceTransaction;
 }
 
-/**
- * Return outcomes are item/warehouse scoped. Older return batches can exist
- * without the matching approval rows (or with only one warehouse's rows), so
- * repair that state before evaluating who may approve the transaction.
- */
-async function ensureReturnOutcomeApprovalCoverage(
-  tx: Prisma.TransactionClient,
-  transactionId: string,
-) {
-  let transaction = await findTransactionDetail(tx, transactionId);
-  const activeBatches = await tx.returnBatch.findMany({ where: { transactionId, state: { notIn: ["REJECTED", "CANCELLED", "COMPLETED"] } }, select: { id: true } });
-  const activeIds = new Set(activeBatches.map((batch) => batch.id));
-  const pendingOutcomes = transaction.outcomeRecords.filter((outcome) => !outcome.approvedAt && (!outcome.resolutionBatchId || activeIds.has(outcome.resolutionBatchId)));
-
-  if (pendingOutcomes.length === 0) return;
-
-  const legacyOutcomes = pendingOutcomes.filter((outcome) => !outcome.resolutionBatchId);
-  if (legacyOutcomes.length > 0) {
-    const resolutionBatchId = randomUUID();
-    await tx.transactionItemOutcome.updateMany({
-      where: { id: { in: legacyOutcomes.map((outcome) => outcome.id) } },
-      data: { resolutionBatchId },
-    });
-    transaction = await findTransactionDetail(tx, transactionId);
-  }
-
-  const batches = new Set(
-    transaction.outcomeRecords
-      .filter((outcome) => !outcome.approvedAt && outcome.resolutionBatchId && activeIds.has(outcome.resolutionBatchId))
-      .map((outcome) => outcome.resolutionBatchId)
-      .filter((batchId): batchId is string => Boolean(batchId)),
-  );
-
-  for (const resolutionBatchId of batches) {
-    const batchOutcomes = transaction.outcomeRecords.filter(
-      (outcome) => !outcome.approvedAt && outcome.resolutionBatchId === resolutionBatchId,
-    );
-    const itemIds = new Set(batchOutcomes.map((outcome) => outcome.transactionItemId));
-    const batchItems = transaction.items.filter((item) => itemIds.has(item.id));
-    if (batchItems.length === 0) continue;
-
-    const workflowItems = batchItems.map((item) => ({
-      asset: item.asset as unknown as WorkflowAsset,
-      quantity: item.requestedQuantity,
-    }));
-    const approvals = await buildReturnApprovalCandidates(
-      tx,
-      transaction,
-      workflowItems,
-    );
-
-    const existing = await tx.transactionApproval.findMany({
-      where: { transactionId, resolutionBatchId, isCurrent: true },
-      select: { id: true, requiredTag: true, status: true, userId: true, stepSequence: true },
-    });
-    const approvalKey = (requiredTag: string, userId: string | null) => `${requiredTag}:${userId ?? "UNASSIGNED"}`;
-    const expectedByKey = new Map(
-      approvals.map((approval) => [approvalKey(approval.requiredTag, approval.userId), approval]),
-    );
-    const stalePending = existing.filter(
-      (approval) => approval.status === ApprovalStatus.PENDING && !expectedByKey.has(approvalKey(approval.requiredTag, approval.userId)),
-    );
-    if (stalePending.length > 0) {
-      await tx.transactionApproval.deleteMany({
-        where: { id: { in: stalePending.map((approval) => approval.id) } },
-      });
-    }
-    const activeExisting = existing.filter((approval) => !stalePending.some((stale) => stale.id === approval.id));
-    const existingKeys = new Set(activeExisting.map((approval) => approvalKey(approval.requiredTag, approval.userId)));
-    const offsets = activeExisting.flatMap((existingApproval) => {
-      const expected = expectedByKey.get(approvalKey(existingApproval.requiredTag, existingApproval.userId));
-      return expected ? [existingApproval.stepSequence - expected.stepSequence] : [];
-    });
-    // Approval steps are scoped to a return batch; unrelated batches must not
-    // push this batch's supervisor/storeman sequence forward.
-    const stepOffset = offsets[0] ?? 0;
-    const missing = approvals.filter(
-      (approval) => !existingKeys.has(approvalKey(approval.requiredTag, approval.userId)),
-    );
-
-    if (missing.length > 0) {
-      await tx.transactionApproval.createMany({
-        data: missing.map((approval) => ({
-          approverNameSnapshot: approval.approverNameSnapshot,
-          approverTagSnapshot: approval.approverTagSnapshot,
-          requiredTag: approval.requiredTag,
-          resolutionBatchId,
-          status: ApprovalStatus.PENDING,
-          stepSequence: approval.stepSequence + stepOffset,
-          transactionId,
-          userId: approval.userId,
-        })),
-      });
-    }
-  }
-}
 
 async function applyQuantityReturnStock(
   tx: Prisma.TransactionClient,
@@ -4706,7 +4552,6 @@ export async function migrateLegacyReturnBatch(
     const items = transaction.items.filter((item) => itemIds.has(item.id));
     const requester = await requireWorkflowUserById(tx, transaction.requestedBy.id);
     const approvals = await buildReturnApprovalCandidates(tx, transaction, items.map((item) => ({ asset: item.asset as WorkflowAsset, quantity: item.requestedQuantity })));
-    const now = new Date();
     const batch = await tx.returnBatch.create({ data: { id: batchId, transactionId, requestNo: `FROM ${transaction.transactionNo}` } });
     await replaceTransactionApprovals(tx, transactionId, approvals, batchId, requester);
     await tx.transaction.update({ where: { id: transactionId }, data: { workflowStatus: TransactionWorkflowStatus.IN_PROGRESS, completedAt: null, returnedAt: null } });

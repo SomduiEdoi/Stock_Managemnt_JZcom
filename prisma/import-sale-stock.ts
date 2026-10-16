@@ -364,69 +364,6 @@ async function clearWarehouseAssets(tx: Prisma.TransactionClient, warehouseId: s
   return deletedAssets.count;
 }
 
-async function ensureSaleStockMaster(tx: Prisma.TransactionClient) {
-  const warehouse = await tx.assetWarehouse.upsert({
-    create: {
-      code: saleStockWarehouseCode,
-      description: "Sale stock warehouse for BSD hardware.",
-      name: "Sale Stock",
-      prefix: "SS",
-    },
-    update: {
-      description: "Sale stock warehouse for BSD hardware.",
-      isActive: true,
-      name: "Sale Stock",
-    },
-    where: { code: saleStockWarehouseCode },
-  });
-
-  const activeUsers = await tx.user.findMany({
-    select: { id: true },
-    where: { isActive: true },
-  });
-
-  await tx.userWarehousePermission.createMany({
-    data: activeUsers.map((user) => ({
-      canManage: false,
-      canView: true,
-      userId: user.id,
-      warehouseId: warehouse.id,
-    })),
-    skipDuplicates: true,
-  });
-
-  const joyStockController = await tx.user.findFirst({
-    select: { id: true },
-    where: {
-      OR: [
-        { email: { equals: "bsd@example.com", mode: "insensitive" } },
-        { name: { contains: "Joy", mode: "insensitive" } },
-      ],
-      isActive: true,
-      roles: { some: { role: { code: "STOREMAN" } } },
-    },
-  });
-
-  if (joyStockController) {
-    await tx.userWarehousePermission.upsert({
-      create: {
-        canManage: true,
-        canView: true,
-        userId: joyStockController.id,
-        warehouseId: warehouse.id,
-      },
-      update: { canManage: true, canView: true },
-      where: {
-        userId_warehouseId: {
-          userId: joyStockController.id,
-          warehouseId: warehouse.id,
-        },
-      },
-    });
-  }
-
-  return warehouse;
-}
 
 async function createFieldDefinitions(
   tx: Prisma.TransactionClient,
