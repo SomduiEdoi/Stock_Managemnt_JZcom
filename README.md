@@ -58,3 +58,5 @@ npm run build
 ผลการทดสอบและขอบเขตที่ตรวจรับบันทึกแยกใน [Task Status](docs/task.md) และ [Verification History](docs/workflow-implementation-verification.md)
 
 การส่งต่อ, PostgreSQL ชั่วคราว และ CI Gate ดู [Environment Baseline](docs/environment-baseline.md)
+
+ทีมพัฒนาใหม่เริ่มที่ [Onboarding And Handover](docs/ONBOARDING_HANDOVER.md) สำหรับ State Matrix, จำนวนสต๊อก และ Recovery Runbook

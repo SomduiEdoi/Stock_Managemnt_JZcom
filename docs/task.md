@@ -27,6 +27,8 @@
 
 ## 2. Verification ที่มีหลักฐาน
 
+- [x] Type safety / handover: Prisma Asset mapper แทน double casts, Zod สำหรับ price-group JSON/Session/Inventory Preferences; 433 tests ผ่านบน PostgreSQL ชั่วคราว ไม่มี skip, Typecheck/Lint ผ่าน ดู [Onboarding Handover](ONBOARDING_HANDOVER.md)
+
 - [x] Domain refactor: คง Transaction Entry Points 16 จุด, facade/error identity, รวม reservation query/calculation และ UI golden snapshots 4 สถานะ; 403 tests ผ่านบน PostgreSQL ชั่วคราว ไม่มี skip ดู [Module Map](workflow-modules.md)
 
 - [x] 2026-10-16 Environment Baseline: PostgreSQL 16 ว่าง migrate deploy ครบ 58 ชุด; 390 tests ผ่าน ไม่มี skip รวม real PDF sample; Typecheck ผ่านและ Lint ไม่มี error (4 warnings เดิม)
