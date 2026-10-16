@@ -27,6 +27,8 @@
 
 ## 2. Verification ที่มีหลักฐาน
 
+- [x] Domain refactor: คง Transaction Entry Points 16 จุด, facade/error identity, รวม reservation query/calculation และ UI golden snapshots 4 สถานะ; 403 tests ผ่านบน PostgreSQL ชั่วคราว ไม่มี skip ดู [Module Map](workflow-modules.md)
+
 - [x] 2026-10-16 Environment Baseline: PostgreSQL 16 ว่าง migrate deploy ครบ 58 ชุด; 390 tests ผ่าน ไม่มี skip รวม real PDF sample; Typecheck ผ่านและ Lint ไม่มี error (4 warnings เดิม)
 - [x] เพิ่ม GitHub Actions สำหรับทุก PR เข้า main เปิด workflow/concurrency/auth/scope flags และ fail เมื่อพบ skipped/todo หรือ integration suite ไม่ครบ; ดู [Environment Baseline](environment-baseline.md)
 

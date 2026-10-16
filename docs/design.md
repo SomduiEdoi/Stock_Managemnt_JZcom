@@ -24,6 +24,8 @@ flowchart LR
 
 หน้าอ่านข้อมูลผ่าน Server Component และ server-side service ได้โดยตรง ส่วนคำสั่งเปลี่ยนข้อมูลเข้าผ่าน API Route ซึ่งตรวจตัวตน สิทธิ์และ Warehouse scope บนเซิร์ฟเวอร์ก่อน mutation
 
+Workflow แยก Domain Modules โดยคง `src/lib/workflow.ts` เป็น Re-export Facade และ Transaction Boundary เดิม ส่วน UI คืนสินค้าแยก Hook และ Inline Panels ดู [Workflow Module Map](workflow-modules.md)
+
 ## 2. โมเดลหลัก
 
 | กลุ่ม | Prisma Models |
