@@ -49,6 +49,6 @@ Original public helper/type imports from transaction-return-client.tsx remain re
 - Golden snapshots were captured from that pre-refactor render and are now exercised by transaction-return-render.test.ts.
 - Added six reservation parity/calculation tests and three module-boundary tests.
 - Disposable PostgreSQL with all 58 migrations: 403 tests passed with no skips, including concurrency/auth/scope and the real PDF sample.
-- Typecheck and lint passed without warnings. The hosted PR CI must also pass before merge.
+- Typecheck and lint passed without warnings. An isolated production build passed without replacing the running dev server's build output. The hosted PR CI must also pass before merge.
 
 Snapshots check initial rendered states, not browser interaction or every possible approval state. Existing handler/rule/integration tests remain necessary; this document does not claim exhaustive behavior equivalence from snapshots alone.
