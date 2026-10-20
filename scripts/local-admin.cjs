@@ -16,15 +16,15 @@ async function main() {
       if (Buffer.byteLength(input) > 4096) throw new Error("Input too large.");
     }
     const { password } = JSON.parse(input);
-    if (typeof password !== "string" || password.length < 14 || Buffer.byteLength(password, "utf8") > 72) throw new Error("Password must have at least 14 characters and at most 72 UTF-8 bytes.");
+    if (typeof password !== "string" || password.length < 6 || Buffer.byteLength(password, "utf8") > 72 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[^\p{L}\p{N}\s]/u.test(password)) throw new Error("Password must have at least 6 characters, lowercase, uppercase, a number and a special character; maximum 72 UTF-8 bytes.");
     passwordHash = await hash(password, 12);
     input = "";
   }
   await db.$transaction(async (tx) => {
     const user = await tx.user.upsert({
       where: { localUsername: "admin" },
-      create: { name: "admin", localUsername: "admin", email: null, passwordHash: passwordHash ?? null, roles: { create: { roleId: role.id } } },
-      update: passwordHash ? { passwordHash, isActive: true } : {},
+      create: { provider: "LOCAL", name: "admin", localUsername: "admin", email: null, passwordHash: passwordHash ?? null, roles: { create: { roleId: role.id } } },
+      update: passwordHash ? { provider: "LOCAL", passwordHash, isActive: true } : { provider: "LOCAL" },
     });
     await tx.loginAudit.create({ data: { userId: user.id, mode: "LOCAL", result: createOnly ? "ACCOUNT_PREPARED" : "PASSWORD_SET" } });
   });

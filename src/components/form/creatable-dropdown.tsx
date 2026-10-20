@@ -1,7 +1,8 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useDropdownPosition } from "./use-dropdown-position";
 import { Check, ChevronDown, Plus, X } from "lucide-react";
 import { clsx } from "clsx";
 
@@ -67,7 +68,7 @@ export function CreatableDropdown({
   const inputRef = useRef<HTMLInputElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0 });
+  const menuPosition = useDropdownPosition(isOpen && !disabled, triggerRef, menuRef);
 
   const uniqueOptionList = useMemo(() => uniqueOptions(options), [options]);
   const selectedOption = uniqueOptionList.find((option) => option.value === value);
@@ -108,42 +109,6 @@ export function CreatableDropdown({
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
-
-  useLayoutEffect(() => {
-    if (!isOpen || !triggerRef.current || !menuRef.current) return;
-
-    function updatePosition() {
-      if (!triggerRef.current || !menuRef.current) return;
-
-      const triggerRect = triggerRef.current.getBoundingClientRect();
-      const menuRect = menuRef.current.getBoundingClientRect();
-      const gap = 4;
-      const viewportPadding = 8;
-      const left = Math.min(
-        Math.max(viewportPadding, triggerRect.left),
-        window.innerWidth - menuRect.width - viewportPadding,
-      );
-      const canOpenBelow = triggerRect.bottom + gap + menuRect.height <= window.innerHeight - viewportPadding;
-      const preferredTop = canOpenBelow
-        ? triggerRect.bottom + gap
-        : triggerRect.top - menuRect.height - gap;
-      const top = Math.min(
-        Math.max(viewportPadding, preferredTop),
-        window.innerHeight - menuRect.height - viewportPadding,
-      );
-
-      setMenuPosition({ left, top });
-    }
-
-    updatePosition();
-    window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
-
-    return () => {
-      window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
-    };
-  }, [isOpen, filteredOptions.length, canCreate]);
 
   function openDropdown() {
     if (disabled) return;
@@ -232,7 +197,7 @@ export function CreatableDropdown({
 
       {isOpen ? createPortal(
         <div
-          className="fixed z-[100] max-h-60 w-[min(28rem,calc(100vw-1rem))] overflow-y-auto rounded-md border border-border bg-white p-1 shadow-xl"
+          className="fixed z-[1000] max-h-60 overflow-y-auto overscroll-contain rounded-md border border-border bg-white p-1 shadow-xl"
           id={id}
           onClick={(event) => event.stopPropagation()}
           ref={menuRef}

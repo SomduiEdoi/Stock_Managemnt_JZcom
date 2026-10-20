@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ local: vi.fn(), ad: vi.fn(), directory: vi.fn(), compare: vi.fn(), audit: vi.fn(), update: vi.fn(), limit: vi.fn(), reset: vi.fn() }));
-vi.mock("@/lib/db", () => ({ db: { user: { findUnique: mocks.local, findFirst: mocks.ad, update: mocks.update }, loginAudit: { create: mocks.audit }, loginThrottle: { deleteMany: mocks.reset } } }));
+vi.mock("@/lib/db", () => ({ db: { user: { findUnique: mocks.local, findMany: mocks.ad, update: mocks.update }, loginAudit: { create: mocks.audit }, loginThrottle: { deleteMany: mocks.reset } } }));
 vi.mock("bcryptjs", () => ({ hash: vi.fn().mockResolvedValue("dummy"), compare: mocks.compare }));
 vi.mock("@/lib/login-security", () => ({ checkLoginLimit: mocks.limit }));
 vi.mock("@/lib/auth", () => ({ getUserFromSessionToken: vi.fn().mockResolvedValue({ id: "admin" }) }));
@@ -19,6 +19,19 @@ beforeEach(() => {
   mocks.compare.mockResolvedValue(true);
 });
 describe("explicit AD and local login", () => {
+  it("requires exactly one mapped existing account", async () => {
+    mocks.directory.mockResolvedValue({ username: "chutithep", upn: "chutithep@jzcom.co.th" });
+    mocks.ad.mockResolvedValue([{ id: "existing-user" }]);
+    expect((await call("AD", "Chutithep")).status).toBe(200);
+    expect(mocks.update).toHaveBeenCalledWith({ where: { id: "existing-user" }, data: { lastLoginAt: expect.any(Date) } });
+  });
+  it.each([{ matches: [] }, { matches: [{ id: "a" }, { id: "b" }] }])("denies missing or conflicting mappings", async ({ matches }) => {
+    mocks.directory.mockResolvedValue({ username: "unmapped", upn: "unmapped@jzcom.co.th" });
+    mocks.ad.mockResolvedValue(matches);
+    const response = await call("AD", "unmapped");
+    expect(response.status).toBe(403);
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
   it("signs in a local administrator without contacting AD", async () => {
     const response = await call();
     expect(response.status).toBe(200);
@@ -30,9 +43,11 @@ describe("explicit AD and local login", () => {
     mocks.local.mockResolvedValue({ id: "local", isActive: true, passwordHash: null, roles: [{ role: { code: "ADMIN" } }] });
     expect((await call()).status).toBe(401);
   });
-  it("does not permit a non-admin local account", async () => {
-    mocks.local.mockResolvedValue({ id: "local", isActive: true, passwordHash: "hash", roles: [{ role: { code: "USER" } }] });
-    expect((await call()).status).toBe(401);
+  it.each(["USER", "STOREMAN", "ADMIN"])("permits active local %s accounts", async (code) => {
+    mocks.local.mockResolvedValue({ id: "local", isActive: true, passwordHash: "hash", roles: [{ role: { code } }] });
+    expect((await call()).status).toBe(200);
+    expect(mocks.local).toHaveBeenCalledWith(expect.objectContaining({ where: { localUsername: "admin", provider: "LOCAL" } }));
+    expect(mocks.directory).not.toHaveBeenCalled();
   });
   it("blocks inactive local administrators", async () => {
     mocks.local.mockResolvedValue({ id: "local", isActive: false, passwordHash: "hash", roles: [{ role: { code: "ADMIN" } }] });

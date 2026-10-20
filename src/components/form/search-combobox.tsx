@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 import { clsx } from "clsx";
-import { flushSync } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
+import { useDropdownPosition } from "./use-dropdown-position";
 
 export type SearchComboboxSuggestion = {
   category?: string;
@@ -83,6 +84,8 @@ export function SearchCombobox({
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const position = useDropdownPosition(isOpen, rootRef, menuRef);
   const currentValue = isControlled ? value : internalValue;
   useEffect(() => {
     if (!isControlled) setInternalValue(defaultValue);
@@ -99,7 +102,7 @@ export function SearchCombobox({
 
   useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) {
+      if (!rootRef.current?.contains(event.target as Node) && !menuRef.current?.contains(event.target as Node)) {
         setIsOpen(false);
       }
     }
@@ -180,8 +183,8 @@ export function SearchCombobox({
         </button>
       </div>
 
-      {isOpen ? (
-        <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-[90] max-h-80 overflow-y-auto rounded-md border border-border bg-white py-2 shadow-xl">
+      {isOpen ? createPortal(
+        <div ref={menuRef} style={position} className="fixed z-[1000] max-h-60 overflow-y-auto overscroll-contain rounded-md border border-border bg-white py-2 shadow-xl">
           {filteredSuggestions.map((suggestion, index) => (
             <button
               className="block w-full px-6 py-2 text-left text-base leading-7 text-ink hover:bg-surface"
@@ -196,7 +199,7 @@ export function SearchCombobox({
           {filteredSuggestions.length === 0 ? (
             <p className="px-6 py-3 text-sm font-semibold text-muted-foreground">No results found.</p>
           ) : null}
-        </div>
+        </div>, document.body
       ) : null}
     </div>
   );

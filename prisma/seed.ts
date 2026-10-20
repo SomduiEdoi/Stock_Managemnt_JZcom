@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { teamForOrganizationTag } from "../src/lib/organization-team-options";
 import {
   type OrganizationLevel,
   type OrganizationTag,
@@ -736,22 +737,20 @@ async function upsertSeedUser(
     for (const assignment of assignments) {
       const isPrimary = assignment.tag === primaryAssignment.tag;
 
+      const existingAssignment = await prisma.userOrganizationAssignment.findFirst({ where: { userId: createdUser.id, organizationTag: assignment.tag }, select: { id: true } });
       await prisma.userOrganizationAssignment.upsert({
-        where: {
-          userId_organizationTag: {
-            userId: createdUser.id,
-            organizationTag: assignment.tag,
-          },
-        },
+        where: { id: existingAssignment?.id ?? crypto.randomUUID() },
         update: {
           isActive: true,
           isPrimary,
           organizationLevel: assignment.level,
+          team: teamForOrganizationTag(assignment.tag) || null,
         },
         create: {
           isActive: true,
           isPrimary,
           organizationLevel: assignment.level,
+          team: teamForOrganizationTag(assignment.tag) || null,
           organizationTag: assignment.tag,
           userId: createdUser.id,
         },

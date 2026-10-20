@@ -35,6 +35,7 @@ export async function AppShell({ children, title, user }: AppShellProps) {
             <AppShellTitle title={title} />
 
             <UserProfileMenu
+              provider={user.provider}
               name={user.name}
               position={user.position}
               roles={user.roles}

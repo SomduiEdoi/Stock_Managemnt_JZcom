@@ -25,6 +25,7 @@ import type { SidebarWarehouse } from "@/lib/warehouses";
 import { formatWarehouseName } from "@/lib/display-labels";
 
 type StockControllerOption = {
+  isStoreman: boolean;
   email: string;
   id: string;
   name: string;
@@ -144,8 +145,10 @@ function emptyWarehouseForm(): WarehouseFormState {
 
 function stockControllerOptions(
   stockControllers: StockControllerOption[],
+  storemanOnly = false,
 ) {
   return stockControllers
+    .filter((controller) => !storemanOnly || controller.isStoreman)
     .map((controller) => ({
       description: controller.position ?? "",
       label: controller.name,
@@ -258,7 +261,7 @@ function AddWarehouseModal({
           <Field label="Storeman" required>
             <SearchableDropdown
               onChange={(value) => setField("controllerId", value)}
-              options={stockControllerOptions(stockControllers)}
+              options={stockControllerOptions(stockControllers, true)}
               placeholder="Select storeman"
               searchPlaceholder="Search user..."
               value={form.controllerId}
@@ -400,7 +403,7 @@ function EditWarehouseModal({
           <Field label="Storeman" required>
             <SearchableDropdown
               onChange={(value) => setField("controllerId", value)}
-              options={stockControllerOptions(stockControllers)}
+              options={stockControllerOptions(stockControllers, true)}
               placeholder="Select storeman"
               searchPlaceholder="Search user..."
               value={form.controllerId}
@@ -607,7 +610,7 @@ export function AppSidebar({
               <Package className="h-5 w-5" />
             </span>
             <span className="text-lg font-bold leading-5">
-              Stock
+              Warehouse
               <br />
               Management
             </span>

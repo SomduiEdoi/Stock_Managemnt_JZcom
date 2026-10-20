@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { apiErrorResponse, readJsonBody, requireApiUser, apiJson } from "@/lib/api";
 import { deleteUserForAdmin, updateUserForAdmin } from "@/lib/user-management";
+import { localUsernameSchema, organizationAssignmentSchema } from "@/lib/user-account-schema";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -11,18 +12,17 @@ type RouteContext = {
 const paramsSchema = z.object({ id: z.string().uuid() });
 
 const updateUserSchema = z.object({
-  email: z.string().trim().email(),
-  name: z.string().trim().min(1),
+  username: localUsernameSchema.optional(),
+  email: z.union([z.string().trim().email(), z.literal("")]).default(""),
+  name: z.string().trim().default(""),
   organizationLevel: z.nativeEnum(OrganizationLevel).nullable().optional(),
   organizationAssignments: z
     .array(
-      z.object({
-        organizationLevel: z.nativeEnum(OrganizationLevel),
-        organizationTag: z.nativeEnum(OrganizationTag),
-      }),
+      organizationAssignmentSchema,
     )
     .optional(),
   primaryOrganizationTag: z.nativeEnum(OrganizationTag).nullable().optional(),
+  primaryOrganizationKey: z.string().nullable().optional(),
   organizationTag: z.nativeEnum(OrganizationTag).nullable().optional(),
   role: z.enum(["ADMIN", "STOREMAN", "USER"]),
 });

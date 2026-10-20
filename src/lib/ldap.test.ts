@@ -17,6 +17,7 @@ describe("authenticateWithLdap", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("LDAP_REQUIRED_GROUP_DN", "");
     vi.stubEnv("LDAP_URL", "ldap://172.16.3.179:389");
     vi.stubEnv("LDAP_DOMAIN", "ad2012r2.local");
     vi.stubEnv("LDAP_BASE_DN", "DC=ad2012r2,DC=local");
@@ -112,6 +113,22 @@ describe("authenticateWithLdap", () => {
     await expect(authenticateWithLdap("it01", "wrong")).resolves.toBeNull();
     expect(search).not.toHaveBeenCalled();
     expect(unbind).toHaveBeenCalledOnce();
+  });
+  it("resolves a Staff DN before user bind and returns the actual UPN", async () => {
+    vi.stubEnv("LDAP_REQUIRED_GROUP_DN", "CN=Staff,OU=JZCOM,DC=jzcom,DC=local");
+    search.mockResolvedValue({ searchEntries: [{ dn: "CN=Chutithep,DC=jzcom,DC=local", sAMAccountName: "Chutithep", userPrincipalName: "Chutithep@jzcom.co.th" }] });
+    await expect(authenticateWithLdap("Chutithep", "user-password")).resolves.toMatchObject({ username: "Chutithep", upn: "Chutithep@jzcom.co.th" });
+    expect(bind).toHaveBeenNthCalledWith(1, "ldap-reader@ad2012r2.local", "secret");
+    expect(bind).toHaveBeenNthCalledWith(2, "CN=Chutithep,DC=jzcom,DC=local", "user-password");
+    expect(search).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ filter: expect.stringContaining("(memberOf=CN=Staff,OU=JZCOM,DC=jzcom,DC=local)") }));
+    vi.stubEnv("LDAP_REQUIRED_GROUP_DN", "");
+  });
+  it("denies missing Staff entries without attempting user authentication", async () => {
+    vi.stubEnv("LDAP_REQUIRED_GROUP_DN", "CN=Staff,DC=jzcom,DC=local");
+    search.mockResolvedValue({ searchEntries: [] });
+    await expect(authenticateWithLdap("outsider", "password")).resolves.toBeNull();
+    expect(bind).toHaveBeenCalledTimes(1);
+    vi.stubEnv("LDAP_REQUIRED_GROUP_DN", "");
   });
   it("reports directory outages separately from invalid credentials", async () => {
     bind.mockRejectedValue(Object.assign(new Error("private network details"), { code: "ECONNREFUSED" }));

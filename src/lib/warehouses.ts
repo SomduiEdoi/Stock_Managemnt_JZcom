@@ -146,17 +146,12 @@ async function findStockControllerOrThrow(
     where: {
       id: userId,
       isActive: true,
-      OR: [
-        { roles: { some: { role: { code: "STOREMAN" } } } },
-        { headControlledWarehouses: { some: { isActive: true } } },
-        { organizationTag: "WAREHOUSE_MANAGER" },
-        { organizationAssignments: { some: { isActive: true, organizationTag: "WAREHOUSE_MANAGER" } } },
-      ],
+      roles: { some: { role: { code: "STOREMAN" } } },
     },
   });
 
   if (!controller) {
-    throw new WorkflowError(`${label} not found.`);
+    throw new WorkflowError(`${label} must be an active user with the Storeman role.`, 422, "INVALID_STOREMAN");
   }
 
   return controller;
@@ -265,7 +260,7 @@ export async function getSidebarWarehousesForUser() {
 export async function getStockControllersForWarehouseForm() {
   const users = await db.user.findMany({
     orderBy: { name: "asc" },
-    select: { email: true, id: true, name: true, position: true },
+    select: { email: true, id: true, name: true, position: true, roles: { select: { role: { select: { code: true } } } } },
     where: {
       isActive: true,
       OR: [
@@ -277,7 +272,7 @@ export async function getStockControllersForWarehouseForm() {
     },
   });
 
-  return users.map((user) => ({ ...user, email: user.email ?? "Not Linked" }));
+  return users.map(({ roles, ...user }) => ({ ...user, email: user.email ?? "Not Linked", isStoreman: roles.some(({ role }) => role.code === "STOREMAN") }));
 }
 
 export type CreateWarehouseInput = {

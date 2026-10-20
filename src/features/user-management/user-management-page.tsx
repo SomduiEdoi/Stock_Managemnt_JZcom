@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -18,7 +18,6 @@ import {
   buildUserManagementHref,
   organizationLevelOptions,
   organizationTagLabel,
-  organizationUnitOptions,
   type UserManagementFilters,
   type UserManagementMetrics,
   type UserManagementRow,
@@ -28,6 +27,8 @@ import {
 import { SearchCombobox } from "@/components/form/search-combobox";
 import { InstantFilterForm } from "@/components/form/instant-filter-form";
 import { SearchableDropdown } from "@/components/form/searchable-dropdown";
+import { localCredentialsSchema, localUsernameSchema } from "@/lib/user-account-schema";
+import { organizationAssignmentKey, organizationTeamDropdownOptions, organizationTagForTeam, teamForOrganizationTag } from "@/lib/organization-team-options";
 import { UserActionMenu } from "@/features/user-management/user-action-menu";
 import { TablePagination } from "@/components/table/table-pagination";
 
@@ -40,14 +41,20 @@ type UserManagementPageProps = {
 };
 
 type UserFormState = {
+  provider?: "AD" | "LOCAL";
+  username?: string;
+  password?: string;
+  confirmPassword?: string;
   email: string;
   emailVerified: boolean;
   name: string;
   organizationAssignments: Array<{
+    team?: string | null;
     organizationLevel: string;
     organizationTag: string;
   }>;
   primaryOrganizationTag: string;
+  primaryOrganizationKey?: string;
   organizationLevel: string;
   organizationTag: string;
   role: UserSystemRole | "";
@@ -92,6 +99,10 @@ function getUserInitials(name: string) {
 
 function emptyFormState(): UserFormState {
   return {
+    provider: "AD",
+    username: "",
+    password: "",
+    confirmPassword: "",
     email: "",
     emailVerified: false,
     name: "",
@@ -105,12 +116,16 @@ function emptyFormState(): UserFormState {
 
 function toFormState(user: UserManagementRow): UserFormState {
   return {
+    username: user.localUsername ?? "",
+    primaryOrganizationKey: user.organizationAssignments.find((assignment) => assignment.isPrimary) ? organizationAssignmentKey(user.organizationAssignments.find((assignment) => assignment.isPrimary)!) : undefined,
+    provider: user.provider ?? "AD",
     email: user.email ?? "",
     emailVerified: false,
     name: user.name,
     organizationAssignments:
       user.organizationAssignments.length > 0
         ? user.organizationAssignments.map((assignment) => ({
+            team: assignment.team ?? teamForOrganizationTag(assignment.organizationTag),
             organizationLevel: assignment.organizationLevel,
             organizationTag: assignment.organizationTag,
           }))
@@ -232,15 +247,6 @@ function organizationLevelDropdownOptions() {
   return organizationLevelOptions.map((option) => ({ label: option, value: option }));
 }
 
-function organizationUnitDropdownOptions() {
-  return organizationUnitOptions.map((option) => ({
-    description: option.group,
-    label: option.value,
-    searchText: `${option.group} ${option.value}`,
-    value: option.value,
-  }));
-}
-
 function baseInputClass(disabled = false) {
   return `h-11 w-full rounded-md border border-border bg-white px-3 text-sm font-medium text-ink outline-none ring-brand-accent/20 transition focus:ring-4 ${
     disabled ? "cursor-not-allowed bg-surface text-muted-foreground" : ""
@@ -252,14 +258,18 @@ function AdEmailField({
   onEmailChange,
   onVerified,
   verified,
+  onNameVerified,
 }: {
   email: string;
   onEmailChange: (value: string) => void;
   onVerified: (value: boolean) => void;
   verified: boolean;
+  onNameVerified?: (name: string) => void;
 }) {
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState("");
+  const active = useRef(true);
+  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
 
   async function handleVerify() {
     const value = email.trim();
@@ -286,12 +296,15 @@ function AdEmailField({
       });
       const data = await response.json().catch(() => ({}));
 
+      if (!active.current) return;
+
       if (!response.ok) {
         setVerifyError(data.message ?? "Unable to verify AD account.");
         return;
       }
 
       onEmailChange(data.email ?? value.toLowerCase());
+      if (typeof data.name === "string") onNameVerified?.(data.name);
       onVerified(true);
     } catch {
       setVerifyError("Unable to verify AD account right now.");
@@ -307,6 +320,7 @@ function AdEmailField({
       </span>
       <div className="flex items-start gap-2">
         <input
+          disabled={isVerifying}
           className={`${baseInputClass()} min-w-0 flex-1`}
           onChange={(event) => {
             onEmailChange(event.target.value);
@@ -354,12 +368,26 @@ function OrganizationAssignmentsField({
     key: "organizationLevel" | "organizationTag",
     value: string,
   ) {
-    setForm((current) => ({
-      ...current,
-      organizationAssignments: current.organizationAssignments.map((assignment, assignmentIndex) =>
-        assignmentIndex === index ? { ...assignment, [key]: value } : assignment,
-      ),
-    }));
+    setForm((current) => {
+      const previous = current.organizationAssignments[index];
+      const team = key === "organizationLevel" ? previous.team ?? teamForOrganizationTag(previous.organizationTag) : value;
+      const level = key === "organizationLevel" ? value : previous.organizationLevel;
+      const tag = key === "organizationLevel"
+        ? organizationTagForTeam(team, value)
+        : organizationTagForTeam(value, previous.organizationLevel);
+      const nextAssignment = { team, organizationLevel: level, organizationTag: tag };
+      const isPrimary = current.primaryOrganizationKey
+        ? current.primaryOrganizationKey === organizationAssignmentKey(previous)
+        : Boolean(previous.organizationTag) && current.primaryOrganizationTag === previous.organizationTag;
+      return {
+        ...current,
+        primaryOrganizationTag: isPrimary ? tag : current.primaryOrganizationTag,
+        primaryOrganizationKey: isPrimary ? organizationAssignmentKey(nextAssignment) : current.primaryOrganizationKey,
+        organizationAssignments: current.organizationAssignments.map((assignment, assignmentIndex) => assignmentIndex === index
+          ? nextAssignment
+          : assignment),
+      };
+    });
   }
 
   function addAssignment() {
@@ -383,6 +411,8 @@ function OrganizationAssignmentsField({
         current.organizationAssignments[index]?.organizationTag === current.primaryOrganizationTag
           ? current.organizationAssignments.find((_, assignmentIndex) => assignmentIndex !== index)?.organizationTag ?? ""
           : current.primaryOrganizationTag,
+      primaryOrganizationKey: current.primaryOrganizationKey === organizationAssignmentKey(current.organizationAssignments[index])
+        ? undefined : current.primaryOrganizationKey,
     }));
   }
 
@@ -407,13 +437,14 @@ function OrganizationAssignmentsField({
           <div className="grid gap-3 md:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_40px]" key={index}>
             <label className="flex h-11 items-center gap-2 whitespace-nowrap text-sm font-semibold text-navy">
               <input
-                checked={form.primaryOrganizationTag === assignment.organizationTag && Boolean(assignment.organizationTag)}
+                checked={Boolean(assignment.organizationTag) && (form.primaryOrganizationKey ? form.primaryOrganizationKey === organizationAssignmentKey(assignment) : form.primaryOrganizationTag === assignment.organizationTag)}
                 className="h-4 w-4 accent-brand-accent"
                 disabled={disabled || !assignment.organizationTag}
                 onChange={() =>
                   setForm((current) => ({
                     ...current,
                     primaryOrganizationTag: assignment.organizationTag,
+                    primaryOrganizationKey: organizationAssignmentKey(assignment),
                   }))
                 }
                 type="radio"
@@ -431,10 +462,10 @@ function OrganizationAssignmentsField({
             <SearchableDropdown
               disabled={disabled}
               onChange={(value) => updateAssignment(index, "organizationTag", value)}
-              options={organizationUnitDropdownOptions()}
+              options={organizationTeamDropdownOptions(assignment.organizationLevel)}
               placeholder={disabled ? "Disabled" : "Select Unit / Team Tag"}
               searchPlaceholder="Search unit or team tag"
-              value={disabled ? "" : assignment.organizationTag}
+              value={disabled ? "" : assignment.team ?? teamForOrganizationTag(assignment.organizationTag)}
             />
             <button
               aria-label={`Remove organization assignment ${index + 1}`}
@@ -469,7 +500,7 @@ function ModalShell({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
-      <div className="w-full max-w-2xl overflow-visible rounded-md border border-border bg-white shadow-xl">
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-md border border-border bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <h2 className="text-xl font-bold text-navy">{title}</h2>
           <button
@@ -508,19 +539,24 @@ function UserFormModal({
   }
 
   function validate() {
-    if (!form.email.trim()) {
+    if (form.provider !== "LOCAL" && !form.email.trim()) {
       return "Email is required.";
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+    if (form.provider !== "LOCAL" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
       return "Email must be a valid email address.";
     }
 
-    if (!form.emailVerified) {
+    if (form.provider !== "LOCAL" && !form.emailVerified) {
       return "Verify the Email against Active Directory before saving.";
     }
 
-    if (!form.name.trim()) {
+    if (form.provider === "LOCAL") {
+      const credentials = localCredentialsSchema.safeParse({ username: form.username, password: form.password, confirmPassword: form.confirmPassword });
+      if (!credentials.success) return credentials.error.issues[0].message;
+    }
+
+    if (form.provider !== "LOCAL" && !form.name.trim()) {
       return "Name is required.";
     }
 
@@ -535,7 +571,7 @@ function UserFormModal({
     if (
       form.role === "USER" &&
       !cleanOrganizationAssignments(form).some(
-        (assignment) => assignment.organizationTag === form.primaryOrganizationTag,
+        (assignment) => form.primaryOrganizationKey ? organizationAssignmentKey(assignment) === form.primaryOrganizationKey : assignment.organizationTag === form.primaryOrganizationTag,
       )
     ) {
       return "Select one primary organization assignment.";
@@ -555,8 +591,10 @@ function UserFormModal({
     setIsSubmitting(true);
 
     const payload = {
-      email: form.email.trim(),
-      name: form.name.trim(),
+      primaryOrganizationKey: form.primaryOrganizationKey,
+      provider: form.provider ?? "AD",
+      ...(form.provider === "LOCAL" ? { username: form.username, password: form.password, confirmPassword: form.confirmPassword } : {}),
+      ...(form.provider === "LOCAL" ? {} : { email: form.email.trim(), name: form.name.trim() }),
       organizationAssignments:
         form.role === "USER" ? cleanOrganizationAssignments(form) : [],
       primaryOrganizationTag:
@@ -581,7 +619,7 @@ function UserFormModal({
       router.refresh();
       onSaved(
         mode === "ADD"
-          ? "User created successfully. AD login is ready after the account is enabled."
+          ? "User created successfully."
           : "User updated successfully.",
       );
     } catch {
@@ -596,21 +634,40 @@ function UserFormModal({
       title={mode === "ADD" ? "Add User" : "Edit User"}
     >
       <div className="grid gap-4 md:grid-cols-2">
+        <fieldset className="md:col-span-2" disabled={isSubmitting}>
+          <legend className="mb-2 text-sm font-bold text-navy">Account Type</legend>
+          <div className="flex flex-wrap gap-5">
+            {(["AD", "LOCAL"] as const).map((provider) => (
+              <label className="flex items-center gap-2 text-sm" key={provider}>
+                <input type="radio" name="account-provider" checked={(form.provider ?? "AD") === provider} onChange={() => { setForm((current) => ({ ...current, provider, emailVerified: false, password: "", confirmPassword: "", username: "" })); setError(""); }} />
+                {provider === "AD" ? "Active Directory (AD Account)" : "Local Account"}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        {form.provider === "LOCAL" ? (
+          <Field label="Username" required>
+            <input autoComplete="off" className={baseInputClass()} value={form.username ?? ""} onChange={(event) => setField("username", event.target.value)} />
+          </Field>
+        ) : (
         <AdEmailField
+          key="add-ad-email"
           email={form.email}
+          onNameVerified={(name) => setField("name", name)}
           onEmailChange={(email) => setField("email", email)}
           onVerified={(emailVerified) => setField("emailVerified", emailVerified)}
           verified={form.emailVerified}
         />
+        )}
 
-        <Field label="Name" required>
+        {form.provider !== "LOCAL" ? <Field label="Name" required>
           <input
             className={baseInputClass()}
             onChange={(event) => setField("name", event.target.value)}
             type="text"
             value={form.name}
           />
-        </Field>
+        </Field> : null}
 
         <Field label="Role" required>
           <SearchableDropdown
@@ -630,6 +687,15 @@ function UserFormModal({
             value={form.role}
           />
         </Field>
+
+        {form.provider === "LOCAL" ? <>
+          <Field label="Password" required>
+            <input type="password" autoComplete="new-password" minLength={6} className={baseInputClass()} value={form.password ?? ""} onChange={(event) => setField("password", event.target.value)} />
+          </Field>
+          <Field label="Confirm Password" required>
+            <input type="password" autoComplete="new-password" className={baseInputClass()} value={form.confirmPassword ?? ""} onChange={(event) => setField("confirmPassword", event.target.value)} />
+          </Field>
+        </> : null}
 
         <OrganizationAssignmentsField
           disabled={form.role !== "USER"}
@@ -654,7 +720,7 @@ function UserFormModal({
         </button>
         <button
           className="h-11 rounded-md bg-navy px-4 text-sm font-bold text-white hover:bg-navy/90 disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={isSubmitting || !form.emailVerified}
+          disabled={isSubmitting || (form.provider !== "LOCAL" && !form.emailVerified)}
           onClick={handleSubmit}
           type="button"
         >
@@ -831,19 +897,19 @@ function EditUserModal({
 
 
   function validate() {
-    if (!form.email.trim()) {
+    if (form.provider !== "LOCAL" && !form.email.trim()) {
       return "Email is required.";
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+    if (form.provider !== "LOCAL" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
       return "Email must be a valid email address.";
     }
 
-    if (!form.emailVerified) {
+    if (form.provider !== "LOCAL" && !form.emailVerified) {
       return "Verify the Email against Active Directory before saving.";
     }
 
-    if (!form.name.trim()) {
+    if (form.provider !== "LOCAL" && !form.name.trim()) {
       return "Name is required.";
     }
 
@@ -858,7 +924,7 @@ function EditUserModal({
     if (
       form.role === "USER" &&
       !cleanOrganizationAssignments(form).some(
-        (assignment) => assignment.organizationTag === form.primaryOrganizationTag,
+        (assignment) => form.primaryOrganizationKey ? organizationAssignmentKey(assignment) === form.primaryOrganizationKey : assignment.organizationTag === form.primaryOrganizationTag,
       )
     ) {
       return "Select one primary organization assignment.";
@@ -877,13 +943,18 @@ function EditUserModal({
     setError("");
     setIsSubmitting(true);
 
+    if (form.provider === "LOCAL") {
+      const username = localUsernameSchema.safeParse(form.username);
+      if (!username.success) { setError(username.error.issues[0].message); setIsSubmitting(false); return; }
+    }
     try {
       const response = await fetch(`/api/users/${user.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: form.email.trim(),
-          name: form.name.trim(),
+          primaryOrganizationKey: form.primaryOrganizationKey,
+          ...(form.provider === "LOCAL" ? { username: form.username } : {}),
+          ...(form.provider === "LOCAL" ? {} : { email: form.email.trim(), name: form.name.trim() }),
           organizationAssignments:
             form.role === "USER" ? cleanOrganizationAssignments(form) : [],
           primaryOrganizationTag:
@@ -909,21 +980,23 @@ function EditUserModal({
   return (
     <ModalShell onClose={onClose} title="Edit User">
       <div className="grid gap-4 md:grid-cols-2">
+        {form.provider === "LOCAL" ? <Field label="Username" required><input autoComplete="off" className={baseInputClass()} value={form.username ?? ""} onChange={(event) => setField("username", event.target.value)} /></Field> : (
         <AdEmailField
           email={form.email}
           onEmailChange={(email) => setField("email", email)}
           onVerified={(emailVerified) => setField("emailVerified", emailVerified)}
           verified={form.emailVerified}
         />
+        )}
 
-        <Field label="Name" required>
+        {form.provider !== "LOCAL" ? <Field label="Name" required>
           <input
             className={baseInputClass()}
             onChange={(event) => setField("name", event.target.value)}
             type="text"
             value={form.name}
           />
-        </Field>
+        </Field> : null}
 
         <Field label="Role" required>
           <SearchableDropdown
@@ -967,7 +1040,7 @@ function EditUserModal({
         </button>
         <button
           className="h-11 rounded-md bg-navy px-4 text-sm font-bold text-white hover:bg-navy/90 disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={isSubmitting || !form.emailVerified}
+          disabled={isSubmitting || (form.provider !== "LOCAL" && !form.emailVerified)}
           onClick={handleSubmit}
           type="button"
         >
@@ -1088,7 +1161,7 @@ function UserTable({
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-2 font-medium text-ink">
                     <Mail className="h-4 w-4 text-muted-foreground" />
-                    <span>{user.email ?? "Not Linked"}</span>
+                    <span>{user.provider === "LOCAL" ? "Local" : user.email ?? "Not Linked"}</span>
                   </div>
                 </td>
                 <td className="px-5 py-4">

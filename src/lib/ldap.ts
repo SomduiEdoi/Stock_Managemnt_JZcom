@@ -5,6 +5,7 @@ export type LdapUser = {
   email: string | null;
   name: string;
   username: string;
+  upn?: string | null;
 };
 
 export class LdapDirectoryError extends Error {
@@ -128,7 +129,7 @@ function toLdapUser(entry: Record<string, unknown>, fallbackUsername: string): L
     firstString(attributes.cn) ??
     username;
 
-  return { email, name, username };
+  return { email, name, username, ...(process.env.LDAP_REQUIRED_GROUP_DN ? { upn: firstString(attributes.userPrincipalName) } : {}) };
 }
 
 export async function authenticateWithLdap(
@@ -148,6 +149,23 @@ export async function authenticateWithLdap(
   catch { throw new LdapDirectoryError("Active Directory connection is unavailable."); }
 
   try {
+    if (process.env.LDAP_REQUIRED_GROUP_DN) {
+      if (!config.verifyBindDn || !config.verifyBindPassword) throw new LdapDirectoryError("Directory search credentials are required.");
+      await client.bind(config.verifyBindDn, config.verifyBindPassword);
+      const identityFilter = normalizedEmail.includes("@")
+        ? `(userPrincipalName=${escapeFilterValue(normalizedEmail)})`
+        : `(sAMAccountName=${escapeFilterValue(normalizedUsername)})`;
+      const result = await client.search(config.searchBase, {
+        scope: "sub", sizeLimit: 2,
+        filter: `(&(objectCategory=person)(objectClass=user)(memberOf=${escapeFilterValue(process.env.LDAP_REQUIRED_GROUP_DN)})${identityFilter}(!(userAccountControl:1.2.840.113556.1.4.803:=2)))`,
+        attributes: ["sAMAccountName", "displayName", "cn", "mail", "userPrincipalName"],
+      });
+      if (result.searchEntries.length !== 1) return null;
+      const entry = result.searchEntries[0];
+      if (!entry.dn) return null;
+      await client.bind(entry.dn, password);
+      return toLdapUser(entry, normalizedUsername);
+    }
     await client.bind(bindUsername(normalizedEmail, config.domain), password);
 
     const result = await client.search(config.searchBase, {
@@ -195,11 +213,11 @@ export async function findLdapUserByEmail(email: string): Promise<LdapUser | nul
 
     const result = await client.search(config.searchBase, {
       scope: "sub",
-      filter: `(&(objectCategory=person)(|(mail=${escapeFilterValue(normalizedEmail)})(userPrincipalName=${escapeFilterValue(normalizedEmail)})))`,
+      filter: `(&(objectCategory=person)${process.env.LDAP_REQUIRED_GROUP_DN ? `(memberOf=${escapeFilterValue(process.env.LDAP_REQUIRED_GROUP_DN)})` : ""}(|(mail=${escapeFilterValue(normalizedEmail)})(userPrincipalName=${escapeFilterValue(normalizedEmail)})))`,
       attributes: ["sAMAccountName", "displayName", "cn", "mail", "userPrincipalName"],
       sizeLimit: 2,
     });
-    const entry = result.searchEntries[0];
+    const entry = result.searchEntries.length === 1 ? result.searchEntries[0] : null;
 
     return entry
       ? toLdapUser(entry, normalizedUsername)
