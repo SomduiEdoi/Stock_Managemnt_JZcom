@@ -610,7 +610,7 @@ export function AppSidebar({
               <Package className="h-5 w-5" />
             </span>
             <span className="text-lg font-bold leading-5">
-              Stock
+              Warehouse
               <br />
               Management
             </span>
