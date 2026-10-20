@@ -31,7 +31,7 @@ describe.skipIf(!enabled)("PostgreSQL workflow with mandatory rollback", () => {
     try {
       await client!.$transaction(async (tx) => {
         context.tx = tx;
-        const requester = await tx.user.create({ data: { name: marker, signatureDataUrl: "test-signature", roles: { create: { role: { connect: { code: "USER" } } } } } });
+        const requester = await tx.user.create({ data: { name: marker, organizationLevel: "EXECUTIVE", signatureDataUrl: "test-signature", roles: { create: { role: { connect: { code: "USER" } } } } } });
         const lead = await tx.user.create({ data: { name: `${marker}-lead` } });
         const store = await tx.user.create({ data: { name: `${marker}-store`, roles: { create: { role: { connect: { code: "STOREMAN" } } } } } });
         const warehouse = await tx.assetWarehouse.create({ data: { code: marker, prefix: "QA", name: marker } });

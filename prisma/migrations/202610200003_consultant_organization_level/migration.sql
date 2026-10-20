@@ -1,0 +1,1 @@
+ALTER TYPE "OrganizationLevel" ADD VALUE 'CONSULTANT';

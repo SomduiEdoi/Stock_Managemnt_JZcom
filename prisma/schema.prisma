@@ -14,6 +14,7 @@ enum RoleCode {
 }
 
 enum OrganizationLevel {
+  CONSULTANT
   EXECUTIVE
   MANAGER
   SUPERVISOR
@@ -21,6 +22,9 @@ enum OrganizationLevel {
 }
 
 enum OrganizationTag {
+  STAFF
+  SUPERVISOR
+  MANAGER
   EXECUTIVE
   CONSULTANT
   BSD_MANAGER
@@ -156,12 +160,20 @@ enum MigrationRowStatus {
   NEEDS_REVIEW
 }
 
+enum AuthProvider {
+  AD
+  LOCAL
+}
+
 model User {
+  provider                    AuthProvider                 @default(AD)
   id                          String                       @id @default(uuid()) @db.Uuid
   name                        String
   email                       String?                      @unique
   passwordHash                String?                      @map("password_hash")
   localUsername               String?                      @unique @map("local_username")
+  ldapUsername                String?                      @unique @map("ldap_username")
+  ldapUpn                     String?                      @unique @map("ldap_upn")
   azureAdObjectId             String?                      @unique @map("azure_ad_object_id")
   position                    String?
   organizationLevel           OrganizationLevel?           @map("organization_level")
@@ -204,6 +216,7 @@ model User {
 }
 
 model UserOrganizationAssignment {
+  team              String?           @db.VarChar(32)
   id                String            @id @default(uuid()) @db.Uuid
   userId            String            @map("user_id") @db.Uuid
   organizationLevel OrganizationLevel @map("organization_level")
@@ -214,7 +227,8 @@ model UserOrganizationAssignment {
   updatedAt         DateTime          @default(now()) @updatedAt @map("updated_at")
   user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, organizationTag])
+  @@index([userId, organizationTag])
+  @@unique([userId, team, organizationLevel])
   @@index([organizationTag, isActive])
   @@index([userId, isPrimary])
   @@map("user_organization_assignments")

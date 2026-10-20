@@ -1,6 +1,7 @@
 ﻿"use client";
 
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useDropdownPosition } from "./use-dropdown-position";
 import { createPortal, flushSync } from "react-dom";
 import { Check, ChevronDown, X } from "lucide-react";
 import { clsx } from "clsx";
@@ -56,7 +57,7 @@ export function SearchableDropdown(props: SearchableDropdownProps) {
     emptyText = "No results found.",
     name,
     options,
-    portal = false,
+    portal = true,
     placeholder = "Select option",
     searchPlaceholder,
     showDescription = true,
@@ -68,7 +69,7 @@ export function SearchableDropdown(props: SearchableDropdownProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0, width: 0 });
+  const menuPosition = useDropdownPosition(portal && isOpen && !disabled, triggerRef, menuRef);
 
   const selectedValues = props.multiple ? props.value : props.value ? [props.value] : [];
   const selectedOptions = selectedValues
@@ -106,39 +107,6 @@ export function SearchableDropdown(props: SearchableDropdownProps) {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
-
-  useLayoutEffect(() => {
-    if (!portal || !isOpen || !triggerRef.current || !menuRef.current) return;
-
-    function updateMenuPosition() {
-      const triggerRect = triggerRef.current?.getBoundingClientRect();
-      const menu = menuRef.current;
-      if (!triggerRect || !menu) return;
-
-      const viewportPadding = 8;
-      const gap = 4;
-      const menuHeight = menu.getBoundingClientRect().height;
-      const menuWidth = triggerRect.width;
-      const maxLeft = Math.max(viewportPadding, window.innerWidth - menuWidth - viewportPadding);
-      const left = Math.min(Math.max(viewportPadding, triggerRect.left), maxLeft);
-      const belowTop = triggerRect.bottom + gap;
-      const aboveTop = triggerRect.top - menuHeight - gap;
-      const canOpenBelow = belowTop + menuHeight <= window.innerHeight - viewportPadding;
-      const preferredTop = canOpenBelow ? belowTop : aboveTop;
-      const maxTop = Math.max(viewportPadding, window.innerHeight - menuHeight - viewportPadding);
-      const top = Math.min(Math.max(viewportPadding, preferredTop), maxTop);
-
-      setMenuPosition({ left, top, width: menuWidth });
-    }
-
-    updateMenuPosition();
-    window.addEventListener("resize", updateMenuPosition);
-    window.addEventListener("scroll", updateMenuPosition, true);
-    return () => {
-      window.removeEventListener("resize", updateMenuPosition);
-      window.removeEventListener("scroll", updateMenuPosition, true);
-    };
-  }, [filteredOptions, isOpen, portal]);
 
   function openDropdown() {
     if (disabled) return;
@@ -266,7 +234,7 @@ export function SearchableDropdown(props: SearchableDropdownProps) {
         const menu = (
           <div
             className={clsx(
-              "max-h-60 overflow-y-auto rounded-md border border-border bg-white p-1 shadow-xl",
+              "max-h-60 overflow-y-auto overscroll-contain rounded-md border border-border bg-white p-1 shadow-xl",
               portal ? "fixed z-[1000]" : "absolute left-0 right-0 top-[calc(100%+4px)] z-[90]",
             )}
             id={id}
@@ -276,6 +244,7 @@ export function SearchableDropdown(props: SearchableDropdownProps) {
               left: menuPosition.left,
               top: menuPosition.top,
               width: menuPosition.width || undefined,
+              maxHeight: menuPosition.maxHeight,
             } : undefined}
           >
           {filteredOptions.map((option) => {

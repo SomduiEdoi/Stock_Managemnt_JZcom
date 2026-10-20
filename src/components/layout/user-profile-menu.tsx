@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, LogOut, Settings } from "lucide-react";
+import { ChevronDown, KeyRound, LogOut, Settings } from "lucide-react";
+import { ChangePasswordDialog } from "./change-password-dialog";
 import type { RoleCode } from "@/lib/permissions";
 
 type UserProfileMenuProps = {
+  provider?: "AD" | "LOCAL";
   name: string;
   position: string | null;
   roles: RoleCode[];
@@ -24,6 +26,7 @@ type ProfileTriggerProps = ProfileDisplayProps & {
 };
 
 type ProfileDropdownProps = ProfileDisplayProps & {
+  onChangePassword?: () => void;
   isPending: boolean;
   onLogout: () => void;
 };
@@ -77,6 +80,7 @@ function ProfileTrigger({
 }
 
 function ProfileDropdown({
+  onChangePassword,
   isPending,
   name,
   onLogout,
@@ -107,6 +111,7 @@ function ProfileDropdown({
         <Settings className="h-4 w-4" />
         Settings
       </Link>
+      {onChangePassword ? <button type="button" role="menuitem" onClick={onChangePassword} className="mt-2 flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-navy hover:bg-surface"><KeyRound className="h-4 w-4" />Change Password</button> : null}
       <button
         className="mt-2 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-semibold text-status-fail transition hover:bg-status-fail/10 disabled:cursor-not-allowed disabled:opacity-60"
         disabled={isPending}
@@ -122,6 +127,7 @@ function ProfileDropdown({
 }
 
 export function UserProfileMenu({
+  provider,
   name,
   position,
   roles,
@@ -129,6 +135,7 @@ export function UserProfileMenu({
   const router = useRouter();
   const menuRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
   const [isPending, setIsPending] = useState(false);
   const primaryRole = getPrimaryRole(roles);
 
@@ -173,6 +180,7 @@ export function UserProfileMenu({
 
       {isOpen ? (
         <ProfileDropdown
+          onChangePassword={provider === "LOCAL" ? () => { setIsOpen(false); setPasswordOpen(true); } : undefined}
           isPending={isPending}
           name={name}
           onLogout={handleLogout}
@@ -180,6 +188,7 @@ export function UserProfileMenu({
           primaryRole={primaryRole}
         />
       ) : null}
+      {passwordOpen ? <ChangePasswordDialog onClose={() => setPasswordOpen(false)} /> : null}
     </div>
   );
 }

@@ -10,6 +10,9 @@ import { db } from "@/lib/db";
 import { findLdapUserByEmail, LdapDirectoryError } from "@/lib/ldap";
 import { hasRole } from "@/lib/permissions";
 import { WorkflowError } from "@/lib/workflow";
+import { createUserSchema, localUsernameSchema, type CreateManagedUserInput } from "@/lib/user-account-schema";
+import { createActiveDirectoryUser, createLocalUser } from "@/lib/user-account-providers";
+import { organizationAssignmentKey, teamForOrganizationTag } from "@/lib/organization-team-options";
 import {
   UserStatusFilter,
   UserSystemRole,
@@ -52,6 +55,8 @@ const defaultFilters: UserManagementFilters = {
 };
 
 const userRowSelect = Prisma.validator<Prisma.UserSelect>()({
+  provider: true,
+  localUsername: true,
   email: true,
   id: true,
   isActive: true,
@@ -64,6 +69,7 @@ const userRowSelect = Prisma.validator<Prisma.UserSelect>()({
     select: {
       id: true,
       isPrimary: true,
+      team: true,
       organizationLevel: true,
       organizationTag: true,
     },
@@ -102,14 +108,17 @@ type UserRecord = Prisma.UserGetPayload<{
 }>;
 
 export type UpsertManagedUserInput = {
+  username?: string;
   email: string;
   name: string;
   organizationLevel?: OrganizationLevel | null;
   organizationAssignments?: Array<{
+    team?: string | null;
     organizationLevel: OrganizationLevel;
     organizationTag: OrganizationTag;
   }>;
   primaryOrganizationTag?: OrganizationTag | null;
+  primaryOrganizationKey?: string | null;
   organizationTag?: OrganizationTag | null;
   role: UserSystemRole;
 };
@@ -158,6 +167,8 @@ function inferSystemRole(user: UserRecord): UserSystemRole {
 
 function toRow(user: UserRecord): UserManagementRow {
   return {
+    provider: user.provider,
+    localUsername: user.localUsername,
     warehousePermissions: user.warehousePermissions,
     email: user.email,
     id: user.id,
@@ -335,17 +346,17 @@ async function syncWarehousePermissionsForUser(
   await db.userWarehousePermission.createMany({ data: permissionRows });
 }
 
-function validateManagedUserInput(input: UpsertManagedUserInput) {
-  if (!input.email.trim()) {
+function validateManagedUserInput(input: UpsertManagedUserInput, requireIdentity = true) {
+  if (requireIdentity && !input.email.trim()) {
     throw new WorkflowError("Email is required.");
   }
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(input.email.trim())) {
+  if (requireIdentity && !emailRegex.test(input.email.trim())) {
     throw new WorkflowError("Email must be a valid email address.");
   }
 
-  if (!input.name.trim()) {
+  if (requireIdentity && !input.name.trim()) {
     throw new WorkflowError("Name is required.");
   }
 
@@ -353,6 +364,9 @@ function validateManagedUserInput(input: UpsertManagedUserInput) {
     const assignments = normalizeOrganizationAssignments(input);
     if (assignments.length === 0) {
       throw new WorkflowError("At least one organization assignment is required for User.");
+    }
+    if (input.primaryOrganizationKey && !assignments.some((assignment) => organizationAssignmentKey(assignment) === input.primaryOrganizationKey)) {
+      throw new WorkflowError("Select a valid primary organization assignment.");
     }
   }
 }
@@ -365,14 +379,15 @@ function normalizeOrganizationAssignments(
   );
 
   if (assignments && assignments.length > 0) {
-    const seen = new Set<OrganizationTag>();
+    const seen = new Set<string>();
 
     return assignments.filter((assignment) => {
-      if (seen.has(assignment.organizationTag)) {
+      const key = organizationAssignmentKey(assignment);
+      if (seen.has(key)) {
         return false;
       }
 
-      seen.add(assignment.organizationTag);
+      seen.add(key);
       return true;
     });
   }
@@ -390,10 +405,12 @@ function normalizeOrganizationAssignments(
 }
 
 function resolvePrimaryOrganizationAssignment(
-  assignments: Array<{ organizationLevel: OrganizationLevel; organizationTag: OrganizationTag }>,
+  assignments: Array<{ team?: string | null; organizationLevel: OrganizationLevel; organizationTag: OrganizationTag }>,
   primaryOrganizationTag?: OrganizationTag | null,
+  primaryOrganizationKey?: string | null,
 ) {
   return (
+    assignments.find((assignment) => organizationAssignmentKey(assignment) === primaryOrganizationKey) ??
     assignments.find((assignment) => assignment.organizationTag === primaryOrganizationTag) ??
     assignments[0] ??
     null
@@ -409,6 +426,7 @@ async function syncOrganizationAssignmentsForUser(
   const primaryAssignment = resolvePrimaryOrganizationAssignment(
     assignments,
     input.primaryOrganizationTag,
+    input.primaryOrganizationKey,
   );
 
   await tx.userOrganizationAssignment.deleteMany({ where: { userId } });
@@ -416,7 +434,8 @@ async function syncOrganizationAssignmentsForUser(
   if (assignments.length > 0) {
     await tx.userOrganizationAssignment.createMany({
       data: assignments.map((assignment) => ({
-        isPrimary: assignment.organizationTag === primaryAssignment?.organizationTag,
+        isPrimary: assignment === primaryAssignment,
+        team: (("team" in assignment ? assignment.team : null) ?? teamForOrganizationTag(assignment.organizationTag)) || null,
         organizationLevel: assignment.organizationLevel,
         organizationTag: assignment.organizationTag,
         userId,
@@ -491,45 +510,28 @@ export async function getUserManagementForAdmin(
 
 export async function createUserForAdmin(
   user: CurrentUser,
-  input: UpsertManagedUserInput,
+  rawInput: CreateManagedUserInput,
 ) {
   ensureAdmin(user);
-  validateManagedUserInput(input);
-
-  const email = (await verifyEmailAgainstDirectory(user, input.email)).email;
-  const name = input.name.trim();
-  const existing = await db.user.findUnique({
-    where: { email },
-    select: { id: true },
-  });
-
-  if (existing) {
-    throw new WorkflowError("Email already exists in the system.");
+  const input = createUserSchema.parse(rawInput);
+  validateManagedUserInput(input, input.provider !== "LOCAL");
+  try {
+    return await db.$transaction(async (tx) => {
+      const role = await tx.role.findUnique({ where: { code: normalizeRoleCode(input.role) }, select: { id: true } });
+      if (!role) throw new WorkflowError("Missing role configuration.", 500);
+      const created = input.provider === "LOCAL" ? await createLocalUser(tx, input) : await createActiveDirectoryUser(tx, input);
+      await syncOrganizationAssignmentsForUser(tx, created.id, input);
+      await tx.userRole.create({ data: { userId: created.id, roleId: role.id } });
+      if (input.role !== "ADMIN") {
+        const warehouses = await tx.assetWarehouse.findMany({ where: { isActive: true }, select: { id: true } });
+        await tx.userWarehousePermission.createMany({ data: warehouses.map(({ id }) => ({ userId: created.id, warehouseId: id, canView: true, canManage: false })) });
+      }
+      return created;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 30_000 });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new WorkflowError("Email, username or directory identity already exists.", 409, "ACCOUNT_EXISTS");
+    throw error;
   }
-
-  const createdUser = await db.$transaction(async (tx) => {
-    const nextUser = await tx.user.create({
-      data: {
-        email,
-        isActive: true,
-        name,
-        passwordHash: null,
-        projectTag: null,
-      },
-      select: { id: true },
-    });
-
-    await syncOrganizationAssignmentsForUser(tx, nextUser.id, input);
-
-    return nextUser;
-  });
-
-  await syncRole(createdUser.id, normalizeRoleCode(input.role));
-  await syncWarehousePermissionsForUser(createdUser.id, input.role);
-
-  return {
-    id: createdUser.id,
-  };
 }
 
 export async function updateUserForAdmin(
@@ -538,23 +540,34 @@ export async function updateUserForAdmin(
   input: UpsertManagedUserInput,
 ) {
   ensureAdmin(user);
-  validateManagedUserInput(input);
-
-  const email = (await verifyEmailAgainstDirectory(user, input.email)).email;
 
   const existing = await db.user.findUnique({
     where: { id: userId },
-    select: { id: true, projectTag: true },
+    select: { id: true, projectTag: true, provider: true, localUsername: true, name: true },
   });
 
   if (!existing) {
     throw new WorkflowError("User not found.", 404);
   }
 
-  const conflictingUser = await db.user.findFirst({
+  const email = existing.provider === "LOCAL"
+    ? undefined
+    : (await verifyEmailAgainstDirectory(user, input.email)).email;
+
+  validateManagedUserInput(input, existing.provider !== "LOCAL");
+
+  if (existing.provider !== "LOCAL" && input.username !== undefined) {
+    throw new WorkflowError("AD usernames are managed by Active Directory.", 400, "AD_USERNAME_READ_ONLY");
+  }
+  const localUsername = existing.provider === "LOCAL" && input.username !== undefined ? localUsernameSchema.parse(input.username) : undefined;
+  if (localUsername && await db.user.findFirst({ where: { localUsername, id: { not: userId } }, select: { id: true } })) {
+    throw new WorkflowError("Username already exists.", 409, "USERNAME_EXISTS");
+  }
+
+  const conflictingUser = email ? await db.user.findFirst({
     where: { email, id: { not: userId } },
     select: { id: true },
-  });
+  }) : null;
 
   if (conflictingUser) {
     throw new WorkflowError("Email is already registered to another user.", 409);
@@ -571,17 +584,23 @@ export async function updateUserForAdmin(
 
   const previousRole = inferSystemRole(currentSystemRole);
 
+  try {
   await db.$transaction(async (tx) => {
     await tx.user.update({
       where: { id: userId },
       data: {
         email,
-        name: input.name.trim(),
+        localUsername,
+        name: existing.provider === "LOCAL" ? (localUsername && existing.name === existing.localUsername ? localUsername : undefined) : input.name.trim(),
         projectTag: input.role === "USER" ? existing.projectTag : null,
       },
     });
     await syncOrganizationAssignmentsForUser(tx, userId, input);
   });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new WorkflowError("Username or email already exists.", 409, "ACCOUNT_EXISTS");
+    throw error;
+  }
 
   await syncRole(userId, normalizeRoleCode(input.role));
 

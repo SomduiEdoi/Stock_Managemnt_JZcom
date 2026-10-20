@@ -232,6 +232,8 @@ Logical dump กู้ได้ตามจุด snapshot ของ Backup ไ�
 
 ## 8. Handover Acceptance
 
+Organization routing update (2026-10-20): Team and Level are independent; new requests select one next available head automatically and skip empty positions along the chart, not a manually assigned Reports To. See [Organization Team Selection And Automatic Approval](organization-team-selection.md) for branch rules, missing accounts and the read-only routing report. Earlier staff-tag-only supervisor descriptions are historical for this feature.
+
 ผลตรวจของงาน Type Safety นี้: 433 tests ผ่าน ไม่มี Skip บน PostgreSQL ชั่วคราว รวม Auth/Concurrency/Scope/PDF; Typecheck และ ESLint ผ่าน ไม่มี Warning ตรวจลิงก์ภายในครบแล้ว การทดสอบนี้ไม่ใช่การ Deploy/Backup/Restore ของฐานจริง
 
 - CI ที่ Required Check ต้องผ่านทั้ง Migration, Typecheck, Lint, 433 Tests ของ Baseline นี้โดยไม่มี Integration ถูก Skip และ Production Build (`npm run build`) หลัง Tests; จำนวน Tests เปลี่ยนได้เมื่อเพิ่ม/แก้ Tests ไม่ใช่การล็อกจำนวนไว้ใน CI; Merge ผ่าน PR เท่านั้น ไม่ Bypass Admin protection

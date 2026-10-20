@@ -39,7 +39,7 @@ export async function POST(request: Request) {
 
   try {
     const { email, password, mode } = parsed.data;
-    if (mode === "AD" && !z.string().email().safeParse(email).success) return apiJson({ message: "Enter a valid AD email." }, { status: 400 });
+    if (mode === "AD" && /[\s\x00]/.test(email)) return apiJson({ message: "Enter a valid AD username or UPN." }, { status: 400 });
     const network = process.env.AUTH_TRUST_PROXY === "true" ? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null : null;
     const limit = await checkLoginLimit(email, mode, network);
     if (!limit.allowed) {
@@ -48,9 +48,9 @@ export async function POST(request: Request) {
     }
     let user: { id: string } | null = null;
     if (mode === "LOCAL") {
-      const local = await db.user.findUnique({ where: { localUsername: email.toLowerCase() }, select: { id: true, passwordHash: true, isActive: true, roles: { select: { role: { select: { code: true } } } } } });
+      const local = await db.user.findUnique({ where: { localUsername: email.toLowerCase(), provider: "LOCAL" }, select: { id: true, passwordHash: true, isActive: true, roles: { select: { role: { select: { code: true } } } } } });
       const valid = Buffer.byteLength(password, "utf8") <= 72 && await compare(password, local?.passwordHash ?? await dummyHash);
-      if (valid && local?.passwordHash && local.isActive && local.roles.some((entry) => entry.role.code === "ADMIN")) user = { id: local.id };
+      if (valid && local?.passwordHash && local.isActive && local.roles.some((entry) => ["ADMIN", "STOREMAN", "USER"].includes(entry.role.code))) user = { id: local.id };
     } else {
       let directoryUser;
       try { directoryUser = await authenticateWithLdap(email, password); }
@@ -59,7 +59,17 @@ export async function POST(request: Request) {
         await db.loginAudit.create({ data: { mode, result: "AD_UNAVAILABLE" } });
         return apiJson({ message: "Active Directory is unavailable. Please try again later.", code: "AD_UNAVAILABLE" }, { status: 503 });
       }
-      if (directoryUser) user = await db.user.findFirst({ where: { isActive: true, localUsername: null, email: (directoryUser.email ?? email).toLowerCase() }, select: { id: true } });
+      if (directoryUser) {
+        const matches = await db.user.findMany({ where: { isActive: true, provider: "AD", localUsername: null, OR: [
+          { ldapUsername: { equals: directoryUser.username, mode: "insensitive" } },
+          ...(directoryUser.upn ? [{ ldapUpn: { equals: directoryUser.upn, mode: "insensitive" as const } }] : []),
+        ] }, select: { id: true }, take: 2 });
+        if (matches.length === 1) user = matches[0];
+        else {
+          await db.loginAudit.create({ data: { mode, result: "AD_MAPPING_DENIED" } });
+          return apiJson({ message: "Account mapping is missing or ambiguous. Please contact the administrator.", code: "AD_MAPPING_REQUIRED" }, { status: 403 });
+        }
+      }
     }
 
     if (!user) {

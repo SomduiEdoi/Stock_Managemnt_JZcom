@@ -18,7 +18,7 @@ Run from a PowerShell terminal you control:
 & 'D:\Internship\Stock\Stock_Management\scripts\set-local-admin-password.ps1'
 ```
 
-Enter and confirm a unique password of at least 14 characters and at most 72 UTF-8 bytes. Input is hidden. Do not put passwords in command arguments, source files, chat or environment examples. The script stores a bcrypt hash with cost 12. A successful reset is recorded in `login_audits`.
+Enter and confirm a unique password of at least 6 characters containing lowercase, uppercase, a number and a special character, and at most 72 UTF-8 bytes. Longer unique passwords are recommended. Input is hidden. Do not put passwords in command arguments, source files, chat or environment examples. The script stores a bcrypt hash with cost 12. A successful reset is recorded in `login_audits`.
 
 For another deployment, use that checkout's script path. `node scripts/local-admin.cjs --create-only` prepares the account without resetting an existing password.
 

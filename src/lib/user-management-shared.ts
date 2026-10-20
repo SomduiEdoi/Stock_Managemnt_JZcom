@@ -17,6 +17,8 @@ export type UserManagementFilters = {
 };
 
 export type UserManagementRow = {
+  provider?: "AD" | "LOCAL";
+  localUsername?: string | null;
   warehousePermissions: Array<{
     canManage: boolean;
     canView: boolean;
@@ -34,6 +36,7 @@ export type UserManagementRow = {
   organizationLevel: OrganizationLevel | null;
   organizationTag: OrganizationTag | null;
   organizationAssignments: Array<{
+    team?: string | null;
     id: string;
     isPrimary: boolean;
     organizationLevel: OrganizationLevel;
@@ -66,6 +69,7 @@ export const userRoleOptions = [
 
 export const organizationLevelOptions = [
   "EXECUTIVE",
+  "CONSULTANT",
   "MANAGER",
   "SUPERVISOR",
   "STAFF",
@@ -105,6 +109,9 @@ export const organizationUnitOptions = [
 }>;
 
 export const organizationTagLabels: Record<OrganizationTag, string> = {
+  STAFF: "Staff",
+  SUPERVISOR: "Supervisor",
+  MANAGER: "Manager",
   EXECUTIVE: "Executive",
   CONSULTANT: "Consultant",
   BSD_MANAGER: "BSD Manager (Accounting)",

@@ -61,12 +61,12 @@ export function LoginForm() {
         <legend className="sr-only">Sign-in method</legend>
         {(["AD", "LOCAL"] as const).map((value) => <label className="flex items-center gap-2 text-sm" key={value}>
           <input type="radio" name="mode" checked={mode === value} onChange={() => { setMode(value); setEmail(""); setPassword(""); setError(null); }} />
-          {value === "AD" ? "Active Directory" : "Local Admin"}
+          {value === "AD" ? "Active Directory" : "Local Account"}
         </label>)}
       </fieldset>
       <label className="flex flex-col gap-2">
         <span className="text-[10px] font-bold uppercase leading-3 text-ink">
-          {mode === "AD" ? "Email" : "Username"}
+          {mode === "AD" ? "Username / UPN" : "Username"}
         </span>
         <span className="relative">
           <Mail
@@ -78,9 +78,9 @@ export function LoginForm() {
             autoComplete="username"
             className="h-10 w-full rounded-[4px] border border-border/25 bg-white pl-9 pr-4 text-sm text-ink outline-none transition placeholder:text-navy/80 focus:border-navy focus:ring-2 focus:ring-navy/15"
             onChange={(event) => setEmail(event.target.value)}
-            placeholder={mode === "AD" ? "name@example.com" : "admin"}
+            placeholder={mode === "AD" ? "chutithep or chutithep@jzcom.co.th" : "admin"}
             required
-            type={mode === "AD" ? "email" : "text"}
+            type="text"
             value={email}
           />
         </span>

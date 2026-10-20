@@ -8,10 +8,10 @@ import {
 import type { CurrentUser } from "@/lib/auth";
 import {
   requiresRequesterSupervisorApproval,
-  supervisorTagsForOrganizationTags,
   warehouseStockControllerRequiredTag,
 } from "@/lib/approval-flow";
 import { WorkflowError, requireWorkflowUserById } from "./shared";
+import { findDirectApprover } from "@/lib/direct-reporting";
 import type {
   SubmitTransactionInput,
   TransactionDetail,
@@ -160,57 +160,11 @@ export async function findOrganizationApprover(
   });
 }
 
-function supervisorTagsForUser(user: CurrentUser) {
-  return supervisorTagsForOrganizationTags([
-    user.organizationTag,
-    ...user.organizationAssignments.map(
-      (assignment) => assignment.organizationTag,
-    ),
-  ]) as OrganizationTag[];
-}
-
 async function findUsingSupervisorApprover(
   tx: Prisma.TransactionClient,
   user: CurrentUser,
 ) {
-  const supervisorTags = supervisorTagsForUser(user);
-
-  for (const supervisorTag of supervisorTags) {
-    const approvers = await tx.user.findMany({
-      orderBy: { name: "asc" },
-      select: {
-        warehousePermissions: {
-          select: { canManage: true, warehouse: { select: { code: true } } },
-        },
-        id: true,
-        name: true,
-        organizationAssignments: {
-          select: { organizationTag: true },
-          where: { isActive: true },
-        },
-        organizationTag: true,
-        projectTag: true,
-      },
-      where: {
-        id: { not: user.id },
-        isActive: true,
-        OR: [
-          { organizationTag: supervisorTag },
-          {
-            organizationAssignments: {
-              some: { isActive: true, organizationTag: supervisorTag },
-            },
-          },
-        ],
-      },
-    });
-
-    if (approvers.length > 0) {
-      return { approvers, requiredTag: supervisorTag };
-    }
-  }
-
-  return null;
+  return findDirectApprover(tx, user.id);
 }
 
 async function findProjectApprovers(
@@ -385,13 +339,10 @@ export async function buildApprovalCandidates(
     stepSequence++;
   }
 
-  // Internal Using and Sold requests, plus service requests, pass through the
-  // requester's supervisor before warehouse approval. Only staff-tagged users
-  // have a supervisor step; fail closed if that configured approver is missing.
+  // Exactly one direct manager approves; do not walk the whole reporting chain.
   if (requiresRequesterSupervisorApproval(input.type, input.serviceRequest)) {
-    const supervisorTags = supervisorTagsForUser(user);
     const supervisor = await findUsingSupervisorApprover(tx, user);
-    if (supervisorTags.length > 0) {
+    if (supervisor) {
       if (!supervisor || supervisor.approvers.length === 0) {
         throw new WorkflowError(
           "No active supervisor is configured for your organization.",
@@ -495,19 +446,8 @@ export async function buildReturnApprovalCandidates(
       tx,
       sourceTransaction.requestedBy.id,
     );
-    const supervisorTags = supervisorTagsForUser(requester);
     const supervisor = await findUsingSupervisorApprover(tx, requester);
-    if (
-      supervisorTags.length === 0 ||
-      !supervisor ||
-      supervisor.approvers.length === 0
-    ) {
-      throw new WorkflowError(
-        "No active supervisor is configured for the requester's organization.",
-        409,
-        "SUPERVISOR_NOT_CONFIGURED",
-      );
-    }
+    if (supervisor) {
     approvals.push(
       ...candidatesForUsers(
         supervisor.approvers,
@@ -516,6 +456,7 @@ export async function buildReturnApprovalCandidates(
       ),
     );
     stepSequence++;
+    }
   }
 
   const warehouseCodes = Array.from(

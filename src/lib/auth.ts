@@ -5,6 +5,7 @@ import type { WarehousePermission, RoleCode } from "@/lib/permissions";
 import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/session";
 
 export type CurrentUser = {
+  provider?: "AD" | "LOCAL";
   azureAdObjectId: string | null;
   id: string;
   email: string;
@@ -34,6 +35,7 @@ async function findActiveUser(userId: string) {
       isActive: true,
     },
     select: {
+      provider: true,
       azureAdObjectId: true,
       id: true,
       email: true,
@@ -105,6 +107,7 @@ function toCurrentUser(
       : roleCodes;
 
   return {
+    provider: user.provider,
     azureAdObjectId: user.azureAdObjectId,
     id: user.id,
     email: user.email ?? "",
