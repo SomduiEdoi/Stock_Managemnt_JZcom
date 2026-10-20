@@ -55,3 +55,9 @@ dump_*.sql
 # Organization-specific data correction scripts
 /scripts/apply-confirmed-ldap-mapping.ts
 /scripts/sync-org-chart-20261020.ts
+
+# import data
+/prisma/import-installation-20261019.ts
+/prisma/import-network-20261019.ts
+/prisma/import-sale-stock-20261019.ts
+/prisma/import-server-20261019.ts
