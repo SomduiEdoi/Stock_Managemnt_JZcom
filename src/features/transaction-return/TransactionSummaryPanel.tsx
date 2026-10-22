@@ -28,7 +28,7 @@ export function TransactionSummaryPanel({
           </div>
           <div className="grid grid-cols-[minmax(150px,40%)_minmax(0,1fr)] items-start gap-3">
             <p className="text-sm font-bold uppercase tracking-wide text-slate-900">
-              Lead Project / Supervisor
+              Approver
             </p>
             <p className="min-w-0 text-sm font-normal text-ink">
               {transaction.leadSupervisorName || "-"}

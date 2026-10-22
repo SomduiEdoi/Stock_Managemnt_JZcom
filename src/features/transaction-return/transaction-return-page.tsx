@@ -306,19 +306,7 @@ function serializeTransaction(
   const stepLabel = currentStepLabel(transaction);
   const kindLabel = `${titleCase(transaction.type)} / ${requestScopeLabel(transaction)}`;
   const originWarehouse = [...new Set(transaction.items.flatMap((item) => item.asset ? [item.asset.warehouse.name] : []))].join(", ") || "-";
-  const projectLeads = [
-    ...(transaction.project?.leadUser ? [transaction.project.leadUser] : []),
-    ...(transaction.project?.members ?? []).map((member) => member.user),
-  ].filter((person): person is NonNullable<typeof person> => Boolean(person))
-    .filter((person, index, all) => all.findIndex((item) => item.id === person.id) === index);
-  const supervisorApprovers = transaction.approvals.filter(isActiveApproval)
-    .filter((approval) => isSupervisorApprovalTag(approval.requiredTag) && approval.user)
-    .map((approval) => approval.user)
-    .filter((person): person is NonNullable<typeof person> => Boolean(person))
-    .filter((person, index, all) => all.findIndex((item) => item.id === person.id) === index);
-  const leadSupervisorName = [...(projectLeads.length > 0 ? projectLeads : supervisorApprovers)]
-    .map(personName)
-    .join(", ") || "-";
+  const leadSupervisorName = transactionSummaryApprovers(transaction.approvals);
   const statusLabel = transaction.workflowStatus === TransactionWorkflowStatus.COMPLETED
     ? "Completed"
     : transaction.workflowStatus === TransactionWorkflowStatus.IN_PROGRESS
@@ -569,3 +557,4 @@ export async function TransactionReturnPage({
 
 
 
+import { transactionSummaryApprovers } from "@/lib/transaction-summary-approvers";
