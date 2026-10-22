@@ -66,7 +66,7 @@ export function LoginForm() {
       </fieldset>
       <label className="flex flex-col gap-2">
         <span className="text-[10px] font-bold uppercase leading-3 text-ink">
-          {mode === "AD" ? "Username / UPN" : "Username"}
+          {mode === "AD" ? "Email" : "Username"}
         </span>
         <span className="relative">
           <Mail
@@ -78,9 +78,9 @@ export function LoginForm() {
             autoComplete="username"
             className="h-10 w-full rounded-[4px] border border-border/25 bg-white pl-9 pr-4 text-sm text-ink outline-none transition placeholder:text-navy/80 focus:border-navy focus:ring-2 focus:ring-navy/15"
             onChange={(event) => setEmail(event.target.value)}
-            placeholder={mode === "AD" ? "chutithep or chutithep@jzcom.co.th" : "admin"}
+            placeholder={mode === "AD" ? "name@jzcom.co.th" : "admin"}
             required
-            type="text"
+            type={mode === "AD" ? "email" : "text"}
             value={email}
           />
         </span>
@@ -90,9 +90,6 @@ export function LoginForm() {
         <span className="flex items-center justify-between gap-4">
           <span className="text-[10px] font-bold uppercase leading-3 text-ink">
             Secure Password
-          </span>
-          <span className="text-[10px] font-bold leading-3 text-navy">
-            Forgot password?
           </span>
         </span>
         <span className="relative">
@@ -122,16 +119,6 @@ export function LoginForm() {
               <Eye aria-hidden="true" size={18} />
             )}
           </button>
-        </span>
-      </label>
-
-      <label className="flex items-center gap-3">
-        <input
-          className="h-4 w-4 rounded border-border/25 text-navy focus:ring-navy"
-          type="checkbox"
-        />
-        <span className="select-none text-xs leading-4 text-navy/80">
-          Maintain session for 8 hours
         </span>
       </label>
 

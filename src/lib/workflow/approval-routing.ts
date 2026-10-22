@@ -64,7 +64,7 @@ export async function findOrganizationApprover(
     return null;
   }
 
-  if (tag === OrganizationTag.BSD_STAFF) {
+  if (tag === OrganizationTag.BSD_HELP_DESK) {
     return tx.user.findFirst({
       select: {
         warehousePermissions: {
@@ -83,12 +83,12 @@ export async function findOrganizationApprover(
         isActive: true,
         id: { not: requesterId },
         OR: [
-          { organizationTag: OrganizationTag.BSD_STAFF },
+          { organizationTag: OrganizationTag.BSD_HELP_DESK },
           {
             organizationAssignments: {
               some: {
                 isActive: true,
-                organizationTag: OrganizationTag.BSD_STAFF,
+                organizationTag: OrganizationTag.BSD_HELP_DESK,
               },
             },
           },
@@ -97,38 +97,6 @@ export async function findOrganizationApprover(
     });
   }
 
-  if (tag === OrganizationTag.BSD_MANAGER) {
-    return tx.user.findFirst({
-      select: {
-        warehousePermissions: {
-          select: { canManage: true, warehouse: { select: { code: true } } },
-        },
-        id: true,
-        name: true,
-        organizationAssignments: {
-          select: { organizationTag: true },
-          where: { isActive: true },
-        },
-        organizationTag: true,
-        projectTag: true,
-      },
-      where: {
-        isActive: true,
-        id: { not: requesterId },
-        OR: [
-          { organizationTag: OrganizationTag.BSD_MANAGER },
-          {
-            organizationAssignments: {
-              some: {
-                isActive: true,
-                organizationTag: OrganizationTag.BSD_MANAGER,
-              },
-            },
-          },
-        ],
-      },
-    });
-  }
 
   return tx.user.findFirst({
     orderBy: { name: "asc" },
@@ -324,11 +292,14 @@ export async function buildApprovalCandidates(
   const approvals: ApprovalCandidate[] = [];
   // Step 1 is the request record itself. Approval sequences start at Step 2.
   let stepSequence = 2;
+  const supervisor = requiresRequesterSupervisorApproval(input.type, input.serviceRequest)
+    ? await findUsingSupervisorApprover(tx, user)
+    : null;
 
   // Project approval is determined by the selected project, not by the
   // requester's global project tag. A requester may have a different
   // organizational role while still submitting a project request.
-  if (input.projectRequest && input.projectId) {
+  if (supervisor && input.projectRequest && input.projectId) {
     approvals.push(
       ...candidatesForUsers(
         await findProjectApprovers(tx, user.id, input.projectId),
@@ -341,9 +312,8 @@ export async function buildApprovalCandidates(
 
   // Exactly one direct manager approves; do not walk the whole reporting chain.
   if (requiresRequesterSupervisorApproval(input.type, input.serviceRequest)) {
-    const supervisor = await findUsingSupervisorApprover(tx, user);
     if (supervisor) {
-      if (!supervisor || supervisor.approvers.length === 0) {
+      if (supervisor.approvers.length === 0) {
         throw new WorkflowError(
           "No active supervisor is configured for your organization.",
           409,
@@ -378,12 +348,12 @@ export async function buildApprovalCandidates(
 
   stepSequence++;
 
-  // Sold requests are reviewed by Joy (BSD_STAFF) after all Storeman
+  // Sold requests are reviewed by Joy (BSD_HELP_DESK) after all Storeman
   // approvals. This is a real approval step, not the later acknowledgement.
   if (input.type === TransactionType.SOLD) {
     const bsd = await findOrganizationApprover(
       tx,
-      OrganizationTag.BSD_STAFF,
+      OrganizationTag.BSD_HELP_DESK,
       user.id,
     );
     if (!bsd)
@@ -393,7 +363,7 @@ export async function buildApprovalCandidates(
         "BSD_APPROVER_NOT_CONFIGURED",
       );
     approvals.push(
-      ...candidatesForUsers([bsd], OrganizationTag.BSD_STAFF, stepSequence),
+      ...candidatesForUsers([bsd], OrganizationTag.BSD_HELP_DESK, stepSequence),
     );
   }
 
@@ -412,7 +382,7 @@ export async function buildReturnApprovalCandidates(
   if (isSaleOutcome) {
     const approver = await findOrganizationApprover(
       tx,
-      OrganizationTag.BSD_STAFF,
+      OrganizationTag.BSD_HELP_DESK,
       sourceTransaction.requestedBy.id,
     );
     if (!approver)
@@ -423,12 +393,14 @@ export async function buildReturnApprovalCandidates(
       );
     return candidatesForUsers(
       [approver],
-      OrganizationTag.BSD_STAFF,
+      OrganizationTag.BSD_HELP_DESK,
       stepSequence,
     );
   }
 
-  if (sourceTransaction.projectRequest && sourceTransaction.projectId) {
+  const requester = await requireWorkflowUserById(tx, sourceTransaction.requestedBy.id);
+  const supervisor = await findUsingSupervisorApprover(tx, requester);
+  if (supervisor && sourceTransaction.projectRequest && sourceTransaction.projectId) {
     approvals.push(
       ...candidatesForUsers(
         await findProjectApprovers(
@@ -442,11 +414,6 @@ export async function buildReturnApprovalCandidates(
     );
     stepSequence++;
   } else {
-    const requester = await requireWorkflowUserById(
-      tx,
-      sourceTransaction.requestedBy.id,
-    );
-    const supervisor = await findUsingSupervisorApprover(tx, requester);
     if (supervisor) {
     approvals.push(
       ...candidatesForUsers(
@@ -490,11 +457,11 @@ export async function buildReturnApprovalCandidates(
         [
           await findOrganizationApprover(
             tx,
-            OrganizationTag.BSD_STAFF,
+            OrganizationTag.BSD_HELP_DESK,
             sourceTransaction.requestedBy.id,
           ),
         ].filter((approver): approver is ApprovalUser => Boolean(approver)),
-        OrganizationTag.BSD_STAFF,
+        OrganizationTag.BSD_HELP_DESK,
         stepSequence + 1,
       ),
     );

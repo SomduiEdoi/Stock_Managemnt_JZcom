@@ -31,7 +31,7 @@ describe.skipIf(!enabled)("PostgreSQL workflow with mandatory rollback", () => {
     try {
       await client!.$transaction(async (tx) => {
         context.tx = tx;
-        const requester = await tx.user.create({ data: { name: marker, organizationLevel: "EXECUTIVE", signatureDataUrl: "test-signature", roles: { create: { role: { connect: { code: "USER" } } } } } });
+        const requester = await tx.user.create({ data: { name: marker, organizationLevel: "MANAGER", organizationTag: "SERVICE_MANAGER", signatureDataUrl: "test-signature", roles: { create: { role: { connect: { code: "USER" } } } } } });
         const lead = await tx.user.create({ data: { name: `${marker}-lead` } });
         const store = await tx.user.create({ data: { name: `${marker}-store`, roles: { create: { role: { connect: { code: "STOREMAN" } } } } } });
         const warehouse = await tx.assetWarehouse.create({ data: { code: marker, prefix: "QA", name: marker } });
@@ -221,7 +221,7 @@ describe.skipIf(!enabled)("PostgreSQL workflow with mandatory rollback", () => {
         const saleItem = await tx.transactionItem.create({ data: { transactionId: directSale.id, assetId: assets[0].id, assetModelId: assets[0].assetModelId, requestedQuantity: 2, toStatus: "SOLD" } });
         await tx.transactionApproval.createMany({ data: [
           { transactionId: directSale.id, userId: stores[0].id, requiredTag: `STOREMAN:${warehouses[0].code}`, stepSequence: 3 },
-          { transactionId: directSale.id, userId: bsd.id, requiredTag: "BSD_STAFF", stepSequence: 4 },
+          { transactionId: directSale.id, userId: bsd.id, requiredTag: "BSD_HELP_DESK", stepSequence: 4 },
         ] });
         await approveTransaction(storeA, directSale.id);
         expect((await tx.asset.findUniqueOrThrow({ where: { id: assets[0].id } })).assetQuantity).toBe(11);
@@ -253,14 +253,14 @@ describe.skipIf(!enabled)("PostgreSQL workflow with mandatory rollback", () => {
         await tx.transactionApproval.createMany({ data: [
           { transactionId: soldSource.id, resolutionBatchId: soldBatchId, userId: stores[0].id, requiredTag: `RETURN_CHECK:${warehouses[0].code}`, stepSequence: 3, status: "APPROVED" },
           { transactionId: soldSource.id, resolutionBatchId: soldBatchId, userId: stores[0].id, requiredTag: `STOREMAN:${warehouses[0].code}`, stepSequence: 4, status: "APPROVED" },
-          { transactionId: derivedSale.id, resolutionBatchId: soldBatchId, userId: bsd.id, requiredTag: "BSD_STAFF", stepSequence: 5 },
+          { transactionId: derivedSale.id, resolutionBatchId: soldBatchId, userId: bsd.id, requiredTag: "BSD_HELP_DESK", stepSequence: 5 },
         ] });
         const pricingQueue = await getPendingApprovalsForUser(actor(bsd.id));
-        expect(pricingQueue.some((entry) => entry.transaction.id === derivedSale.id && entry.requiredTag === "BSD_STAFF")).toBe(true);
+        expect(pricingQueue.some((entry) => entry.transaction.id === derivedSale.id && entry.requiredTag === "BSD_HELP_DESK")).toBe(true);
         await approveTransaction(actor(bsd.id), derivedSale.id, { prices: { [derivedItem.id]: "0.10" }, totals: { [derivedItem.id]: "999" }, soldPrice: "999" });
         expect((await tx.transaction.findUniqueOrThrow({ where: { id: derivedSale.id } })).soldPrice?.toFixed(2)).toBe("0.10");
         expect((await tx.transactionItem.findUniqueOrThrow({ where: { id: derivedItem.id } })).soldTotal?.toFixed(2)).toBe("0.10");
-        expect((await getPendingApprovalsForUser(actor(bsd.id))).some((entry) => entry.transaction.id === derivedSale.id && entry.requiredTag === "BSD_STAFF")).toBe(false);
+        expect((await getPendingApprovalsForUser(actor(bsd.id))).some((entry) => entry.transaction.id === derivedSale.id && entry.requiredTag === "BSD_HELP_DESK")).toBe(false);
         expect((await tx.asset.findUniqueOrThrow({ where: { id: assets[0].id } })).assetQuantity).toBe(9);
         expect(await tx.transaction.findUniqueOrThrow({ where: { id: derivedSale.id }, select: { transactionNo: true, workflowStatus: true } })).toEqual({ transactionNo: null, workflowStatus: "COMPLETED" });
         expect((await tx.transaction.findUniqueOrThrow({ where: { id: soldSource.id } })).workflowStatus).toBe("COMPLETED");

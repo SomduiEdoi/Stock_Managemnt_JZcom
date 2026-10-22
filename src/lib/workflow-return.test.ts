@@ -49,6 +49,7 @@ describe("workflow return accounting and final gates", () => {
     mocks.tx.asset.findUniqueOrThrow.mockResolvedValue({ note: "Existing remark" });
     mocks.tx.project.findFirst.mockResolvedValue({ leadUser: { id: "lead", name: "Lead" }, members: [] });
     mocks.tx.user.findMany.mockResolvedValue([{ id: "storeman", name: "Storeman" }]);
+    mocks.tx.user.findUnique.mockResolvedValue({ organizationTag: "SYSTEM_HELP_DESK", organizationAssignments: [] });
     mocks.tx.user.findFirst.mockResolvedValue({ ...user, organizationAssignments: [], roles: [], warehousePermissions: [], signatureUploadedBy: null });
     mocks.number.mockResolvedValue("REQ-20261005-02");
   });
@@ -194,14 +195,14 @@ describe("workflow return accounting and final gates", () => {
   });
 
   it("rejects direct BSD sale approval without a price for every item", async () => {
-    mocks.tx.transaction.findUnique.mockResolvedValue({ ...source, type: "SOLD", workflowStatus: "PENDING", outcomeRecords: [], approvals: [{ ...approval("BSD_STAFF", "PENDING", 5), resolutionBatchId: null }] });
+    mocks.tx.transaction.findUnique.mockResolvedValue({ ...source, type: "SOLD", workflowStatus: "PENDING", outcomeRecords: [], approvals: [{ ...approval("BSD_HELP_DESK", "PENDING", 5), resolutionBatchId: null }] });
     await expect(approveTransaction(storeman, "source")).rejects.toMatchObject({ code: "SOLD_PRICE_REQUIRED" });
     expect(mocks.tx.asset.updateMany).not.toHaveBeenCalled();
     expect(mocks.tx.transactionApproval.update).not.toHaveBeenCalled();
   });
 
   it("cannot approve a derived BSD sale before the source batch final warehouse gate", async () => {
-    mocks.tx.transaction.findUnique.mockResolvedValue({ ...source, id: "sale", type: "SOLD", sourceTransactionId: "source", workflowStatus: "PENDING", outcomeRecords: [], approvals: [approval("BSD_STAFF", "PENDING", 2)] });
+    mocks.tx.transaction.findUnique.mockResolvedValue({ ...source, id: "sale", type: "SOLD", sourceTransactionId: "source", workflowStatus: "PENDING", outcomeRecords: [], approvals: [approval("BSD_HELP_DESK", "PENDING", 2)] });
     mocks.tx.transactionItemOutcome.findMany.mockResolvedValue([outcome("SOLD", 4)]);
     await expect(approveTransaction(storeman, "sale", { prices: { item: "100" } })).rejects.toMatchObject({ code: "RETURN_FINAL_APPROVAL_REQUIRED" });
     expect(mocks.tx.transactionItem.update).not.toHaveBeenCalled();
@@ -280,7 +281,7 @@ describe("workflow return accounting and final gates", () => {
   });
 
   it("BSD rejection reopens only the pending sold batch and never reverses posted stock", async () => {
-    const sale = { ...source, id: "sale", sourceTransactionId: "source", type: "SOLD", workflowStatus: "PENDING", approvals: [approval("BSD_STAFF", "PENDING", 2)], outcomeRecords: [] };
+    const sale = { ...source, id: "sale", sourceTransactionId: "source", type: "SOLD", workflowStatus: "PENDING", approvals: [approval("BSD_HELP_DESK", "PENDING", 2)], outcomeRecords: [] };
     mocks.tx.transaction.findUnique.mockResolvedValue(sale);
     mocks.tx.transactionItemOutcome.findMany.mockResolvedValue([{ resolutionBatchId: "batch" }]);
     await rejectTransaction(storeman, "sale", { reason: "Correct the sold quantity" });

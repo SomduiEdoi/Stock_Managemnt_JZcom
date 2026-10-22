@@ -284,13 +284,13 @@ describe("transaction export document mapping", () => {
       workflowStatus: TransactionWorkflowStatus.COMPLETED,
       approvals: [
         approval("Sale requester", "REQUESTER", "sale-batch"),
-        approval("BSD sale", "BSD_STAFF", "sale-batch"),
+        approval("BSD sale", "BSD_HELP_DESK", "sale-batch"),
         approval("BSD acknowledge only", "ACK_BSD", "sale-batch"),
         approval("Manager acknowledge only", "ACK_WAREHOUSE_MANAGER", "sale-batch"),
-        approval("Old BSD sale", "BSD_STAFF", "sale-batch", {
+        approval("Old BSD sale", "BSD_HELP_DESK", "sale-batch", {
           isCurrent: false,
         }),
-        approval("Other sale", "BSD_STAFF", "other-batch"),
+        approval("Other sale", "BSD_HELP_DESK", "other-batch"),
       ],
       outcomeSales: [postedSale],
     });

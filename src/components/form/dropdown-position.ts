@@ -1,9 +1,9 @@
-export function dropdownPosition(trigger: { left: number; top: number; bottom: number; width: number }, contentHeight: number, viewport: { width: number; height: number; left?: number; top?: number }) {
+export function dropdownPosition(trigger: { left: number; top: number; bottom: number; width: number }, contentHeight: number, viewport: { width: number; height: number; left?: number; top?: number }, minWidth = 0) {
   const padding = 8;
   const gap = 4;
   const viewportLeft = viewport.left ?? 0;
   const viewportTop = viewport.top ?? 0;
-  const width = Math.min(trigger.width, Math.max(0, viewport.width - padding * 2));
+  const width = Math.min(Math.max(trigger.width, minWidth), Math.max(0, viewport.width - padding * 2));
   const below = Math.max(0, viewportTop + viewport.height - padding - trigger.bottom - gap);
   const above = Math.max(0, trigger.top - viewportTop - padding - gap);
   const naturalHeight = Math.min(240, contentHeight);

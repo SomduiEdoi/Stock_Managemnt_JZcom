@@ -68,7 +68,7 @@ describe("approval queue return rounds", () => {
 
   it("shows pending BSD sale pricing after the source return round completes", async () => {
     mocks.batches.mockResolvedValue([{ id: "round", transactionId: "source", state: "COMPLETED" }]);
-    const approval = { ...row("BSD_STAFF"), transaction: { ...row().transaction, id: "sale", sourceTransactionId: "source", type: "SOLD", workflowStatus: "PENDING" } };
+    const approval = { ...row("BSD_HELP_DESK"), transaction: { ...row().transaction, id: "sale", sourceTransactionId: "source", type: "SOLD", workflowStatus: "PENDING" } };
     mocks.approvals.mockResolvedValueOnce([
       { transactionId: "source", resolutionBatchId: "round", requiredTag: "LEAD_PROJECT", status: ApprovalStatus.APPROVED },
       { transactionId: "source", resolutionBatchId: "round", requiredTag: "STOREMAN:A", status: ApprovalStatus.APPROVED },
@@ -76,13 +76,13 @@ describe("approval queue return rounds", () => {
     const results = await getPendingApprovalsForUser(user);
     expect(results).toHaveLength(1);
     expect(results[0].transaction.id).toBe("sale");
-    expect(results[0].requiredTag).toBe("BSD_STAFF");
+    expect(results[0].requiredTag).toBe("BSD_HELP_DESK");
     expect(mocks.approvals.mock.calls[1][0].where.OR[0]).toEqual({ resolutionBatchId: { in: [] } });
   });
 
   it.each(["SUBMITTED", "COMPLETED"])("keeps sale pricing hidden until all source warehouses approve (%s)", (state) => {
     mocks.batches.mockResolvedValue([{ id: "round", transactionId: "source", state }]);
-    const approval = { ...row("BSD_STAFF"), transaction: { ...row().transaction, id: "sale", sourceTransactionId: "source", type: "SOLD", workflowStatus: "PENDING" } };
+    const approval = { ...row("BSD_HELP_DESK"), transaction: { ...row().transaction, id: "sale", sourceTransactionId: "source", type: "SOLD", workflowStatus: "PENDING" } };
     mocks.approvals.mockResolvedValueOnce([
       { transactionId: "source", resolutionBatchId: "round", requiredTag: "STOREMAN:A", status: ApprovalStatus.APPROVED },
       { transactionId: "source", resolutionBatchId: "round", requiredTag: "STOREMAN:B", status: ApprovalStatus.PENDING },
@@ -100,7 +100,7 @@ describe("approval queue return rounds", () => {
     mocks.batches.mockResolvedValue([{ id: "round", transactionId: "source", state: "COMPLETED" }]);
     mocks.approvals.mockResolvedValueOnce([
       { transactionId: "source", resolutionBatchId: "round", requiredTag: "STOREMAN:A", status: ApprovalStatus.APPROVED },
-    ]).mockResolvedValue([{ ...row("BSD_STAFF"), userId: "other", transaction: { ...row().transaction, id: "sale", sourceTransactionId: "source", type: "SOLD", workflowStatus: "PENDING" } }]);
+    ]).mockResolvedValue([{ ...row("BSD_HELP_DESK"), userId: "other", transaction: { ...row().transaction, id: "sale", sourceTransactionId: "source", type: "SOLD", workflowStatus: "PENDING" } }]);
     expect(await getPendingApprovalsForUser(user)).toEqual([]);
   });
 });

@@ -1,4 +1,5 @@
 "use client";
+import { confirmDestructiveAction } from "@/components/form/confirm-destructive-action";
 
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -382,10 +383,16 @@ function ManageCategoriesDialog({
       return;
     }
 
+    const deletions = categories.flatMap((category) => [
+      ...(category.id && category.delete ? [`Category: ${category.name}`] : []),
+      ...category.types.filter((type) => type.id && type.delete).map((type) => `Type: ${category.name} / ${type.name}`),
+    ]);
+    const proof = deletions.length ? await confirmDestructiveAction(`/warehouses/${encodeURIComponent(warehouseCode.toUpperCase())}/categories`, deletions.join(", ")) : null;
+    if (deletions.length && !proof) return;
     setIsSaving(true);
     const response = await fetch(`/api/warehouses/${encodeURIComponent(warehouseCode)}/categories`, {
       body: JSON.stringify({ categories }),
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(proof ? { "x-delete-proof": proof } : {}) },
       method: "PUT",
     });
 
@@ -471,7 +478,7 @@ function ManageCategoriesDialog({
               <div className="mb-4 flex flex-wrap items-end justify-between gap-3"><div><h3 className="text-base font-bold text-navy">All Categories</h3><p className="text-sm font-medium text-muted-foreground">Browse categories like folders and open one to manage its types.</p></div><div className="flex items-center gap-2"><input aria-label="Search categories" className="h-10 w-56 rounded-md border border-border bg-white px-3 text-sm text-navy outline-none placeholder:text-muted-foreground focus:border-brand-accent focus:ring-2 focus:ring-brand-accent/20" onChange={(event) => setCategorySearch(event.target.value)} placeholder="Search category..." value={categorySearch} /><button className="inline-flex h-10 items-center gap-2 rounded-md bg-navy px-4 text-sm font-bold text-white hover:bg-black" onClick={() => { setCategories((current) => [...current, { assetCount: 0, code: "", customFields: [], name: "" , types: [] }]); setSelectedCategoryIndex(categories.length); }} type="button"><CirclePlus className="h-4 w-4" /> Add Category</button></div></div>
               <div className="overflow-hidden rounded-md border border-border">
                 <div className="grid grid-cols-[40%_15%_15%_15%_15%] bg-surface text-xs font-bold uppercase tracking-wide text-muted-foreground"><span className="px-4 py-3 text-left">Category Name</span><span className="px-3 py-3 text-left">Prefix</span><span className="px-3 py-3 text-left">Types Count</span><span className="px-3 py-3 text-left">Total Assets</span><span className="px-3 py-3 text-right">Action</span></div>
-                <div className="divide-y divide-border">{filteredCategories.map((category) => { const categoryIndex = categories.indexOf(category); return <div className="grid cursor-pointer grid-cols-[40%_15%_15%_15%_15%] items-center text-sm hover:bg-gray-50" key={category.id ?? `new-${categoryIndex}`} onClick={() => setSelectedCategoryIndex(categoryIndex)}><div className="flex min-w-0 items-center gap-3 px-4 py-4 font-medium text-navy"><Archive className="h-5 w-5 shrink-0 text-navy" /><span className="truncate">{category.name || "Untitled category"}</span></div><span className="px-3 py-4 font-medium uppercase text-slate-600">{category.code || "-"}</span><span className="px-3 py-4 font-medium text-slate-600">{category.types.filter((type) => !type.delete).length} types</span><span className="px-3 py-4 font-medium text-slate-600">{category.assetCount.toLocaleString("en-US")} assets</span><div className="flex justify-end gap-1 px-3 py-3" onClick={(event) => event.stopPropagation()}><button aria-label={`Edit ${category.name}`} className="rounded-md p-2 text-navy hover:bg-surface" onClick={() => setSelectedCategoryIndex(categoryIndex)} type="button"><Pencil className="h-4 w-4" /></button><button aria-label={`Delete ${category.name}`} className="rounded-md p-2 text-navy hover:bg-red-50 hover:text-status-fail" onClick={() => removeCategory(categoryIndex)} type="button"><Trash2 className="h-4 w-4" /></button><MoreVertical className="mt-2 h-4 w-4 text-muted-foreground" /></div></div>; })}</div>
+                <div className="divide-y divide-border">{filteredCategories.map((category) => { const categoryIndex = categories.indexOf(category); return <div className="grid cursor-pointer grid-cols-[40%_15%_15%_15%_15%] items-center text-sm hover:bg-gray-50" key={category.id ?? `new-${categoryIndex}`} onClick={() => setSelectedCategoryIndex(categoryIndex)}><div className="flex min-w-0 items-center gap-3 px-4 py-4 font-medium text-navy"><Archive className="h-5 w-5 shrink-0 text-navy" /><span className="truncate">{category.name || "Untitled category"}</span></div><span className="px-3 py-4 font-medium uppercase text-slate-600">{category.code || "-"}</span><span className="px-3 py-4 font-medium text-slate-600">{category.types.filter((type) => !type.delete).length} types</span><span className="px-3 py-4 font-medium text-slate-600">{category.assetCount.toLocaleString("en-US")} assets</span><div className="flex justify-end gap-1 px-3 py-3" onClick={(event) => event.stopPropagation()}><button aria-label={`Edit ${category.name}`} className="rounded-md p-2 text-navy hover:bg-surface" onClick={() => setSelectedCategoryIndex(categoryIndex)} type="button"><Pencil className="h-4 w-4" /></button><button aria-label={`Delete ${category.name}`} className="rounded-md p-2 text-navy hover:bg-red-50 hover:text-status-fail" onClick={() => removeCategory(categoryIndex)} type="button"><Trash2 className="h-4 w-4" /></button></div></div>; })}</div>
                 {filteredCategories.length === 0 ? <p className="p-8 text-center text-sm font-medium text-muted-foreground">{categorySearch ? "No categories match your search." : "No categories yet."}</p> : null}
               </div>
             </div>

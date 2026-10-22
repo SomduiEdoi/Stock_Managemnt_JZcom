@@ -21,7 +21,7 @@ describe("transaction document", () => {
       type: "SOLD",
       transactionNo: "REQ-SALE",
       approvals: [
-        { requiredTag: "BSD_STAFF", status: "APPROVED", user: { name: "Sale approver" }, approverSignatureSnapshot: "data:image/png;base64,SALE_SIGNATURE" },
+        { requiredTag: "BSD_HELP_DESK", status: "APPROVED", user: { name: "Sale approver" }, approverSignatureSnapshot: "data:image/png;base64,SALE_SIGNATURE" },
         { requiredTag: "ACK_BSD", status: "APPROVED", user: { name: "BSD acknowledgement" }, approverSignatureSnapshot: "data:image/png;base64,ACK_SIGNATURE" },
         { requiredTag: "ACK_WAREHOUSE_MANAGER", status: "APPROVED", user: { name: "Manager acknowledgement" } },
         { requiredTag: "STOREMAN:INSTALLATION", status: "APPROVED", user: { name: "Installation store" } },

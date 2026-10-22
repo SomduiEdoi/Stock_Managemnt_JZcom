@@ -55,6 +55,7 @@ dump_*.sql
 # Organization-specific data correction scripts
 /scripts/apply-confirmed-ldap-mapping.ts
 /scripts/sync-org-chart-20261020.ts
+/scripts/remove-confirmed-test-users.ts
 
 # import data
 /prisma/import-installation-20261019.ts

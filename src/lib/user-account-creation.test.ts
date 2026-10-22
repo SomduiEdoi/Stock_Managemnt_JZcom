@@ -25,12 +25,12 @@ beforeEach(() => {
 describe("admin account creation orchestration", () => {
   it("preserves separate teams with the same generic level tag and one primary", async () => {
     await createUserForAdmin(actor, { ...data, role: "USER", organizationAssignments: [
-      { team: "SYSTEM", organizationLevel: "MANAGER", organizationTag: "MANAGER" },
-      { team: "NETWORK", organizationLevel: "MANAGER", organizationTag: "MANAGER" },
-    ], primaryOrganizationKey: "NETWORK:MANAGER:MANAGER" });
+      { team: "SYSTEM", organizationLevel: "SUPERVISOR", organizationTag: "SYSTEM_ENGINEER" },
+      { team: "NETWORK", organizationLevel: "SUPERVISOR", organizationTag: "NETWORK_ENGINEER" },
+    ], primaryOrganizationKey: "NETWORK:SUPERVISOR:NETWORK_ENGINEER" });
     expect(tx.userOrganizationAssignment.createMany).toHaveBeenCalledWith({ data: [
-      { team: "SYSTEM", organizationLevel: "MANAGER", organizationTag: "MANAGER", isPrimary: false, userId: "new" },
-      { team: "NETWORK", organizationLevel: "MANAGER", organizationTag: "MANAGER", isPrimary: true, userId: "new" },
+      { team: "SYSTEM", organizationLevel: "SUPERVISOR", organizationTag: "SYSTEM_ENGINEER", isPrimary: false, userId: "new" },
+      { team: "NETWORK", organizationLevel: "SUPERVISOR", organizationTag: "NETWORK_ENGINEER", isPrimary: true, userId: "new" },
     ] });
   });
   it("creates credentials, role and permissions within the same transaction", async () => {

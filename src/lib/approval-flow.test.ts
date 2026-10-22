@@ -20,8 +20,8 @@ describe("requester supervisor approval policy", () => {
   });
 
   it("maps staff organization tags to their supervisor tags without duplicates", () => {
-    expect(supervisorTagsForOrganizationTags(["C1_STAFF", "C1_STAFF", "BSD_STAFF", "C1_SUPERVISOR", null]))
-      .toEqual(["C1_SUPERVISOR", "BSD_SUPERVISOR"]);
+    expect(supervisorTagsForOrganizationTags(["CLOUD_HELP_DESK", "CLOUD_HELP_DESK", "BSD_HELP_DESK", "CLOUD_ENGINEER", null]))
+      .toEqual(["CLOUD_ENGINEER", "SOLUTION_ASST_MANAGER"]);
   });
 });
 

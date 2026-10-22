@@ -300,7 +300,7 @@ function signatures(document: ExportDocument) {
   );
   const authorized = approvalsFor(
     transaction,
-    (tag) => tag === "BSD_STAFF",
+    (tag) => tag === "BSD_HELP_DESK",
     sourceApprovals,
   );
   const signatureClass = transaction.type === "SOLD" || transaction.status === "RETURNED"

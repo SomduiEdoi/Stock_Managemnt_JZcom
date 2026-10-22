@@ -77,7 +77,7 @@ export function currentBatchApprovals<T extends Pick<ReturnApproval, "status" | 
 
 export function sourceBatchFinalized(approvals: Pick<ReturnApproval, "status" | "requiredTag" | "resolutionBatchId" | "isCurrent">[], batchId: string | null) {
   if (!batchId) return false;
-  const cycle = approvals.filter((approval) => isActiveApproval(approval) && approval.resolutionBatchId === batchId && approval.requiredTag !== "BSD_STAFF" && !approval.requiredTag.startsWith("ACK_"));
+  const cycle = approvals.filter((approval) => isActiveApproval(approval) && approval.resolutionBatchId === batchId && approval.requiredTag !== "BSD_HELP_DESK" && !approval.requiredTag.startsWith("ACK_"));
   return cycle.some((approval) => approval.requiredTag.startsWith("STOREMAN:")) &&
     cycle.every((approval) => approval.status === ApprovalStatus.APPROVED);
 }
@@ -263,6 +263,10 @@ export function excludeCancelledReturnOutcomes<T extends { resolutionBatchId: st
   return outcomes.filter((outcome) => !outcome.resolutionBatchId || !cancelled.has(outcome.resolutionBatchId));
 }
 
+export function isSupervisorApprovalTag(tag: string) {
+  return tag === "DIRECT_MANAGER" || tag.endsWith("_SUPERVISOR");
+}
+
 function serializeTransaction(
   transaction: Awaited<ReturnType<typeof getTransactionResolutionForUser>>,
   user: Awaited<ReturnType<typeof requireCurrentUser>>,
@@ -308,7 +312,7 @@ function serializeTransaction(
   ].filter((person): person is NonNullable<typeof person> => Boolean(person))
     .filter((person, index, all) => all.findIndex((item) => item.id === person.id) === index);
   const supervisorApprovers = transaction.approvals.filter(isActiveApproval)
-    .filter((approval) => approval.requiredTag.endsWith("_SUPERVISOR") && approval.user)
+    .filter((approval) => isSupervisorApprovalTag(approval.requiredTag) && approval.user)
     .map((approval) => approval.user)
     .filter((person): person is NonNullable<typeof person> => Boolean(person))
     .filter((person, index, all) => all.findIndex((item) => item.id === person.id) === index);
@@ -509,7 +513,7 @@ function serializeTransaction(
 }
 
 export function requiresBsdSalePricing(requiredTag: string | null | undefined, transactionType: string) {
-  return requiredTag === "BSD_STAFF" && transactionType === "SOLD";
+  return requiredTag === "BSD_HELP_DESK" && transactionType === "SOLD";
 }
 
 export async function TransactionReturnPage({

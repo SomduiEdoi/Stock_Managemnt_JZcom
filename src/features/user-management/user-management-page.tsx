@@ -1,4 +1,5 @@
 "use client";
+import { confirmDestructiveAction } from "@/components/form/confirm-destructive-action";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
@@ -16,7 +17,6 @@ import {
 } from "lucide-react";
 import {
   buildUserManagementHref,
-  organizationLevelOptions,
   organizationTagLabel,
   type UserManagementFilters,
   type UserManagementMetrics,
@@ -28,9 +28,11 @@ import { SearchCombobox } from "@/components/form/search-combobox";
 import { InstantFilterForm } from "@/components/form/instant-filter-form";
 import { SearchableDropdown } from "@/components/form/searchable-dropdown";
 import { localCredentialsSchema, localUsernameSchema } from "@/lib/user-account-schema";
-import { organizationAssignmentKey, organizationTeamDropdownOptions, organizationTagForTeam, teamForOrganizationTag } from "@/lib/organization-team-options";
+import { organizationAssignmentKey, organizationTeams, teamForOrganizationTag } from "@/lib/organization-team-options";
+import { organizationPositionOptions, organizationLevelForPosition, organizationTagForPosition, positionForOrganizationTag, teamsForPosition } from "@/lib/organization-position-options";
 import { UserActionMenu } from "@/features/user-management/user-action-menu";
 import { TablePagination } from "@/components/table/table-pagination";
+import { primaryOrganizationDisplay } from "@/lib/user-primary-organization";
 
 type UserManagementPageProps = {
   filters: UserManagementFilters;
@@ -49,6 +51,7 @@ type UserFormState = {
   emailVerified: boolean;
   name: string;
   organizationAssignments: Array<{
+    position?: string;
     team?: string | null;
     organizationLevel: string;
     organizationTag: string;
@@ -244,7 +247,7 @@ function roleOptions() {
 }
 
 function organizationLevelDropdownOptions() {
-  return organizationLevelOptions.map((option) => ({ label: option, value: option }));
+  return organizationPositionOptions.map(({ label, value }) => ({ label, value }));
 }
 
 function baseInputClass(disabled = false) {
@@ -371,11 +374,10 @@ function OrganizationAssignmentsField({
     setForm((current) => {
       const previous = current.organizationAssignments[index];
       const team = key === "organizationLevel" ? previous.team ?? teamForOrganizationTag(previous.organizationTag) : value;
-      const level = key === "organizationLevel" ? value : previous.organizationLevel;
-      const tag = key === "organizationLevel"
-        ? organizationTagForTeam(team, value)
-        : organizationTagForTeam(value, previous.organizationLevel);
-      const nextAssignment = { team, organizationLevel: level, organizationTag: tag };
+      const position = key === "organizationLevel" ? value : previous.position ?? positionForOrganizationTag(previous.organizationTag);
+      const level = organizationLevelForPosition(position);
+      const tag = organizationTagForPosition(team, position);
+      const nextAssignment = { team: position && !tag ? "" : team, position, organizationLevel: level, organizationTag: tag };
       const isPrimary = current.primaryOrganizationKey
         ? current.primaryOrganizationKey === organizationAssignmentKey(previous)
         : Boolean(previous.organizationTag) && current.primaryOrganizationTag === previous.organizationTag;
@@ -455,16 +457,16 @@ function OrganizationAssignmentsField({
               disabled={disabled}
               onChange={(value) => updateAssignment(index, "organizationLevel", value)}
               options={organizationLevelDropdownOptions()}
-              placeholder={disabled ? "Disabled" : "Select Organization Level"}
-              searchPlaceholder="Search organization level"
-              value={disabled ? "" : assignment.organizationLevel}
+              placeholder={disabled ? "Disabled" : "Select Position"}
+              searchPlaceholder="Search position"
+              value={disabled ? "" : assignment.position ?? positionForOrganizationTag(assignment.organizationTag)}
             />
             <SearchableDropdown
               disabled={disabled}
               onChange={(value) => updateAssignment(index, "organizationTag", value)}
-              options={organizationTeamDropdownOptions(assignment.organizationLevel)}
-              placeholder={disabled ? "Disabled" : "Select Unit / Team Tag"}
-              searchPlaceholder="Search unit or team tag"
+              options={teamsForPosition(assignment.position ?? positionForOrganizationTag(assignment.organizationTag))}
+              placeholder={disabled ? "Disabled" : "Select Team"}
+              searchPlaceholder="Search team"
               value={disabled ? "" : assignment.team ?? teamForOrganizationTag(assignment.organizationTag)}
             />
             <button
@@ -833,8 +835,11 @@ function ManagementDialogs({
         description={`Are you sure you want to delete ${dialog.user.name}?`}
         onClose={onClose}
         onConfirm={async () => {
+          const proof = await confirmDestructiveAction(`/users/${dialog.user.id}`, `User: ${dialog.user.name}`);
+          if (!proof) return;
           const response = await fetch(`/api/users/${dialog.user.id}`, {
             method: "DELETE",
+            headers: { "x-delete-proof": proof },
           });
           const data = await response.json().catch(() => ({}));
           if (!response.ok) {
@@ -1140,13 +1145,17 @@ function UserTable({
               <th className="px-5 py-4 font-bold">Name</th>
               <th className="px-5 py-4 font-bold">Mail</th>
               <th className="px-5 py-4 font-bold">Role</th>
+              <th className="px-5 py-4 font-bold">Team</th>
+              <th className="px-5 py-4 font-bold">Organization</th>
               <th className="px-5 py-4 font-bold">Status</th>
               <th className="px-5 py-4 font-bold">Action</th>
               <th className="px-5 py-4 font-bold">Last Login</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {users.map((user) => (
+            {users.map((user) => {
+              const primary = primaryOrganizationDisplay(user);
+              return (
               <tr className="cursor-pointer align-middle hover:bg-surface/50" key={user.id} onClick={() => onOpenDetail(user)}>
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-3">
@@ -1171,6 +1180,8 @@ function UserTable({
                     {roleLabels[user.systemRole]}
                   </span>
                 </td>
+                <td className="px-5 py-4 text-ink">{primary.team}</td>
+                <td className="px-5 py-4 text-ink">{primary.organization}</td>
                 <td className="px-5 py-4">
                   <StatusBadge isActive={user.isActive} />
                 </td>
@@ -1187,7 +1198,8 @@ function UserTable({
                   {formatDateTime(user.lastLoginAt)}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -1212,19 +1224,23 @@ export function UserManagementPage({
   const [detailUser, setDetailUser] = useState<UserManagementRow | null>(null);
   const [notice, setNotice] = useState("");
   const [roleFilter, setRoleFilter] = useState(filters.role);
-  const [statusFilter, setStatusFilter] = useState(filters.status);
+  const [teamFilter, setTeamFilter] = useState(filters.team ?? "ALL");
   useEffect(() => {
     setRoleFilter(filters.role);
-    setStatusFilter(filters.status);
-  }, [filters.role, filters.status]);
+    setTeamFilter(filters.team ?? "ALL");
+  }, [filters.role, filters.team]);
 
   const searchSuggestions = useMemo(() => users.flatMap((user) => {
-    const email = user.email ?? "Not Linked";
+    const email = user.provider === "LOCAL" ? "Local" : user.email ?? "Not Linked";
+    const primary = primaryOrganizationDisplay(user);
 
     return [
       { category: "NAME", label: user.name, searchText: `${email} ${roleLabels[user.systemRole]}`, value: user.name },
       { category: "MAIL", label: email, searchText: user.name, value: email },
       { category: "ROLE", label: roleLabels[user.systemRole], searchText: `${user.name} ${email}`, value: roleLabels[user.systemRole] },
+      { category: "TEAM", label: primary.team, searchText: user.name, value: primary.team },
+      { category: "ORGANIZATION", label: primary.organization, searchText: user.name, value: primary.organization },
+      { category: "ACCOUNT", label: user.localUsername ?? (user.provider === "LOCAL" ? "Local" : "Active Directory"), searchText: user.name, value: user.localUsername ?? (user.provider === "LOCAL" ? "Local" : "Active Directory") },
       ...tagPills(user).map((tag) => ({ category: "TAG", label: tag, searchText: `${user.name} ${email}`, value: tag })),
     ];
   }), [users]);
@@ -1275,10 +1291,13 @@ export function UserManagementPage({
             { label: "Mail", value: "MAIL" },
             { label: "Role", value: "ROLE" },
             { label: "Tag", value: "TAG" },
+            { label: "Team", value: "TEAM" },
+            { label: "Organization", value: "ORGANIZATION" },
+            { label: "Account", value: "ACCOUNT" },
           ]}
           defaultValue={filters.search}
           name="q"
-          placeholder="Search name, mail, role, tag"
+          placeholder="Search users, local accounts, teams, organizations..."
           suggestions={searchSuggestions}
         />
 
@@ -1292,16 +1311,12 @@ export function UserManagementPage({
         />
 
         <SearchableDropdown
-          name="status"
-          onChange={(value) => setStatusFilter(value as typeof statusFilter)}
-          options={[
-            { label: "All status", value: "ALL" },
-            { label: "Active", value: "ACTIVE" },
-            { label: "Blocked", value: "BLOCKED" },
-          ]}
-          placeholder="All status"
-          searchPlaceholder="Search status"
-          value={statusFilter}
+          name="team"
+          onChange={setTeamFilter}
+          options={[{ label: "All teams", value: "ALL" }, ...organizationTeams]}
+          placeholder="All teams"
+          searchPlaceholder="Search team"
+          value={teamFilter}
         />
 
         <button

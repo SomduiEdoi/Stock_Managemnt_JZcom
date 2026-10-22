@@ -5,7 +5,11 @@ import { readLimitedBody } from "@/lib/upload-limits";
 
 export async function POST(request: NextRequest) {
   try {
-    if (request.headers.get("origin") !== request.nextUrl.origin) return apiJson({ message: "Invalid request origin." }, { status: 403 });
+    const configuredUrl = process.env.APP_URL ? new URL(process.env.APP_URL) : null;
+    const expectedOrigin = configuredUrl && ["http:", "https:"].includes(configuredUrl.protocol)
+      ? configuredUrl.origin
+      : request.nextUrl.origin;
+    if (request.headers.get("origin") !== expectedOrigin) return apiJson({ message: "Invalid request origin." }, { status: 403 });
     const user = await requireApiUser(request);
     let json: unknown;
     try { json = JSON.parse(new TextDecoder().decode(await readLimitedBody(request, 16 * 1024))); }

@@ -501,14 +501,14 @@ export async function getPendingApprovalsForUser(user: CurrentUser) {
         batch.transactionId === approval.transaction.sourceTransactionId &&
         approval.transaction.type === "SOLD" &&
         approval.transaction.workflowStatus === TransactionWorkflowStatus.PENDING &&
-        approval.requiredTag === "BSD_STAFF";
+        approval.requiredTag === "BSD_HELP_DESK";
       if (batch.state !== "SUBMITTED" && !pendingSalePricing) return false;
     }
     if (approval.transaction.sourceTransactionId && !approval.requiredTag.startsWith("ACK_")) {
       const cycle = sourceApprovals.filter((candidate) =>
         candidate.transactionId === approval.transaction.sourceTransactionId &&
         candidate.resolutionBatchId === approval.resolutionBatchId &&
-        candidate.requiredTag !== "BSD_STAFF" && !candidate.requiredTag.startsWith("ACK_"));
+        candidate.requiredTag !== "BSD_HELP_DESK" && !candidate.requiredTag.startsWith("ACK_"));
       if (!cycle.some((candidate) => candidate.requiredTag.startsWith("STOREMAN:")) ||
           !cycle.every((candidate) => candidate.status === ApprovalStatus.APPROVED)) return false;
     }

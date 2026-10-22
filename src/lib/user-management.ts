@@ -13,6 +13,8 @@ import { WorkflowError } from "@/lib/workflow";
 import { createUserSchema, localUsernameSchema, type CreateManagedUserInput } from "@/lib/user-account-schema";
 import { createActiveDirectoryUser, createLocalUser } from "@/lib/user-account-providers";
 import { organizationAssignmentKey, teamForOrganizationTag } from "@/lib/organization-team-options";
+import { organizationTeams } from "@/lib/organization-team-options";
+import { userMatchesSearch, userMatchesTeam } from "@/lib/user-search";
 import {
   UserStatusFilter,
   UserSystemRole,
@@ -145,10 +147,6 @@ function isUserSystemRole(value: string | undefined): value is UserSystemRole {
   return userRoleOptions.includes(value as UserSystemRole);
 }
 
-function containsText(value: string, search: string) {
-  return value.toLowerCase().includes(search.toLowerCase());
-}
-
 function inferSystemRole(user: UserRecord): UserSystemRole {
   const roleCodes = user.roles.map(({ role }) => role.code);
 
@@ -186,6 +184,7 @@ function toRow(user: UserRecord): UserManagementRow {
 }
 
 function matchesUserFilters(user: UserManagementRow, filters: UserManagementFilters) {
+  if (!userMatchesTeam(user, filters.team)) return false;
   if (filters.role !== "ALL" && user.systemRole !== filters.role) {
     return false;
   }
@@ -202,22 +201,7 @@ function matchesUserFilters(user: UserManagementRow, filters: UserManagementFilt
     return true;
   }
 
-  const search = filters.search.toLowerCase();
-  const haystacks = [
-    user.email ?? "",
-    user.name,
-    user.position ?? "",
-    user.systemRole,
-    user.organizationLevel ?? "",
-    user.organizationTag ?? "",
-    ...user.organizationAssignments.map((assignment) => assignment.organizationLevel),
-    ...user.organizationAssignments.map((assignment) => assignment.organizationTag),
-    user.projectTag ?? "",
-    ...user.warehousePermissions.map((permission) => permission.warehouse.name),
-    ...user.warehousePermissions.map((permission) => permission.warehouse.code),
-  ];
-
-  return haystacks.some((value) => containsText(value, search));
+  return userMatchesSearch(user, filters.search);
 }
 
 function sortUsers(users: UserManagementRow[]) {
@@ -475,6 +459,7 @@ export function normalizeUserManagementFilters(
     role: isUserSystemRole(role) ? role : defaultFilters.role,
     search: firstParam(searchParams.q)?.trim() ?? defaultFilters.search,
     status: parseStatus(firstParam(searchParams.status)),
+    team: organizationTeams.some((team) => team.value === firstParam(searchParams.team)) ? firstParam(searchParams.team) : "ALL",
   };
 }
 

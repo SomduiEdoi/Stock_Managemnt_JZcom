@@ -2,7 +2,7 @@
 
 import { AssetStatus } from "@prisma/client";
 import { AssetTrackMethod, getEffectiveAssetTrackMethod } from "@/lib/asset-tracking";
-import Image from "next/image";
+import { AssetImagePreview } from "@/components/assets/asset-image-preview";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
@@ -551,16 +551,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
           <h2 className="text-xl font-bold text-navy">Asset Image</h2>
           <div className="mt-4">
             {form.imageRef ? (
-              <div className="relative aspect-square overflow-hidden rounded-md border border-border bg-white">
-                <Image
-                  alt={form.modelName}
-                  className="object-cover"
-                  fill
-                  sizes="(min-width: 1280px) 320px, 100vw"
-                  src={form.imageRef}
-                  unoptimized
-                />
-              </div>
+              <AssetImagePreview src={form.imageRef} alt={form.modelName} className="aspect-square w-full" sizes="(min-width: 1280px) 320px, 100vw" />
             ) : (
               <div className="flex aspect-square items-center justify-center rounded-md border border-border bg-surface">
                 <div className="text-center">

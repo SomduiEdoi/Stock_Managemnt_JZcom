@@ -15,7 +15,7 @@ describe("issue serial confirmation visibility", () => {
     expect(canConfirmIssueSerial({ ...eligible, type: "SOLD" })).toBe(true);
   });
   it.each([
-    { approvalTag: "STOREMAN:SALE_STOCK" }, { approvalTag: "C1_SUPERVISOR" },
+    { approvalTag: "STOREMAN:SALE_STOCK" }, { approvalTag: "CLOUD_ENGINEER" },
     { approvalTag: null }, { workflowStatus: "IN_PROGRESS" },
     { hasOutcomes: true }, { sourceTransactionId: "source" },
     { type: "RETURN" }, { type: "SOLD", sourceTransactionId: "source" }, { isSerialized: false },
