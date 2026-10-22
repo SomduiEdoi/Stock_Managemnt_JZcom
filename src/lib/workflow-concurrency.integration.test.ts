@@ -84,8 +84,8 @@ describe.skipIf(!enabled)("PostgreSQL workflow concurrency", () => {
 
     try {
       const storeRole = await db!.role.findUniqueOrThrow({ where: { code: "STOREMAN" } });
-      const requester = await db!.user.create({ data: { name: `${marker}-requester`, signatureDataUrl: "requester-signature" } });
-      const lead = await db!.user.create({ data: { name: `${marker}-lead`, signatureDataUrl: "lead-signature" } });
+      const requester = await db!.user.create({ data: { name: `${marker}-requester`, organizationTag: "SYSTEM_HELP_DESK", signatureDataUrl: "requester-signature" } });
+      const lead = await db!.user.create({ data: { name: `${marker}-lead`, organizationTag: "SYSTEM_ENGINEER", signatureDataUrl: "lead-signature" } });
       const storeman = await db!.user.create({ data: { name: `${marker}-storeman`, signatureDataUrl: "store-signature" } });
       const warehouse = await db!.assetWarehouse.create({ data: { code: `${marker}-WH`, prefix: `${marker}-WH`, name: marker } });
       await db!.userRole.create({ data: { userId: storeman.id, roleId: storeRole.id } });

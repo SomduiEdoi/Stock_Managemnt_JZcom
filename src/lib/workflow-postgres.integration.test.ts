@@ -31,8 +31,8 @@ describe.skipIf(!enabled)("PostgreSQL workflow with mandatory rollback", () => {
     try {
       await client!.$transaction(async (tx) => {
         context.tx = tx;
-        const requester = await tx.user.create({ data: { name: marker, organizationLevel: "MANAGER", organizationTag: "SERVICE_MANAGER", signatureDataUrl: "test-signature", roles: { create: { role: { connect: { code: "USER" } } } } } });
-        const lead = await tx.user.create({ data: { name: `${marker}-lead` } });
+        const requester = await tx.user.create({ data: { name: marker, organizationLevel: "STAFF", organizationTag: "SYSTEM_HELP_DESK", signatureDataUrl: "test-signature", roles: { create: { role: { connect: { code: "USER" } } } } } });
+        const lead = await tx.user.create({ data: { name: `${marker}-lead`, organizationTag: "SYSTEM_ENGINEER" } });
         const store = await tx.user.create({ data: { name: `${marker}-store`, roles: { create: { role: { connect: { code: "STOREMAN" } } } } } });
         const warehouse = await tx.assetWarehouse.create({ data: { code: marker, prefix: "QA", name: marker } });
         await tx.userWarehousePermission.createMany({ data: [
@@ -59,7 +59,7 @@ describe.skipIf(!enabled)("PostgreSQL workflow with mandatory rollback", () => {
         expect(await tx.asset.findUniqueOrThrow({ where: { id: serial.id }, select: { status: true, requestLockedById: true } })).toEqual({ status: "REQUEST", requestLockedById: requester.id });
         expect(await tx.transactionApproval.findUniqueOrThrow({ where: { id: oldLead.id }, select: { isCurrent: true, status: true } })).toEqual({ isCurrent: false, status: "APPROVED" });
         expect(await tx.transactionApproval.findUniqueOrThrow({ where: { id: oldReject.id }, select: { isCurrent: true, status: true, comment: true } })).toEqual({ isCurrent: false, status: "REJECTED", comment: "Add a server" });
-        expect(await tx.transactionApproval.count({ where: { transactionId: request.id, isCurrent: true, status: "PENDING" } })).toBe(2);
+        expect(await tx.transactionApproval.count({ where: { transactionId: request.id, isCurrent: true, status: "PENDING" } })).toBe(3);
         await addItemsToPendingTransaction(actor, request.id, { items: [{ assetId: stock.id, quantity: 1 }] });
         expect((await tx.transactionItem.findFirstOrThrow({ where: { transactionId: request.id, assetId: stock.id } })).requestedQuantity).toBe(3);
         await approveTransaction({ ...actor, id: lead.id }, request.id);
@@ -131,8 +131,8 @@ describe.skipIf(!enabled)("PostgreSQL workflow with mandatory rollback", () => {
     try {
       await client!.$transaction(async (tx) => {
         context.tx = tx;
-        const requester = await tx.user.create({ data: { name: marker } });
-        const lead = await tx.user.create({ data: { name: `${marker}-lead` } });
+        const requester = await tx.user.create({ data: { name: marker, organizationTag: "SYSTEM_HELP_DESK" } });
+        const lead = await tx.user.create({ data: { name: `${marker}-lead`, organizationTag: "SYSTEM_ENGINEER" } });
         const stores = await Promise.all(["A", "B"].map((code) => tx.user.create({ data: { name: `${marker}-${code}` } })));
         const warehouses = await Promise.all(["A", "B"].map((code) => tx.assetWarehouse.create({ data: { code: `${marker}-${code}`, prefix: `${marker}-${code}`, name: marker } })));
         const assets = [];
