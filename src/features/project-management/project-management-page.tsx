@@ -1,4 +1,5 @@
 "use client";
+import { confirmDestructiveAction } from "@/components/form/confirm-destructive-action";
 
 import { formatProjectLabel } from "@/lib/project-label";
 import { createPortal } from "react-dom";
@@ -432,7 +433,9 @@ function DeleteProjectModal({
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`/api/projects/${project.id}`, { method: "DELETE" });
+      const proof = await confirmDestructiveAction(`/projects/${project.id}`, `Project: ${project.name}`);
+      if (!proof) { setIsSubmitting(false); return; }
+      const response = await fetch(`/api/projects/${project.id}`, { method: "DELETE", headers: { "x-delete-proof": proof } });
       const data = (await response.json().catch(() => ({}))) as { message?: string };
 
       if (!response.ok) {

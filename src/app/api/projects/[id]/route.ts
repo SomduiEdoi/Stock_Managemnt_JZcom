@@ -65,10 +65,12 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 }
 
-export async function DELETE(_request: Request, context: RouteContext) {
+import { requireDeleteProof } from "@/lib/destructive-auth";
+export async function DELETE(request: Request, context: RouteContext) {
   try {
     const user = await requireCurrentUser("/project");
     const { id } = paramsSchema.parse(await context.params);
+    await requireDeleteProof(request, user.id, `/projects/${id}`);
     const project = await deleteProjectForAdmin(user, id);
 
     return apiJson({ project });

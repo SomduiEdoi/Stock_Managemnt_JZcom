@@ -43,14 +43,6 @@ export default async function LoginPage() {
             </Suspense>
           </div>
 
-          <footer className="mt-7 border-t border-border/25 pt-5 text-center">
-            <p className="text-xs leading-4 text-navy/80">
-              Need system access?{" "}
-              <span className="font-medium text-navy">
-                Contact Administrator
-              </span>
-            </p>
-          </footer>
         </section>
 
         <section className="mt-5 flex items-center justify-between px-3">

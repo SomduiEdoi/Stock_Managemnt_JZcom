@@ -8,7 +8,17 @@ vi.mock("@/lib/return-batch-service", () => ({ getReturnBatchReviews: vi.fn() })
 
 import { canEditRequestAtStatus, currentBatchApprovals, hasSubstantiveApproval, isReturnBatchEditable, needsReturnBatchMigration, needsResolutionMigration, sourceBatchFinalized, returnActionBlockedReason, excludeCancelledReturnOutcomes } from "./transaction-return-page";
 
-import { requiresBsdSalePricing, currentStepLabel, pendingOutcomeApproverLabel } from "./transaction-return-page";
+import { requiresBsdSalePricing, currentStepLabel, pendingOutcomeApproverLabel, isSupervisorApprovalTag } from "./transaction-return-page";
+
+describe("summary supervisor selection", () => {
+  it("includes direct reporting managers and legacy supervisors", () => {
+    expect(isSupervisorApprovalTag("DIRECT_MANAGER")).toBe(true);
+    expect(isSupervisorApprovalTag("PRT_SUPERVISOR")).toBe(true);
+  });
+  it("excludes stores, requesters, and acknowledgements", () => {
+    for (const tag of ["STOREMAN:SERVER", "REQUESTER", "ACK_WAREHOUSE_MANAGER", "BSD_HELP_DESK"]) expect(isSupervisorApprovalTag(tag)).toBe(false);
+  });
+});
 
 describe("project lead current-step labels", () => {
   function fixture(firstStatus: ApprovalStatus, secondStatus: ApprovalStatus, batch: string | null) {
@@ -47,11 +57,11 @@ describe("project lead current-step labels", () => {
 
 describe("BSD sale pricing", () => {
   it("requires prices for direct and derived sales without a source-link condition", () => {
-    expect(requiresBsdSalePricing("BSD_STAFF", "SOLD")).toBe(true);
+    expect(requiresBsdSalePricing("BSD_HELP_DESK", "SOLD")).toBe(true);
   });
   it("does not enable pricing for other roles or transaction types", () => {
     expect(requiresBsdSalePricing("STOREMAN:SALE_STOCK", "SOLD")).toBe(false);
-    expect(requiresBsdSalePricing("BSD_STAFF", "BORROW")).toBe(false);
+    expect(requiresBsdSalePricing("BSD_HELP_DESK", "BORROW")).toBe(false);
     expect(requiresBsdSalePricing(undefined, "SOLD")).toBe(false);
   });
 });
@@ -116,10 +126,10 @@ describe("batch-wide current step", () => {
 describe("derived SOLD source gate", () => {
   it("does not wait for its own BSD pricing or acknowledgements", () => {
     expect(sourceBatchFinalized([
-      approval("C1_SUPERVISOR", 2, ApprovalStatus.APPROVED),
+      approval("CLOUD_ENGINEER", 2, ApprovalStatus.APPROVED),
       approval("RETURN_CHECK:A", 3, ApprovalStatus.APPROVED),
       approval("STOREMAN:A", 4, ApprovalStatus.APPROVED),
-      approval("BSD_STAFF", 2), approval("ACK_BSD", 999),
+      approval("BSD_HELP_DESK", 2), approval("ACK_BSD", 999),
     ], "batch")).toBe(true);
   });
 

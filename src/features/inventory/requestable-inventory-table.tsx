@@ -1,4 +1,5 @@
 "use client";
+import { confirmDestructiveAction } from "@/components/form/confirm-destructive-action";
 
 import { AssetStatus } from "@prisma/client";
 import { CheckCircle2, ChevronDown, Columns3, Loader2, Package, Pin, Star, Trash2, X } from "lucide-react";
@@ -9,6 +10,8 @@ import * as XLSX from "xlsx";
 import { createPortal } from "react-dom";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AssetStatusBadge } from "@/components/status/asset-status-badge";
+import { AssetImagePreview } from "@/components/assets/asset-image-preview";
+import { useDropdownPosition } from "@/components/form/use-dropdown-position";
 import { assetStatusHexColors, assetStatusLabels } from "@/lib/status-style";
 import { formatWarehouseHeading } from "@/lib/display-labels";
 import { getEffectiveAssetTrackMethod } from "@/lib/asset-tracking";
@@ -82,11 +85,12 @@ type InventoryColumnKey =
 type CustomInventoryColumnKey = `custom:${string}`;
 type TableColumnKey = InventoryColumnKey | CustomInventoryColumnKey | "action";
 
-function normalizeTableColumns(columns: TableColumnKey[]): TableColumnKey[] {
+export function normalizeTableColumns(columns: TableColumnKey[]): TableColumnKey[] {
   const unique = [...new Set(columns)];
   return [
+    ...(unique.includes("image") ? ["image" as const] : []),
     "status",
-    ...unique.filter((column) => column !== "status" && column !== "action"),
+    ...unique.filter((column) => column !== "status" && column !== "action" && column !== "image"),
     "action",
   ];
 }
@@ -98,7 +102,7 @@ const inventoryColumnLabels = {
   category: "Category",
   createdAt: "Created",
   description: "Description",
-  image: "Image Ref",
+  image: "Image",
   location: "Location",
   model: "Model",
   modelNo: "Model No.",
@@ -278,6 +282,9 @@ function InventoryDataCell({
 }) {
   if (columnKey === "availability") {
     return <AvailabilityCell asset={asset} />;
+  }
+  if (columnKey === "image") {
+    return <td className="px-5 py-3"><AssetImagePreview src={asset.imageRef} alt={asset.assetModel.name} /></td>;
   }
 
   if (columnKey === "status" || columnKey === "action") {
@@ -692,8 +699,10 @@ function StatusMenuCell({
   onToggle: () => void;
 }) {
   const options = manualStatusTransitions[asset.status];
+  const triggerRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  useDismiss(isOpen, onToggle, [menuRef]);
+  const position = useDropdownPosition(isOpen, triggerRef, menuRef, 176);
+  useDismiss(isOpen, onToggle, [triggerRef, menuRef]);
   const displayStatus = getDisplayStatus(asset);
 
   if (!canChangeStatus || options.length === 0) {
@@ -701,9 +710,12 @@ function StatusMenuCell({
   }
 
   return (
-    <div ref={menuRef} className="relative inline-block">
+    <div ref={triggerRef} className="relative inline-block overflow-visible">
       <button
         className="inline-flex items-center gap-2 rounded-full focus:outline-none focus:ring-4 focus:ring-brand-accent/20"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        aria-label={`Change status for ${asset.id}`}
         onClick={(event) => {
           event.stopPropagation();
           onToggle();
@@ -714,27 +726,36 @@ function StatusMenuCell({
         <ChevronDown className="h-4 w-4 text-muted-foreground" />
       </button>
 
-      {isOpen ? (
+      {isOpen && typeof document !== "undefined" ? createPortal(
         <div
-          className="absolute left-0 top-full z-30 mt-2 w-44 rounded-md border border-border bg-white p-2 shadow-xl"
+          ref={menuRef}
+          role="menu"
+          aria-label="Asset status"
+          className="fixed z-[100] overflow-y-auto rounded-md border border-border bg-white p-2 shadow-xl"
+          style={{ ...position, visibility: position.width ? "visible" : "hidden" }}
           onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => {
+            event.stopPropagation();
+            if (event.key === "Escape") onToggle();
+          }}
         >
           {options.map((status) => (
             <button
-              className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm font-bold text-navy transition hover:bg-surface"
+              className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm font-bold text-navy transition hover:bg-surface"
+              role="menuitem"
               key={status}
               onClick={() => onSelect(asset, status)}
               type="button"
             >
               <span>{assetStatusLabels[status]}</span>
               <span
-                className="h-2.5 w-2.5 rounded-full"
+                className="h-2.5 w-2.5 shrink-0 rounded-full"
                 style={{ backgroundColor: assetStatusHexColors[status] }}
               />
             </button>
           ))}
         </div>
-      ) : null}
+      , document.body) : null}
     </div>
   );
 }
@@ -825,7 +846,7 @@ export function RequestableInventoryTable({
     };
   }, [activeAsset, canRequest]);
 
-  const defaultColumns: TableColumnKey[] = ["status", "category", "type", "brand", "model", "action"];
+  const defaultColumns: TableColumnKey[] = ["image", "status", "category", "type", "brand", "model", "action"];
   const customColumns = customFieldDefinitions.map((field): CustomInventoryColumnKey => `custom:${field.key}`);
   const productColumns: InventoryColumnKey[] = ["category", "type", "brand", "model", "serialNo", "stockCode", "location", "partNo", "description", "remark", "availability"];
   const selectableColumns: TableColumnKey[] = Array.from(
@@ -1046,8 +1067,11 @@ export function RequestableInventoryTable({
     setIsDeleting(true);
 
     try {
+      const proof = await confirmDestructiveAction(`/assets/${deleteAsset.id}`, `Asset: ${deleteAsset.assetModel.name} (${deleteAsset.stockCode ?? deleteAsset.serialNo ?? deleteAsset.id})`);
+      if (!proof) { setIsDeleting(false); return; }
       const response = await fetch(`/api/assets/${deleteAsset.id}`, {
         method: "DELETE",
+        headers: { "x-delete-proof": proof },
       });
       const data = (await response.json().catch(() => ({}))) as {
         message?: string;
@@ -1167,7 +1191,7 @@ export function RequestableInventoryTable({
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full border-collapse text-left text-sm">
-            <colgroup>{columns.map((key) => <col key={key} style={{ width: columnWidths[key] ? `${columnWidths[key]}px` : undefined }} />)}</colgroup>
+            <colgroup>{columns.map((key) => <col key={key} style={{ width: columnWidths[key] ? `${columnWidths[key]}px` : key === "image" ? "88px" : undefined }} />)}</colgroup>
             <thead className="bg-surface text-xs uppercase text-muted-foreground">
               <tr>
                 {columns.map((columnKey) => (
@@ -1202,7 +1226,7 @@ export function RequestableInventoryTable({
                 >
                   {columns.map((columnKey) =>
                     columnKey === "status" ? (
-                      <td className="sticky left-0 z-10 bg-white px-5 py-4" key={columnKey}>
+                      <td className="sticky left-0 z-10 overflow-visible bg-white px-5 py-4" key={columnKey}>
                         <StatusMenuCell
                           asset={asset}
                           canChangeStatus={canChangeStatus}

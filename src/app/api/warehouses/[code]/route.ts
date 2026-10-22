@@ -50,10 +50,12 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 }
 
+import { requireDeleteProof } from "@/lib/destructive-auth";
 export async function DELETE(request: Request, context: RouteContext) {
   try {
     const user = await requireCurrentUser("/dashboard");
     const { code } = paramsSchema.parse(await context.params);
+    await requireDeleteProof(request, user.id, `/warehouses/${encodeURIComponent(decodeURIComponent(code))}`);
     const result = await deleteWarehouseForUser(user, decodeURIComponent(code));
 
     return apiJson(result);

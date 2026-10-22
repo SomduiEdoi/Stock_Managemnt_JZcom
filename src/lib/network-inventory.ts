@@ -69,6 +69,7 @@ const defaultFilters: NetworkInventoryFilters = {
 };
 
 const networkAssetSelect = Prisma.validator<Prisma.AssetSelect>()({
+  imageRef: true,
   assetQuantity: true,
   id: true,
   locationText: true,

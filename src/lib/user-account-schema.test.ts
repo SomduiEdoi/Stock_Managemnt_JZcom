@@ -5,7 +5,7 @@ const base = { name: "Example", email: "example@example.com", role: "ADMIN" };
 const local = { ...base, provider: "LOCAL", username: "Example.User", password: "A-long-password-123!", confirmPassword: "A-long-password-123!" };
 describe("account creation validation", () => {
   it("accepts Warehouse Manager and preserves its existing authorization tag", () => {
-    const parsed = createUserSchema.parse({ ...local, organizationAssignments: [{ team: "WAREHOUSE", organizationLevel: "MANAGER", organizationTag: "MANAGER" }] });
+    const parsed = createUserSchema.parse({ ...local, organizationAssignments: [{ team: "WAREHOUSE", organizationLevel: "MANAGER", organizationTag: "WAREHOUSE_MANAGER" }] });
     expect(parsed.organizationAssignments?.[0]).toEqual({ team: "WAREHOUSE", organizationLevel: "MANAGER", organizationTag: "WAREHOUSE_MANAGER" });
   });
   it("accepts a six-character password containing every required class", () => expect(localPasswordSchema.safeParse("Aa1!bc").success).toBe(true));

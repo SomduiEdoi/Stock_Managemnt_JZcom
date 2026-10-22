@@ -3,7 +3,7 @@
 import { useLayoutEffect, useState, type RefObject } from "react";
 import { dropdownPosition } from "./dropdown-position";
 
-export function useDropdownPosition(open: boolean, trigger: RefObject<HTMLElement | null>, menu: RefObject<HTMLElement | null>) {
+export function useDropdownPosition(open: boolean, trigger: RefObject<HTMLElement | null>, menu: RefObject<HTMLElement | null>, minWidth = 0) {
   const [position, setPosition] = useState({ left: 0, top: 0, width: 0, maxHeight: 240 });
   useLayoutEffect(() => {
     if (!open) return;
@@ -15,7 +15,7 @@ export function useDropdownPosition(open: boolean, trigger: RefObject<HTMLElemen
         height: viewport?.height ?? window.innerHeight,
         left: viewport?.offsetLeft ?? 0,
         top: viewport?.offsetTop ?? 0,
-      });
+      }, minWidth);
       setPosition((current) => Object.keys(next).every((key) => current[key as keyof typeof next] === next[key as keyof typeof next]) ? current : next);
     }
     update();
@@ -33,6 +33,6 @@ export function useDropdownPosition(open: boolean, trigger: RefObject<HTMLElemen
       window.visualViewport?.removeEventListener("resize", update);
       window.visualViewport?.removeEventListener("scroll", update);
     };
-  }, [open, trigger, menu]);
+  }, [open, trigger, menu, minWidth]);
   return position;
 }

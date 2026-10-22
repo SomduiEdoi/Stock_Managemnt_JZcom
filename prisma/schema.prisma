@@ -14,43 +14,29 @@ enum RoleCode {
 }
 
 enum OrganizationLevel {
-  CONSULTANT
-  EXECUTIVE
   MANAGER
   SUPERVISOR
   STAFF
 }
 
 enum OrganizationTag {
-  STAFF
-  SUPERVISOR
-  MANAGER
-  EXECUTIVE
-  CONSULTANT
-  BSD_MANAGER
-  BSD_SUPERVISOR
-  BSD_STAFF
-  SC_MANAGER
-  SCN_MANAGER
-  S1_SUPERVISOR
-  S1_STAFF
-  N1_SUPERVISOR
-  N1_STAFF
-  C1_SUPERVISOR
-  C1_STAFF
-  DL_MANAGER
-  DL_SUPERVISOR
-  DL_STAFF
-  EN_MANAGER
-  CS_MANAGER
-  CMS_SUPERVISOR
-  CMS_STAFF
-  SD_SUPERVISOR
-  SD_STAFF
-  PRT_SUPERVISOR
-  PRT_STAFF
-  LOCAL_SUPERVISOR
-  LOCAL_STAFF
+  SERVICE_MANAGER
+  SOLUTION_ASST_MANAGER
+  SYSTEM_ENGINEER
+  SYSTEM_HELP_DESK
+  NETWORK_ENGINEER
+  NETWORK_HELP_DESK
+  CLOUD_ENGINEER
+  CLOUD_HELP_DESK
+  CUSTOMER_SERVICE_ENGINEER
+  CMS_ASST_ENGINEER
+  CMS_HELP_DESK
+  SERVICE_DESK_ASST_ENGINEER
+  SERVICE_DESK_1_HELP_DESK
+  SERVICE_DESK_2_HELP_DESK
+  DELIVERY_CLIENT_MANAGER
+  DELIVERY_CLIENT_HELP_DESK
+  BSD_HELP_DESK
   WAREHOUSE_MANAGER
 }
 
@@ -163,6 +149,16 @@ enum MigrationRowStatus {
 enum AuthProvider {
   AD
   LOCAL
+}
+
+model DestructiveConfirmation {
+  id        String   @id @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  scope     String
+  expiresAt DateTime @map("expires_at")
+
+  @@index([expiresAt])
+  @@map("destructive_confirmations")
 }
 
 model User {

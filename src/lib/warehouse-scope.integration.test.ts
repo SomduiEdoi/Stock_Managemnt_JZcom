@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { createDeleteProof } from "./destructive-auth";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { afterAll, describe, expect, it, vi } from "vitest";
@@ -43,12 +44,20 @@ const rollback = new Error("EXPECTED_SCOPE_TEST_ROLLBACK");
 afterAll(async () => {
   await client?.$disconnect();
 });
-const request = (url: string, body: unknown, method = "PATCH") =>
-  new NextRequest(`http://localhost${url}`, {
-    method,
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
+const request = async (url: string, body: unknown, method = "PATCH") => {
+  const result = new NextRequest(`http://localhost${url}`, {
+    method, headers: { "content-type": "application/json" }, body: JSON.stringify(body),
   });
+  if (method === "DELETE" || (method === "PUT" && JSON.stringify(body).includes('"delete":true'))) {
+    const id = randomUUID();
+    const scope = url.replace(/^\/api/, "");
+    const userId = context.user!.id;
+    const now = Date.now();
+    await context.tx!.destructiveConfirmation.create({ data: { id, userId, scope, expiresAt: new Date(now + 60000) } });
+    result.headers.set("x-delete-proof", createDeleteProof(userId, scope, now, id));
+  }
+  return result;
+};
 
 async function fixture(tx: Prisma.TransactionClient) {
   const marker = `QA-SCOPE-${randomUUID().slice(0, 16)}`.toUpperCase();
@@ -206,7 +215,7 @@ describe.skipIf(!enabled)(
                   };
             const url = `/api/warehouses/${f.b.code}/categories`;
             const response = await PUT(
-              request(
+              await request(
                 url,
                 {
                   categories: [
@@ -229,7 +238,7 @@ describe.skipIf(!enabled)(
           const before = await snapshot(tx, f);
           const url = `/api/warehouses/${f.b.code}/categories`;
           const response = await PUT(
-            request(
+            await request(
               url,
               {
                 categories: [
@@ -263,7 +272,7 @@ describe.skipIf(!enabled)(
         const before = await snapshot(tx, f);
         const url = `/api/warehouses/${f.b.code}/categories`;
         const response = await PUT(
-          request(
+          await request(
             url,
             {
               categories: [
@@ -286,7 +295,7 @@ describe.skipIf(!enabled)(
       run(async (tx, f) => {
         const url = `/api/warehouses/${f.b.code}/categories`;
         const response = await PUT(
-          request(
+          await request(
             url,
             {
               categories: [
@@ -335,7 +344,7 @@ describe.skipIf(!enabled)(
         const url = `/api/assets/${f.asset.id}`;
         expect(
           (
-            await editAsset(request(url, assetBody(f.b.code)), {
+            await editAsset(await request(url, assetBody(f.b.code)), {
               params: Promise.resolve({ id: f.asset.id }),
             })
           ).status,
@@ -360,12 +369,12 @@ describe.skipIf(!enabled)(
           const params = { params: Promise.resolve({ id: f.asset.id }) };
           const response =
             operation === "edit"
-              ? await editAsset(request(url, assetBody(f.a.code)), params)
+              ? await editAsset(await request(url, assetBody(f.a.code)), params)
               : operation === "delete"
-                ? await deleteAsset(request(url, {}, "DELETE"), params)
+                ? await deleteAsset(await request(url, {}, "DELETE"), params)
                 : operation === "status"
                   ? await changeStatus(
-                      request(`${url}/status`, {
+                      await request(`${url}/status`, {
                         status: "FAIL",
                         note: "Test",
                       }),
@@ -373,11 +382,11 @@ describe.skipIf(!enabled)(
                     )
                   : operation === "recommendation"
                     ? await recommendAsset(
-                        request(`${url}/recommendation`, { recommended: true }),
+                        await request(`${url}/recommendation`, { recommended: true }),
                         params,
                       )
                     : await createAsset(
-                        request("/api/assets", assetBody(f.a.code), "POST"),
+                        await request("/api/assets", assetBody(f.a.code), "POST"),
                       );
           expect(response.status).toBe(403);
           expect(await snapshot(tx, f)).toEqual(before);

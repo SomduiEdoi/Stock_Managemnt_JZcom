@@ -1,5 +1,5 @@
 ﻿import type { AssetActionType, AssetStatus } from "@prisma/client";
-import Image from "next/image";
+import { AssetImagePreview } from "@/components/assets/asset-image-preview";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -86,16 +86,7 @@ function warehouseLabel(asset: AssetDetailRecord) {
 function AssetImagePanel({ asset }: { asset: AssetDetailRecord }) {
   if (asset.imageRef) {
     return (
-      <div className="relative aspect-[6/8] overflow-hidden rounded-md border border-border bg-white">
-        <Image
-          alt={asset.assetModel.name}
-          className="object-cover"
-          fill
-          sizes="(min-width: 1280px) 360px, 100vw"
-          src={asset.imageRef}
-          unoptimized
-        />
-      </div>
+      <AssetImagePreview src={asset.imageRef} alt={asset.assetModel.name} className="aspect-[6/8] w-full" sizes="(min-width: 1280px) 360px, 100vw" />
     );
   }
 

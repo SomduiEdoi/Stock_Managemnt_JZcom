@@ -1,4 +1,5 @@
 import type { CurrentUser } from "@/lib/auth";
+import { organizationPosition } from "@/lib/organization-matrix";
 
 export const STOREMAN_REQUIRED_TAG = "STOREMAN";
 export const WAREHOUSE_MANAGER_REQUIRED_TAG = "WAREHOUSE_MANAGER";
@@ -10,9 +11,10 @@ export function requiresRequesterSupervisorApproval(type: string, serviceRequest
 }
 
 export function supervisorTagsForOrganizationTags(tags: Array<string | null | undefined>) {
-  return [...new Set(tags.filter((tag): tag is string => Boolean(tag)))]
-    .filter((tag) => tag.endsWith("_STAFF"))
-    .map((tag) => tag.replace(/_STAFF$/, "_SUPERVISOR"));
+  return [...new Set(tags.flatMap((tag) => {
+    const next = tag ? organizationPosition(tag)?.nextApproverRole : null;
+    return next ? [next] : [];
+  }))];
 }
 
 export function warehouseStockControllerRequiredTag(warehouseCode: string) {

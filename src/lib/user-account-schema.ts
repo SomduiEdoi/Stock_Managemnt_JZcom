@@ -5,8 +5,8 @@ import { organizationTagForTeam } from "@/lib/organization-team-options";
 export const organizationAssignmentSchema = z.object({
   organizationLevel: z.nativeEnum(OrganizationLevel),
   organizationTag: z.nativeEnum(OrganizationTag),
-  team: z.enum(["SYSTEM", "NETWORK", "CLOUD", "CMS", "SD", "PRT", "DL", "BSD", "SERVICE", "SOLUTION", "WAREHOUSE"]).nullable().optional(),
-}).transform((value) => ({ ...value, organizationTag: value.team ? organizationTagForTeam(value.team, value.organizationLevel) as OrganizationTag : value.organizationTag }));
+  team: z.enum(["SYSTEM", "NETWORK", "CLOUD", "CMS", "SD", "SD1", "SD2", "DL", "BSD", "SERVICE", "SOLUTION", "CUSTOMER_SERVICE", "WAREHOUSE"]).nullable().optional(),
+}).refine((value) => !value.team || organizationTagForTeam(value.team, value.organizationLevel) === value.organizationTag, "The position does not match the selected team and level.");
 
 export const localPasswordSchema = z.string()
   .min(6, "Password must contain at least 6 characters.")

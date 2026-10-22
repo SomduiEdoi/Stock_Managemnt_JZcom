@@ -216,7 +216,7 @@ async function createTransactionAcknowledgements(
   const recipients = new Map<string, { userId: string; requiredTag: string }>();
   const bsd = await findOrganizationApprover(
     tx,
-    OrganizationTag.BSD_STAFF,
+    OrganizationTag.BSD_HELP_DESK,
     transaction.requestedById,
   );
   if (bsd)
@@ -325,7 +325,7 @@ export async function saveSalePriceDraft(
     if (
       transaction.type !== TransactionType.SOLD ||
       transaction.workflowStatus !== TransactionWorkflowStatus.PENDING ||
-      approval?.requiredTag !== OrganizationTag.BSD_STAFF
+      approval?.requiredTag !== OrganizationTag.BSD_HELP_DESK
     ) {
       throw new WorkflowError(
         "Only the assigned BSD Staff can save prices at the sale approval step.",
@@ -674,7 +674,7 @@ export async function approveTransaction(
 
       const isBsdSaleApproval =
         !isAcknowledgement &&
-        currentApproval.requiredTag === OrganizationTag.BSD_STAFF &&
+        currentApproval.requiredTag === OrganizationTag.BSD_HELP_DESK &&
         transaction.type === TransactionType.SOLD;
       if (isBsdSaleApproval) {
         const pricing = calculateTransactionSalePricing(

@@ -1,4 +1,5 @@
 "use client";
+import { confirmDestructiveAction } from "@/components/form/confirm-destructive-action";
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -466,8 +467,11 @@ function DeleteWarehouseModal({
     setIsSubmitting(true);
 
     try {
+      const proof = await confirmDestructiveAction(`/warehouses/${encodeURIComponent(warehouse.code)}`, `Warehouse: ${warehouse.name}`);
+      if (!proof) { setIsSubmitting(false); return; }
       const response = await fetch(`/api/warehouses/${encodeURIComponent(warehouse.code)}`, {
         method: "DELETE",
+        headers: { "x-delete-proof": proof },
       });
       const data = await response.json().catch(() => ({}));
 

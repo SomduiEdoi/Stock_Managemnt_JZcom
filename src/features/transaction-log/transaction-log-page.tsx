@@ -597,7 +597,7 @@ function ApproveTable({ rows }: { rows: TransactionApprovalQueueRow[] }) {
                   {formatDate(row.returnRound?.createdAt ?? row.transaction.requestDate)}
                 </td>
                 <td className="px-5 py-4 font-semibold text-ink">
-                  {row.requiredTag === "BSD_STAFF" && row.transaction.type === "SOLD"
+                  {row.requiredTag === "BSD_HELP_DESK" && row.transaction.type === "SOLD"
                     ? "Sale pricing"
                     : row.requiredTag.startsWith("ACK_") ? "Acknowledgement" : `Step ${row.stepSequence}`}
                   <p className="mt-1 text-xs font-medium text-muted-foreground">
@@ -607,9 +607,9 @@ function ApproveTable({ rows }: { rows: TransactionApprovalQueueRow[] }) {
                 <td className="px-5 py-4">
                   <Link
                     className="inline-flex h-9 items-center justify-center rounded-md bg-navy px-3 text-sm font-bold text-white hover:bg-black"
-                    href={`/logs/${row.transaction.id}/return${row.requiredTag === "BSD_STAFF" && row.transaction.type === "SOLD" ? "#sale-pricing" : ""}`}
+                    href={`/logs/${row.transaction.id}/return${row.requiredTag === "BSD_HELP_DESK" && row.transaction.type === "SOLD" ? "#sale-pricing" : ""}`}
                   >
-                    {row.requiredTag === "BSD_STAFF" && row.transaction.type === "SOLD" ? "Enter prices" : "View Detail"}
+                    {row.requiredTag === "BSD_HELP_DESK" && row.transaction.type === "SOLD" ? "Enter prices" : "View Detail"}
                   </Link>
                 </td>
               </tr>

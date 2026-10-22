@@ -88,6 +88,7 @@ function cleanCode(value: string | null | undefined) {
   return cleaned || null;
 }
 
+import { requireDeleteProof } from "@/lib/destructive-auth";
 export async function PUT(request: NextRequest, context: RouteContext) {
   try {
     const user = await requireApiUser(request);
@@ -96,6 +97,9 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     assertCanManageWarehouse(user, warehouseCode);
 
     const body = saveCategoriesSchema.parse(await readJsonBody(request));
+    if (body.categories.some((category) => (category.id && category.delete) || category.types.some((type) => type.id && type.delete))) {
+      await requireDeleteProof(request, user.id, `/warehouses/${encodeURIComponent(warehouseCode)}/categories`);
+    }
     await db.$transaction(
       async (tx) => {
         assertCanManageWarehouse(user, warehouseCode);
