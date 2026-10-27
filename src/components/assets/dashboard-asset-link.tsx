@@ -6,7 +6,7 @@ import React, { type ReactNode } from "react";
 export function DashboardAssetLink({ assetId, isActive, children }: {
   assetId: string;
   isActive: boolean;
-  children: ReactNode;
+  children?: ReactNode;
 }) {
   const className = "cursor-pointer text-left hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy";
   if (!isActive) {
