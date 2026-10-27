@@ -148,7 +148,7 @@ export async function getReturnBatchReviews(user: CurrentUser, transactionId: st
     const canCheck = active && approvals.some((a) => a.requiredTag.startsWith("RETURN_CHECK:") && a.status === ApprovalStatus.PENDING && approvalMatchesUser(user, a) && isCurrent(a, approvals));
     const assigned = approvals.filter((a) => a.requiredTag.startsWith("RETURN_CHECK:") && approvalMatchesUser(user, a));
     const canDownload = active && checked && documentRequired && assigned.length > 0;
-    const canUpload = canDownload && Boolean(batch.damagePdf) && !batch.signedPdf &&
+    const canUpload = canDownload && Boolean(batch.damagePdf) &&
       approvals.some((a) => a.requiredTag.startsWith("STOREMAN:") && approvalMatchesUser(user, a)) &&
       !approvals.some((a) => a.requiredTag.startsWith("STOREMAN:") && a.status === ApprovalStatus.APPROVED);
     return { id, requestNo: batch.requestNo, phase: batch.state, requiresDocument: documentRequired, allChecked: checked, hasSignedDocument: Boolean(batch.signedPdf), canCheck, canDownload, canUpload, outcomes: await Promise.all(outcomes.map(async (o) => {

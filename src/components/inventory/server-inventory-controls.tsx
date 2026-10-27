@@ -1,5 +1,6 @@
 "use client";
 import { confirmDestructiveAction } from "@/components/form/confirm-destructive-action";
+import { duplicateTypePrefix } from "@/lib/type-prefix";
 
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -49,6 +50,7 @@ type CategoryGroup = {
 };
 
 type InventoryControlFilters = {
+  conditions?: string[];
   brands: string[];
   categories: string[];
   search: string;
@@ -126,6 +128,7 @@ function buildHref(
   appendValues(params, "category", nextFilters.categories);
   appendValues(params, "type", nextFilters.types);
   appendValues(params, "status", nextFilters.statuses);
+  appendValues(params, "condition", nextFilters.conditions ?? []);
 
   if (nextFilters.sortBy) {
     params.set("sort", nextFilters.sortBy);
@@ -141,6 +144,7 @@ function buildHref(
 function HiddenFilters({ filters }: { filters: InventoryControlFilters }) {
   return (
     <>
+      {(filters.conditions ?? []).map((condition) => <input key={`condition-${condition}`} name="condition" type="hidden" value={condition} />)}
       {filters.brands.map((brand) => (
         <input key={`brand-${brand}`} name="brand" type="hidden" value={brand} />
       ))}
@@ -222,21 +226,6 @@ function ManageCategoriesDialog({
     return index >= 0 ? index : null;
   });
 
-  const prefixOwners = useMemo(() => {
-    const owners = new Map<string, string[]>();
-
-    categories.forEach((category) => {
-      if (category.delete) return;
-      category.types.forEach((type) => {
-        if (type.delete) return;
-        const code = type.code.trim().toUpperCase();
-        if (!code) return;
-        owners.set(code, [...(owners.get(code) ?? []), type.id ?? `${category.name}:${type.name}`]);
-      });
-    });
-
-    return owners;
-  }, [categories]);
 
   const categoryPrefixOwners = useMemo(() => {
     const owners = new Map<string, string[]>();
@@ -256,7 +245,8 @@ function ManageCategoriesDialog({
 
     if (!code) return false;
 
-    return (prefixOwners.get(code)?.length ?? 0) > 1;
+    const category = categories.find((entry) => !entry.delete && entry.types.includes(type));
+    return Boolean(category && category.types.filter((entry) => !entry.delete && entry.code.trim().toUpperCase() === code).length > 1);
   }
 
   function updateCategory(index: number, patch: Partial<DraftCategory>) {
@@ -348,7 +338,7 @@ function ManageCategoriesDialog({
     const invalidType = activeTypes.find((type) => !type.name.trim());
     const invalidCategoryPrefix = activeCategories.find((category) => category.code.trim() && !/^[A-Za-z0-9]{2}$/.test(category.code.trim()));
     const duplicateCategoryPrefix = activeCategories.find(hasDuplicateCategoryPrefix);
-    const duplicatePrefix = activeTypes.find(hasDuplicatePrefix);
+    const duplicatePrefix = activeCategories.map((category) => duplicateTypePrefix(category.types)).find(Boolean);
     const activeFields = activeCategories.flatMap((category) => category.customFields.filter((field) => !field.delete));
     const invalidField = activeFields.find((field) => !field.label.trim() || !fieldKeyFromLabel(field.label));
     const tooManyFields = activeCategories.find((category) => category.customFields.filter((field) => !field.delete).length > 20);
@@ -369,7 +359,7 @@ function ManageCategoriesDialog({
     }
 
     if (duplicatePrefix) {
-      setError(`Prefix ${duplicatePrefix.code.trim().toUpperCase()} is duplicated in this warehouse.`);
+      setError(`Type prefix ${duplicatePrefix} is duplicated in the same category.`);
       return;
     }
 
@@ -826,6 +816,13 @@ function FilterDrawer({
             selectedTypes={filters.types}
           />
           <StatusCheckboxes selected={filters.statuses} statuses={statuses} />
+          <section className="mt-5 border-t border-border pt-4">
+            <h3 className="mb-3 text-sm font-bold text-ink">Condition</h3>
+            {["NEW", "USED"].map((condition) => <label key={condition} className="mb-2 flex items-center gap-2 text-sm text-ink">
+              <input type="checkbox" name="condition" value={condition} defaultChecked={filters.conditions?.includes(condition)} />
+              {condition}
+            </label>)}
+          </section>
 
           <div className="sticky bottom-0 -mx-6 mt-4 flex gap-3 border-t border-border bg-white px-6 py-4">
             <button
@@ -864,7 +861,7 @@ export function ServerInventoryControls({
 }: InventoryControlsProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const selectedCount =
-    filters.brands.length + filters.categories.length + filters.types.length + filters.statuses.length;
+    filters.brands.length + filters.categories.length + filters.types.length + filters.statuses.length + (filters.conditions?.length ?? 0);
   const searchSuggestions = useMemo(() => {
     const values = [
       ...brands.map((value) => ({ category: "BRAND", label: value, value })),

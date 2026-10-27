@@ -19,6 +19,7 @@ import { WorkflowError } from "@/lib/workflow";
 const assetEditSelect = Prisma.validator<Prisma.AssetSelect>()({
   assetNo: true,
   assetQuantity: true,
+  condition: true,
   assetModel: {
     select: {
       isSerialized: true,
@@ -144,6 +145,7 @@ export type AssetCreateResult =
   | { kind: "forbidden" };
 
 export type UpdateAssetInput = {
+  condition?: AssetCondition;
   assetNo?: string | null;
   brand?: string | null;
   categoryName?: string | null;
@@ -825,6 +827,7 @@ export async function updateAssetForUser(
         select: {
           warehouse: { select: { code: true } },
           assetQuantity: true,
+          condition: true,
           id: true,
           serialNo: true,
           status: true,
@@ -949,7 +952,7 @@ export async function updateAssetForUser(
           sourceRecordId,
           sourceSystem,
           specifications,
-          condition: Object.entries(specifications).some(([key, value]) => key.toLowerCase() === "used" && String(value).trim().toUpperCase() === "USED") ? AssetCondition.USED : AssetCondition.NEW,
+          condition: asset.condition,
           status: input.status,
           updatedById: user.id,
         },
@@ -1184,7 +1187,7 @@ export async function createAssetForUser(user: CurrentUser, input: CreateAssetIn
           sourceRecordId,
           sourceSystem,
           specifications,
-          condition: Object.entries(specifications).some(([key, value]) => key.toLowerCase() === "used" && String(value).trim().toUpperCase() === "USED") ? AssetCondition.USED : AssetCondition.NEW,
+          condition: input.condition ?? (Object.entries(specifications).some(([key, value]) => key.toLowerCase() === "used" && String(value).trim().toUpperCase() === "USED") ? AssetCondition.USED : AssetCondition.NEW),
           status: input.status,
           stockCode,
           updatedById: user.id,

@@ -44,7 +44,7 @@ function escapeHtml(value: string | number | null | undefined) {
     .replaceAll('"', "&quot;");
 }
 
-function signatureCard(signature: DamagePdfSignature) {
+function signatureCard(signature: DamagePdfSignature, manualName = false) {
   const date = signature.date ? new Date(signature.date) : null;
   const displayDate =
     date && !Number.isNaN(date.getTime())
@@ -65,15 +65,15 @@ function signatureCard(signature: DamagePdfSignature) {
       : "";
   return `<div class="signature-item">
     <div class="signature-line"><span class="signature-images">${image}</span></div>
-    <div class="signature-user">( ${escapeHtml(signature.name)} )</div>
+    ${manualName ? '<div class="signature-user signature-user-blank"><span>(</span><span>)</span></div>' : `<div class="signature-user">( ${escapeHtml(signature.name)} )</div>`}
     <div class="signature-date">Date : ${escapeHtml(displayDate)}</div>
   </div>`;
 }
 
-function signatureColumn(title: string, entries: DamagePdfSignature[]) {
+function signatureColumn(title: string, entries: DamagePdfSignature[], manualName = false) {
   const cards = entries.length ? entries : [{ name: "" }];
   return `<div class="signature"><div class="signature-label">${title}</div>
-    <div class="signature-items">${cards.map(signatureCard).join("")}</div></div>`;
+    <div class="signature-items">${cards.map((card) => signatureCard(card, manualName)).join("")}</div></div>`;
 }
 
 function table(items: DamagePdfItem[], offset: number) {
@@ -176,7 +176,7 @@ export function buildDamageDocumentHtml(
         ${signatureColumn("Requisition by / ผู้ขอ :", requester.slice(index * 3, index * 3 + 3))}
         ${signatureColumn("Lead Project / Supervisor :", input.signatures.lead.slice(index * 3, index * 3 + 3))}
         ${signatureColumn("Storeman / ผู้ดูแลคลัง :", input.signatures.storeman.slice(index * 6, index * 6 + 6))}
-        ${signatureColumn("Executive Authorized by / ผู้บริหาร :", [{ name: "" }])}
+        ${signatureColumn("Executive Authorized by / ผู้บริหาร :", [{ name: "" }], true)}
       </section>`;
       },
     );
@@ -194,6 +194,7 @@ export function buildDamageDocumentHtml(
     .damage-signatures .signature-items { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10pt; }
     .damage-signatures .signature:nth-child(3) .signature-items { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .damage-signatures .signature-item { min-width: 0; width: 100%; }
+    .damage-signatures .signature-user-blank { display: flex; justify-content: space-between; width: 100%; box-sizing: border-box; padding: 0 3pt; }
   </style></head>`,
   );
 }

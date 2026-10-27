@@ -4,6 +4,15 @@
 
 ## 1. ข้อมูลและประวัติ
 
+### Current Clarifications: 2026-10-27
+
+- Native `Asset.condition` (`NEW` / `USED`) เป็นแหล่งอ้างอิงสภาพสินค้า ไม่ใช้ custom field `used` เป็นข้อมูลหลัก; edit ต้องรักษาค่าเดิมเมื่อไม่ได้ส่ง condition ใหม่
+- การเพิ่ม stock จาก source ต้องสืบทอด effective tracking ของสินค้าเดิม ไม่อาศัย model flag เพียงอย่างเดียวเมื่อ serial number ไม่มีค่า; USED return target ต้องเป็น model/warehouse เดียวกัน, quantity-tracked, active, READY และ condition USED
+- Category prefix unique ภายใน warehouse; Type prefix unique เฉพาะภายใน category เดียวกัน อนุญาต SAS/SATA prefix เดียวกันในคนละ category โดยไม่เปลี่ยน stock code เดิม
+- เลือก signed PDF เป็น local draft ก่อน: Preview แล้วจึงยืนยันส่ง; เปลี่ยนไฟล์ได้ก่อน final Storeman approval เริ่มเท่านั้น หลังมี Storeman อนุมัติแม้หนึ่งคลัง API ต้องปฏิเสธการเปลี่ยนไฟล์
+- ใบขายจาก return ใช้ approved signature snapshots ของ return batch เดียวกันสำหรับ requester/approver/storeman และใช้ BSD sale-pricing authorization ของใบขาย ไม่เพิ่ม approval ใหม่ ไม่ยืมลายเซ็นจากรอบอื่นหรือ live signature
+- ไม่สร้าง `ACK_BSD` ใหม่; ไม่กระทบ BSD sale pricing หรือ `ACK_WAREHOUSE_MANAGER`. เก็บรายการประวัติเดิมไว้
+
 - Runtime ใช้ PostgreSQL; CSV/SharePoint เป็น import/bootstrap input
 - Business workflow ไม่ลบสินค้า ประวัติ Approval, Movement, Return และเอกสารต้องตรวจสอบย้อนหลังได้
 - เก็บ snapshots ของชื่อ/ตำแหน่ง ณ เวลาอนุมัติเพื่อใช้ตรวจสอบย้อนหลัง

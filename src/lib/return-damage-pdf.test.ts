@@ -127,7 +127,8 @@ describe("return damage PDF", () => {
       html.indexOf('<div class="signature-label">Executive Authorized'),
     );
     expect(executive.split("</section>")[0]).not.toContain("<img");
-    expect(executive).toContain("(  )");
+    expect(executive).toContain('<div class="signature-user signature-user-blank"><span>(</span><span>)</span></div>');
+    expect(html).toContain(".signature-user-blank { display: flex; justify-content: space-between;");
   });
 
   it("escapes all supplied text and rejects remote signature image sources", () => {

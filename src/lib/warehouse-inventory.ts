@@ -50,6 +50,7 @@ export type WarehouseInventoryFilters = {
   sortBy: InventorySortBy;
   sortDirection: InventorySortDirection;
   statuses: AssetStatus[];
+  conditions?: Array<"NEW" | "USED">;
   types: string[];
   favoriteOnly?: boolean;
 };
@@ -83,6 +84,7 @@ const warehouseInventoryAssetSelect = Prisma.validator<Prisma.AssetSelect>()({
   sourceRecordId: true,
   sourceSystem: true,
   serialNo: true,
+  condition: true,
   status: true,
   stockCode: true,
   updatedAt: true,
@@ -248,6 +250,7 @@ export function normalizeWarehouseInventoryFilters(
     sortBy: parseSortBy(firstParam(searchParams.sort)),
     sortDirection: parseSortDirection(firstParam(searchParams.dir)),
     statuses,
+    conditions: cleanValues(arrayParam(searchParams.condition)).filter((value): value is "NEW" | "USED" => value === "NEW" || value === "USED"),
     types: cleanValues(arrayParam(searchParams.type)),
     favoriteOnly: firstParam(searchParams.favorite) === "1",
   };
@@ -260,6 +263,7 @@ export function buildWarehouseInventoryWhere(warehouseCode: string, filters: War
     isActive: true,
     warehouse: { code: warehouseCode },
     ...(filters.statuses.length > 0 ? { status: { in: filters.statuses } } : {}),
+    ...(filters.conditions?.length ? { condition: { in: filters.conditions } } : {}),
     ...(clauses.length > 0 ? { AND: clauses } : {}),
     ...(filters.favoriteOnly && userId ? { favorites: { some: { userId } } } : {}),
   } satisfies Prisma.AssetWhereInput;

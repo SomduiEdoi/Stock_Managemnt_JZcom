@@ -1,6 +1,10 @@
 # Decision Log: Warehouse Management
 
-ทบทวนสถานะเอกสาร: 2026-10-16
+ทบทวนสถานะเอกสาร: 2026-10-27
+
+## 2026-10-27: Stock Condition, PDF Evidence And Acknowledgements
+
+Native NEW/USED condition replaces the legacy custom `used` field as the primary classification. Type prefix uniqueness is category-scoped. Signed PDFs support preview and explicit confirmation, with replacement allowed only before final Storeman approval starts. Return-derived sale PDFs display the matching return-round signature snapshots without requesting approval again. BSD acknowledgement is no longer created; BSD sale pricing and warehouse-manager acknowledgement remain. Earlier dated rules are historical and do not override these changes. See [Release Notes](release-20261027.md) for data corrections, verification limits and publication plan.
 
 > เอกสารประวัติ: ข้อความแต่ละหัวข้อเป็นการตัดสินใจ ณ วันนั้น ไม่ใช่กติกาปัจจุบันทั้งหมด อ่าน [Rules](rule.md) และ [Design](design.md) สำหรับ implementation ปัจจุบัน เก็บบันทึกเดิมไว้เพื่อ audit ไม่ลบประวัติ
 

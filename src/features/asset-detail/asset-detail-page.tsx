@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import type { AssetDetailRecord } from "@/lib/asset-detail";
 import { AssetStatusBadge } from "@/components/status/asset-status-badge";
+import { AssetConditionBadge } from "@/components/assets/asset-condition-badge";
 import { getEffectiveAssetTrackMethod } from "@/lib/asset-tracking";
 import { formatProjectLabel } from "@/lib/project-label";
 import { formatTransactionReference } from "@/lib/transaction-reference";
@@ -160,6 +161,7 @@ function AssetHeader({ asset, canManage }: AssetDetailPageProps) {
         </h1>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <AssetStatusBadge status={asset.status} />
+          <AssetConditionBadge condition={asset.condition} />
           <span className="text-sm font-medium text-muted-foreground">
             Last updated {formatDateTime(asset.updatedAt)}
           </span>

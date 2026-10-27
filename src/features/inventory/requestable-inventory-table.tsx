@@ -11,6 +11,7 @@ import { createPortal } from "react-dom";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AssetStatusBadge } from "@/components/status/asset-status-badge";
 import { AssetImagePreview } from "@/components/assets/asset-image-preview";
+import { AssetConditionBadge } from "@/components/assets/asset-condition-badge";
 import { useDropdownPosition } from "@/components/form/use-dropdown-position";
 import { assetStatusHexColors, assetStatusLabels } from "@/lib/status-style";
 import { formatWarehouseHeading } from "@/lib/display-labels";
@@ -18,6 +19,7 @@ import { getEffectiveAssetTrackMethod } from "@/lib/asset-tracking";
 import { readInventoryPreferences } from "./inventory-preferences";
 
 export type RequestableInventoryRow = {
+  condition?: "NEW" | "USED";
   assetNo?: string | null;
   assetModel: {
     isSerialized: boolean;
@@ -62,6 +64,7 @@ type SortKey =
 
 
 type InventoryColumnKey =
+  | "condition"
   | "assetNo"
   | "availability"
   | "brand"
@@ -96,6 +99,7 @@ export function normalizeTableColumns(columns: TableColumnKey[]): TableColumnKey
 }
 
 const inventoryColumnLabels = {
+  condition: "Condition",
   assetNo: "Asset No.",
   availability: "Total Qty",
   brand: "Brand",
@@ -195,6 +199,8 @@ function getInventoryColumnValue(
   columnKey: InventoryColumnKey,
 ) {
   switch (columnKey) {
+    case "condition":
+      return asset.condition ?? "NEW";
     case "assetNo":
       return asset.assetNo;
     case "brand":
@@ -280,6 +286,9 @@ function InventoryDataCell({
   asset: RequestableInventoryRow;
   columnKey: TableColumnKey;
 }) {
+  if (columnKey === "condition") {
+    return <td className="px-5 py-4"><AssetConditionBadge condition={asset.condition ?? "NEW"} /></td>;
+  }
   if (columnKey === "availability") {
     return <AvailabilityCell asset={asset} />;
   }
@@ -846,9 +855,9 @@ export function RequestableInventoryTable({
     };
   }, [activeAsset, canRequest]);
 
-  const defaultColumns: TableColumnKey[] = ["image", "status", "category", "type", "brand", "model", "action"];
+  const defaultColumns: TableColumnKey[] = ["image", "status", "condition", "category", "type", "brand", "model", "action"];
   const customColumns = customFieldDefinitions.map((field): CustomInventoryColumnKey => `custom:${field.key}`);
-  const productColumns: InventoryColumnKey[] = ["category", "type", "brand", "model", "serialNo", "stockCode", "location", "partNo", "description", "remark", "availability"];
+  const productColumns: InventoryColumnKey[] = ["condition", "category", "type", "brand", "model", "serialNo", "stockCode", "location", "partNo", "description", "remark", "availability"];
   const selectableColumns: TableColumnKey[] = Array.from(
     new Set<TableColumnKey>([
       ...defaultColumns.filter((key) => key !== "status" && key !== "action"),

@@ -24,6 +24,7 @@ import {
   assetStatusLabels,
 } from "@/lib/status-style";
 import { AssetStatusBadge } from "@/components/status/asset-status-badge";
+import { DashboardAssetLink } from "@/components/assets/dashboard-asset-link";
 
 type DashboardPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -243,7 +244,9 @@ function ActivityFeed({ activity }: { activity: RecentAssetActivity[] }) {
                 />
                 <div>
                   <p className="whitespace-nowrap text-sm font-bold leading-5 text-navy">
-                    {describeActivity(item)}
+                    <DashboardAssetLink assetId={item.asset.id} isActive={item.asset.isActive}>
+                      {describeActivity(item)}
+                    </DashboardAssetLink>
                   </p>
                   <div className="mt-1 flex items-center gap-2 whitespace-nowrap">
                     {badge.helperText ? (
@@ -331,7 +334,9 @@ function RecentTable({
             {rows.map((row) => (
               <tr className="align-middle" key={row.id}>
                 <td className="px-5 py-4 font-semibold text-navy">
-                  {row.asset.assetModel.name}
+                  <DashboardAssetLink assetId={row.asset.id} isActive={row.asset.isActive}>
+                    {row.asset.assetModel.name}
+                  </DashboardAssetLink>
                 </td>
                 <td className="px-5 py-4 text-muted-foreground">
                   {row.asset.assetModel.brand ?? "-"}

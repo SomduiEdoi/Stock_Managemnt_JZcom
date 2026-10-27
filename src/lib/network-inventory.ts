@@ -50,6 +50,7 @@ export type NetworkInventoryFilters = {
   sortBy: InventorySortBy;
   sortDirection: InventorySortDirection;
   statuses: AssetStatus[];
+  conditions?: Array<"NEW" | "USED">;
   types: string[];
   favoriteOnly?: boolean;
 };
@@ -77,6 +78,7 @@ const networkAssetSelect = Prisma.validator<Prisma.AssetSelect>()({
   isRecommended: true,
   recommendedAt: true,
   serialNo: true,
+  condition: true,
   status: true,
   stockCode: true,
   updatedAt: true,
@@ -236,6 +238,7 @@ export function normalizeNetworkInventoryFilters(
     sortBy: parseSortBy(firstParam(searchParams.sort)),
     sortDirection: parseSortDirection(firstParam(searchParams.dir)),
     statuses,
+    conditions: cleanValues(arrayParam(searchParams.condition)).filter((value): value is "NEW" | "USED" => value === "NEW" || value === "USED"),
     types: cleanValues(arrayParam(searchParams.type)),
     favoriteOnly: firstParam(searchParams.favorite) === "1",
   };
@@ -248,6 +251,7 @@ export function buildNetworkInventoryWhere(filters: NetworkInventoryFilters, use
     isActive: true,
     warehouse: { code: "NETWORK" },
     ...(filters.statuses.length > 0 ? { status: { in: filters.statuses } } : {}),
+    ...(filters.conditions?.length ? { condition: { in: filters.conditions } } : {}),
     ...(clauses.length > 0 ? { AND: clauses } : {}),
     ...(filters.favoriteOnly && userId ? { favorites: { some: { userId } } } : {}),
   } satisfies Prisma.AssetWhereInput;

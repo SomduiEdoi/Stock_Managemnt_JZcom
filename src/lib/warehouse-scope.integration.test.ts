@@ -174,6 +174,22 @@ async function snapshot(tx: Prisma.TransactionClient, f: Fixture) {
 describe.skipIf(!enabled)(
   "API warehouse ownership on PostgreSQL (mandatory rollback)",
   () => {
+    it("allows a type prefix already used in another category of the same warehouse", async () => run(async (tx, f) => {
+      const response = await PUT(await request(`/api/warehouses/${f.a.code}/categories`, { categories: [
+        { id: f.ca.id, name: f.ca.name, code: f.ca.code, types: [{ id: f.ta.id, name: f.ta.name, code: f.ta.code }] },
+        { name: "Another Category", code: "AC", types: [{ name: "Another Type", code: f.ta.code }] },
+      ] }, "PUT"), { params: Promise.resolve({ code: f.a.code }) });
+      expect(response.status).toBe(200);
+      expect(await tx.assetType.count({ where: { code: f.ta.code, category: { warehouseId: f.a.id } } })).toBe(2);
+    }));
+    it("rejects a prefix already stored in the same category", async () => run(async (tx, f) => {
+      const before = await snapshot(tx, f);
+      const response = await PUT(await request(`/api/warehouses/${f.a.code}/categories`, { categories: [
+        { id: f.ca.id, name: f.ca.name, code: f.ca.code, types: [{ name: "Duplicate Type", code: f.ta.code }] },
+      ] }, "PUT"), { params: Promise.resolve({ code: f.a.code }) });
+      expect(response.status).toBe(409);
+      expect(await snapshot(tx, f)).toEqual(before);
+    }));
     for (const operation of ["update", "delete"] as const) {
       for (const entity of ["category", "type", "field"] as const) {
         it(`returns 404 for cross-warehouse ${entity} ${operation}, with no writes`, async () =>

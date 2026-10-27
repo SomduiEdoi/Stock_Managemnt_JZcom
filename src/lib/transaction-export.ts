@@ -311,8 +311,22 @@ export function buildTransactionExportDocuments(
     }
     for (const [batchId, outcomes] of groups) {
       const sale = scopedDocument(derived, batchId);
+      const returnRound = batchId ? scopedDocument(transaction, batchId) : null;
+      const returnApprovals = (returnRound?.approvals ?? []).filter((approval) =>
+        approval.requiredTag !== "BSD_HELP_DESK" && !approval.requiredTag?.startsWith("ACK_"),
+      );
+      const hasReturnRequester = batchId && transaction.approvals.some((approval) =>
+        approval.isCurrent && approval.resolutionBatchId === batchId &&
+        approval.status === ApprovalStatus.APPROVED && approval.requiredTag === "REQUESTER",
+      );
       documents.push({
         ...sale,
+        requestedBy: hasReturnRequester ? returnRound!.requestedBy : sale.requestedBy,
+        requestDate: hasReturnRequester ? returnRound!.requestDate : sale.requestDate,
+        approvals: [
+          ...(sale.approvals ?? []).filter((approval) => !returnApprovals.some((source) => source.requiredTag === approval.requiredTag)),
+          ...returnApprovals,
+        ],
         sourceTransactionId: transaction.id,
         sourceTransaction: {
           id: transaction.id,
