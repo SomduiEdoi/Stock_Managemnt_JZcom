@@ -1,5 +1,11 @@
 # Workflow Implementation Verification
 
+## Incremental Verification: 2026-10-27
+
+Default full-suite run after the documentation update: `npm test -- --no-file-parallelism` completed with 631 passed and 27 skipped (64 files passed, 5 skipped). Opt-in PostgreSQL suites and PDF layout sample were not enabled; this result does not replace integration or browser acceptance.
+
+See [Release Notes](release-20261027.md#verification) for the scoped test results and remaining browser UAT. Latest transaction export/document regression run: 18 passed. Dashboard link rendering: 2 passed. Local typecheck reports the pre-existing ignored cleanup-script BigInt target error. No claim is made here that the latest combined changes were browser-tested, published or merged. Database corrections are recorded separately from deployable code.
+
 > Historical evidence, not a live status page. Each section applies only to its stated test date, environment and fixtures. Older pending steps and defects are not automatically current. Documentation reviewed 2026-10-16; current rules are in [Rules](rule.md), remaining work in [Tasks](task.md). Original fixture IDs and results below are intentionally preserved.
 
 ## Verification Summary: 2026-10-15

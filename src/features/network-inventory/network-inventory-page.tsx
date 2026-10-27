@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import {
+import {
   ArrowRightLeft,
   CheckCircle2,
   ClipboardList,
@@ -73,6 +73,7 @@ function buildNetworkPageHref(page: number, filters: NetworkInventoryFilters) {
   appendValues(params, "category", filters.categories);
   appendValues(params, "type", filters.types);
   appendValues(params, "status", filters.statuses);
+  appendValues(params, "condition", filters.conditions ?? []);
   params.set("sort", filters.sortBy);
   params.set("dir", filters.sortDirection);
   params.set("page", String(page));
@@ -279,6 +280,7 @@ export default async function NetworkInventoryPage({
           sortBy: filters.sortBy,
           sortDirection: filters.sortDirection,
           statuses: filters.statuses,
+          conditions: filters.conditions,
           types: filters.types,
         }}
         statuses={result.filterOptions.statuses.map((status) => ({

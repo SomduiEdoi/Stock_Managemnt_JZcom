@@ -100,6 +100,11 @@ describe.skipIf(!enabled)("PostgreSQL workflow with mandatory rollback", () => {
         expect(await tx.asset.findUniqueOrThrow({ where: { id: created.id }, select: { serialNo: true, assetQuantity: true, assetModel: { select: { isSerialized: true } } } })).toEqual({ serialNo: null, assetQuantity: 4, assetModel: { isSerialized: true } });
         const emptyStock = await createAssetForUser(actor, { ...input, modelName: "Empty stock QA", modelTrackMethod: "QUANTITY", quantity: 0 });
         expect((await tx.asset.findUniqueOrThrow({ where: { id: emptyStock.id } })).assetQuantity).toBe(0);
+        const usedStock = await createAssetForUser(actor, { ...input, modelName: "Tracking QA", quantity: 0, condition: "USED" });
+        expect((await tx.asset.findUniqueOrThrow({ where: { id: usedStock.id } })).condition).toBe("USED");
+        expect((await tx.asset.findUniqueOrThrow({ where: { id: usedStock.id } })).assetModelId).toBe((await tx.asset.findUniqueOrThrow({ where: { id: created.id } })).assetModelId);
+        await updateAssetForUser(actor, usedStock.id, { ...input, quantity: 0 });
+        expect((await tx.asset.findUniqueOrThrow({ where: { id: usedStock.id } })).condition).toBe("USED");
         await expect(createAssetForUser(actor, { ...input, modelName: "Invalid negative QA", modelTrackMethod: "QUANTITY", quantity: -1 })).rejects.toThrow("greater than or equal to 0");
         await updateAssetForUser(actor, created.id, { ...input, quantity: 0, note: "Prepare empty stock" });
         expect((await tx.asset.findUniqueOrThrow({ where: { id: created.id } })).assetQuantity).toBe(0);

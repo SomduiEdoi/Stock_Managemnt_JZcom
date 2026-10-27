@@ -31,6 +31,7 @@ type CategoryGroup = {
 };
 
 type NetworkInventoryControlFilters = {
+  conditions?: string[];
   brands: string[];
   categories: string[];
   search: string;

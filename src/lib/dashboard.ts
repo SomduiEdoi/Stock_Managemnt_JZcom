@@ -22,6 +22,7 @@ const recentAssetSelect = Prisma.validator<Prisma.AssetStatusHistorySelect>()({
   asset: {
     select: {
       id: true,
+      isActive: true,
       serialNo: true,
       status: true,
       assetModel: {

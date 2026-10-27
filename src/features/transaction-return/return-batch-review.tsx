@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Check, CheckCircle2, FileDown, Loader2, Save, Upload, Eye } from "lucide-react";
 
@@ -61,6 +61,14 @@ export function ReturnBatchReview({ transactionId, batches }: ReturnBatchReviewP
 function BatchReview({ batch, transactionId }: { batch: ReturnBatchReviewBatch; transactionId: string }) {
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
+  const [draftFile, setDraftFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!draftFile) { setPreviewUrl(null); return; }
+    const url = URL.createObjectURL(draftFile);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [draftFile]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [freshOptions, setFreshOptions] = useState<Record<string, ReturnBatchReviewOutcome["stockOptions"]>>({});
   const optionsFor = (outcome: ReturnBatchReviewOutcome) => freshOptions[outcome.id] ?? outcome.stockOptions;
@@ -163,6 +171,7 @@ function BatchReview({ batch, transactionId }: { batch: ReturnBatchReviewBatch; 
       form.set("file", file);
       const response = await fetch(`${baseUrl}/signed-document`, { method: "POST", body: form });
       await assertResponse(response, "Unable to upload signed PDF.");
+      setDraftFile(null);
       router.refresh();
     });
   }
@@ -254,11 +263,26 @@ function BatchReview({ batch, transactionId }: { batch: ReturnBatchReviewBatch; 
             <input ref={fileInput} type="file" accept=".pdf,application/pdf" aria-label="Signed PDF" className="hidden" disabled={pending !== null} onChange={(event) => {
               const file = event.target.files?.[0];
               event.target.value = "";
-              if (file) void uploadDocument(file);
+              if (file) {
+                setError(null);
+                if (file.size > 10 * 1024 * 1024 || !/\.pdf$/i.test(file.name)) {
+                  setError("Select a PDF no larger than 10 MiB.");
+                  return;
+                }
+                setDraftFile(file);
+              }
             }} />
           </>
         )}
       </div>
+      {batch.canUpload && draftFile && (
+        <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2 rounded-md border border-border p-3">
+          <span className="min-w-0 break-all text-sm text-ink">{draftFile.name}</span>
+          {previewUrl && <a className={buttonClass} href={previewUrl} target="_blank" rel="noopener noreferrer"><Eye aria-hidden="true" className="h-4 w-4" />Preview PDF</a>}
+          <button type="button" className={buttonClass} disabled={pending !== null || !previewUrl || changedNotes.length > 0} onClick={() => void uploadDocument(draftFile)}>Comfirm</button>
+          <button type="button" className={buttonClass} disabled={pending !== null} onClick={() => setDraftFile(null)}>Cancel</button>
+        </div>
+      )}
       {error && <p role="alert" className="mt-3 flex items-start gap-2 break-words text-sm text-red-700"><AlertCircle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" /><span className="min-w-0">{error}</span></p>}
     </div>
   );

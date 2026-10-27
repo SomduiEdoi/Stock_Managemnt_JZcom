@@ -53,7 +53,6 @@ import {
   updateSubmittedAsset,
   updateSubmittedQuantityAsset,
 } from "./stock-movement";
-import { findOrganizationApprover } from "./approval-routing";
 
 async function applyApprovedTransaction(
   tx: Prisma.TransactionClient,
@@ -214,16 +213,6 @@ async function createTransactionAcknowledgements(
     },
   });
   const recipients = new Map<string, { userId: string; requiredTag: string }>();
-  const bsd = await findOrganizationApprover(
-    tx,
-    OrganizationTag.BSD_HELP_DESK,
-    transaction.requestedById,
-  );
-  if (bsd)
-    recipients.set(`${bsd.id}:${ACK_BSD_REQUIRED_TAG}`, {
-      userId: bsd.id,
-      requiredTag: ACK_BSD_REQUIRED_TAG,
-    });
   for (const item of transaction.items) {
     if (!item.asset)
       throw new WorkflowError(

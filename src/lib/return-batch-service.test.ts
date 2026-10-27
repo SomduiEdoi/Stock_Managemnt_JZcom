@@ -118,6 +118,13 @@ describe("return batch gates", () => {
     await expect(uploadSignedReturnDocument(user, "source", "batch", { data: Buffer.from("%PDF-1.7"), filename: "signed.pdf" })).rejects.toMatchObject({ code: "SIGNED_DOCUMENT_LOCKED" });
   });
 
+  it("can replace an uploaded PDF before final approval", async () => {
+    mocks.batch.mockResolvedValue({ state: "SUBMITTED", damagePdf: Buffer.from("%PDF-generated"), signedPdf: Buffer.from("%PDF-old") });
+    mocks.approvals.mockResolvedValue([approval("RETURN_CHECK:A", "APPROVED"), approval("STOREMAN:A", "PENDING", 4)]);
+    await expect(uploadSignedReturnDocument(user, "source", "batch", { data: Buffer.from("%PDF-new"), filename: "replacement.pdf" })).resolves.toEqual({ uploaded: true });
+    expect(mocks.update).toHaveBeenCalledWith({ where: { id: "batch" }, data: expect.objectContaining({ signedFilename: "replacement.pdf", signedById: user.id }) });
+  });
+
   it("rejects non-PDF and oversized uploads", async () => {
     await expect(uploadSignedReturnDocument(user, "source", "batch", { data: Buffer.from("not pdf"), filename: "x.pdf" })).rejects.toMatchObject({ code: "INVALID_SIGNED_PDF" });
     await expect(uploadSignedReturnDocument(user, "source", "batch", { data: new Uint8Array(10 * 1024 * 1024 + 1), filename: "x.pdf" })).rejects.toMatchObject({ code: "INVALID_SIGNED_PDF" });

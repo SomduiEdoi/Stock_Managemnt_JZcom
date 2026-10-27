@@ -1,8 +1,10 @@
 ﻿"use client";
 
-import { AssetStatus } from "@prisma/client";
+import { AssetCondition, AssetStatus } from "@prisma/client";
 import { AssetTrackMethod, getEffectiveAssetTrackMethod } from "@/lib/asset-tracking";
+import { inheritedStockTracking } from "./inherited-stock-tracking";
 import { AssetImagePreview } from "@/components/assets/asset-image-preview";
+import { AssetConditionBadge } from "@/components/assets/asset-condition-badge";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
@@ -39,6 +41,7 @@ type AssetEditFormProps = {
 );
 
 type AssetEditFormState = {
+  condition: AssetCondition;
   brand: string;
   categoryName: string;
   customFields: Record<string, string>;
@@ -206,6 +209,7 @@ function validateAssetForm(
 }
 function toFormState(asset: AssetEditRecord): AssetEditFormState {
   return {
+    condition: asset.condition,
     brand: asset.assetModel.brand ?? "",
     categoryName: asset.assetModel.category?.name ?? "",
     customFields: Object.fromEntries(asset.customFieldValues.map((value) => [value.field.key, value.valueText ?? ""])),
@@ -227,6 +231,7 @@ function toFormState(asset: AssetEditRecord): AssetEditFormState {
 
 function createFormState(initialWarehouseCode: string): AssetEditFormState {
   return {
+    condition: AssetCondition.NEW,
     brand: "",
     categoryName: "",
     customFields: {},
@@ -317,7 +322,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
   const [form, setForm] = useState<AssetEditFormState>(() =>
     mode === "edit"
       ? toFormState(props.asset)
-      : props.template ? { ...toFormState(props.template), quantity: "", serialNo: "", status: AssetStatus.READY, customFields: { ...toFormState(props.template).customFields, ...Object.fromEntries((options.categories.find((category) => category.name === props.template?.assetModel.category?.name)?.customFields ?? []).filter((field) => field.key.toLowerCase() === "used").map((field) => [field.key, "USED"])) } } : createFormState(initialWarehouseCode ?? "SERVER"),
+      : props.template ? { ...toFormState(props.template), condition: AssetCondition.USED, quantity: "", serialNo: "", status: AssetStatus.READY, customFields: { ...toFormState(props.template).customFields, ...Object.fromEntries((options.categories.find((category) => category.name === props.template?.assetModel.category?.name)?.customFields ?? []).filter((field) => field.key.toLowerCase() === "used").map((field) => [field.key, "USED"])) } } : createFormState(initialWarehouseCode ?? "SERVER"),
   );
   const [isSaving, setIsSaving] = useState(false);
 
@@ -395,6 +400,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
       const response = await fetch(saveUrl, {
         body: JSON.stringify({
           brand: form.brand,
+          ...(mode === "create" ? { condition: form.condition } : {}),
           customFields: form.customFields,
           categoryName: form.categoryName,
           description: form.description,
@@ -470,9 +476,10 @@ export function AssetEditForm(props: AssetEditFormProps) {
     model.partNo === (form.partNo || null) &&
     model.name === form.modelName
   );
-  const modelTrackMethod = selectedAssetModel
+  const inheritedTrackMethod = mode === "create" ? inheritedStockTracking(props.template, form) : null;
+  const modelTrackMethod = inheritedTrackMethod ?? (selectedAssetModel
     ? selectedAssetModel.isSerialized ? AssetTrackMethod.SERIAL : AssetTrackMethod.QUANTITY
-    : form.modelTrackMethod ?? AssetTrackMethod.SERIAL;
+    : form.modelTrackMethod ?? AssetTrackMethod.SERIAL);
   const trackMethod = getEffectiveAssetTrackMethod({
     assetModel: { isSerialized: modelTrackMethod === AssetTrackMethod.SERIAL },
     serialNo: form.serialNo,
@@ -687,7 +694,7 @@ export function AssetEditForm(props: AssetEditFormProps) {
             </div>
             <Field label="Tracking Method" required>
               <SearchableDropdown
-                disabled={Boolean(selectedAssetModel)}
+                disabled={Boolean(inheritedTrackMethod || selectedAssetModel)}
                 onChange={(value) => setAssetTrackingMethod(value as AssetTrackMethod)}
                 options={[
                   { label: "Serialized", value: AssetTrackMethod.SERIAL },
@@ -698,6 +705,16 @@ export function AssetEditForm(props: AssetEditFormProps) {
                 value={modelTrackMethod}
               />
             </Field>
+            {mode === "create" ? (
+              <Field label="Condition" required>
+                <SearchableDropdown
+                  onChange={(value) => setField("condition", value as AssetCondition)}
+                  options={[{ label: "NEW", value: AssetCondition.NEW }, { label: "USED", value: AssetCondition.USED }]}
+                  placeholder="Select condition"
+                  value={form.condition}
+                />
+              </Field>
+            ) : <Field label="Condition"><div className="flex h-11 items-center"><AssetConditionBadge condition={form.condition} /></div></Field>}
             {modelTrackMethod === AssetTrackMethod.SERIAL ? (
               <Field error={fieldErrors.serialNo} label="Serial Number">
                 <Input

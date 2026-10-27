@@ -270,6 +270,12 @@ describe("transaction export document mapping", () => {
       soldPrice: new Prisma.Decimal(100),
     });
     data.items[0].outcomes = [postedSale];
+    data.approvals.push(
+      approval("Return sale requester", "REQUESTER", "sale-batch"),
+      approval("Return sale lead", "DIRECT_MANAGER", "sale-batch"),
+      approval("Return sale store", "STOREMAN:SERVER", "sale-batch"),
+      approval("Wrong round lead", "DIRECT_MANAGER", "wrong-round"),
+    );
     const sale = transaction({
       id: "sale",
       type: TransactionType.SOLD,
@@ -304,6 +310,8 @@ describe("transaction export document mapping", () => {
       "BSD sale",
       "BSD acknowledge only",
       "Manager acknowledge only",
+      "Return sale lead",
+      "Return sale store",
     ]);
     const html = buildTransactionExportDocumentHtml(data);
     const pages = html.match(/<main [\s\S]*?<\/main>/g)!;
@@ -311,6 +319,10 @@ describe("transaction export document mapping", () => {
     expect(pages[0]).toContain("Issue lead");
     expect(pages[1]).not.toContain("Issue lead");
     expect(pages[1]).toContain("BSD sale");
+    expect(pages[1]).toContain("Return sale requester");
+    expect(pages[1]).toContain("Return sale lead");
+    expect(pages[1]).toContain("Return sale store");
+    expect(pages[1]).not.toContain("Wrong round lead");
     expect(pages[1]).not.toContain("BSD acknowledge only");
     expect(pages[1]).not.toContain("Manager acknowledge only");
     expect(pages[1]).toContain("from REQ-SOURCE");

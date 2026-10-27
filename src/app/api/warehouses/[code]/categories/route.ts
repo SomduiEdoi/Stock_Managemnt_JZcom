@@ -10,6 +10,7 @@ import {
 import { db } from "@/lib/db";
 import { assertCanManageWarehouse } from "@/lib/permissions";
 import { WorkflowError } from "@/lib/workflow";
+import { duplicateTypePrefix } from "@/lib/type-prefix";
 
 const customFieldInputSchema = z.object({
   assetTypeId: z.string().uuid().optional().nullable(),
@@ -263,20 +264,6 @@ export async function PUT(request: NextRequest, context: RouteContext) {
         const submittedTypes = body.categories
           .filter((category) => !category.delete)
           .flatMap((category) => category.types.filter((type) => !type.delete));
-        const submittedCodes = submittedTypes
-          .map((type) => cleanCode(type.code))
-          .filter((typeCode): typeCode is string => Boolean(typeCode));
-        const duplicateSubmittedCode = submittedCodes.find(
-          (typeCode, index) => submittedCodes.indexOf(typeCode) !== index,
-        );
-
-        if (duplicateSubmittedCode) {
-          throw new WorkflowError(
-            `Prefix ${duplicateSubmittedCode} is already used.`,
-            409,
-            "TYPE_CODE_DUPLICATED",
-          );
-        }
         const submittedExistingTypeIds = submittedTypes
           .map((type) => type.id)
           .filter((id): id is string => Boolean(id));
@@ -307,29 +294,23 @@ export async function PUT(request: NextRequest, context: RouteContext) {
           }
         }
 
-        if (submittedCodes.length > 0) {
-          const submittedIds = submittedTypes
-            .map((type) => type.id)
-            .filter((id): id is string => Boolean(id));
+        for (const category of body.categories.filter((entry) => !entry.delete)) {
+          const activeTypes = category.types.filter((type) => !type.delete);
+          const duplicate = duplicateTypePrefix(activeTypes);
+          if (duplicate) throw new WorkflowError(`Type prefix ${duplicate} is already used in this category.`, 409, "TYPE_CODE_DUPLICATED");
+          const codes = activeTypes.map((type) => cleanCode(type.code)).filter((code): code is string => Boolean(code));
+          if (!codes.length) continue;
+          const submittedIds = activeTypes.flatMap((type) => type.id ? [type.id] : []);
           const existingCode = await tx.assetType.findFirst({
             select: { code: true },
             where: {
-              category: { warehouseId: warehouse.id },
-              code: { in: submittedCodes },
+              category: { warehouseId: warehouse.id, ...(category.id ? { id: category.id } : { name: category.name }) },
+              code: { in: codes },
               isActive: true,
-              ...(submittedIds.length > 0
-                ? { NOT: { id: { in: submittedIds } } }
-                : {}),
+              ...(submittedIds.length ? { NOT: { id: { in: submittedIds } } } : {}),
             },
           });
-
-          if (existingCode?.code) {
-            throw new WorkflowError(
-              `Prefix ${existingCode.code} is already used.`,
-              409,
-              "TYPE_CODE_DUPLICATED",
-            );
-          }
+          if (existingCode?.code) throw new WorkflowError(`Type prefix ${existingCode.code} is already used in this category.`, 409, "TYPE_CODE_DUPLICATED");
         }
 
         for (const categoryInput of body.categories) {

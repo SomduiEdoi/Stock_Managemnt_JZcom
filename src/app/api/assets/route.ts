@@ -1,4 +1,4 @@
-import { AssetStatus } from "@prisma/client";
+import { AssetCondition, AssetStatus } from "@prisma/client";
 import { AssetTrackMethod } from "@/lib/asset-tracking";
 import { NextRequest } from "next/server";
 import { z } from "zod";
@@ -12,6 +12,7 @@ const nullableString = (max: number) =>
   z.string().trim().max(max).optional().nullable();
 
 const createAssetSchema = z.object({
+  condition: z.nativeEnum(AssetCondition).optional(),
   assetNo: nullableString(255),
   brand: z.string().trim().min(1).max(255),
   customFields: z.record(z.string(), nullableString(2000)).optional().default({}),

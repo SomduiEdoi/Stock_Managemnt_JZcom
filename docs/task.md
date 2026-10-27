@@ -1,10 +1,24 @@
 # Task Status: Warehouse Management
 
-อัปเดตเอกสาร: 2026-10-16
-หลักฐานทดสอบล่าสุด: 2026-10-16
+อัปเดตเอกสาร: 2026-10-27
+หลักฐานทดสอบล่าสุด: 2026-10-27 (ขอบเขตตาม release notes)
 [x] ใช้งาน/ตรวจแล้วในขอบเขตที่ระบุ; [~] มีบางส่วน/ยังไม่ตรวจรับครบ; [ ] ยังไม่มีหลักฐานว่าครบ
 
 ## 1. Implemented Baseline
+
+### Incremental Update: 2026-10-27
+
+- [x] Native Condition badge/column/filter และ inherited tracking สำหรับ stock ที่สร้างจากสินค้าเดิม
+- [x] Type prefix uniqueness ภายใน category; API และ UI ใช้เงื่อนไขเดียวกัน
+- [x] Signed PDF draft preview, explicit upload confirmation, replace ก่อน final approval
+- [x] ลายเซ็นใบขายจาก return batch เดียวกัน และช่องชื่อผู้บริหารใน damage PDF
+- [x] Recently/Activity Feed คลิกชื่อสินค้าได้; deleted asset แจ้งเตือนแทนลิงก์เสีย
+- [x] หยุดสร้าง BSD acknowledgement; retire pending เดิมโดยเก็บประวัติ
+- [ ] Browser UAT ของ preview/replace/locked PDF, dashboard links และใบขายฉบับจริง
+- [x] Commit และ push ชุด 2026-10-27 ผ่าน [PR #4](https://github.com/SomduiEdoi/Stock_Managemnt_JZcom/pull/4); ดูสถานะ CI/merge ล่าสุดที่ PR ไม่ใช้เอกสารนี้เป็น live status
+- [~] Local typecheck ยังติด ignored `prisma/clean-data.ts:148` (BigInt / target ES2020); อย่านำ cleanup script ขึ้น Git เพื่อแก้ปัญหานี้
+
+รายละเอียดและขอบเขต database deployment: [Release Notes](release-20261027.md)
 
 - [x] Runtime PostgreSQL, Prisma migrations และ import audit
 - [x] RoleCode ADMIN / STOREMAN / USER, หลาย Organization Assignments และ primary context
