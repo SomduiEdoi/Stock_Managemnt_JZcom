@@ -15,7 +15,7 @@
 - [x] Recently/Activity Feed คลิกชื่อสินค้าได้; deleted asset แจ้งเตือนแทนลิงก์เสีย
 - [x] หยุดสร้าง BSD acknowledgement; retire pending เดิมโดยเก็บประวัติ
 - [ ] Browser UAT ของ preview/replace/locked PDF, dashboard links และใบขายฉบับจริง
-- [ ] Commit/PR/CI/merge ของชุด 2026-10-27; ยังไม่ถือว่าส่งขึ้น GitHub แล้ว
+- [x] Commit และ push ชุด 2026-10-27 ผ่าน [PR #4](https://github.com/SomduiEdoi/Stock_Managemnt_JZcom/pull/4); ดูสถานะ CI/merge ล่าสุดที่ PR ไม่ใช้เอกสารนี้เป็น live status
 - [~] Local typecheck ยังติด ignored `prisma/clean-data.ts:148` (BigInt / target ES2020); อย่านำ cleanup script ขึ้น Git เพื่อแก้ปัญหานี้
 
 รายละเอียดและขอบเขต database deployment: [Release Notes](release-20261027.md)
